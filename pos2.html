@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-<link rel="manifest" href="manifest.json">
+    <link rel="manifest" href="manifest.json">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>POS Noir V5.3.0</title>
@@ -9,6 +9,11 @@
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: "Courier New", Courier, monospace; }
         body { background: #0a0a0a; color: #fff; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; transition: background-color 0.3s; }
         
+        /* КРАСИВЫЙ ТОНКИЙ СКРОЛЛБАР ДЛЯ ПК */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+
         .header-area { flex-shrink: 0; border-bottom: 1px solid #222; }
         .modes { display: flex; padding: 4px; gap: 4px; }
         .m-btn { flex: 1; padding: 12px; border: 1px solid #333; background: #111; color: #444; font-weight: 900; border-radius: 4px; font-size: 13px; text-transform: uppercase; transition: 0.2s; }
@@ -18,13 +23,13 @@
         .search-area { padding: 0 4px 4px; }
         .s-input { width: 100%; background: #141414; color: #fff; border: 1px solid #333; border-radius: 4px; padding: 10px; font-size: 14px; outline: none; }
 
-        .list-header { display: flex; padding: 4px 10px; font-size: 10px; color: #666; font-weight: bold; border-bottom: 1px solid #222; }
-        .lh-name { flex-grow: 1; }
-        /* ИСПРАВЛЕН СДВИГ ЦЕНЫ НА ~3мм ВЛЕВО */
-        .lh-price { width: 85px; text-align: right; padding-right: 25px; } 
-        .lh-stock { width: 45px; text-align: center; } 
+        /* УМНАЯ ШАПКА: Идеально ровная на ПК и Телефоне */
+        .list-header { display: flex; align-items: center; gap: 8px; padding: 4px 14px; font-size: 10px; color: #666; font-weight: bold; border-bottom: 1px solid #222; }
+        @media (pointer: fine) { .list-header { padding-right: 20px; } } /* Сдвиг на 6px только для ПК */
 
-        #catalog { flex-grow: 1; overflow-y: auto; padding: 4px; border-bottom: 1px solid #222; }
+        /* min-height: 0; спасает нижнюю панель от вытеснения за экран */
+        #catalog { flex-grow: 1; overflow-y: auto; padding: 4px; border-bottom: 1px solid #222; min-height: 0; }
+        
         .c-item { background: #141414; border: 1px solid #222; border-radius: 4px; padding: 8px 10px; margin-bottom: 3px; display: flex; align-items: center; gap: 8px; }
         .i-name { flex-grow: 1; font-size: 12px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .i-price { width: 85px; font-size: 13px; font-weight: bold; text-align: right; color: #fff; }
@@ -41,7 +46,6 @@
         .qty-box { display: flex; align-items: center; background: #000; border: 1px solid #333; border-radius: 4px; }
         .q-btn { background: #1a1a1a; color: #f1c40f; width: 38px; height: 38px; border: none; font-size: 20px; cursor: pointer; }
         .q-val { width: 80px; height: 38px; text-align: center; font-size: 16px; font-weight: bold; background: transparent; border: none; color: #fff; outline: none; border-left: 1px solid #333; border-right: 1px solid #333; }
-        
         .p-input { width: 85px; height: 38px; background: #000; color: #f1c40f; border: 1px solid #333; text-align: right; padding: 8px; border-radius: 4px; font-size: 15px; font-weight: bold; outline: none; }
         
         .footer { flex-shrink: 0; padding: 6px 4px; border-top: 1px solid #222; }
@@ -69,11 +73,6 @@
         .modal-btns { display: flex; gap: 10px; margin-top: 25px; }
         .cancel-btn { flex: 1; padding: 15px; background: #333; color: #fff; border: 1px solid #555; border-radius: 4px; font-weight: bold; cursor: pointer; text-transform: uppercase; font-size: 12px; }
         .confirm-btn { flex: 2; padding: 15px; background: #2ecc71; color: #000; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; text-transform: uppercase; font-size: 14px; }
-
-/* Кастомный тонкий скроллбар для ПК */
-::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
     </style>
 </head>
 <body>
@@ -83,30 +82,29 @@
             <button id="ms" class="m-btn active-s" onclick="sm('sale')">ПРОДАЖА</button>
             <button id="mr" class="m-btn" onclick="sm('return')">ВОЗВРАТ</button>
         </div>
+        
         <div class="search-area" style="display: flex; gap: 10px;">
-    <input type="text" id="sb" class="s-input" placeholder="ПОИСК..." onkeyup="filter()" style="flex-grow: 1; margin: 0;">
-    <button id="btn-update" onclick="forceAppUpdate();" style="padding: 0 15px; background: #222; color: #eee; border: 1px solid #555; border-radius: 4px; cursor: pointer; white-space: nowrap; font-family: inherit;">
-        🔄 Обновить
-    </button>
-</div>
-        <div class="list-header" style="display: flex; align-items: center; gap: 8px; padding: 4px 14px;">
-    
-    <!-- Левая часть: Название и бейджик (занимают всё свободное место) -->
-    <div style="flex-grow: 1; display: flex; align-items: center; gap: 10px;">
-        <span>НАИМЕНОВАНИЕ</span>
-        <span id="app-version" style="font-size: 9px; color: #888; font-family: monospace; background: #1a1a1a; padding: 2px 6px; border-radius: 6px; border: 1px solid #333; text-transform: lowercase; letter-spacing: normal;">v: --</span>
-    </div>
-    
-    <!-- Правая часть: Цена (строго 85px) -->
-    <div style="width: 85px; text-align: right;">ЦЕНА</div>
-    
-    <!-- Правая часть: Остаток (строго 45px) -->
-    <div style="width: 45px; text-align: center;">ОСТ</div>
-    
-    <!-- НЕВИДИМАЯ РАСПОРКА: Имитирует ширину скроллбара (6px) -->
-    <div style="width: 6px; flex-shrink: 0;"></div>
-    
-</div>
+            <input type="text" id="sb" class="s-input" placeholder="ПОИСК..." onkeyup="filter()" style="flex-grow: 1; margin: 0;">
+            
+            <!-- КНОПКА УСТАНОВКИ НА ПК (Появится сама, если открыто в браузере) -->
+            <button id="btn-install" style="display: none; padding: 0 15px; background: #1a3a20; color: #2ecc71; border: 1px solid #2ecc71; border-radius: 4px; cursor: pointer; white-space: nowrap; font-family: inherit;">
+                💾 На ПК
+            </button>
+
+            <button id="btn-update" onclick="forceAppUpdate();" style="padding: 0 15px; background: #222; color: #eee; border: 1px solid #555; border-radius: 4px; cursor: pointer; white-space: nowrap; font-family: inherit;">
+                🔄 Обновить
+            </button>
+        </div>
+        
+        <div class="list-header">
+            <div style="flex-grow: 1; display: flex; align-items: center; gap: 10px;">
+                <span>НАИМЕНОВАНИЕ</span>
+                <span id="app-version" style="font-size: 9px; color: #888; font-family: monospace; background: #1a1a1a; padding: 2px 6px; border-radius: 6px; border: 1px solid #333; text-transform: lowercase;">v: --</span>
+            </div>
+            <div style="width: 85px; text-align: right;">ЦЕНА</div>
+            <div style="width: 45px; text-align: center;">ОСТ</div>
+        </div>
+    </div> <!-- ВОТ ОН, ТОТ САМЫЙ СПАСИТЕЛЬНЫЙ ТЕГ -->
 
     <div id="catalog"></div>
 
@@ -143,6 +141,7 @@
 
     <script src="config.js?v=5.3.0"></script>
     <script>
+        // --- 1. ОСНОВНАЯ ЛОГИКА КАССЫ ---
         let db = [], cart = [], mode = 'sale', pendingMethod = null;
 
         function sm(m) {
@@ -155,62 +154,42 @@
         }
 
         async function load() {
-    // ШАГ 1: МГНОВЕННЫЙ ЗАПУСК ИЗ ПАМЯТИ
-    try {
-        const cachedDb = localStorage.getItem('db_cache');
-        const cachedTotals = localStorage.getItem('totals_cache');
-        
-        if (cachedDb) {
-            db = JSON.parse(cachedDb);
-        }
-        if (cachedTotals) {
-            const t = JSON.parse(cachedTotals);
-            document.getElementById('sum-cash').innerText = (t.cash || 0).toLocaleString() + ' ₸';
-            document.getElementById('sum-qr').innerText = (t.qr_kaspi || t.qr || 0).toLocaleString() + ' ₸';
-            document.getElementById('sum-red').innerText = (t.installment || 0).toLocaleString() + ' ₸';
-            document.getElementById('sum-card').innerText = (t.pos_terminal || t.card || 0).toLocaleString() + ' ₸';
-            document.getElementById('sum-trans').innerText = (t.transfer || 0).toLocaleString() + ' ₸';
-        }
-        
-        // Рисуем интерфейс сразу, если база была в кэше
-        if (db && db.length > 0) {
-            render();
-        }
-    } catch (e) {
-        console.error("Ошибка чтения кэша", e);
-    }
+            try {
+                const cachedDb = localStorage.getItem('db_cache');
+                const cachedTotals = localStorage.getItem('totals_cache');
+                if (cachedDb) db = JSON.parse(cachedDb);
+                if (cachedTotals) {
+                    const t = JSON.parse(cachedTotals);
+                    document.getElementById('sum-cash').innerText = (t.cash || 0).toLocaleString() + ' ₸';
+                    document.getElementById('sum-qr').innerText = (t.qr_kaspi || t.qr || 0).toLocaleString() + ' ₸';
+                    document.getElementById('sum-red').innerText = (t.installment || 0).toLocaleString() + ' ₸';
+                    document.getElementById('sum-card').innerText = (t.pos_terminal || t.card || 0).toLocaleString() + ' ₸';
+                    document.getElementById('sum-trans').innerText = (t.transfer || 0).toLocaleString() + ' ₸';
+                }
+                if (db && db.length > 0) render();
+            } catch (e) { console.error("Ошибка чтения кэша", e); }
 
-    // ШАГ 2: ТИХОЕ ОБНОВЛЕНИЕ ИЗ GOOGLE
-    if (!navigator.onLine) return; // Если интернета физически нет, даже не пытаемся
+            if (!navigator.onLine) return; 
 
-    try {
-        const res = await fetch(APPS_SCRIPT_URL + "?t=" + Date.now());
-        const data = await res.json();
-        
-        // Обновляем рабочие переменные
-        db = data.items || [];
-        const t = data.totals || { cash: 0, qr_kaspi: 0, pos_terminal: 0, transfer: 0, installment: 0 };
-        
-        // Обновляем HTML
-        document.getElementById('sum-cash').innerText = t.cash.toLocaleString() + ' ₸';
-        document.getElementById('sum-qr').innerText = t.qr_kaspi.toLocaleString() + ' ₸';
-        document.getElementById('sum-red').innerText = t.installment.toLocaleString() + ' ₸';
-        document.getElementById('sum-card').innerText = t.pos_terminal.toLocaleString() + ' ₸';
-        document.getElementById('sum-trans').innerText = t.transfer.toLocaleString() + ' ₸';
-        
-        // Перерисовываем товары
-        render();
+            try {
+                const res = await fetch(APPS_SCRIPT_URL + "?t=" + Date.now());
+                const data = await res.json();
+                
+                db = data.items || [];
+                const t = data.totals || { cash: 0, qr_kaspi: 0, pos_terminal: 0, transfer: 0, installment: 0 };
+                
+                document.getElementById('sum-cash').innerText = t.cash.toLocaleString() + ' ₸';
+                document.getElementById('sum-qr').innerText = t.qr_kaspi.toLocaleString() + ' ₸';
+                document.getElementById('sum-red').innerText = t.installment.toLocaleString() + ' ₸';
+                document.getElementById('sum-card').innerText = t.pos_terminal.toLocaleString() + ' ₸';
+                document.getElementById('sum-trans').innerText = t.transfer.toLocaleString() + ' ₸';
+                
+                render();
 
-        // ШАГ 3: СОХРАНЯЕМ СВЕЖАК В ПАМЯТЬ ТЕЛЕФОНА
-        localStorage.setItem('db_cache', JSON.stringify(db));
-        localStorage.setItem('totals_cache', JSON.stringify(t));
-        
-        console.log("База успешно обновлена с сервера.");
-        
-    } catch (e) { 
-        console.error("Не удалось скачать свежую базу (работаем на кэше)", e); 
-    }
-}
+                localStorage.setItem('db_cache', JSON.stringify(db));
+                localStorage.setItem('totals_cache', JSON.stringify(t));
+            } catch (e) { }
+        }
 
         function render() {
             document.getElementById('catalog').innerHTML = db.map(i => `
@@ -294,247 +273,155 @@
         function cancelTx() { document.getElementById('receipt-modal').style.display = 'none'; }
 
         async function confirmTx() {
-    const btn = document.getElementById('btn-confirm');
-    btn.disabled = true;
+            const btn = document.getElementById('btn-confirm');
+            btn.disabled = true;
+            const tid = (mode === 'sale' ? 'SL-' : 'RT-') + Math.random().toString(36).substring(7).toUpperCase();
+            const now = new Date();
+            const localTime = now.toLocaleDateString('ru-RU') + ' ' + now.toLocaleTimeString('ru-RU');
 
-    const tid = (mode === 'sale' ? 'SL-' : 'RT-') + Math.random().toString(36).substring(7).toUpperCase();
+            const p = {
+                tx_id: tid, tx_type: mode, payment_method: pendingMethod, source: "pos_v5.3.0",
+                created_at: localTime,
+                cart: cart.map(c => ({item_id:c.id, item_name:c.name, qty:c.qty, price:c.price, cost_price:c.cost}))
+            };
 
-    const now = new Date();
-    const localTime = now.toLocaleDateString('ru-RU') + ' ' + now.toLocaleTimeString('ru-RU');
+            try {
+                let queue = JSON.parse(localStorage.getItem('txQueue') || '[]');
+                queue.push(p);
+                localStorage.setItem('txQueue', JSON.stringify(queue));
 
-    const p = {
-        tx_id: tid, tx_type: mode, payment_method: pendingMethod, source: "pos_v5.3.0",
-        created_at: localTime,
-        cart: cart.map(c => ({item_id:c.id, item_name:c.name, qty:c.qty, price:c.price, cost_price:c.cost}))
-    };
-
-    try {
-        let queue = JSON.parse(localStorage.getItem('txQueue') || '[]');
-        queue.push(p);
-        localStorage.setItem('txQueue', JSON.stringify(queue));
-
-        // --- ФИКС ИТОГОВ: МГНОВЕННОЕ ОБНОВЛЕНИЕ КНОПОК ---
-        const cartTotal = cart.reduce((sum, item) => sum + (item.qty * item.price), 0);
-        
-        // Карта-шпаргалка: какой метод оплаты какому ID на экране соответствует
-        const methodMap = {
-            'cash': 'sum-cash',
-            'qr_kaspi': 'sum-qr', // на случай если метод называется так
-            'qr': 'sum-qr',       // или так
-            'installment': 'sum-red',
-            'pos_terminal': 'sum-card',
-            'card': 'sum-card',
-            'transfer': 'sum-trans'
-        };
-        
-        // Находим нужный элемент на странице
-        const targetId = methodMap[pendingMethod];
-        if (targetId) {
-            const el = document.getElementById(targetId);
-            if (el) {
-                // Берем текст с кнопки (например "1 250 ₸"), вычищаем все кроме цифр -> получаем 1250
-                let currentSum = parseInt(el.innerText.replace(/\D/g, '')) || 0;
+                const cartTotal = cart.reduce((sum, item) => sum + (item.qty * item.price), 0);
+                const methodMap = { 'cash': 'sum-cash', 'qr_kaspi': 'sum-qr', 'qr': 'sum-qr', 'installment': 'sum-red', 'pos_terminal': 'sum-card', 'card': 'sum-card', 'transfer': 'sum-trans' };
+                const targetId = methodMap[pendingMethod];
                 
-                // Прибавляем чек (или отнимаем, если это возврат)
-                currentSum = (mode === 'sale') ? currentSum + cartTotal : currentSum - cartTotal;
-                
-                // Вписываем обратно красиво, с пробелами и знаком ₸
-                el.innerText = currentSum.toLocaleString('ru-RU') + ' ₸';
-            }
+                if (targetId) {
+                    const el = document.getElementById(targetId);
+                    if (el) {
+                        let currentSum = parseInt(el.innerText.replace(/\D/g, '')) || 0;
+                        currentSum = (mode === 'sale') ? currentSum + cartTotal : currentSum - cartTotal;
+                        el.innerText = currentSum.toLocaleString('ru-RU') + ' ₸';
+                    }
+                }
+
+                document.getElementById('receipt-modal').style.display = 'none';
+                cart = []; update(); sm('sale'); 
+            } catch (e) { alert("ОШИБКА СОХРАНЕНИЯ В ПАМЯТЬ: " + e.message); } 
+            finally { btn.disabled = false; }
         }
-        // --- КОНЕЦ ФИКСА ИТОГОВ ---
-
-        document.getElementById('receipt-modal').style.display = 'none';
-        cart = []; 
-        update(); 
-        sm('sale'); 
-        
-    } catch (e) { 
-        alert("ОШИБКА СОХРАНЕНИЯ В ПАМЯТЬ: " + e.message); 
-    } finally { 
-        btn.disabled = false; 
-    }
-}
 
         load();
-// --- БЛОК ОФФЛАЙН-СИНХРОНИЗАЦИИ ---
 
-let isSyncing = false; // Защита, чтобы курьер не бегал дважды одновременно
+        // --- 2. ОФФЛАЙН-СИНХРОНИЗАЦИЯ ---
+        let isSyncing = false; 
+        async function syncQueue() {
+            if (isSyncing || !navigator.onLine) return; 
+            let queue = JSON.parse(localStorage.getItem('txQueue') || '[]');
+            if (queue.length === 0) return; 
 
-async function syncQueue() {
-    if (isSyncing) return; // Если уже отправляем, ждем
-    if (!navigator.onLine) return; // Если нет интернета (Wi-Fi/LTE), даже не пытаемся
+            isSyncing = true;
+            try {
+                const response = await fetch(APPS_SCRIPT_URL, { method: 'POST', body: JSON.stringify(queue[0]) });
+                const result = await response.json();
+                if (result.success) {
+                    queue.shift(); 
+                    localStorage.setItem('txQueue', JSON.stringify(queue));
+                }
+            } catch (e) { } 
+            finally { isSyncing = false; }
+        }
+        setInterval(syncQueue, 5000);
+        window.addEventListener('online', syncQueue);
 
-    // Открываем сейф
-    let queue = JSON.parse(localStorage.getItem('txQueue') || '[]');
-    if (queue.length === 0) return; // Если чеков нет, курьер отдыхает
-
-    isSyncing = true;
-
-    try {
-        // Берем самый старый чек (первый в очереди)
-        const currentTx = queue[0];
-
-        // Отправляем его в Google Apps Script
-        const response = await fetch(APPS_SCRIPT_URL, {
-            method: 'POST',
-            body: JSON.stringify(currentTx)
-        });
-        
-        const result = await response.json();
-
-        // Если Google принял чек и записал в таблицу...
-        if (result.success) {
-            queue.shift(); // ...выкидываем этот чек из памяти телефона
-            localStorage.setItem('txQueue', JSON.stringify(queue));
-            console.log("Успех: чек улетел на сервер. В очереди осталось: " + queue.length);
-        } else {
-            console.error("Сервер Google вернул ошибку: ", result.error);
+        // --- 3. PWA, УСТАНОВКА И ОБНОВЛЕНИЯ ---
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => { navigator.serviceWorker.register('./sw.js'); });
         }
 
-    } catch (e) {
-        // Если интернет моргнул прямо во время отправки, ничего не делаем.
-        // Чек остался в памяти, курьер попробует еще раз через 5 секунд.
-        console.log("Сбой сети. Повтор через 5 секунд...");
-    } finally {
-        isSyncing = false; // Снимаем защиту
-    }
-}
-
-// Запускаем курьера каждые 5 секунд (5000 миллисекунд)
-setInterval(syncQueue, 5000);
-
-// Бонус: если интернет пропадал, а потом появился, запускаем курьера мгновенно
-window.addEventListener('online', syncQueue);
-    </script>
-<script>
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./sw.js')
-        .then(reg => console.log('Service Worker зарегистрирован!', reg))
-        .catch(err => console.error('Ошибка регистрации Service Worker', err));
-    });
-  }
-</script>
-
-
-
-<script>
-      // --- УМНЫЙ АВТООБНОВЛЯТОР (ВЕРСИЯ "НЕВИДИМКА") ---
-
-      let isUpdatePending = false;
-
-      // 1. Шпион, который следит за корзиной каждые 2 секунды
-      setInterval(() => {
-          if (isUpdatePending && typeof cart !== 'undefined' && cart.length === 0) {
-              console.log("Продажа завершена, корзина пуста. Тихо обновляю кассу...");
-              window.location.reload(true);
-          }
-      }, 2000);
-
-      // 2. Фоновая проверка базы каждые 15 минут
-      setInterval(async () => {
-          console.log("Автопилот: проверяю обновления...");
-
-          if ('serviceWorker' in navigator) {
-              navigator.serviceWorker.getRegistrations().then(function(regs) {
-                  for(let reg of regs) { reg.update(); } 
-              });
-          }
-
-          if (navigator.onLine) {
-              try {
-                  const res = await fetch(APPS_SCRIPT_URL + "?t=" + Date.now());
-                  const data = await res.json();
-                  
-                  db = data.items || [];
-                  const t = data.totals || { cash: 0, qr_kaspi: 0, pos_terminal: 0, transfer: 0, installment: 0 };
-                  
-                  localStorage.setItem('db_cache', JSON.stringify(db));
-                  localStorage.setItem('totals_cache', JSON.stringify(t));
-
-                  document.getElementById('sum-cash').innerText = t.cash.toLocaleString() + ' ₸';
-                  document.getElementById('sum-qr').innerText = t.qr_kaspi.toLocaleString() + ' ₸';
-                  document.getElementById('sum-red').innerText = t.installment.toLocaleString() + ' ₸';
-                  document.getElementById('sum-card').innerText = t.pos_terminal.toLocaleString() + ' ₸';
-                  document.getElementById('sum-trans').innerText = t.transfer.toLocaleString() + ' ₸';
-                  
-                  if (typeof cart !== 'undefined' && cart.length === 0) {
-                      render(); 
-                  } else {
-                      isUpdatePending = true; 
-                  }
-              } catch(e) { }
-          }
-      }, 15 * 60 * 1000);
-
-      // 3. Реакция на изменение кода (Service Worker)
-      if ('serviceWorker' in navigator) {
-          navigator.serviceWorker.addEventListener('controllerchange', () => {
-              if (typeof cart !== 'undefined' && cart.length === 0) {
-                  window.location.reload(true); 
-              } else {
-                  isUpdatePending = true; 
-              }
-          });
-      }
-
-// --- ФУНКЦИЯ ПРИНУДИТЕЛЬНОГО ОБНОВЛЕНИЯ ---
-function forceAppUpdate() {
-    const btn = document.getElementById('btn-update');
-    if (btn) {
-        btn.innerText = '⏳ Качаю...';
-        btn.style.background = '#444'; 
-        btn.style.borderColor = '#333';
-        btn.disabled = true;
-    }
-
-    if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.getRegistrations().then(function(regs) {
-            if(regs.length === 0) { window.location.reload(true); return; }
-            
-            let promises = [];
-            for(let reg of regs) { promises.push(reg.update()); } // Ждем скачивания
-            
-            Promise.all(promises).then(() => {
-                // Как только GitHub ответил, даем 1 секунду на применение 
-                // и мягко перезагружаем интерфейс
-                setTimeout(() => { window.location.reload(true); }, 1000);
-            }).catch(() => {
-                window.location.reload(true); // Перезагружаем даже при ошибке
-            });
-        });
-    } else {
-        window.location.reload(true);
-    }
-}
-// --- ПОЛУЧЕНИЕ ВЕРСИИ ПРИЛОЖЕНИЯ ---
-function displayAppVersion() {
-    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-        // Создаем "канал связи" с sw.js
-        const messageChannel = new MessageChannel();
-        
-        // Ждем ответа
-        messageChannel.port1.onmessage = function(event) {
-            if (event.data && event.data.version) {
-                document.getElementById('app-version').innerText = "v: " + event.data.version;
+        function displayAppVersion() {
+            if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+                const messageChannel = new MessageChannel();
+                messageChannel.port1.onmessage = function(event) {
+                    if (event.data && event.data.version) document.getElementById('app-version').innerText = "v: " + event.data.version;
+                };
+                navigator.serviceWorker.controller.postMessage({ type: 'GET_VERSION' }, [messageChannel.port2]);
+            } else {
+                document.getElementById('app-version').innerText = "v: dev";
             }
-        };
+        }
+        window.addEventListener('load', displayAppVersion);
 
-        // Отправляем запрос на версию
-        navigator.serviceWorker.controller.postMessage({ type: 'GET_VERSION' }, [messageChannel.port2]);
-    } else {
-        document.getElementById('app-version').innerText = "v: dev";
-    }
-}
+        let isUpdatePending = false;
+        setInterval(() => {
+            if (isUpdatePending && typeof cart !== 'undefined' && cart.length === 0) window.location.reload(true);
+        }, 2000);
 
-// Запускаем проверку при загрузке
-window.addEventListener('load', displayAppVersion);
+        setInterval(async () => {
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.getRegistrations().then(regs => { for(let reg of regs) reg.update(); });
+            }
+            if (navigator.onLine) {
+                try {
+                    const res = await fetch(APPS_SCRIPT_URL + "?t=" + Date.now());
+                    const data = await res.json();
+                    db = data.items || [];
+                    const t = data.totals || { cash: 0, qr_kaspi: 0, pos_terminal: 0, transfer: 0, installment: 0 };
+                    localStorage.setItem('db_cache', JSON.stringify(db));
+                    localStorage.setItem('totals_cache', JSON.stringify(t));
 
-// И обновляем текст, если версия скачалась в фоне
-if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.addEventListener('controllerchange', displayAppVersion);
-}
-  </script>
+                    document.getElementById('sum-cash').innerText = t.cash.toLocaleString() + ' ₸';
+                    document.getElementById('sum-qr').innerText = t.qr_kaspi.toLocaleString() + ' ₸';
+                    document.getElementById('sum-red').innerText = t.installment.toLocaleString() + ' ₸';
+                    document.getElementById('sum-card').innerText = t.pos_terminal.toLocaleString() + ' ₸';
+                    document.getElementById('sum-trans').innerText = t.transfer.toLocaleString() + ' ₸';
+                    
+                    if (typeof cart !== 'undefined' && cart.length === 0) render(); 
+                    else isUpdatePending = true; 
+                } catch(e) { }
+            }
+        }, 15 * 60 * 1000);
+
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+                displayAppVersion();
+                if (typeof cart !== 'undefined' && cart.length === 0) window.location.reload(true); 
+                else isUpdatePending = true; 
+            });
+        }
+
+        function forceAppUpdate() {
+            const btn = document.getElementById('btn-update');
+            if (btn) { btn.innerText = '⏳ Качаю...'; btn.style.background = '#444'; btn.disabled = true; }
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.getRegistrations().then(regs => {
+                    if(regs.length === 0) { window.location.reload(true); return; }
+                    let promises = [];
+                    for(let reg of regs) { promises.push(reg.update()); }
+                    Promise.all(promises).then(() => { setTimeout(() => { window.location.reload(true); }, 1000); })
+                    .catch(() => { window.location.reload(true); });
+                });
+            } else { window.location.reload(true); }
+        }
+
+        // --- ЛОГИКА КНОПКИ УСТАНОВКИ НА ПК ---
+        let deferredPrompt;
+        const installBtn = document.getElementById('btn-install');
+
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            if (installBtn) installBtn.style.display = 'block'; // Показываем кнопку
+        });
+
+        if (installBtn) {
+            installBtn.addEventListener('click', async () => {
+                if (deferredPrompt) {
+                    deferredPrompt.prompt();
+                    const { outcome } = await deferredPrompt.userChoice;
+                    if (outcome === 'accepted') installBtn.style.display = 'none';
+                    deferredPrompt = null;
+                }
+            });
+        }
+    </script>
 </body>
 </html>
