@@ -316,7 +316,11 @@
                 }
 
                 document.getElementById('receipt-modal').style.display = 'none';
-                cart = []; update(); sm('sale'); 
+                cart = []; update(); sm('sale');
+// --- НОВЫЙ КОД: ОБНУЛЕНИЕ ПОИСКА ---
+                document.getElementById('sb').value = ''; // Стираем текст
+                filter(); // Заставляем каталог показать все товары
+                // ----------------------------------- 
             } catch (e) { alert("ОШИБКА СОХРАНЕНИЯ В ПАМЯТЬ: " + e.message); } 
             finally { btn.disabled = false; }
         }
