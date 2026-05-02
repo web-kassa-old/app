@@ -450,6 +450,22 @@
                     }
                 }
 
+// --- НОВЫЙ БЛОК: Сохраняем новые суммы в кэш телефона ---
+                try {
+                    let t = JSON.parse(localStorage.getItem('totals_cache')) || { cash: 0, qr_kaspi: 0, pos_terminal: 0, transfer: 0, installment: 0 };
+                    
+                    let tKey = pendingMethod;
+                    if (tKey === 'qr') tKey = 'qr_kaspi';
+                    if (tKey === 'card') tKey = 'pos_terminal';
+                    
+                    if (t[tKey] !== undefined) {
+                        t[tKey] = (mode === 'sale') ? t[tKey] + cartTotal : t[tKey] - cartTotal;
+                    }
+                    localStorage.setItem('totals_cache', JSON.stringify(t));
+                } catch (e) {}
+                // --------------------------------------------------------
+
+
                 document.getElementById('receipt-modal').style.display = 'none';
                 cart = []; 
                 update(); 
