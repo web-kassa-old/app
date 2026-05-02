@@ -362,10 +362,7 @@
             const list = document.getElementById('cart-list');
             list.innerHTML = cart.map((item, idx) => `
                 <div class="cart-row" id="r-${item.id}">
-                    <div class="row-top">
-                        <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${item.name}</span>
-                        <span style="color: #555; font-size: 10px; font-weight: normal;">${item.origPrice ? item.origPrice.toLocaleString() : item.price.toLocaleString()} ₸</span>
-                    </div>
+                    <div class="row-top">${item.name}</div>
                     <div class="row-ctrl">
                         <div class="qty-box">
                             <button class="q-btn" onclick="qty('${item.id}',-1)">-</button>
@@ -373,9 +370,17 @@
                                    onfocus="handleFocus(this, 'r-${item.id}')" oninput="cart[${idx}].qty=parseInt(this.value)||0; total()">
                             <button class="q-btn" onclick="qty('${item.id}',1)">+</button>
                         </div>
-                        <input type="text" inputmode="numeric" class="p-input" value="${item.price}" 
-                               onfocus="handleFocus(this, 'r-${item.id}')" oninput="cart[${idx}].price=parseFloat(this.value)||0; total()">
-                        <div onclick="rm('${item.id}')" style="color:#e74c3c;padding:3px;font-size:18px;">✕</div>
+                        
+                        <!-- БЛОК С ЦЕНОЙ -->
+                        <div style="display: flex; flex-direction: column; align-items: flex-end;">
+                            <span style="color: #666; font-size: 10px; margin-bottom: 2px; padding-right: 2px;">
+                                ${item.origPrice ? item.origPrice.toLocaleString() : item.price.toLocaleString()} ₸
+                            </span>
+                            <input type="text" inputmode="numeric" class="p-input" value="${item.price}" 
+                                   onfocus="handleFocus(this, 'r-${item.id}')" oninput="cart[${idx}].price=parseFloat(this.value)||0; total()">
+                        </div>
+
+                        <div onclick="rm('${item.id}')" style="color:#e74c3c;padding:3px;font-size:18px; cursor: pointer;">✕</div>
                     </div>
                 </div>
             `).join('');
