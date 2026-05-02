@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pos-v28'; // Не забудьте поменять версию при публикации
+const CACHE_NAME = 'pos-v29'; // Не забудьте поменять версию при публикации
 const ASSETS = [
   './',
   './index.html',
