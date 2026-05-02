@@ -1,45 +1,49 @@
-const CACHE_NAME = 'pos-cache-v24'; 
-
-const urlsToCache = [
-    './pos2.html',
-    './manifest.json',
-    './config.js'
+const CACHE_NAME = 'pos-v23'; // Не забудьте поменять версию при публикации
+const ASSETS = [
+  './',
+  './index.html',
+  './pos2.html',
+  './config.js',
+  './manifest.json',
+  './icon-192.png',
+  './icon-512.png'
 ];
 
-// Установка: скачиваем файлы и сразу активируем
-self.addEventListener('install', event => {
-    self.skipWaiting(); 
-    event.waitUntil(
-        caches.open(CACHE_NAME).then(cache => cache.addAll(urlsToCache))
-    );
+self.addEventListener('install', e => {
+  // Агрессивная установка: не ждем!
+  self.skipWaiting();
+  
+  e.waitUntil(
+    caches.open(CACHE_NAME).then(c => c.addAll(ASSETS))
+  );
 });
 
-// Активация: чистим старый кэш и МГНОВЕННО берем управление
-self.addEventListener('activate', event => {
-    event.waitUntil(
-        caches.keys().then(cacheNames => {
-            return Promise.all(
-                cacheNames.map(cacheName => {
-                    if (cacheName !== CACHE_NAME) {
-                        return caches.delete(cacheName);
-                    }
-                })
-            );
-        }).then(() => self.clients.claim()) // Это уберет надпись v: dev
-    );
+self.addEventListener('activate', e => {
+  // Мгновенный захват контроля над всеми открытыми окнами
+  e.waitUntil(self.clients.claim());
+  
+  e.waitUntil(
+    caches.keys().then(keys => Promise.all(
+      keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))
+    ))
+  );
 });
 
-// Перехват запросов (работа в оффлайне)
-self.addEventListener('fetch', event => {
-    event.respondWith(
-        caches.match(event.request).then(response => {
-            return response || fetch(event.request);
-        })
-    );
+self.addEventListener('fetch', e => {
+  // Для API (Google Script) всегда идем в сеть
+  if (e.request.url.includes('script.google.com')) {
+    e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));
+    return;
+  }
+  
+  // Network-First (Сначала сеть, потом кэш). Это заставляет браузер всегда искать свежие файлы
+  e.respondWith(
+    fetch(e.request).catch(() => caches.match(e.request))
+  );
 });
 
-// Ответ на запрос версии от pos2.html
-self.addEventListener('message', (event) => {
+// Слушаем команду на получение версии
+self.addEventListener('message', event => {
     if (event.data && event.data.type === 'GET_VERSION') {
         event.ports[0].postMessage({ version: CACHE_NAME });
     }

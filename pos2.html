@@ -441,18 +441,39 @@
             });
         }
 
-        function forceAppUpdate() {
+        async function forceAppUpdate() {
             const btn = document.getElementById('btn-update');
-            if (btn) { btn.innerText = '⏳ Качаю...'; btn.style.background = '#444'; btn.disabled = true; }
-            if ('serviceWorker' in navigator) {
-                navigator.serviceWorker.getRegistrations().then(regs => {
-                    if(regs.length === 0) { window.location.reload(true); return; }
-                    let promises = [];
-                    for(let reg of regs) { promises.push(reg.update()); }
-                    Promise.all(promises).then(() => { setTimeout(() => { window.location.reload(true); }, 1000); })
-                    .catch(() => { window.location.reload(true); });
-                });
-            } else { window.location.reload(true); }
+            if (btn) { 
+                btn.innerText = '⏳ Ждите...'; 
+                btn.style.background = '#444'; 
+                btn.disabled = true; 
+            }
+
+            try {
+                // 1. Принудительно заставляем Service Worker проверить обновления
+                if ('serviceWorker' in navigator) {
+                    const regs = await navigator.serviceWorker.getRegistrations();
+                    for(let reg of regs) {
+                        await reg.update();
+                    }
+                }
+
+                // 2. Очищаем старые кэши браузера (API CacheStorage)
+                if ('caches' in window) {
+                    const cacheKeys = await caches.keys();
+                    // Удаляем все кэши, кроме тех, что нужны браузеру для работы
+                    await Promise.all(cacheKeys.map(key => caches.delete(key)));
+                }
+
+                // 3. Жесткая перезагрузка страницы с игнорированием кэша
+                setTimeout(() => {
+                    window.location.reload(true); 
+                }, 1000);
+
+            } catch (error) {
+                // Если что-то пошло не так, все равно перегружаем
+                window.location.reload(true);
+            }
         }
 
         let deferredPrompt;
