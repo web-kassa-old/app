@@ -484,11 +484,21 @@
         function updateQueueCounter() {
             let queue = JSON.parse(localStorage.getItem('txQueue') || '[]');
             const badge = document.getElementById('queue-counter');
+            const settingsBtn = document.getElementById('btn-settings');
+            
             if (queue.length > 0) {
                 badge.innerText = queue.length;
                 badge.style.display = 'inline-block';
+                // Включаем тревожный красный цвет
+                settingsBtn.style.background = '#3a1a1a';
+                settingsBtn.style.borderColor = '#e74c3c';
+                settingsBtn.style.color = '#e74c3c';
             } else {
                 badge.style.display = 'none';
+                // Возвращаем стандартный строгий цвет
+                settingsBtn.style.background = '#222';
+                settingsBtn.style.borderColor = '#555';
+                settingsBtn.style.color = '#eee';
             }
         }
 
