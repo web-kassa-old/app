@@ -335,6 +335,9 @@
                 
                 db = data.items || [];
                 const t = data.totals || { cash: 0, qr_kaspi: 0, pos_terminal: 0, transfer: 0, installment: 0 };
+
+// СОХРАНЯЕМ ПИН-КОД С СЕРВЕРА
+                if (data.pin) localStorage.setItem('pos_pin', data.pin);
                 
                 document.getElementById('sum-cash').innerText = t.cash.toLocaleString() + ' ₸';
                 document.getElementById('sum-qr').innerText = t.qr_kaspi.toLocaleString() + ' ₸';
@@ -611,6 +614,8 @@
                     localStorage.setItem('db_cache', JSON.stringify(db));
                     localStorage.setItem('totals_cache', JSON.stringify(t));
 
+			if (data.pin) localStorage.setItem('pos_pin', data.pin);
+
                     document.getElementById('sum-cash').innerText = t.cash.toLocaleString() + ' ₸';
                     document.getElementById('sum-qr').innerText = t.qr_kaspi.toLocaleString() + ' ₸';
                     document.getElementById('sum-red').innerText = t.installment.toLocaleString() + ' ₸';
@@ -760,7 +765,7 @@
         // --- ЛОГИКА ПИН-КОДА ---
         let currentPin = '';
         let targetAction = null; 
-        const TRUE_PIN = '0000'; 
+         
 
         function openPinModal(actionFunction) {
             currentPin = '';
