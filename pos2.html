@@ -4,7 +4,7 @@
     <link rel="manifest" href="manifest.json">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>POS Noir V5.5.0</title>
+    <title>POS Noir V5.5.1</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: "Courier New", Courier, monospace; }
         
@@ -115,7 +115,7 @@
         <div class="modes">
             <button id="ms" class="m-btn active-s" onclick="sm('sale')" data-i18n="btn_sale">ПРОДАЖА</button>
             <button id="mr" class="m-btn" onclick="sm('return')" data-i18n="btn_return">ВОЗВРАТ</button>
-            <button class="m-btn" style="flex: 0.2; background: #111; color: #888; padding: 12px 0; border-color: #333;" onclick="openPinModal(function(){ openReport(); })">📊</button>
+            <button class="m-btn" style="flex: 0.2; background: #111; color: #888; padding: 12px 0; border-color: #333;" onclick="openPinModal(function(){ openReport(); })">📊 ПИН</button>
         </div>
         
         <div class="search-area" style="display: flex; gap: 10px;">
@@ -248,7 +248,7 @@
         </div>
     </div>
 
-    <script src="config.js?v=5.5.0"></script>
+    <script src="config.js?v=5.5.1"></script>
     <script>
         const translations = {
             ru: {
@@ -335,6 +335,9 @@
                 
                 db = data.items || [];
                 const t = data.totals || { cash: 0, qr_kaspi: 0, pos_terminal: 0, transfer: 0, installment: 0 };
+
+                // СОХРАНЯЕМ ПИН-КОД С СЕРВЕРА
+                if (data.pin) localStorage.setItem('pos_pin', data.pin);
                 
                 document.getElementById('sum-cash').innerText = t.cash.toLocaleString() + ' ₸';
                 document.getElementById('sum-qr').innerText = t.qr_kaspi.toLocaleString() + ' ₸';
@@ -447,7 +450,7 @@
             const now = new Date();
             const localTime = now.toLocaleDateString('ru-RU') + ' ' + now.toLocaleTimeString('ru-RU');
             const p = {
-                tx_id: tid, tx_type: mode, payment_method: pendingMethod, source: "pos_v5.5.0",
+                tx_id: tid, tx_type: mode, payment_method: pendingMethod, source: "pos_v5.5.1",
                 created_at: localTime,
                 cart: cart.map(c => ({item_id:c.id, item_name:c.name, qty:c.qty, price:c.price, cost_price:c.cost}))
             };
@@ -611,6 +614,9 @@
                     localStorage.setItem('db_cache', JSON.stringify(db));
                     localStorage.setItem('totals_cache', JSON.stringify(t));
 
+			        // СОХРАНЯЕМ ПИН-КОД С СЕРВЕРА
+                    if (data.pin) localStorage.setItem('pos_pin', data.pin);
+
                     document.getElementById('sum-cash').innerText = t.cash.toLocaleString() + ' ₸';
                     document.getElementById('sum-qr').innerText = t.qr_kaspi.toLocaleString() + ' ₸';
                     document.getElementById('sum-red').innerText = t.installment.toLocaleString() + ' ₸';
@@ -757,52 +763,87 @@
 
         function closeReport() { document.getElementById('report-modal').style.display = 'none'; }
 
-        // --- ЛОГИКА ПИН-КОДА ---
+        // --- БРОНИРОВАННАЯ ЛОГИКА ПИН-КОДА ---
         let currentPin = '';
         let targetAction = null; 
-        const TRUE_PIN = '0000'; 
+        let isChecking = false; // Блокировка клавиатуры во время проверки
 
         function openPinModal(actionFunction) {
             currentPin = '';
             targetAction = actionFunction;
+            isChecking = false;
             updatePinDisplay();
             document.getElementById('pin-modal').style.display = 'flex';
         }
 
         function closePinModal() {
             document.getElementById('pin-modal').style.display = 'none';
+            isChecking = false;
         }
 
         function pinPress(digit) {
+            if (isChecking) return; // Игнорируем нажатия, пока идет проверка
+
             if (currentPin.length < 4) {
                 currentPin += digit;
                 updatePinDisplay();
             }
+            
+            // Как только ввели 4 цифры
             if (currentPin.length === 4) {
-                setTimeout(checkPin, 100); 
+                isChecking = true; // Блокируем кнопки
+                setTimeout(checkPin, 150); // Пауза, чтобы появилась 4-я точка
             }
         }
 
         function pinClear() {
             currentPin = '';
+            isChecking = false;
             updatePinDisplay();
         }
 
         function updatePinDisplay() {
-            document.getElementById('pin-display').innerText = '•'.repeat(currentPin.length);
+            const display = document.getElementById('pin-display');
+            if (display) display.innerText = '•'.repeat(currentPin.length);
         }
 
         function checkPin() {
-            if (currentPin === TRUE_PIN) {
-                closePinModal();
-                if (targetAction) targetAction(); 
-            } else {
-                const display = document.getElementById('pin-display');
-                display.style.color = '#e74c3c';
-                setTimeout(() => {
-                    display.style.color = '#f1c40f'; 
+            try {
+                // Достаем пароль из памяти телефона
+                let truePin = localStorage.getItem('pos_pin');
+                
+                // ЗАЩИТА: Если ПИН никогда не скачивался, блокируем доступ!
+                if (!truePin) {
+                    alert("ПИН-код еще не загружен с сервера. Включите интернет и обновите кэш!");
                     pinClear();
-                }, 400);
+                    return; 
+                }
+                
+                // ЖЕСТКАЯ ОЧИСТКА: убираем случайные пробелы из таблицы Google
+                truePin = String(truePin).trim(); 
+
+                if (currentPin === truePin) {
+                    // Пароль верный
+                    closePinModal();
+                    if (targetAction) targetAction(); 
+                } else {
+                    // Пароль неверный
+                    const display = document.getElementById('pin-display');
+                    if (display) {
+                        display.style.color = '#e74c3c'; // Красим в красный
+                        
+                        setTimeout(() => {
+                            display.style.color = '#f1c40f'; // Возвращаем желтый
+                            pinClear(); // Очищаем и снимаем блокировку
+                        }, 400);
+                    } else {
+                        pinClear();
+                    }
+                }
+            } catch (error) {
+                // Если произошла скрытая ошибка памяти - показываем ее!
+                alert("Ошибка скрипта: " + error.message);
+                pinClear();
             }
         }
 
