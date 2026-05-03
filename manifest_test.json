@@ -1,7 +1,7 @@
 {
   "name": "Касса POS TEST",
   "short_name": "Касса",
-  "start_url": "./pos_test.html",
+  "start_url": "./pos_test?v=1.html",
   "display": "standalone",
   "background_color": "#121212",
   "theme_color": "#121212",
