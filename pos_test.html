@@ -884,14 +884,16 @@ async function handlePhoto(event) {
     const file = event.target.files[0];
     if (!file) return;
 
-    // Показываем индикатор загрузки вместо текста кнопки
-    const btn = event.target;
-    
+    // Как только вернулись из камеры — блокируем кнопку и меняем текст
+    const btnPhoto = document.getElementById('btn-photo');
+    const originalText = btnPhoto.innerText;
+    btnPhoto.innerText = "⏳ Обработка...";
+    btnPhoto.disabled = true;
+
     const reader = new FileReader();
     reader.onload = function(e) {
         const img = new Image();
         img.onload = function() {
-            // Умное сжатие через Canvas
             const canvas = document.getElementById('resize-canvas');
             const MAX_WIDTH = 800;
             let width = img.width;
@@ -907,17 +909,23 @@ async function handlePhoto(event) {
             const ctx = canvas.getContext('2d');
             ctx.drawImage(img, 0, 0, width, height);
 
-            // Конвертируем в JPEG с качеством 0.7 (оптимально для 100Кб)
             const base64 = canvas.toDataURL('image/jpeg', 0.7);
-            uploadPhoto(base64);
+            
+            btnPhoto.innerText = "⏳ Отправка на Диск...";
+            uploadPhoto(base64, btnPhoto, originalText);
         };
         img.src = e.target.result;
     };
     reader.readAsDataURL(file);
 }
 
-async function uploadPhoto(base64) {
-    if (!navigator.onLine) return alert("Нужен интернет для загрузки фото");
+async function uploadPhoto(base64, btnPhoto, originalText) {
+    if (!navigator.onLine) {
+        alert("Нужен интернет для загрузки фото");
+        btnPhoto.innerText = originalText;
+        btnPhoto.disabled = false;
+        return;
+    }
 
     try {
         const res = await fetch(APPS_SCRIPT_URL, {
@@ -928,13 +936,23 @@ async function uploadPhoto(base64) {
                 base64: base64
             })
         });
-        const result = await res.json();
+        
+        const text = await res.text(); 
+        const result = JSON.parse(text);
+        
         if (result.success) {
+            btnPhoto.innerText = "✅ СОХРАНЕНО!";
             alert("Фото успешно сохранено!");
-            location.reload(); // Обновляем, чтобы подтянуть новую ссылку
+            location.reload(); // Перезагружаем кассу, чтобы появилась иконка
+        } else {
+            alert("Ошибка на сервере: " + result.error);
+            btnPhoto.innerText = originalText;
+            btnPhoto.disabled = false;
         }
     } catch (e) {
-        alert("Ошибка загрузки: " + e.message);
+        alert("Ошибка сети: " + e.message);
+        btnPhoto.innerText = originalText;
+        btnPhoto.disabled = false;
     }
 }
 
@@ -953,7 +971,7 @@ async function uploadPhoto(base64) {
             🛒 ДОБАВИТЬ В ЧЕК
         </button>
         
-        <button class="s-btn" onclick="triggerCamera()">
+        <button id="btn-photo" class="s-btn" onclick="triggerCamera()">
             📸 СДЕЛАТЬ ФОТО
         </button>
 
