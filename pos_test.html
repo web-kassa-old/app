@@ -353,19 +353,36 @@
         }
 
         function render() {
-    document.getElementById('catalog').innerHTML = db.map(i => {
-        // Проверяем, есть ли ссылка на фото в колонке img (колонка K)
-        const hasPhoto = i.img && i.img.toString().length > 10;
-        const photoIcon = hasPhoto ? '<span style="margin-right:5px; color:#f1c40f;">🖼️</span>' : '';
+    const catalog = document.getElementById('catalog');
+    
+    // Защита: если база пуста или еще не загрузилась
+    if (!db || db.length === 0) {
+        catalog.innerHTML = '<div style="color:#aaa; padding:20px; text-align:center;">Загрузка товаров...</div>';
+        return;
+    }
 
-        return `
-            <div class="c-item" onclick="openItemMenu('${i.id}')">
-                <div class="i-name">${photoIcon}${i.name}</div>
-                <div class="i-price">${i.price.toLocaleString()} ₸</div>
-                <div class="i-stock">${i.stock||0}</div>
-            </div>
-        `;
-    }).join('');
+    try {
+        catalog.innerHTML = db.map(i => {
+            // Безопасная проверка фото
+            const hasPhoto = i.img && i.img.toString().length > 10;
+            const photoIcon = hasPhoto ? '<span style="margin-right:5px;">🖼️</span>' : '';
+            
+            // Защита от пустых цен и остатков (превращаем в числа)
+            const price = Number(i.price) || 0;
+            const stock = Number(i.stock) || 0;
+
+            return `
+                <div class="c-item" onclick="openItemMenu('${i.id}')">
+                    <div class="i-name">${photoIcon}${i.name || 'Без названия'}</div>
+                    <div class="i-price">${price.toLocaleString()} ₸</div>
+                    <div class="i-stock">${stock}</div>
+                </div>
+            `;
+        }).join('');
+    } catch (e) {
+        console.error("Ошибка отрисовки: ", e);
+        catalog.innerHTML = '<div style="color:red; padding:20px;">Ошибка вывода товаров. Обновите базу.</div>';
+    }
 }
 
         function filter() {
@@ -854,8 +871,6 @@ let selectedItemId = null;
 function openItemMenu(id) {
     selectedItemId = id;
     const item = db.find(x => x.id === id);
-
-alert("Ссылка на фото с сервера: " + item.img);
 
     document.getElementById('menu-item-name').innerText = item.name;
     
