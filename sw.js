@@ -4,6 +4,7 @@ const ASSETS = [
   './',
   './index.html',
   './pos2.html',
+  './pos_test.html',
   './config.js',
   './manifest.json',
   './icon.png' // <--- Вот она, разгадка! Мы указали правильное имя.
