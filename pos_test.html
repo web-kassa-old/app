@@ -4,6 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>POS Noir - Testing Lab</title>
+    
+    <!-- КРИТИЧЕСКИ ВАЖНО: Подключаем конфиг первым -->
+    <script src="config.js"></script>
+
     <style>
         :root {
             --bg: #0a0a0a;
@@ -25,7 +29,6 @@
             user-select: none;
         }
 
-        /* Список товаров */
         #catalog {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -45,7 +48,6 @@
         .i-price { color: var(--accent-green); font-size: 16px; font-weight: bold; }
         .i-stock { font-size: 11px; opacity: 0.5; margin-top: 5px; }
 
-        /* Модальное окно */
         .modal-overlay {
             position: fixed;
             top: 0; left: 0; width: 100%; height: 100%;
@@ -66,7 +68,6 @@
             text-align: center;
         }
 
-        /* Кнопки */
         .s-btn {
             width: 100%;
             padding: 15px;
@@ -80,7 +81,6 @@
             text-transform: uppercase;
         }
 
-        /* Цвета кнопок */
         .btn-green { background: #1a3a20; border-color: var(--accent-green); color: var(--accent-green); }
         .btn-blue  { background: #0f2c40; border-color: var(--accent-blue); color: var(--accent-blue); }
         .btn-grey  { background: #2c2c2c; border-color: var(--accent-grey); color: var(--accent-grey); }
@@ -101,9 +101,8 @@
 </head>
 <body>
 
-    <div id="catalog"><!-- Сюда рендерятся товары --></div>
+    <div id="catalog"></div>
 
-    <!-- Модальное окно управления товаром -->
     <div id="item-menu-modal" class="modal-overlay" onclick="handleOutsideClick()">
         <div class="settings-box" onclick="event.stopPropagation()">
             <div id="menu-item-name" style="font-size: 16px; margin-bottom: 15px; font-weight: bold;">Товар</div>
@@ -112,17 +111,14 @@
                 <img id="item-preview" src="">
             </div>
 
-            <!-- 1. Кнопка "В КОРЗИНУ" -->
             <button id="btn-add-cart" class="s-btn btn-green" onclick="confirmAddFromMenu()">
                 🛒 В КОРЗИНУ
             </button>
 
-            <!-- 2. Кнопка "Сохранить в базу" (только после фото) -->
             <button id="btn-save-db" class="s-btn btn-blue" onclick="confirmUpload()" style="display: none;">
                 💾 СОХРАНИТЬ В БАЗУ
             </button>
             
-            <!-- 3. Кнопка Сделать фото / Переснять -->
             <button id="btn-take-photo" class="s-btn btn-grey" onclick="triggerCamera()">
                 📸 СДЕЛАТЬ ФОТО
             </button>
@@ -130,45 +126,32 @@
                 📸 ПЕРЕСНЯТЬ
             </button>
 
-            <!-- 4. Кнопка Закрыть / Отмена (Красная) -->
             <button id="btn-cancel" class="s-btn btn-red" onclick="handleCancel()" style="margin-top: 10px; margin-bottom: 0;">
                 ЗАКРЫТЬ
             </button>
         </div>
     </div>
 
-    <!-- Скрытые элементы -->
     <input type="file" id="camera-input" accept="image/*" capture="environment" style="display: none;" onchange="handlePhoto(event)">
     <canvas id="resize-canvas" style="display: none;"></canvas>
 
     <script>
-        // --- КОНФИГУРАЦИЯ ---
-        // ВСТАВЬТЕ СЮДА ВАШУ ССЫЛКУ
-        // const APPS_SCRIPT_URL = "ВАШ_URL_ИЗ_GOOGLE_SCRIPTS";
-        
         let db = [];
         let selectedItemId = null;
         let tempBase64 = null;
 
-        // Загрузка данных с расширенной диагностикой
         async function load() {
             try {
+                // APPS_SCRIPT_URL берется из config.js
                 const res = await fetch(APPS_SCRIPT_URL);
                 if (!res.ok) throw new Error("Код ответа сервера: " + res.status);
                 
                 const data = await res.json();
-                
-                // Проверяем, в каком формате пришли данные
-                if (data && data.items) {
-                    db = data.items;
-                } else {
-                    db = Array.isArray(data) ? data : [];
-                }
-                
+                db = (data && data.items) ? data.items : (Array.isArray(data) ? data : []);
                 render();
             } catch (e) { 
                 console.error(e);
-                alert("Ошибка загрузки: " + e.message + "\nПроверьте APPS_SCRIPT_URL"); 
+                alert("Ошибка загрузки: " + e.message + "\nПроверьте config.js и интернет"); 
             }
         }
 
@@ -215,7 +198,6 @@
 
         function handleCancel() {
             if (tempBase64) {
-                // Если был сделан снимок, но не сохранен — сбрасываем к виду товара
                 openItemMenu(selectedItemId);
             } else {
                 closeItemMenu();
@@ -252,8 +234,6 @@
                     showElement('btn-save-db', true);
                     showElement('btn-take-photo', false);
                     showElement('btn-retake-photo', true);
-                    
-                    // Меняем текст на "ОТМЕНА"
                     document.getElementById('btn-cancel').innerText = "ОТМЕНА";
                 };
                 img.src = e.target.result;
@@ -288,7 +268,6 @@
         }
 
         function confirmAddFromMenu() {
-            // Здесь должна быть ваша функция add(id) из основного приложения
             if (typeof add === "function") {
                 add(selectedItemId);
             } else {
@@ -307,6 +286,7 @@
             document.getElementById('btn-cancel').disabled = false;
         }
 
+        // Запуск
         load();
     </script>
 </body>
