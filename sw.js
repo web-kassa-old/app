@@ -27,11 +27,13 @@ self.addEventListener('activate', e => {
   );
 });
 
-self.addEventListener('fetch', e => {
-  if (e.request.url.includes('script.google.com')) {
-    e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));
-    return;
-  }
+self.addEventListener('fetch', event => {
+    // --- НАЧАЛО: СПАСАЕМ БАЗУ ДАННЫХ ---
+    // Если запрос идет к Google (наша база данных) - не перехватываем его!
+    if (event.request.url.includes('script.google.com') || event.request.url.includes('script.googleusercontent.com')) {
+        return; // Браузер сам скачает данные в обход Service Worker'а
+    }
+    // --- КОНЕЦ ---
   
   e.respondWith(
     fetch(e.request).catch(() => caches.match(e.request))
