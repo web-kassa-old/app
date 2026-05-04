@@ -112,7 +112,7 @@
                 <img id="item-preview" src="">
             </div>
 
-            <!-- 1. Кнопка "В корзину" -->
+            <!-- 1. Кнопка "В КОРЗИНУ" -->
             <button id="btn-add-cart" class="s-btn btn-green" onclick="confirmAddFromMenu()">
                 🛒 В КОРЗИНУ
             </button>
@@ -130,9 +130,9 @@
                 📸 ПЕРЕСНЯТЬ
             </button>
 
-            <!-- 4. Кнопка Отмена (Красная) -->
+            <!-- 4. Кнопка Закрыть / Отмена (Красная) -->
             <button id="btn-cancel" class="s-btn btn-red" onclick="handleCancel()" style="margin-top: 10px; margin-bottom: 0;">
-                ОТМЕНА
+                ЗАКРЫТЬ
             </button>
         </div>
     </div>
@@ -142,21 +142,34 @@
     <canvas id="resize-canvas" style="display: none;"></canvas>
 
     <script>
-        // ЗАМЕНИТЕ ЭТУ ССЫЛКУ НА СВОЮ
-        const APPS_SCRIPT_URL = "ВАШ_URL_ИЗ_GOOGLE_SCRIPTS";
+        // --- КОНФИГУРАЦИЯ ---
+        // ВСТАВЬТЕ СЮДА ВАШУ ССЫЛКУ
+        // const APPS_SCRIPT_URL = "ВАШ_URL_ИЗ_GOOGLE_SCRIPTS";
         
         let db = [];
         let selectedItemId = null;
         let tempBase64 = null;
 
-        // Загрузка данных
+        // Загрузка данных с расширенной диагностикой
         async function load() {
             try {
                 const res = await fetch(APPS_SCRIPT_URL);
+                if (!res.ok) throw new Error("Код ответа сервера: " + res.status);
+                
                 const data = await res.json();
-                db = data.items;
+                
+                // Проверяем, в каком формате пришли данные
+                if (data && data.items) {
+                    db = data.items;
+                } else {
+                    db = Array.isArray(data) ? data : [];
+                }
+                
                 render();
-            } catch (e) { alert("Ошибка загрузки данных"); }
+            } catch (e) { 
+                console.error(e);
+                alert("Ошибка загрузки: " + e.message + "\nПроверьте APPS_SCRIPT_URL"); 
+            }
         }
 
         function render() {
@@ -175,40 +188,36 @@
         }
 
         function openItemMenu(id) {
-    selectedItemId = id;
-    tempBase64 = null;
-    const item = db.find(x => x.id === id);
-    
-    document.getElementById('menu-item-name').innerText = item.name;
-    resetUIState();
+            selectedItemId = id;
+            tempBase64 = null;
+            const item = db.find(x => x.id === id);
+            
+            document.getElementById('menu-item-name').innerText = item.name;
+            resetUIState();
 
-    const preview = document.getElementById('item-preview');
-    const cancelBtn = document.getElementById('btn-cancel');
+            const preview = document.getElementById('item-preview');
+            const cancelBtn = document.getElementById('btn-cancel');
 
-    if (item.img && item.img.length > 10) {
-        showElement('view-photo-container', true);
-        preview.src = item.img;
-        showElement('btn-take-photo', false);
-        showElement('btn-retake-photo', true);
-    } else {
-        showElement('view-photo-container', false);
-        showElement('btn-take-photo', true);
-        showElement('btn-retake-photo', false);
-    }
-    
-    // В обоих начальных состояниях кнопка просто закрывает окно
-    cancelBtn.innerText = "ЗАКРЫТЬ"; 
-    
-    document.getElementById('item-menu-modal').style.display = 'flex';
-}
+            if (item.img && item.img.length > 10) {
+                showElement('view-photo-container', true);
+                preview.src = item.img;
+                showElement('btn-take-photo', false);
+                showElement('btn-retake-photo', true);
+            } else {
+                showElement('view-photo-container', false);
+                showElement('btn-take-photo', true);
+                showElement('btn-retake-photo', false);
+            }
+            
+            cancelBtn.innerText = "ЗАКРЫТЬ"; 
+            document.getElementById('item-menu-modal').style.display = 'flex';
+        }
 
-        // Логика кнопки Отмена
         function handleCancel() {
             if (tempBase64) {
-                // Если мы в режиме черновика — сбрасываем к исходному виду товара
+                // Если был сделан снимок, но не сохранен — сбрасываем к виду товара
                 openItemMenu(selectedItemId);
             } else {
-                // Иначе просто закрываем меню
                 closeItemMenu();
             }
         }
@@ -219,61 +228,38 @@
         function triggerCamera() { document.getElementById('camera-input').click(); }
 
         async function handlePhoto(event) {
-    const file = event.target.files[0];
-    // Если пользователь открыл камеру, но закрыл её без снимка — ничего не делаем
-    if (!file) return;
+            const file = event.target.files[0];
+            if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = function(e) {
-        const img = new Image();
-        img.onload = function() {
-            // 1. ПОДГОТОВКА ХОЛСТА (Canvas) ДЛЯ СЖАТИЯ
-            const canvas = document.getElementById('resize-canvas');
-            const ctx = canvas.getContext('2d');
-            
-            // Устанавливаем лимит ширины 800px (оптимально для веса ~100Кб)
-            const MAX_WIDTH = 800;
-            let width = img.width;
-            let height = img.height;
-
-            if (width > MAX_WIDTH) {
-                height *= MAX_WIDTH / width;
-                width = MAX_WIDTH;
-            }
-
-            canvas.width = width;
-            canvas.height = height;
-            
-            // Рисуем изображение на холсте с новыми размерами
-            ctx.drawImage(img, 0, 0, width, height);
-
-            // 2. КОНВЕРТАЦИЯ В JPEG С КАЧЕСТВОМ 70%
-            // Сохраняем результат в глобальную переменную tempBase64
-            tempBase64 = canvas.toDataURL('image/jpeg', 0.7);
-            
-            // 3. ОБНОВЛЕНИЕ ИНТЕРФЕЙСА (Сценарий "Черновик")
-            
-            // Показываем только что сделанное фото в окне предпросмотра
-            document.getElementById('item-preview').src = tempBase64;
-            showElement('view-photo-container', true);
-            
-            // Скрываем кнопку "В КОРЗИНУ" (сначала нужно решить судьбу фото)
-            showElement('btn-add-cart', false);
-            
-            // Показываем синюю кнопку "СОХРАНИТЬ В БАЗУ"
-            showElement('btn-save-db', true);
-            
-            // Управляем кнопками камеры
-            showElement('btn-take-photo', false);
-            showElement('btn-retake-photo', true);
-            
-            // Меняем текст красной кнопки на "ОТМЕНА" (откат изменений черновика)
-            document.getElementById('btn-cancel').innerText = "ОТМЕНА";
-        };
-        img.src = e.target.result;
-    };
-    reader.readAsDataURL(file);
-}
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = new Image();
+                img.onload = function() {
+                    const canvas = document.getElementById('resize-canvas');
+                    const ctx = canvas.getContext('2d');
+                    const MAX_W = 800;
+                    let w = img.width;
+                    let h = img.height;
+                    if (w > MAX_W) { h *= MAX_W/w; w = MAX_W; }
+                    canvas.width = w; canvas.height = h;
+                    ctx.drawImage(img, 0, 0, w, h);
+                    
+                    tempBase64 = canvas.toDataURL('image/jpeg', 0.7);
+                    
+                    document.getElementById('item-preview').src = tempBase64;
+                    showElement('view-photo-container', true);
+                    showElement('btn-add-cart', false); 
+                    showElement('btn-save-db', true);
+                    showElement('btn-take-photo', false);
+                    showElement('btn-retake-photo', true);
+                    
+                    // Меняем текст на "ОТМЕНА"
+                    document.getElementById('btn-cancel').innerText = "ОТМЕНА";
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
 
         async function confirmUpload() {
             const btn = document.getElementById('btn-save-db');
@@ -292,22 +278,25 @@
                 const result = await res.json();
                 if (result.success) {
                     btn.innerText = "✅ ГОТОВО";
-                    setTimeout(() => location.reload(), 1000);
+                    setTimeout(() => location.reload(), 800);
                 } else { throw new Error(result.error); }
             } catch (e) {
-                alert("Ошибка: " + e.message);
+                alert("Ошибка сохранения: " + e.message);
                 btn.innerText = "💾 СОХРАНИТЬ В БАЗУ";
                 btn.disabled = false;
             }
         }
 
         function confirmAddFromMenu() {
-            // Здесь ваша логика добавления в корзину (add(selectedItemId))
-            alert("Товар добавлен в корзину!"); 
+            // Здесь должна быть ваша функция add(id) из основного приложения
+            if (typeof add === "function") {
+                add(selectedItemId);
+            } else {
+                alert("Товар добавлен в корзину!");
+            }
             closeItemMenu();
         }
 
-        // Утилиты
         function showElement(id, isShow) { document.getElementById(id).style.display = isShow ? 'block' : 'none'; }
         
         function resetUIState() {
@@ -315,9 +304,9 @@
             showElement('btn-save-db', false);
             document.getElementById('btn-save-db').disabled = false;
             document.getElementById('btn-save-db').innerText = "💾 СОХРАНИТЬ В БАЗУ";
+            document.getElementById('btn-cancel').disabled = false;
         }
 
-        // Старт
         load();
     </script>
 </body>
