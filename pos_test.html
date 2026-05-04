@@ -365,7 +365,7 @@
         catalog.innerHTML = db.map(i => {
             // Безопасная проверка фото
             const hasPhoto = i.img && i.img.toString().length > 10;
-            const photoIcon = hasPhoto ? '<span style="margin-right:5px;">🖼️</span>' : '';
+            const photoIcon = hasPhoto ? '<span style="margin-right:5px; color:#f1c40f;">📷</span>' : '';
             
             // Защита от пустых цен и остатков (превращаем в числа)
             const price = Number(i.price) || 0;
@@ -875,14 +875,26 @@ function openItemMenu(id) {
     document.getElementById('menu-item-name').innerText = item.name;
     
     // Если фото есть - показываем предпросмотр
-    const preview = document.getElementById('item-preview');
-    const container = document.getElementById('view-photo-container');
-    if (item.img) {
-        preview.src = item.img;
-        container.style.display = 'block';
+   // --- НАЧАЛО: КОД ДЛЯ ПОКАЗА ФОТО ---
+    const preview = document.getElementById('photo-preview');
+    if (item.img && item.img.length > 10) {
+        // Вытаскиваем чистый ID из ссылки
+        let fileId = "";
+        if (item.img.includes('id=')) {
+            fileId = item.img.split('id=')[1];
+        } 
+        
+        if (fileId) {
+            // Используем домен lh3.googleusercontent.com, который Safari НЕ блокирует
+            const safeUrl = `https://lh3.googleusercontent.com/d/${fileId}`;
+            preview.innerHTML = `<img src="${safeUrl}" style="max-width: 100%; max-height: 250px; border-radius: 8px; border: 1px solid #444; margin-top: 10px;">`;
+        } else {
+            preview.innerHTML = '<div style="color:red;">Ошибка формата ссылки</div>';
+        }
     } else {
-        container.style.display = 'none';
+        preview.innerHTML = ''; 
     }
+    // --- КОНЕЦ: КОД ДЛЯ ПОКАЗА ФОТО ---
     
     document.getElementById('item-menu-modal').style.display = 'flex';
 }
