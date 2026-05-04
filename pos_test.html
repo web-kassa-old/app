@@ -312,45 +312,61 @@
         }
 
         async function load() {
-            try {
-                const cachedDb = localStorage.getItem('db_cache');
-                const cachedTotals = localStorage.getItem('totals_cache');
-                if (cachedDb) db = JSON.parse(cachedDb);
-                if (cachedTotals) {
-                    const t = JSON.parse(cachedTotals);
-                    document.getElementById('sum-cash').innerText = (t.cash || 0).toLocaleString() + ' ₸';
-                    document.getElementById('sum-qr').innerText = (t.qr_kaspi || t.qr || 0).toLocaleString() + ' ₸';
-                    document.getElementById('sum-red').innerText = (t.installment || 0).toLocaleString() + ' ₸';
-                    document.getElementById('sum-card').innerText = (t.pos_terminal || t.card || 0).toLocaleString() + ' ₸';
-                    document.getElementById('sum-trans').innerText = (t.transfer || 0).toLocaleString() + ' ₸';
-                }
-                if (db && db.length > 0) render();
-            } catch (e) { }
-
-            if (!navigator.onLine) return; 
-
-            try {
-                const res = await fetch(APPS_SCRIPT_URL + "?t=" + Date.now());
-                const data = await res.json();
-                
-                db = data.items || [];
-                const t = data.totals || { cash: 0, qr_kaspi: 0, pos_terminal: 0, transfer: 0, installment: 0 };
-
-                // СОХРАНЯЕМ ПИН-КОД С СЕРВЕРА
-                if (data.pin) localStorage.setItem('pos_pin', data.pin);
-                
-                document.getElementById('sum-cash').innerText = t.cash.toLocaleString() + ' ₸';
-                document.getElementById('sum-qr').innerText = t.qr_kaspi.toLocaleString() + ' ₸';
-                document.getElementById('sum-red').innerText = t.installment.toLocaleString() + ' ₸';
-                document.getElementById('sum-card').innerText = t.pos_terminal.toLocaleString() + ' ₸';
-                document.getElementById('sum-trans').innerText = t.transfer.toLocaleString() + ' ₸';
-                
-                render();
-
-                localStorage.setItem('db_cache', JSON.stringify(db));
-                localStorage.setItem('totals_cache', JSON.stringify(t));
-            } catch (e) { }
+    // 1. Быстрая загрузка из кэша (как у вас)
+    try {
+        const cachedDb = localStorage.getItem('db_cache');
+        const cachedTotals = localStorage.getItem('totals_cache');
+        if (cachedDb) db = JSON.parse(cachedDb);
+        if (cachedTotals) {
+            const t = JSON.parse(cachedTotals);
+            document.getElementById('sum-cash').innerText = (t.cash || 0).toLocaleString() + ' ₸';
+            document.getElementById('sum-qr').innerText = (t.qr_kaspi || t.qr || 0).toLocaleString() + ' ₸';
+            document.getElementById('sum-red').innerText = (t.installment || 0).toLocaleString() + ' ₸';
+            document.getElementById('sum-card').innerText = (t.pos_terminal || t.card || 0).toLocaleString() + ' ₸';
+            document.getElementById('sum-trans').innerText = (t.transfer || 0).toLocaleString() + ' ₸';
         }
+        if (db && db.length > 0) render();
+    } catch (e) { console.warn("Ошибка чтения кэша", e); }
+
+    if (!navigator.onLine) return; 
+
+    // 2. Запрос свежих данных с сервера
+    try {
+        // ДОБАВЛЕН redirect: 'follow', чтобы PWA не боялся переадресаций Гугла
+        const res = await fetch(APPS_SCRIPT_URL + "?t=" + Date.now(), {
+            redirect: 'follow'
+        });
+        
+        if (!res.ok) throw new Error("Ошибка сервера: " + res.status);
+
+        const data = await res.json();
+        
+        db = data.items || [];
+        const t = data.totals || { cash: 0, qr_kaspi: 0, pos_terminal: 0, transfer: 0, installment: 0 };
+
+        // СОХРАНЯЕМ ПИН-КОД С СЕРВЕРА
+        if (data.pin) localStorage.setItem('pos_pin', data.pin);
+        
+        document.getElementById('sum-cash').innerText = t.cash.toLocaleString() + ' ₸';
+        document.getElementById('sum-qr').innerText = t.qr_kaspi.toLocaleString() + ' ₸';
+        document.getElementById('sum-red').innerText = t.installment.toLocaleString() + ' ₸';
+        document.getElementById('sum-card').innerText = t.pos_terminal.toLocaleString() + ' ₸';
+        document.getElementById('sum-trans').innerText = t.transfer.toLocaleString() + ' ₸';
+        
+        render();
+
+        localStorage.setItem('db_cache', JSON.stringify(db));
+        localStorage.setItem('totals_cache', JSON.stringify(t));
+        
+    } catch (e) { 
+        // ВМЕСТО ПУСТОТЫ ВЫВОДИМ ОШИБКУ НА ЭКРАН!
+        document.getElementById('catalog').innerHTML = `
+            <div style="color:#ff4444; padding:20px; text-align:center; border: 1px solid red; margin: 10px; border-radius: 8px;">
+                <b>ОШИБКА СЕТИ (PWA):</b><br>${e.message}
+            </div>
+        `;
+    }
+}
 
         function render() {
     const catalog = document.getElementById('catalog');
