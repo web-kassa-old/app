@@ -1033,13 +1033,67 @@ preview.innerHTML = `<img src="${safeUrl}" onclick="openFullscreen('${safeUrl}')
             reader.readAsDataURL(file);
         }
 
+// --- ЛОГИКА ЗУМА ДЛЯ ФОТОГРАФИЙ ---
+let fsScale = 1, fsX = 0, fsY = 0;
+let fsStartX = 0, fsStartY = 0;
+let fsInitDist = 0, fsInitScale = 1;
+
 function openFullscreen(src) {
-    document.getElementById('fullscreen-img').src = src;
+    const img = document.getElementById('fullscreen-img');
+    img.src = src;
+    
+    // Сброс масштаба при открытии
+    fsScale = 1; fsX = 0; fsY = 0;
+    img.style.transform = `translate(0px, 0px) scale(1)`;
     document.getElementById('fullscreen-photo').style.display = 'flex';
+
+    // Вешаем обработчики жестов только один раз
+    if (!img.dataset.gestures) {
+        img.dataset.gestures = "true";
+        
+        img.addEventListener('touchstart', (e) => {
+            if (e.touches.length === 2) {
+                // Старт щипка (2 пальца)
+                fsInitDist = Math.hypot(e.touches[0].pageX - e.touches[1].pageX, e.touches[0].pageY - e.touches[1].pageY);
+                fsInitScale = fsScale;
+            } else if (e.touches.length === 1) {
+                // Старт перетаскивания (1 палец)
+                fsStartX = e.touches[0].pageX - fsX;
+                fsStartY = e.touches[0].pageY - fsY;
+            }
+        }, { passive: false });
+
+        img.addEventListener('touchmove', (e) => {
+            if (e.cancelable) e.preventDefault(); // Блокируем фон от случайного скролла
+            
+            if (e.touches.length === 2) {
+                // Увеличение (щипок)
+                const currentDist = Math.hypot(e.touches[0].pageX - e.touches[1].pageX, e.touches[0].pageY - e.touches[1].pageY);
+                fsScale = Math.min(Math.max(1, fsInitScale * (currentDist / fsInitDist)), 5); // Зум от 1x до 5x
+                img.style.transform = `translate(${fsX}px, ${fsY}px) scale(${fsScale})`;
+            } else if (e.touches.length === 1 && fsScale > 1) {
+                // Перетаскивание (работает только если фото уже увеличено)
+                fsX = e.touches[0].pageX - fsStartX;
+                fsY = e.touches[0].pageY - fsStartY;
+                img.style.transform = `translate(${fsX}px, ${fsY}px) scale(${fsScale})`;
+            }
+        }, { passive: false });
+    }
 }
-function closeFullscreen() {
+
+// Умное закрытие по клику мимо фото
+function closeFullscreen(e) {
+    // Не закрывать, если мы случайно тапнули по фото во время зума
+    if (e && e.target.id === 'fullscreen-img' && fsScale > 1) return; 
+    forceCloseFs();
+}
+
+// Принудительное закрытие (по кнопке ✕)
+function forceCloseFs() {
     document.getElementById('fullscreen-photo').style.display = 'none';
+    fsScale = 1; fsX = 0; fsY = 0; // Сбрасываем позицию для следующего раза
 }
+// --- КОНЕЦ ЛОГИКИ ЗУМА ---
 
         async function confirmUpload() {
             if (!navigator.onLine) {
@@ -1112,9 +1166,10 @@ function closeFullscreen() {
         </div>
     </div>
 
-<!-- Окно полноэкранного просмотра фото -->
-<div id="fullscreen-photo" class="modal-overlay" style="z-index: 2000;" onclick="closeFullscreen()">
-    <img id="fullscreen-img" style="max-width: 95%; max-height: 95%; object-fit: contain; border-radius: 8px;">
+<!-- Окно полноэкранного просмотра фото с поддержкой зума -->
+<div id="fullscreen-photo" class="modal-overlay" style="z-index: 2000; flex-direction: column;" onclick="closeFullscreen(event)">
+    <div style="position: absolute; top: 15px; right: 20px; background: rgba(0,0,0,0.6); color: #fff; width: 40px; height: 40px; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 20px; font-weight: bold; cursor: pointer; z-index: 2001;" onclick="forceCloseFs()">✕</div>
+    <img id="fullscreen-img" style="max-width: 95%; max-height: 95%; object-fit: contain; border-radius: 8px; touch-action: none;">
 </div>
 
 
