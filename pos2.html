@@ -134,7 +134,7 @@
         <div class="list-header">
             <div style="flex-grow: 1; display: flex; align-items: center; gap: 10px;">
                 <span data-i18n="header_name">НАИМЕНОВАНИЕ</span>
-                <span id="app-version" style="font-size: 9px; color: #888; font-family: monospace; background: #1a1a1a; padding: 2px 6px; border-radius: 6px; border: 1px solid #333; text-transform: lowercase;">v: 5.4.0</span>
+                <span id="app-version" style="font-size: 9px; color: #888; font-family: monospace; background: #1a1a1a; padding: 2px 6px; border-radius: 6px; border: 1px solid #333; text-transform: lowercase;">v: TEST PIN</span>
             </div>
             <div style="width: 85px; text-align: right;" data-i18n="header_price">ЦЕНА</div>
             <div style="width: 45px; text-align: center;" data-i18n="header_stock">ОСТ</div>
@@ -265,7 +265,11 @@
                 btn_sync: "Отправить чеки", btn_update: "Обновить кэш",
                 msg_sync_empty: "Все чеки уже отправлены!", msg_sync_success: "Синхронизация успешна!", msg_sync_error: "Ошибка сети. Проверьте интернет.",
                 txt_sale_confirm: "ПОДТВЕРДИТЬ ПРОДАЖУ", txt_return_confirm: "ПОДТВЕРДИТЬ ВОЗВРАТ",
-                txt_payment: "Оплата: ", txt_total: "ИТОГО: "
+                txt_payment: "Оплата: ", txt_total: "ИТОГО: ",
+                // НОВЫЕ СЛОВА ДЛЯ ФОТО:
+                btn_add_cart: "В КОРЗИНУ", btn_save_db: "СОХРАНИТЬ В БАЗУ", 
+                btn_camera: "КАМЕРА", btn_gallery: "ГАЛЕРЕЯ",
+                btn_saving: "СОХРАНЕНИЕ...", btn_saved: "СОХРАНЕНО!"
             },
             kz: {
                 btn_sale: "САТУ", btn_return: "ҚАЙТАРУ", search_placeholder: "ІЗДЕУ...",
@@ -278,7 +282,11 @@
                 btn_sync: "Чектерді жіберу", btn_update: "Кэшті жаңарту",
                 msg_sync_empty: "Жіберетін чектер жоқ!", msg_sync_success: "Синхрондау сәтті аяқталды!", msg_sync_error: "Желі қатесі. Интернетті тексеріңіз.",
                 txt_sale_confirm: "САТУДЫ РАСТАУ", txt_return_confirm: "ҚАЙТАРУДЫ РАСТАУ",
-                txt_payment: "Төлем: ", txt_total: "БАРЛЫҒЫ: "
+                txt_payment: "Төлем: ", txt_total: "БАРЛЫҒЫ: ",
+                // НОВЫЕ СЛОВА ДЛЯ ФОТО:
+                btn_add_cart: "СЕБЕТКЕ САЛУ", btn_save_db: "БАЗАҒА САҚТАУ", 
+                btn_camera: "КАМЕРА", btn_gallery: "ГАЛЕРЕЯ",
+                btn_saving: "САҚТАЛУДА...", btn_saved: "САҚТАЛДЫ!"
             }
         };
 
@@ -654,7 +662,7 @@ function handleSearchInput() {
                 };
                 navigator.serviceWorker.controller.postMessage({ type: 'GET_VERSION' }, [messageChannel.port2]);
             } else {
-                document.getElementById('app-version').innerText = "v: 5.4.0";
+                document.getElementById('app-version').innerText = "v: dev";
             }
         }
 
@@ -928,7 +936,7 @@ function handleSearchInput() {
 
         function openItemMenu(id) {
             selectedItemId = id;
-            tempBase64 = null; // Сбрасываем черновик при новом открытии
+            tempBase64 = null; 
             const item = db.find(x => x.id === id);
 
             document.getElementById('menu-item-name').innerText = item.name;
@@ -940,13 +948,12 @@ function handleSearchInput() {
             const btnRetakePhoto = document.getElementById('btn-retake-photo');
             const btnCancel = document.getElementById('btn-cancel-modal');
 
-            // Сбрасываем кнопки в начальное состояние
             btnAddCart.style.display = 'block';
             btnSaveDb.style.display = 'none';
-            btnSaveDb.innerText = "💾 СОХРАНИТЬ В БАЗУ";
+            // Подтягиваем перевод
+            btnSaveDb.innerHTML = '💾 <span data-i18n="btn_save_db">' + translations[currentLang].btn_save_db + '</span>';
             btnSaveDb.disabled = false;
 
-            // Проверяем наличие фото
             if (item.img && item.img.length > 10) {
                 let fileId = "";
                 if (item.img.includes('id=')) {
@@ -955,8 +962,7 @@ function handleSearchInput() {
                 
                 if (fileId) {
                     const safeUrl = `https://lh3.googleusercontent.com/d/${fileId}`;
-                    // Замени эту строку внутри openItemMenu:
-preview.innerHTML = `<img src="${safeUrl}" onclick="openFullscreen('${safeUrl}')" style="max-width: 100%; max-height: 250px; border-radius: 8px; border: 1px solid #444; margin-top: 10px; cursor: zoom-in;">`;
+                    preview.innerHTML = `<img src="${safeUrl}" onclick="openFullscreen('${safeUrl}')" style="max-width: 100%; max-height: 250px; border-radius: 8px; border: 1px solid #444; margin-top: 10px; cursor: zoom-in;">`;
                 } else {
                     preview.innerHTML = '<div style="color:red;">Ошибка формата ссылки</div>';
                 }
@@ -968,7 +974,8 @@ preview.innerHTML = `<img src="${safeUrl}" onclick="openFullscreen('${safeUrl}')
                 btnRetakePhoto.style.display = 'none';
             }
             
-            btnCancel.innerText = "ЗАКРЫТЬ";
+            // Динамический перевод кнопки "Закрыть"
+            btnCancel.innerText = translations[currentLang].btn_close;
             document.getElementById('item-menu-modal').style.display = 'flex';
         }
 
@@ -1022,15 +1029,15 @@ preview.innerHTML = `<img src="${safeUrl}" onclick="openFullscreen('${safeUrl}')
 
                     tempBase64 = canvas.toDataURL('image/jpeg', 0.7);
                     
-                    // Показываем черновик
                     document.getElementById('photo-preview').innerHTML = `<img src="${tempBase64}" onclick="openFullscreen('${tempBase64}')" style="max-width: 100%; max-height: 250px; border-radius: 8px; border: 1px solid #444; margin-top: 10px; cursor: zoom-in;">`;
                     
-                    // Переключаем кнопки: прячем корзину, показываем базу
                     document.getElementById('btn-add-cart').style.display = 'none';
                     document.getElementById('btn-save-db').style.display = 'block';
                     document.getElementById('btn-take-photo').style.display = 'none';
                     document.getElementById('btn-retake-photo').style.display = 'block';
-                    document.getElementById('btn-cancel-modal').innerText = "ОТМЕНА";
+                    
+                    // Динамический перевод кнопки "Отмена"
+                    document.getElementById('btn-cancel-modal').innerText = translations[currentLang].btn_cancel;
                 };
                 img.src = e.target.result;
             };
@@ -1125,12 +1132,13 @@ function forceCloseFs() {
 
         async function confirmUpload() {
             if (!navigator.onLine) {
-                alert("Нужен интернет для загрузки фото");
+                alert(translations[currentLang].msg_sync_error);
                 return;
             }
 
             const btnSaveDb = document.getElementById('btn-save-db');
-            btnSaveDb.innerText = "⏳ СОХРАНЕНИЕ...";
+            // Перевод статуса сохранения
+            btnSaveDb.innerText = "⏳ " + translations[currentLang].btn_saving;
             btnSaveDb.disabled = true;
 
             try {
@@ -1146,16 +1154,16 @@ function forceCloseFs() {
                 const result = await res.json();
                 
                 if (result.success) {
-                    btnSaveDb.innerText = "✅ СОХРАНЕНО!";
+                    btnSaveDb.innerText = "✅ " + translations[currentLang].btn_saved;
                     setTimeout(() => { location.reload(); }, 800);
                 } else {
                     alert("Ошибка на сервере: " + result.error);
-                    btnSaveDb.innerText = "💾 СОХРАНИТЬ В БАЗУ";
+                    btnSaveDb.innerHTML = '💾 <span data-i18n="btn_save_db">' + translations[currentLang].btn_save_db + '</span>';
                     btnSaveDb.disabled = false;
                 }
             } catch (e) {
                 alert("Ошибка сети: " + e.message);
-                btnSaveDb.innerText = "💾 СОХРАНИТЬ В БАЗУ";
+                btnSaveDb.innerHTML = '💾 <span data-i18n="btn_save_db">' + translations[currentLang].btn_save_db + '</span>';
                 btnSaveDb.disabled = false;
             }
         }
@@ -1174,21 +1182,21 @@ function forceCloseFs() {
             <div id="photo-preview" style="text-align: center; margin: 10px 0; min-height: 20px;"></div>
             
             <button id="btn-add-cart" onclick="confirmAddFromMenu()" style="background: #1a3a20; color: #2ecc71; border-color: #2ecc71; margin-bottom: 12px; width: 100%; padding: 15px; border-radius: 8px; font-weight: bold; font-size: 14px; text-transform: uppercase; border: 1px solid; cursor: pointer;">
-                🛒 В КОРЗИНУ
+                🛒 <span data-i18n="btn_add_cart">В КОРЗИНУ</span>
             </button>
             
             <button id="btn-save-db" onclick="confirmUpload()" style="display: none; background: #0f2c40; color: #3498db; border-color: #3498db; margin-bottom: 12px; width: 100%; padding: 15px; border-radius: 8px; font-weight: bold; font-size: 14px; text-transform: uppercase; border: 1px solid; cursor: pointer;">
-                💾 СОХРАНИТЬ В БАЗУ
+                💾 <span data-i18n="btn_save_db">СОХРАНИТЬ В БАЗУ</span>
             </button>
 
             <!-- Блок кнопок добавления фото -->
             <div id="btn-take-photo" style="margin-bottom: 12px; width: 100%;">
                 <div style="display: flex; gap: 10px;">
                     <button onclick="triggerCamera()" style="flex: 1; background: #222; color: #eee; border-color: #555; padding: 15px; border-radius: 8px; font-weight: bold; font-size: 13px; text-transform: uppercase; border: 1px solid; cursor: pointer;">
-                        📸 КАМЕРА
+                        📸 <span data-i18n="btn_camera">КАМЕРА</span>
                     </button>
                     <button onclick="triggerGallery()" style="flex: 1; background: #222; color: #eee; border-color: #555; padding: 15px; border-radius: 8px; font-weight: bold; font-size: 13px; text-transform: uppercase; border: 1px solid; cursor: pointer;">
-                        📂 ГАЛЕРЕЯ
+                        📂 <span data-i18n="btn_gallery">ГАЛЕРЕЯ</span>
                     </button>
                 </div>
             </div>
@@ -1197,10 +1205,10 @@ function forceCloseFs() {
             <div id="btn-retake-photo" style="display: none; margin-bottom: 12px; width: 100%;">
                 <div style="display: flex; gap: 10px;">
                     <button onclick="triggerCamera()" style="flex: 1; background: #222; color: #eee; border-color: #555; padding: 15px; border-radius: 8px; font-weight: bold; font-size: 13px; text-transform: uppercase; border: 1px solid; cursor: pointer;">
-                        🔄 КАМЕРА
+                        🔄 <span data-i18n="btn_camera">КАМЕРА</span>
                     </button>
                     <button onclick="triggerGallery()" style="flex: 1; background: #222; color: #eee; border-color: #555; padding: 15px; border-radius: 8px; font-weight: bold; font-size: 13px; text-transform: uppercase; border: 1px solid; cursor: pointer;">
-                        🔄 ГАЛЕРЕЯ
+                        🔄 <span data-i18n="btn_gallery">ГАЛЕРЕЯ</span>
                     </button>
                 </div>
             </div>
