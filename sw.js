@@ -27,10 +27,10 @@ self.addEventListener('activate', e => {
   );
 });
 
-self.addEventListener('fetch', event => {
+self.addEventListener('fetch', e => {
     // --- НАЧАЛО: СПАСАЕМ БАЗУ ДАННЫХ ---
     // Если запрос идет к Google (наша база данных) - не перехватываем его!
-    if (event.request.url.includes('script.google.com') || event.request.url.includes('script.googleusercontent.com')) {
+    if (e.request.url.includes('script.google.com') || e.request.url.includes('script.googleusercontent.com')) {
         return; // Браузер сам скачает данные в обход Service Worker'а
     }
     // --- КОНЕЦ ---
