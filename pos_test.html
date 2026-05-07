@@ -112,6 +112,15 @@
             position: absolute; top: 0; left: 0; right: 0; bottom: 0;
             width: 100%; height: 100%; opacity: 0; cursor: pointer;
         }
+        /* Стили для нового отчета "Движение товаров" */
+        .item-wrapper { margin-bottom: 4px; }
+        .item-card { display: grid; grid-template-columns: 1fr 40px 85px; gap: 8px; padding: 6px 8px; border: 1px solid #333; border-radius: 5px; background: #2d2d30; cursor: pointer; transition: background 0.2s; align-items: center; }
+        .item-card:hover { background: #38383b; }
+        .dropdown-icon { display: inline-block; font-size: 8px; color: #555; transition: transform 0.2s; }
+        .item-wrapper.active .dropdown-icon { transform: rotate(180deg); color: #4ade80; }
+        .item-wrapper.active .item-card { border-bottom-left-radius: 0; border-bottom-right-radius: 0; border-color: #444; }
+        .item-details { background: #252526; border: 1px solid #333; border-top: none; border-bottom-left-radius: 5px; border-bottom-right-radius: 5px; max-height: 0; overflow: hidden; transition: max-height 0.2s ease-out; }
+        .item-wrapper.active .item-details { max-height: 120px; }
     </style>
 </head>
 <body>
@@ -184,10 +193,13 @@
             <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 10px; border-bottom: 1px solid #333; padding-bottom: 10px;">
                 <div id="rep-header-title" style="font-size: 14px; font-weight: bold; color: #fff; text-align: center;">ОТЧЕТ</div>
                 
-                <div id="date-range-controls" style="display: none; align-items: center; justify-content: center; gap: 5px;">
-                    <input type="date" id="rep-date-start" style="background: #222; color: #fff; border: 1px solid #444; padding: 5px; border-radius: 4px; color-scheme: dark; font-size: 11px; width: 115px;" onchange="renderReport()">
-                    <span style="color: #666;">—</span>
-                    <input type="date" id="rep-date-end" style="background: #222; color: #fff; border: 1px solid #444; padding: 5px; border-radius: 4px; color-scheme: dark; font-size: 11px; width: 115px;" onchange="renderReport()">
+                <div id="date-range-controls" style="display: none; flex-direction: column; gap: 10px; width: 100%; margin-top: 10px;">
+                    <div style="display: flex; align-items: center; justify-content: center; gap: 5px;">
+                        <input type="date" id="rep-date-start" style="background: #222; color: #fff; border: 1px solid #444; padding: 5px; border-radius: 4px; color-scheme: dark; font-size: 11px; width: 115px;" onchange="renderReport()">
+                        <span style="color: #666;">—</span>
+                        <input type="date" id="rep-date-end" style="background: #222; color: #fff; border: 1px solid #444; padding: 5px; border-radius: 4px; color-scheme: dark; font-size: 11px; width: 115px;" onchange="renderReport()">
+                    </div>
+                    <input type="text" id="rep-search" placeholder="Поиск товара..." oninput="filterReport()" style="background: #1a1a1a; color: #fff; border: 1px solid #444; padding: 8px 10px; border-radius: 4px; font-size: 12px; outline: none; width: 100%; display: none;">
                 </div>
             </div>
             
@@ -747,11 +759,20 @@
             renderReport();
         }
 
+        function filterReport() {
+            const q = document.getElementById('rep-search').value.toLowerCase();
+            document.querySelectorAll('#rep-list .item-wrapper').forEach(el => {
+                const name = el.getAttribute('data-name');
+                if (name) el.style.display = name.includes(q) ? 'block' : 'none';
+            });
+        }
+
         async function renderReport() {
             const start = document.getElementById('rep-date-start').value;
             const end = document.getElementById('rep-date-end').value;
             const repList = document.getElementById('rep-list');
             const totalsBox = document.getElementById('rep-totals');
+            const searchInput = document.getElementById('rep-search');
             
             const fmt = (d) => d.split('-').reverse().join('.');
             const serverStart = fmt(start);
@@ -772,6 +793,7 @@
                 if (data.report.length === 0) {
                     repList.innerHTML = `<div style="text-align:center; color:#666; margin-top:30px; font-size: 12px;">ОПЕРАЦИЙ НЕ НАЙДЕНО</div>`;
                     totalsBox.innerHTML = '';
+                    searchInput.style.display = 'none';
                     return;
                 }
 
@@ -781,36 +803,91 @@
                 
                 // === АВТОМАТИЧЕСКОЕ ПЕРЕКЛЮЧЕНИЕ ИНТЕРФЕЙСА ===
                 if (start !== end) {
-                    // --- РЕЖИМ СВОДКИ (Агрегация за период) ---
+                    searchInput.style.display = 'block'; // Показываем поиск
+                    searchInput.value = ''; // Очищаем поиск
+
+                    // --- РЕЖИМ СВОДКИ "ДВИЖЕНИЕ ТОВАРОВ" ---
                     let aggregated = {};
+                    let tSalesQty = 0, tSalesSum = 0, tReturnsQty = 0, tReturnsSum = 0;
                     
                     data.report.forEach(h => {
                         let isRet = h.type === 'return';
-                        if (isRet) t.return += h.total; else t.sale += h.total;
-                        
                         h.cart.forEach(c => {
-                            let key = c.name + (isRet ? '_ret' : '_sale');
-                            if (!aggregated[key]) {
-                                aggregated[key] = { name: c.name, qty: 0, sum: 0, isRet: isRet };
+                            let key = c.name;
+                            if (!aggregated[key]) aggregated[key] = { name: c.name, salesQty: 0, salesSum: 0, returnsQty: 0, returnsSum: 0 };
+                            
+                            if (isRet) {
+                                aggregated[key].returnsQty += c.qty;
+                                aggregated[key].returnsSum += (c.qty * c.price);
+                                tReturnsQty += c.qty;
+                                tReturnsSum += (c.qty * c.price);
+                                t.return += (c.qty * c.price);
+                            } else {
+                                aggregated[key].salesQty += c.qty;
+                                aggregated[key].salesSum += (c.qty * c.price);
+                                tSalesQty += c.qty;
+                                tSalesSum += (c.qty * c.price);
+                                t.sale += (c.qty * c.price);
                             }
-                            aggregated[key].qty += c.qty;
-                            aggregated[key].sum += (c.qty * c.price);
                         });
                     });
 
-                    // Сортируем товары по сумме выручки
-                    let salesItems = Object.values(aggregated).filter(i => !i.isRet).sort((a,b) => b.sum - a.sum);
-                    let retItems = Object.values(aggregated).filter(i => i.isRet).sort((a,b) => b.sum - a.sum);
+                    const formatMoney = new Intl.NumberFormat('ru-RU').format;
+                    let sortedItems = Object.values(aggregated).sort((a, b) => (b.salesSum - b.returnsSum) - (a.salesSum - a.returnsSum));
 
-                    // 100% совпадение с вашим макетом (без лишних точек и серых x)
-                    let salesHtml = salesItems.map(i => `<div class="hb-item" style="margin-bottom: 8px;"><span>${i.name} (${i.qty} шт)</span><span>${i.sum.toLocaleString()} ₸</span></div>`).join('');
-                    let retHtml = retItems.map(i => `<div class="hb-item" style="margin-bottom: 8px;"><span>${i.name} (${i.qty} шт)</span><span>${i.sum.toLocaleString()} ₸</span></div>`).join('');
+                    let htmlString = `<div style="display: grid; grid-template-columns: 1fr 40px 85px; gap: 8px; font-size: 10px; color: #666; font-weight: bold; margin-bottom: 8px; padding: 0 8px 6px; border-bottom: 1px solid #333; text-transform: uppercase;">
+                        <div>НАИМЕНОВАНИЕ</div><div style="text-align: right;">КОЛ.</div><div style="text-align: right;">СУММА</div>
+                    </div>`;
 
-                    repList.innerHTML = `
-                        ${salesHtml ? `<div class="hist-block" style="border-left-color: #2ecc71; padding: 15px 12px;"><div style="color: #2ecc71; font-size: 11px; font-weight: bold; text-transform: uppercase; margin-bottom: 16px;">ПРОДАНО ТОВАРОВ</div>${salesHtml}</div>` : ''}
-                        ${retHtml ? `<div class="hist-block" style="border-left-color: #e74c3c; padding: 15px 12px; margin-top: 10px;"><div style="color: #e74c3c; font-size: 11px; font-weight: bold; text-transform: uppercase; margin-bottom: 16px;">ВОЗВРАЩЕНО ТОВАРОВ</div>${retHtml}</div>` : ''}
+                    sortedItems.forEach(item => {
+                        const netItemQty = item.salesQty - item.returnsQty;
+                        const netItemSum = item.salesSum - item.returnsSum;
+                        const avgSale = item.salesQty > 0 ? Math.round(item.salesSum / item.salesQty) : 0;
+                        const avgReturn = item.returnsQty > 0 ? Math.round(item.returnsSum / item.returnsQty) : 0;
+                        const sumColor = netItemSum < 0 ? '#f87171' : '#4ade80';
+
+                        let detailsHtml = '';
+                        if (item.salesQty > 0) {
+                            detailsHtml += `<div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 4px;">
+                                <span style="color: #888;">Продажи (${item.salesQty}) <span style="color: #666; font-style: italic; margin-left: 4px;">~ ${formatMoney(avgSale)}</span></span>
+                                <span style="color: #4ade80;">${formatMoney(item.salesSum)}</span>
+                            </div>`;
+                        }
+                        if (item.returnsQty > 0) {
+                            detailsHtml += `<div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 4px;">
+                                <span style="color: #888;">Возвраты (${item.returnsQty}) <span style="color: #666; font-style: italic; margin-left: 4px;">по ${formatMoney(avgReturn)}</span></span>
+                                <span style="color: #f87171;">-${formatMoney(item.returnsSum)}</span>
+                            </div>`;
+                        }
+
+                        htmlString += `
+                            <div class="item-wrapper" data-name="${item.name.toLowerCase()}">
+                                <div class="item-card" onclick="this.parentElement.classList.toggle('active')">
+                                    <div style="font-size: 12px; color: #e0e0e0; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${item.name}</div>
+                                    <div style="text-align: right; color: #888; font-size: 12px;">${netItemQty}</div>
+                                    <div style="text-align: right; font-weight: 700; font-size: 13px; color: ${sumColor}; display: flex; justify-content: flex-end; align-items: center; gap: 4px;">
+                                        ${formatMoney(netItemSum)} <span class="dropdown-icon">▼</span>
+                                    </div>
+                                </div>
+                                <div class="item-details"><div style="padding: 6px 8px;">${detailsHtml}</div></div>
+                            </div>`;
+                    });
+
+                    repList.innerHTML = htmlString;
+
+                    totalsBox.innerHTML = `
+                        <div style="display: grid; grid-template-columns: 1fr 40px 85px; gap: 8px; font-size: 12px; color: #888; margin-bottom: 4px;">
+                            <div>Продажи:</div><div style="text-align: right;">${tSalesQty}</div><div style="text-align: right;">${formatMoney(tSalesSum)}</div>
+                        </div>
+                        <div style="display: grid; grid-template-columns: 1fr 40px 85px; gap: 8px; font-size: 12px; color: #f87171; margin-bottom: 4px;">
+                            <div>Возвраты:</div><div style="text-align: right;">${tReturnsQty > 0 ? '-' + tReturnsQty : '0'}</div><div style="text-align: right;">${tReturnsSum > 0 ? '-' + formatMoney(tReturnsSum) : '0'}</div>
+                        </div>
+                        <div style="display: grid; grid-template-columns: 1fr 40px 85px; gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px dashed #444; font-size: 14px; font-weight: 700; color: #fff;">
+                            <div>Итого (чистая):</div><div style="text-align: right;">${tSalesQty - tReturnsQty}</div><div style="text-align: right;">${formatMoney(tSalesSum - tReturnsSum)} ₸</div>
+                        </div>
                     `;
                 } else {
+                    searchInput.style.display = 'none'; // Прячем поиск
                     // --- РЕЖИМ ОДНОГО ДНЯ (Детальные чеки) ---
                     repList.innerHTML = data.report.map(h => {
                         let isRet = h.type === 'return';
@@ -824,15 +901,13 @@
                             <div class="${isRet?'hb-type-r':''}">${itemsHtml}</div>
                         </div>`;
                     }).join('');
+                    
+                    totalsBox.innerHTML = `
+                        <div style="display:flex; justify-content:space-between; color:#2ecc71; font-size:12px; margin-bottom:4px;"><span>ПРОДАЖИ:</span><span>${t.sale.toLocaleString()} ₸</span></div>
+                        <div style="display:flex; justify-content:space-between; color:#e74c3c; font-size:12px; margin-bottom:4px;"><span>ВОЗВРАТЫ:</span><span>${t.return.toLocaleString()} ₸</span></div>
+                        <div style="display:flex; justify-content:space-between; color:#fff; font-weight:bold; font-size:16px; margin-top:8px; border-top:1px dashed #555; padding-top:8px;"><span>В КАССЕ:</span><span>${(t.sale - t.return).toLocaleString()} ₸</span></div>
+                    `;
                 }
-                
-                // Итоги внизу
-                totalsBox.innerHTML = `
-                    <div style="display:flex; justify-content:space-between; color:#2ecc71; font-size:12px; margin-bottom: 4px;"><span>ПРОДАЖИ:</span><span>${t.sale.toLocaleString()} ₸</span></div>
-                    <div style="display:flex; justify-content:space-between; color:#e74c3c; font-size:12px; margin-bottom: 4px;"><span>ВОЗВРАТЫ:</span><span>${t.return.toLocaleString()} ₸</span></div>
-                    <div style="display:flex; justify-content:space-between; color:#fff; font-weight:bold; font-size:16px; margin-top:8px; border-top:1px dashed #555; padding-top:8px;"><span>В КАССЕ:</span><span>${(t.sale - t.return).toLocaleString()} ₸</span></div>
-                `;
-
             } catch (error) {
                 repList.innerHTML = '<div style="text-align:center; color:#e74c3c; margin-top:30px;">ОШИБКА СЕРВЕРА</div>';
             }
