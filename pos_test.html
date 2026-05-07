@@ -779,9 +779,9 @@
                 const names = { 'cash': translations[currentLang].pay_cash, 'qr_kaspi': 'Kaspi QR', 'installment': 'Kaspi Red', 'pos_terminal': translations[currentLang].pay_card, 'transfer': translations[currentLang].pay_trans };
                 let t = { sale: 0, return: 0 };
                 
-                // === АВТОМАТИЧЕСКИЙ ВЫБОР РЕЖИМА ===
+                // === АВТОМАТИЧЕСКОЕ ПЕРЕКЛЮЧЕНИЕ ИНТЕРФЕЙСА ===
                 if (start !== end) {
-                    // РЕЖИМ СВОДКИ (Агрегация товаров за период)
+                    // --- РЕЖИМ СВОДКИ (Агрегация за период) ---
                     let aggregated = {};
                     
                     data.report.forEach(h => {
@@ -798,18 +798,20 @@
                         });
                     });
 
-                    let salesItems = Object.values(aggregated).filter(i => !i.isRet);
-                    let retItems = Object.values(aggregated).filter(i => i.isRet);
+                    // Сортируем товары по сумме выручки (от большего к меньшему)
+                    let salesItems = Object.values(aggregated).filter(i => !i.isRet).sort((a,b) => b.sum - a.sum);
+                    let retItems = Object.values(aggregated).filter(i => i.isRet).sort((a,b) => b.sum - a.sum);
 
-                    let salesHtml = salesItems.map(i => `<div class="hb-item"><span>${i.name} (${i.qty} шт)</span><span>${i.sum.toLocaleString()} ₸</span></div>`).join('');
-                    let retHtml = retItems.map(i => `<div class="hb-item hb-type-r"><span>${i.name} (${i.qty} шт)</span><span>${i.sum.toLocaleString()} ₸</span></div>`).join('');
+                    // Формируем красивый HTML список
+                    let salesHtml = salesItems.map(i => `<div class="hb-item" style="padding: 4px 0; border-bottom: 1px dotted #222;"><span>${i.name} <b style="color:#888; font-size:10px;">x${i.qty}</b></span><span style="color:#fff; font-weight:bold;">${i.sum.toLocaleString()} ₸</span></div>`).join('');
+                    let retHtml = retItems.map(i => `<div class="hb-item hb-type-r" style="padding: 4px 0; border-bottom: 1px dotted #222;"><span>${i.name} <b style="color:#888; font-size:10px;">x${i.qty}</b></span><span style="color:#fff; font-weight:bold;">${i.sum.toLocaleString()} ₸</span></div>`).join('');
 
                     repList.innerHTML = `
-                        ${salesHtml ? `<div class="hist-block" style="border-left-color: #2ecc71;"><div class="hb-head" style="color: #2ecc71;"><span>ПРОДАНО ТОВАРОВ</span></div>${salesHtml}</div>` : ''}
-                        ${retHtml ? `<div class="hist-block" style="border-left-color: #e74c3c;"><div class="hb-head" style="color: #e74c3c;"><span>ВОЗВРАЩЕНО ТОВАРОВ</span></div>${retHtml}</div>` : ''}
+                        ${salesHtml ? `<div class="hist-block" style="border-left-color: #2ecc71; padding-bottom: 5px;"><div class="hb-head" style="color: #2ecc71; border-bottom: 1px dashed #333; margin-bottom: 8px;"><span>ПРОДАНО ТОВАРОВ</span></div>${salesHtml}</div>` : ''}
+                        ${retHtml ? `<div class="hist-block" style="border-left-color: #e74c3c; padding-bottom: 5px;"><div class="hb-head" style="color: #e74c3c; border-bottom: 1px dashed #333; margin-bottom: 8px;"><span>ВОЗВРАЩЕНО ТОВАРОВ</span></div>${retHtml}</div>` : ''}
                     `;
                 } else {
-                    // РЕЖИМ ОДНОГО ДНЯ (Детальные чеки)
+                    // --- РЕЖИМ ОДНОГО ДНЯ (Детальные чеки) ---
                     repList.innerHTML = data.report.map(h => {
                         let isRet = h.type === 'return';
                         if (isRet) t.return += h.total; else t.sale += h.total;
@@ -824,9 +826,10 @@
                     }).join('');
                 }
                 
+                // Итоги внизу
                 totalsBox.innerHTML = `
-                    <div style="display:flex; justify-content:space-between; color:#2ecc71; font-size:12px;"><span>ПРОДАЖИ:</span><span>${t.sale.toLocaleString()} ₸</span></div>
-                    <div style="display:flex; justify-content:space-between; color:#e74c3c; font-size:12px;"><span>ВОЗВРАТЫ:</span><span>${t.return.toLocaleString()} ₸</span></div>
+                    <div style="display:flex; justify-content:space-between; color:#2ecc71; font-size:12px; margin-bottom: 4px;"><span>ПРОДАЖИ:</span><span>${t.sale.toLocaleString()} ₸</span></div>
+                    <div style="display:flex; justify-content:space-between; color:#e74c3c; font-size:12px; margin-bottom: 4px;"><span>ВОЗВРАТЫ:</span><span>${t.return.toLocaleString()} ₸</span></div>
                     <div style="display:flex; justify-content:space-between; color:#fff; font-weight:bold; font-size:16px; margin-top:8px; border-top:1px dashed #555; padding-top:8px;"><span>В КАССЕ:</span><span>${(t.sale - t.return).toLocaleString()} ₸</span></div>
                 `;
 
