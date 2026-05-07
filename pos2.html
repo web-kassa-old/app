@@ -230,7 +230,7 @@
                         <input type="date" id="rep-date-end" style="background: #222; color: #fff; border: 1px solid #444; padding: 5px; border-radius: 4px; color-scheme: dark; font-size: 11px; width: 115px;" onchange="renderReport()">
                     </div>
                     <div class="rep-search-container" id="rep-search-wrap" style="display: none;">
-                        <input type="text" id="rep-search" placeholder="Поиск товара..." oninput="filterReport()" style="background: #1a1a1a; color: #fff; border: 1px solid #444; padding: 8px 35px 8px 10px; border-radius: 4px; font-size: 12px; outline: none; width: 100%;">
+                        <input type="text" id="rep-search" data-i18n-placeholder="search_placeholder" placeholder="ПОИСК..." oninput="filterReport()" style="-webkit-appearance: none; background: #1a1a1a; color: #fff; border: 1px solid #444; padding: 8px 35px 8px 10px; border-radius: 4px; font-size: 12px; outline: none; width: 100%; box-sizing: border-box;">
                         <span id="rep-clear-search" onclick="clearReportSearch()">✕</span>
                     </div>
                 </div>
@@ -319,7 +319,15 @@
                 txt_payment: "Оплата: ", txt_total: "ИТОГО: ",
                 btn_add_cart: "В КОРЗИНУ", btn_save_db: "СОХРАНИТЬ В БАЗУ", 
                 btn_camera: "КАМЕРА", btn_gallery: "ГАЛЕРЕЯ",
-                btn_saving: "СОХРАНЕНИЕ...", btn_saved: "СОХРАНЕНО!"
+                btn_saving: "СОХРАНЕНИЕ...", btn_saved: "СОХРАНЕНО!",
+                // --- ДОБАВЛЕНО ДЛЯ ОТЧЕТА ЗА ПЕРИОД ---
+                report_name: "НАИМЕНОВАНИЕ", report_qty: "КОЛ.", report_sum: "СУММА",
+                report_sales: "Продажи", report_returns: "Возвраты", report_total_net: "Итого (чистая):",
+                report_in_register: "В КАССЕ:",
+                msg_loading: "ЗАГРУЗКА...", 
+                msg_no_internet: "НЕТ ИНТЕРНЕТА", 
+                msg_no_data: "ОПЕРАЦИЙ НЕ НАЙДЕНО",
+                msg_server_error: "ОШИБКА СЕРВЕРА"
             },
             kz: {
                 btn_sale: "САТУ", btn_return: "ҚАЙТАРУ", search_placeholder: "ІЗДЕУ...",
@@ -335,7 +343,15 @@
                 txt_payment: "Төлем: ", txt_total: "БАРЛЫҒЫ: ",
                 btn_add_cart: "СЕБЕТКЕ САЛУ", btn_save_db: "БАЗАҒА САҚТАУ", 
                 btn_camera: "КАМЕРА", btn_gallery: "ГАЛЕРЕЯ",
-                btn_saving: "САҚТАЛУДА...", btn_saved: "САҚТАЛДЫ!"
+                btn_saving: "САҚТАЛУДА...", btn_saved: "САҚТАЛДЫ!",
+                // --- ДОБАВЛЕНО ДЛЯ ОТЧЕТА ЗА ПЕРИОД ---
+                report_name: "АТАУЫ", report_qty: "САНЫ", report_sum: "СОМАСЫ",
+                report_sales: "Сатылымдар", report_returns: "Қайтарымдар", report_total_net: "Барлығы (таза):",
+                report_in_register: "КАССАДА:",
+                msg_loading: "ЖҮКТЕЛУДЕ...", 
+                msg_no_internet: "ИНТЕРНЕТ ЖОҚ", 
+                msg_no_data: "ОПЕРАЦИЯЛАР ТАБЫЛМАДЫ",
+                msg_server_error: "СЕРВЕР ҚАТЕСІ"
             }
         };
 
@@ -823,10 +839,16 @@
             const serverStart = fmt(start);
             const serverEnd = fmt(end);
 
-            repList.innerHTML = `<div style="text-align:center; color:#f39c12; margin-top:30px; font-size: 12px; font-weight: bold;">⏳ ЗАГРУЗКА...</div>`;
+            // Подтягиваем переводы системных сообщений
+            const tLoading = translations[currentLang].msg_loading || "ЗАГРУЗКА...";
+            const tNoNet = translations[currentLang].msg_no_internet || "НЕТ ИНТЕРНЕТА";
+            const tNoData = translations[currentLang].msg_no_data || "ОПЕРАЦИЙ НЕ НАЙДЕНО";
+            const tError = translations[currentLang].msg_server_error || "ОШИБКА СЕРВЕРА";
+
+            repList.innerHTML = `<div style="text-align:center; color:#f39c12; margin-top:30px; font-size: 12px; font-weight: bold;">⏳ ${tLoading}</div>`;
 
             if (!navigator.onLine) {
-                repList.innerHTML = `<div style="text-align:center; color:#e74c3c; margin-top:30px; font-size: 12px;">НЕТ ИНТЕРНЕТА</div>`;
+                repList.innerHTML = `<div style="text-align:center; color:#e74c3c; margin-top:30px; font-size: 12px;">${tNoNet}</div>`;
                 return;
             }
 
@@ -836,7 +858,7 @@
                 const data = await response.json();
                 
                 if (data.report.length === 0) {
-                    repList.innerHTML = `<div style="text-align:center; color:#666; margin-top:30px; font-size: 12px;">ОПЕРАЦИЙ НЕ НАЙДЕНО</div>`;
+                    repList.innerHTML = `<div style="text-align:center; color:#666; margin-top:30px; font-size: 12px;">${tNoData}</div>`;
                     totalsBox.innerHTML = '';
                     searchInput.style.display = 'none';
                     return;
@@ -846,15 +868,23 @@
                 const names = { 'cash': translations[currentLang].pay_cash, 'qr_kaspi': 'Kaspi QR', 'installment': 'Kaspi Red', 'pos_terminal': translations[currentLang].pay_card, 'transfer': translations[currentLang].pay_trans };
                 let t = { sale: 0, return: 0 };
                 
-                // === АВТОМАТИЧЕСКОЕ ПЕРЕКЛЮЧЕНИЕ ИНТЕРФЕЙСА ===
                 if (start !== end) {
-                    searchInput.style.display = 'block'; // Показываем поиск
-                    searchInput.value = ''; // Очищаем поиск
+                    searchInput.style.display = 'block'; 
+                    searchInput.value = ''; 
+                    searchInput.placeholder = translations[currentLang].search_placeholder;
 
-                    // --- РЕЖИМ СВОДКИ "ДВИЖЕНИЕ ТОВАРОВ" ---
                     let aggregated = {};
                     let tSalesQty = 0, tSalesSum = 0, tReturnsQty = 0, tReturnsSum = 0;
                     
+                    const ui = {
+                        name: translations[currentLang].report_name,
+                        qty: translations[currentLang].report_qty,
+                        sum: translations[currentLang].report_sum,
+                        sales: translations[currentLang].report_sales,
+                        returns: translations[currentLang].report_returns,
+                        net: translations[currentLang].report_total_net
+                    };
+
                     data.report.forEach(h => {
                         let isRet = h.type === 'return';
                         h.cart.forEach(c => {
@@ -880,12 +910,10 @@
                     const formatMoney = new Intl.NumberFormat('ru-RU').format;
                     let sortedItems = Object.values(aggregated).sort((a, b) => (b.salesSum - b.returnsSum) - (a.salesSum - a.returnsSum));
 
-                    // Измените эту строку в renderReport():
                     let htmlString = `<div class="rep-table-header">
-                        <div>НАИМЕНОВАНИЕ</div><div style="text-align: right;">КОЛ.</div><div style="text-align: right;">СУММА</div>
+                        <div>${ui.name}</div><div style="text-align: right;">${ui.qty}</div><div style="text-align: right;">${ui.sum}</div>
                     </div>`;
                     
-                    // И не забудьте включить обертку поиска:
                     document.getElementById('rep-search-wrap').style.display = 'block';
 
                     sortedItems.forEach(item => {
@@ -898,13 +926,13 @@
                         let detailsHtml = '';
                         if (item.salesQty > 0) {
                             detailsHtml += `<div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 4px;">
-                                <span style="color: #888;">Продажи (${item.salesQty}) <span style="color: #666; font-style: italic; margin-left: 4px;">~ ${formatMoney(avgSale)}</span></span>
+                                <span style="color: #888;">${ui.sales} (${item.salesQty}) <span style="color: #666; font-style: italic; margin-left: 4px;">~ ${formatMoney(avgSale)}</span></span>
                                 <span style="color: #4ade80;">${formatMoney(item.salesSum)}</span>
                             </div>`;
                         }
                         if (item.returnsQty > 0) {
                             detailsHtml += `<div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 4px;">
-                                <span style="color: #888;">Возвраты (${item.returnsQty}) <span style="color: #666; font-style: italic; margin-left: 4px;">по ${formatMoney(avgReturn)}</span></span>
+                                <span style="color: #888;">${ui.returns} (${item.returnsQty}) <span style="color: #666; font-style: italic; margin-left: 4px;">~ ${formatMoney(avgReturn)}</span></span>
                                 <span style="color: #f87171;">-${formatMoney(item.returnsSum)}</span>
                             </div>`;
                         }
@@ -926,39 +954,51 @@
 
                     totalsBox.innerHTML = `
                         <div style="display: grid; grid-template-columns: 1fr 40px 85px; gap: 8px; font-size: 12px; color: #888; margin-bottom: 4px;">
-                            <div>Продажи:</div><div style="text-align: right;">${tSalesQty}</div><div style="text-align: right;">${formatMoney(tSalesSum)}</div>
+                            <div>${ui.sales}:</div><div style="text-align: right;">${tSalesQty}</div><div style="text-align: right;">${formatMoney(tSalesSum)}</div>
                         </div>
                         <div style="display: grid; grid-template-columns: 1fr 40px 85px; gap: 8px; font-size: 12px; color: #f87171; margin-bottom: 4px;">
-                            <div>Возвраты:</div><div style="text-align: right;">${tReturnsQty > 0 ? '-' + tReturnsQty : '0'}</div><div style="text-align: right;">${tReturnsSum > 0 ? '-' + formatMoney(tReturnsSum) : '0'}</div>
+                            <div>${ui.returns}:</div><div style="text-align: right;">${tReturnsQty > 0 ? '-' + tReturnsQty : '0'}</div><div style="text-align: right;">${tReturnsSum > 0 ? '-' + formatMoney(tReturnsSum) : '0'}</div>
                         </div>
-                        <div style="display: grid; grid-template-columns: 1fr 40px 85px; gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px dashed #444; font-size: 14px; font-weight: 700; color: #fff;">
-                            <div>Итого (чистая):</div><div style="text-align: right;">${tSalesQty - tReturnsQty}</div><div style="text-align: right;">${formatMoney(tSalesSum - tReturnsSum)} ₸</div>
+                        <div style="display: grid; grid-template-columns: 1fr 40px 85px; gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px dashed #444; align-items: center;">
+                            <div style="font-size: 14px; font-weight: 700; color: #fff;">${ui.net}</div>
+                            <div style="text-align: right; font-size: 12px; font-weight: bold; color: #777;">${tSalesQty - tReturnsQty}</div>
+                            <div style="text-align: right; font-size: 15px; font-weight: 900; color: #fff;">${formatMoney(tSalesSum - tReturnsSum)} ₸</div>
                         </div>
                     `;
                 } else {
-                    searchInput.style.display = 'none'; // Прячем поиск
-                    // --- РЕЖИМ ОДНОГО ДНЯ (Детальные чеки) ---
+                    searchInput.style.display = 'none'; 
+                    
+                    // --- ПЕРЕВОДЫ ДЛЯ РЕЖИМА ОДНОГО ДНЯ ---
+                    const uiSaleType = translations[currentLang].btn_sale; 
+                    const uiReturnType = translations[currentLang].btn_return; 
+                    const uiSalesStr = translations[currentLang].report_sales.toUpperCase() + ":";
+                    const uiReturnsStr = translations[currentLang].report_returns.toUpperCase() + ":";
+                    const uiInRegister = translations[currentLang].report_in_register || "В КАССЕ:";
+
                     repList.innerHTML = data.report.map(h => {
                         let isRet = h.type === 'return';
                         if (isRet) t.return += h.total; else t.sale += h.total;
                         let itemsHtml = h.cart.map(c => `<div class="hb-item"><span>${c.name} (${c.qty})</span><span>${(c.qty*c.price).toLocaleString()} ₸</span></div>`).join('');
+                        
+                        // Используем переменные uiSaleType и uiReturnType вместо русских слов
                         return `<div class="hist-block" style="border-left-color: ${colors[h.methodCode] || '#2ecc71'};">
                             <div class="hb-head" style="color: ${colors[h.methodCode] || '#2ecc71'};">
-                                <span>${h.time} | ${isRet?'ВОЗВРАТ':'ПРОДАЖА'} | ${names[h.methodCode]||h.methodCode}</span>
+                                <span>${h.time} | ${isRet ? uiReturnType : uiSaleType} | ${names[h.methodCode]||h.methodCode}</span>
                                 <span>${isRet?'-':''}${h.total.toLocaleString()} ₸</span>
                             </div>
                             <div class="${isRet?'hb-type-r':''}">${itemsHtml}</div>
                         </div>`;
                     }).join('');
                     
+                    // Используем переведенные слова для итогов
                     totalsBox.innerHTML = `
-                        <div style="display:flex; justify-content:space-between; color:#2ecc71; font-size:12px; margin-bottom:4px;"><span>ПРОДАЖИ:</span><span>${t.sale.toLocaleString()} ₸</span></div>
-                        <div style="display:flex; justify-content:space-between; color:#e74c3c; font-size:12px; margin-bottom:4px;"><span>ВОЗВРАТЫ:</span><span>${t.return.toLocaleString()} ₸</span></div>
-                        <div style="display:flex; justify-content:space-between; color:#fff; font-weight:bold; font-size:16px; margin-top:8px; border-top:1px dashed #555; padding-top:8px;"><span>В КАССЕ:</span><span>${(t.sale - t.return).toLocaleString()} ₸</span></div>
+                        <div style="display:flex; justify-content:space-between; color:#2ecc71; font-size:12px; margin-bottom:4px;"><span>${uiSalesStr}</span><span>${t.sale.toLocaleString()} ₸</span></div>
+                        <div style="display:flex; justify-content:space-between; color:#e74c3c; font-size:12px; margin-bottom:4px;"><span>${uiReturnsStr}</span><span>${t.return.toLocaleString()} ₸</span></div>
+                        <div style="display:flex; justify-content:space-between; color:#fff; font-weight:bold; font-size:16px; margin-top:8px; border-top:1px dashed #555; padding-top:8px;"><span>${uiInRegister}</span><span>${(t.sale - t.return).toLocaleString()} ₸</span></div>
                     `;
                 }
             } catch (error) {
-                repList.innerHTML = '<div style="text-align:center; color:#e74c3c; margin-top:30px;">ОШИБКА СЕРВЕРА</div>';
+                repList.innerHTML = `<div style="text-align:center; color:#e74c3c; margin-top:30px;">${tError}</div>`;
             }
         }
 
