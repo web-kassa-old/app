@@ -106,6 +106,12 @@
         .pin-btn:active { background: #333; }
         .pin-btn.action { font-size: 16px; color: #888; font-weight: normal; }
         .pin-btn.clear { color: #e74c3c; }
+
+        input[type="date"] { position: relative; }
+        input[type="date"]::-webkit-calendar-picker-indicator {
+            position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+            width: 100%; height: 100%; opacity: 0; cursor: pointer;
+        }
     </style>
 </head>
 <body>
@@ -724,18 +730,18 @@
             const titleEl = document.getElementById('rep-header-title');
             
             const now = new Date();
-            const today = now.toISOString().split('T')[0];
+            const todayISO = now.toISOString().split('T')[0];
+            const todayFormatted = now.toLocaleDateString('ru-RU'); // Даст формат 07.05.2026
             
-            // Устанавливаем даты по умолчанию
-            document.getElementById('rep-date-start').value = today;
-            document.getElementById('rep-date-end').value = today;
+            document.getElementById('rep-date-start').value = todayISO;
+            document.getElementById('rep-date-end').value = todayISO;
 
             if (role === 'manager') {
                 controls.style.display = 'flex';
                 titleEl.innerText = currentLang === 'kz' ? "КЕЗЕҢДІК ЕСЕП" : "ОТЧЕТ ЗА ПЕРИОД";
             } else {
                 controls.style.display = 'none';
-                titleEl.innerText = currentLang === 'kz' ? "БҮГІНГІ ЕСЕП" : "ОТЧЕТ ЗА СЕГОДНЯ";
+                titleEl.innerText = (currentLang === 'kz' ? "БҮГІНГІ ЕСЕП: " : "ОТЧЕТ ЗА СЕГОДНЯ: ") + todayFormatted;
             }
             
             renderReport();
@@ -747,7 +753,6 @@
             const repList = document.getElementById('rep-list');
             const totalsBox = document.getElementById('rep-totals');
             
-            // Форматируем даты для сервера (ДД.ММ.ГГГГ)
             const fmt = (d) => d.split('-').reverse().join('.');
             const serverStart = fmt(start);
             const serverEnd = fmt(end);
@@ -760,36 +765,64 @@
             }
 
             try {
-                // Отправляем две даты: date (старт) и endDate (конец)
                 const url = `${APPS_SCRIPT_URL}?action=report&date=${serverStart}&endDate=${serverEnd}&t=${Date.now()}`;
                 const response = await fetch(url, { redirect: 'follow' });
                 const data = await response.json();
                 
                 if (data.report.length === 0) {
                     repList.innerHTML = `<div style="text-align:center; color:#666; margin-top:30px; font-size: 12px;">ОПЕРАЦИЙ НЕ НАЙДЕНО</div>`;
+                    totalsBox.innerHTML = '';
                     return;
                 }
 
-                // ... (дальнейшая отрисовка totals и списка остается без изменений, как в вашем коде) ...
-                // Скопируйте отрисовку (colors, names, totals, map) из вашего текущего renderReport сюда
-                
-                // (Для краткости я не дублирую блок отрисовки, он такой же как был)
                 const colors = { 'cash': '#27ae60', 'qr_kaspi': '#c0392b', 'installment': '#8e44ad', 'pos_terminal': '#2980b9', 'transfer': '#f39c12' };
                 const names = { 'cash': translations[currentLang].pay_cash, 'qr_kaspi': 'Kaspi QR', 'installment': 'Kaspi Red', 'pos_terminal': translations[currentLang].pay_card, 'transfer': translations[currentLang].pay_trans };
                 let t = { sale: 0, return: 0 };
                 
-                repList.innerHTML = data.report.map(h => {
-                    let isRet = h.type === 'return';
-                    if (isRet) t.return += h.total; else t.sale += h.total;
-                    let itemsHtml = h.cart.map(c => `<div class="hb-item"><span>${c.name} (${c.qty})</span><span>${(c.qty*c.price).toLocaleString()} ₸</span></div>`).join('');
-                    return `<div class="hist-block" style="border-left-color: ${colors[h.methodCode] || '#2ecc71'};">
-                        <div class="hb-head" style="color: ${colors[h.methodCode] || '#2ecc71'};">
-                            <span>${h.time} | ${isRet?'ВОЗВРАТ':'ПРОДАЖА'} | ${names[h.methodCode]||h.methodCode}</span>
-                            <span>${isRet?'-':''}${h.total.toLocaleString()} ₸</span>
-                        </div>
-                        <div class="${isRet?'hb-type-r':''}">${itemsHtml}</div>
-                    </div>`;
-                }).join('');
+                // === АВТОМАТИЧЕСКИЙ ВЫБОР РЕЖИМА ===
+                if (start !== end) {
+                    // РЕЖИМ СВОДКИ (Агрегация товаров за период)
+                    let aggregated = {};
+                    
+                    data.report.forEach(h => {
+                        let isRet = h.type === 'return';
+                        if (isRet) t.return += h.total; else t.sale += h.total;
+                        
+                        h.cart.forEach(c => {
+                            let key = c.name + (isRet ? '_ret' : '_sale');
+                            if (!aggregated[key]) {
+                                aggregated[key] = { name: c.name, qty: 0, sum: 0, isRet: isRet };
+                            }
+                            aggregated[key].qty += c.qty;
+                            aggregated[key].sum += (c.qty * c.price);
+                        });
+                    });
+
+                    let salesItems = Object.values(aggregated).filter(i => !i.isRet);
+                    let retItems = Object.values(aggregated).filter(i => i.isRet);
+
+                    let salesHtml = salesItems.map(i => `<div class="hb-item"><span>${i.name} (${i.qty} шт)</span><span>${i.sum.toLocaleString()} ₸</span></div>`).join('');
+                    let retHtml = retItems.map(i => `<div class="hb-item hb-type-r"><span>${i.name} (${i.qty} шт)</span><span>${i.sum.toLocaleString()} ₸</span></div>`).join('');
+
+                    repList.innerHTML = `
+                        ${salesHtml ? `<div class="hist-block" style="border-left-color: #2ecc71;"><div class="hb-head" style="color: #2ecc71;"><span>ПРОДАНО ТОВАРОВ</span></div>${salesHtml}</div>` : ''}
+                        ${retHtml ? `<div class="hist-block" style="border-left-color: #e74c3c;"><div class="hb-head" style="color: #e74c3c;"><span>ВОЗВРАЩЕНО ТОВАРОВ</span></div>${retHtml}</div>` : ''}
+                    `;
+                } else {
+                    // РЕЖИМ ОДНОГО ДНЯ (Детальные чеки)
+                    repList.innerHTML = data.report.map(h => {
+                        let isRet = h.type === 'return';
+                        if (isRet) t.return += h.total; else t.sale += h.total;
+                        let itemsHtml = h.cart.map(c => `<div class="hb-item"><span>${c.name} (${c.qty})</span><span>${(c.qty*c.price).toLocaleString()} ₸</span></div>`).join('');
+                        return `<div class="hist-block" style="border-left-color: ${colors[h.methodCode] || '#2ecc71'};">
+                            <div class="hb-head" style="color: ${colors[h.methodCode] || '#2ecc71'};">
+                                <span>${h.time} | ${isRet?'ВОЗВРАТ':'ПРОДАЖА'} | ${names[h.methodCode]||h.methodCode}</span>
+                                <span>${isRet?'-':''}${h.total.toLocaleString()} ₸</span>
+                            </div>
+                            <div class="${isRet?'hb-type-r':''}">${itemsHtml}</div>
+                        </div>`;
+                    }).join('');
+                }
                 
                 totalsBox.innerHTML = `
                     <div style="display:flex; justify-content:space-between; color:#2ecc71; font-size:12px;"><span>ПРОДАЖИ:</span><span>${t.sale.toLocaleString()} ₸</span></div>
