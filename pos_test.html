@@ -121,6 +121,23 @@
         .item-wrapper.active .item-card { border-bottom-left-radius: 0; border-bottom-right-radius: 0; border-color: #444; }
         .item-details { background: #252526; border: 1px solid #333; border-top: none; border-bottom-left-radius: 5px; border-bottom-right-radius: 5px; max-height: 0; overflow: hidden; transition: max-height 0.2s ease-out; }
         .item-wrapper.active .item-details { max-height: 120px; }
+    
+    /* Кнопка очистки в поиске отчета */
+        .rep-search-container { position: relative; width: 100%; }
+        #rep-clear-search {
+            position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+            color: #666; font-size: 16px; cursor: pointer; display: none; padding: 5px;
+        }
+
+        /* "Липкая" шапка колонок */
+        .rep-table-header {
+            position: sticky; top: 0; z-index: 10;
+            background: #111; /* Цвет фона заголовка, чтобы текст под ним не просвечивал */
+            display: grid; grid-template-columns: 1fr 40px 85px; gap: 8px;
+            font-size: 10px; color: #666; font-weight: bold;
+            padding: 8px 8px; border-bottom: 1px solid #333;
+            text-transform: uppercase;
+        }
     </style>
 </head>
 <body>
@@ -199,7 +216,10 @@
                         <span style="color: #666;">—</span>
                         <input type="date" id="rep-date-end" style="background: #222; color: #fff; border: 1px solid #444; padding: 5px; border-radius: 4px; color-scheme: dark; font-size: 11px; width: 115px;" onchange="renderReport()">
                     </div>
-                    <input type="text" id="rep-search" placeholder="Поиск товара..." oninput="filterReport()" style="background: #1a1a1a; color: #fff; border: 1px solid #444; padding: 8px 10px; border-radius: 4px; font-size: 12px; outline: none; width: 100%; display: none;">
+                    <div class="rep-search-container" id="rep-search-wrap" style="display: none;">
+                        <input type="text" id="rep-search" placeholder="Поиск товара..." oninput="filterReport()" style="background: #1a1a1a; color: #fff; border: 1px solid #444; padding: 8px 35px 8px 10px; border-radius: 4px; font-size: 12px; outline: none; width: 100%;">
+                        <span id="rep-clear-search" onclick="clearReportSearch()">✕</span>
+                    </div>
                 </div>
             </div>
             
@@ -759,8 +779,20 @@
             renderReport();
         }
 
+        function clearReportSearch() {
+            const input = document.getElementById('rep-search');
+            input.value = '';
+            document.getElementById('rep-clear-search').style.display = 'none';
+            filterReport();
+            input.focus();
+        }
+
+        // Обновите filterReport, чтобы она показывала/скрывала крестик
         function filterReport() {
-            const q = document.getElementById('rep-search').value.toLowerCase();
+            const input = document.getElementById('rep-search');
+            const q = input.value.toLowerCase().trim();
+            document.getElementById('rep-clear-search').style.display = q.length > 0 ? 'block' : 'none';
+            
             document.querySelectorAll('#rep-list .item-wrapper').forEach(el => {
                 const name = el.getAttribute('data-name');
                 if (name) el.style.display = name.includes(q) ? 'block' : 'none';
@@ -835,9 +867,13 @@
                     const formatMoney = new Intl.NumberFormat('ru-RU').format;
                     let sortedItems = Object.values(aggregated).sort((a, b) => (b.salesSum - b.returnsSum) - (a.salesSum - a.returnsSum));
 
-                    let htmlString = `<div style="display: grid; grid-template-columns: 1fr 40px 85px; gap: 8px; font-size: 10px; color: #666; font-weight: bold; margin-bottom: 8px; padding: 0 8px 6px; border-bottom: 1px solid #333; text-transform: uppercase;">
+                    // Измените эту строку в renderReport():
+                    let htmlString = `<div class="rep-table-header">
                         <div>НАИМЕНОВАНИЕ</div><div style="text-align: right;">КОЛ.</div><div style="text-align: right;">СУММА</div>
                     </div>`;
+                    
+                    // И не забудьте включить обертку поиска:
+                    document.getElementById('rep-search-wrap').style.display = 'block';
 
                     sortedItems.forEach(item => {
                         const netItemQty = item.salesQty - item.returnsQty;
