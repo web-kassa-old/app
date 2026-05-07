@@ -959,8 +959,10 @@
                         <div style="display: grid; grid-template-columns: 1fr 40px 85px; gap: 8px; font-size: 12px; color: #f87171; margin-bottom: 4px;">
                             <div>${ui.returns}:</div><div style="text-align: right;">${tReturnsQty > 0 ? '-' + tReturnsQty : '0'}</div><div style="text-align: right;">${tReturnsSum > 0 ? '-' + formatMoney(tReturnsSum) : '0'}</div>
                         </div>
-                        <div style="display: grid; grid-template-columns: 1fr 40px 85px; gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px dashed #444; font-size: 14px; font-weight: 700; color: #fff;">
-                            <div>${ui.net}</div><div style="text-align: right;">${tSalesQty - tReturnsQty}</div><div style="text-align: right;">${formatMoney(tSalesSum - tReturnsSum)} ₸</div>
+                        <div style="display: grid; grid-template-columns: 1fr 40px 85px; gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px dashed #444; align-items: center;">
+                            <div style="font-size: 14px; font-weight: 700; color: #fff;">${ui.net}</div>
+                            <div style="text-align: right; font-size: 12px; font-weight: bold; color: #777;">${tSalesQty - tReturnsQty}</div>
+                            <div style="text-align: right; font-size: 15px; font-weight: 900; color: #fff;">${formatMoney(tSalesSum - tReturnsSum)} ₸</div>
                         </div>
                     `;
                 } else {
