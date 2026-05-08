@@ -1333,14 +1333,13 @@ function processBarcode(code) {
 
 // Слушатель нажатий клавиш на уровне всего документа
 document.addEventListener('keypress', function(e) {
-    console.log("Прилетела клавиша:", e.key);
     // Если курсор стоит в поле ввода (например, поиск или цена), не перехватываем
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
 
     const currentTime = Date.now();
 
     // Если пауза между нажатиями > 50мс — это печатает человек, сбрасываем буфер
-    if (currentTime - lastKeyTime > 500) {
+    if (currentTime - lastKeyTime > 50) {
         barcodeBuffer = '';
     }
 
