@@ -357,24 +357,6 @@
 
         let currentLang = localStorage.getItem('pos_lang') || 'ru';
         
-        function processBarcode(code) {
-    console.log("Сканер считал код:", code);
-    
-    // Ищем товар в массиве items по полю barcode
-    // Используем find, чтобы найти первое совпадение
-    const item = items.find(i => String(i.barcode) === String(code));
-
-    if (item) {
-        // Если товар найден, вызываем вашу функцию добавления в корзину
-        // Обычно она называется addToCart(item)
-        addToCart(item);
-        
-        // Опционально: можно добавить легкую вибрацию или звук, если нужно
-        if (navigator.vibrate) navigator.vibrate(50); 
-    } else {
-        alert("Товар с кодом " + code + " не найден в базе");
-    }
-}
 
         function applyLanguage(lang) {
             currentLang = lang;
@@ -1319,13 +1301,16 @@ let lastKeyTime = Date.now();
 function processBarcode(code) {
     console.log("Сканер считал код:", code);
     
-    // Ищем товар в массиве items (проверьте, что ваш массив называется именно items)
-    const item = items.find(i => String(i.barcode) === String(code));
+    // ИЩЕМ В МАССИВЕ db, А НЕ items!
+    const item = db.find(i => String(i.barcode) === String(code));
 
     if (item) {
-        // Вызываем вашу функцию добавления в корзину
-        addToCart(item); 
+        // ВЫЗЫВАЕМ ВАШУ ФУНКЦИЮ add(), передавая ID
+        add(item.id); 
         console.log("Товар найден и добавлен:", item.name);
+        
+        // Опционально: вибрация при успешном сканировании
+        if (navigator.vibrate) navigator.vibrate(50); 
     } else {
         alert("Товар с кодом " + code + " не найден в базе");
     }
