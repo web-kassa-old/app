@@ -1339,7 +1339,7 @@ document.addEventListener('keypress', function(e) {
     const currentTime = Date.now();
 
     // Если пауза между нажатиями > 50мс — это печатает человек, сбрасываем буфер
-    if (currentTime - lastKeyTime > 50) {
+    if (currentTime - lastKeyTime > 500) {
         barcodeBuffer = '';
     }
 
