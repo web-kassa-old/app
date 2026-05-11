@@ -605,10 +605,47 @@
         function openSettings() { document.getElementById('settings-modal').style.display = 'flex'; }
         function closeSettings() { document.getElementById('settings-modal').style.display = 'none'; }
 
+        // --- ДИНАМИЧЕСКАЯ ВЕРСИЯ ИЗ sw.js ---
+        function displayAppVersion() {
+            if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+                const messageChannel = new MessageChannel();
+                messageChannel.port1.onmessage = function(event) {
+                    if (event.data && event.data.version) {
+                        document.getElementById('app-version').innerText = "v: " + event.data.version;
+                    }
+                };
+                navigator.serviceWorker.controller.postMessage({ type: 'GET_VERSION' }, [messageChannel.port2]);
+            }
+        }
+
+        // Регистрация Service Worker и контроль обновлений
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js').then(() => {
+                    if (navigator.serviceWorker.controller) {
+                        displayAppVersion();
+                    }
+                });
+            });
+
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+                displayAppVersion();
+                // Если прилетело обновление и корзина пуста — тихо обновляем страницу
+                if (typeof cart !== 'undefined' && cart.length === 0) {
+                    window.location.reload(true);
+                }
+            });
+        }
+
+        // Стандартная загрузка окна
         window.addEventListener('load', () => {
-            applyLanguage(currentLang); updateQueueCounter();
+            applyLanguage(currentLang); 
+            updateQueueCounter();
             document.getElementById('login-screen').style.display = 'flex';
             document.getElementById('pin-field').focus();
+            
+            // Запрашиваем версию с небольшой задержкой, чтобы sw.js успел ответить
+            setTimeout(displayAppVersion, 500);
         });
 
         async function forceAppUpdate() {
