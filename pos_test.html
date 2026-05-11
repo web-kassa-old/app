@@ -4,7 +4,7 @@
     <link rel="manifest" href="manifest.json">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>POS Noir v5.4.2</title>
+    <title>POS Noir v5.4.3</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: "Courier New", Courier, monospace; }
         body { background: #0a0a0a; color: #fff; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; transition: background-color 0.3s; }
@@ -296,7 +296,7 @@
     <input type="file" id="gallery-input" accept="image/*" style="display: none;" onchange="handlePhoto(event)">
     <canvas id="resize-canvas" style="display: none;"></canvas>
 
-    <script src="config.js?v=5.4.2"></script>
+    <script src="config.js?v=5.4.3"></script>
     <script>
         const translations = {
             ru: {
@@ -570,7 +570,7 @@
             const localTime = now.toLocaleDateString('ru-RU') + ' ' + now.toLocaleTimeString('ru-RU');
             
             const p = {
-                tx_id: tid, tx_type: mode, payment_method: pendingMethod, source: "pos_v5.4.2", created_at: localTime,
+                tx_id: tid, tx_type: mode, payment_method: pendingMethod, source: "pos_v5.4.3", created_at: localTime,
                 seller_id: currentUser ? currentUser.uid : "S-XX", 
                 cart: cart.map(c => ({item_id:c.id, item_name:c.name, qty:c.qty, price:c.price, cost_price:c.cost}))
             };
@@ -614,6 +614,40 @@
             }
         }
 
+        // --- БЕСШОВНОЕ ПЕРЕЛИВАНИЕ (CACHE INJECTION) ---
+        function moveTxToCacheLocally(tx) {
+            try {
+                const qDate = tx.created_at.split(' ')[0]; 
+                const parts = qDate.split('.');
+                if (parts.length !== 3) return;
+                const localISO = `${parts[2]}-${parts[1]}-${parts[0]}`; 
+                
+                const keys = [
+                    `report_${localISO}_${localISO}_all`,
+                    `report_${localISO}_${localISO}_${tx.seller_id}`
+                ];
+
+                keys.forEach(key => {
+                    let cached = localStorage.getItem(key);
+                    if (cached) {
+                        let reportData = JSON.parse(cached);
+                        let qTotal = tx.cart.reduce((sum, c) => sum + (c.qty * c.price), 0);
+                        let qTime = tx.created_at.split(' ')[1].substring(0,5);
+                        
+                        reportData.push({
+                            type: tx.tx_type,
+                            total: qTotal,
+                            cart: tx.cart.map(c => ({ name: c.item_name, qty: c.qty, price: c.price })),
+                            methodCode: tx.payment_method,
+                            time: qTime,
+                            date: qDate
+                        });
+                        localStorage.setItem(key, JSON.stringify(reportData));
+                    }
+                });
+            } catch (e) { console.error("Ошибка переливания кэша", e); }
+        }
+
         let isSyncing = false; 
         async function syncQueue() {
             if (isSyncing || !navigator.onLine) return; 
@@ -622,7 +656,12 @@
             isSyncing = true;
             try {
                 const res = await fetch(APPS_SCRIPT_URL, { method: 'POST', body: JSON.stringify(queue[0]) });
-                if ((await res.json()).success) { queue.shift(); localStorage.setItem('txQueue', JSON.stringify(queue)); updateQueueCounter(); }
+                if ((await res.json()).success) { 
+                    moveTxToCacheLocally(queue[0]); // Инъекция в кэш!
+                    queue.shift(); 
+                    localStorage.setItem('txQueue', JSON.stringify(queue)); 
+                    updateQueueCounter(); 
+                }
             } catch (e) {} finally { isSyncing = false; }
         }
         setInterval(syncQueue, 5000);
@@ -636,7 +675,12 @@
             while(queue.length > 0) {
                 try {
                     const res = await fetch(APPS_SCRIPT_URL, { method: 'POST', body: JSON.stringify(queue[0]) });
-                    if ((await res.json()).success) { queue.shift(); localStorage.setItem('txQueue', JSON.stringify(queue)); updateQueueCounter(); }
+                    if ((await res.json()).success) { 
+                        moveTxToCacheLocally(queue[0]); // Инъекция в кэш!
+                        queue.shift(); 
+                        localStorage.setItem('txQueue', JSON.stringify(queue)); 
+                        updateQueueCounter(); 
+                    }
                     else { hasError = true; break; }
                 } catch (e) { hasError = true; break; }
             }
@@ -890,7 +934,7 @@
             if (item.img && item.img.length > 10) {
                 let fileId = ""; const match = item.img.match(/[-\w]{25,}/); if (match) fileId = match[0];
                 if (fileId) {
-                    const safeUrl = `https://lh3.googleusercontent.com/d/${fileId}`;
+                    const safeUrl = `https://lh3.googleusercontent.com/d/$${fileId}`;
                     preview.innerHTML = `<img src="${safeUrl}" onclick="openFullscreen('${safeUrl}')" onerror="this.onerror=null; this.parentNode.innerHTML='<div style=\\'color:#f1c40f; padding: 15px; border: 1px dashed #f1c40f; border-radius: 8px; font-size: 11px; font-weight: bold;\\'>⚠️ ФОТО НЕДОСТУПНО<br><br>Откройте доступ к папке с фото на Гугл Диске</div>';" style="max-width: 100%; max-height: 250px; border-radius: 8px; border: 1px solid #444; margin-top: 10px; cursor: zoom-in;">`;
                 } else preview.innerHTML = '<div style="color:red;">Не удалось прочитать ссылку на фото</div>';
                 document.getElementById('btn-take-photo').style.display = 'none'; document.getElementById('btn-retake-photo').style.display = 'block';
