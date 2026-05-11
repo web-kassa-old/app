@@ -4,7 +4,7 @@
     <link rel="manifest" href="manifest.json">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>POS Noir v5.4.1 (Staff Edition)</title>
+    <title>POS Noir v5.4.2</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: "Courier New", Courier, monospace; }
         body { background: #0a0a0a; color: #fff; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; transition: background-color 0.3s; }
@@ -12,19 +12,38 @@
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
 
-        /* --- ЭКРАН ВХОДА --- */
+        /* --- ЭКРАН ВХОДА И КЛАВИАТУРА --- */
         #login-screen {
             position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
             background-color: #050505; z-index: 9999;
             display: flex; flex-direction: column; justify-content: center; align-items: center;
         }
         .login-label { color: #2ecc71; font-size: 24px; margin-bottom: 25px; font-weight: bold; letter-spacing: 5px; }
+        
         .pin-input {
             background: #141414; border: 1px solid #333; color: #f1c40f;
-            padding: 15px; font-size: 32px; width: 200px; text-align: center;
-            margin-bottom: 20px; outline: none; letter-spacing: 8px; border-radius: 8px;
+            padding: 15px; font-size: 32px; width: 220px; text-align: center;
+            margin-bottom: 10px; outline: none; letter-spacing: 12px; border-radius: 8px;
         }
-        #login-error { color: #e74c3c; font-size: 12px; visibility: hidden; font-weight: bold; }
+        
+        #login-error { color: #e74c3c; font-size: 12px; visibility: hidden; font-weight: bold; min-height: 15px; margin-bottom: 15px; }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            20%, 60% { transform: translateX(-10px); }
+            40%, 80% { transform: translateX(10px); }
+        }
+        .error-shake { animation: shake 0.4s; border-color: #e74c3c !important; color: #e74c3c !important; }
+
+        .numpad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
+        .num-btn { 
+            background: #1a1a1a; border: 1px solid #333; color: #fff; font-size: 28px; 
+            width: 70px; height: 70px; border-radius: 50%; cursor: pointer; 
+            display: flex; align-items: center; justify-content: center; 
+            user-select: none; transition: 0.1s; font-weight: bold;
+        }
+        .num-btn:active { background: #333; border-color: #2ecc71; transform: scale(0.95); }
+        .num-btn.btn-clear { color: #e74c3c; font-size: 22px; }
 
         /* --- ШАПКА --- */
         .header-area { flex-shrink: 0; border-bottom: 1px solid #222; }
@@ -118,8 +137,23 @@
 
     <div id="login-screen">
         <div class="login-label">ВХОД</div>
-        <input type="password" id="pin-field" class="pin-input" placeholder="****" inputmode="numeric" maxlength="4" oninput="handleAutoLogin(this.value)">
+        <input type="password" id="pin-field" class="pin-input" placeholder="****" readonly>
         <div id="login-error">НЕВЕРНЫЙ ПИН-КОД</div>
+        
+        <div class="numpad">
+            <div class="num-btn" onclick="addPin('1')">1</div>
+            <div class="num-btn" onclick="addPin('2')">2</div>
+            <div class="num-btn" onclick="addPin('3')">3</div>
+            <div class="num-btn" onclick="addPin('4')">4</div>
+            <div class="num-btn" onclick="addPin('5')">5</div>
+            <div class="num-btn" onclick="addPin('6')">6</div>
+            <div class="num-btn" onclick="addPin('7')">7</div>
+            <div class="num-btn" onclick="addPin('8')">8</div>
+            <div class="num-btn" onclick="addPin('9')">9</div>
+            <div class="num-btn btn-clear" onclick="clearPin()">C</div>
+            <div class="num-btn" onclick="addPin('0')">0</div>
+            <div class="num-btn btn-clear" onclick="delPin()">⌫</div>
+        </div>
     </div>
 
     <div class="header-area">
@@ -142,7 +176,7 @@
         <div class="list-header">
             <div style="flex-grow: 1; display: flex; align-items: center; gap: 10px;">
                 <span data-i18n="header_name">НАИМЕНОВАНИЕ</span>
-                <span id="app-version" class="badge">v: 5.4.1</span>
+                <span id="app-version" class="badge">v: ---</span>
                 <span id="cashier-info" class="cashier-badge" style="display: none;">👤 ---</span>
             </div>
             <div style="width: 85px; text-align: right;" data-i18n="header_price">ЦЕНА</div>
@@ -195,10 +229,8 @@
                     </div>
                 </div>
             </div>
-            
             <div id="rep-list" style="flex-grow: 1; overflow-y: auto; padding-right: 5px;"></div>
             <div id="rep-totals" style="margin-top: 15px; border-top: 2px solid #444; padding-top: 10px;"></div>
-            
             <div class="modal-btns" style="margin-top: 15px;">
                 <button class="cancel-btn" style="width: 100%;" onclick="closeReport()" data-i18n="btn_close_report">ЗАКРЫТЬ ОТЧЕТ</button>
             </div>
@@ -236,35 +268,21 @@
             <div id="menu-item-name" class="r-title" style="font-size: 14px; margin-bottom: 20px;">Название товара</div>
             <div id="photo-preview" style="text-align: center; margin: 10px 0; min-height: 20px;"></div>
             
-            <button id="btn-add-cart" onclick="confirmAddFromMenu()" style="background: #1a3a20; color: #2ecc71; border-color: #2ecc71; margin-bottom: 12px; width: 100%; padding: 15px; border-radius: 8px; font-weight: bold; font-size: 14px; text-transform: uppercase; border: 1px solid; cursor: pointer;">
-                🛒 <span data-i18n="btn_add_cart">В КОРЗИНУ</span>
-            </button>
-            <button id="btn-save-db" onclick="confirmUpload()" style="display: none; background: #0f2c40; color: #3498db; border-color: #3498db; margin-bottom: 12px; width: 100%; padding: 15px; border-radius: 8px; font-weight: bold; font-size: 14px; text-transform: uppercase; border: 1px solid; cursor: pointer;">
-                💾 <span data-i18n="btn_save_db">СОХРАНИТЬ В БАЗУ</span>
-            </button>
+            <button id="btn-add-cart" onclick="confirmAddFromMenu()" style="background: #1a3a20; color: #2ecc71; border-color: #2ecc71; margin-bottom: 12px; width: 100%; padding: 15px; border-radius: 8px; font-weight: bold; font-size: 14px; text-transform: uppercase; border: 1px solid; cursor: pointer;">🛒 <span data-i18n="btn_add_cart">В КОРЗИНУ</span></button>
+            <button id="btn-save-db" onclick="confirmUpload()" style="display: none; background: #0f2c40; color: #3498db; border-color: #3498db; margin-bottom: 12px; width: 100%; padding: 15px; border-radius: 8px; font-weight: bold; font-size: 14px; text-transform: uppercase; border: 1px solid; cursor: pointer;">💾 <span data-i18n="btn_save_db">СОХРАНИТЬ В БАЗУ</span></button>
 
             <div id="btn-take-photo" style="margin-bottom: 12px; width: 100%;">
                 <div style="display: flex; gap: 10px;">
-                    <button onclick="triggerCamera()" style="flex: 1; background: #222; color: #eee; border-color: #555; padding: 15px; border-radius: 8px; font-weight: bold; font-size: 13px; text-transform: uppercase; border: 1px solid; cursor: pointer;">
-                        📸 <span data-i18n="btn_camera">КАМЕРА</span>
-                    </button>
-                    <button onclick="triggerGallery()" style="flex: 1; background: #222; color: #eee; border-color: #555; padding: 15px; border-radius: 8px; font-weight: bold; font-size: 13px; text-transform: uppercase; border: 1px solid; cursor: pointer;">
-                        📂 <span data-i18n="btn_gallery">ГАЛЕРЕЯ</span>
-                    </button>
+                    <button onclick="triggerCamera()" style="flex: 1; background: #222; color: #eee; border-color: #555; padding: 15px; border-radius: 8px; font-weight: bold; font-size: 13px; text-transform: uppercase; border: 1px solid; cursor: pointer;">📸 <span data-i18n="btn_camera">КАМЕРА</span></button>
+                    <button onclick="triggerGallery()" style="flex: 1; background: #222; color: #eee; border-color: #555; padding: 15px; border-radius: 8px; font-weight: bold; font-size: 13px; text-transform: uppercase; border: 1px solid; cursor: pointer;">📂 <span data-i18n="btn_gallery">ГАЛЕРЕЯ</span></button>
                 </div>
             </div>
-
             <div id="btn-retake-photo" style="display: none; margin-bottom: 12px; width: 100%;">
                 <div style="display: flex; gap: 10px;">
-                    <button onclick="triggerCamera()" style="flex: 1; background: #222; color: #eee; border-color: #555; padding: 15px; border-radius: 8px; font-weight: bold; font-size: 13px; text-transform: uppercase; border: 1px solid; cursor: pointer;">
-                        🔄 <span data-i18n="btn_camera">КАМЕРА</span>
-                    </button>
-                    <button onclick="triggerGallery()" style="flex: 1; background: #222; color: #eee; border-color: #555; padding: 15px; border-radius: 8px; font-weight: bold; font-size: 13px; text-transform: uppercase; border: 1px solid; cursor: pointer;">
-                        🔄 <span data-i18n="btn_gallery">ГАЛЕРЕЯ</span>
-                    </button>
+                    <button onclick="triggerCamera()" style="flex: 1; background: #222; color: #eee; border-color: #555; padding: 15px; border-radius: 8px; font-weight: bold; font-size: 13px; text-transform: uppercase; border: 1px solid; cursor: pointer;">🔄 <span data-i18n="btn_camera">КАМЕРА</span></button>
+                    <button onclick="triggerGallery()" style="flex: 1; background: #222; color: #eee; border-color: #555; padding: 15px; border-radius: 8px; font-weight: bold; font-size: 13px; text-transform: uppercase; border: 1px solid; cursor: pointer;">🔄 <span data-i18n="btn_gallery">ГАЛЕРЕЯ</span></button>
                 </div>
             </div>
-
             <button id="btn-cancel-modal" class="cancel-btn" style="width: 100%; margin-top: 10px; background: #3a1a1a; color: #e74c3c; border-color: #e74c3c; padding: 15px; border-radius: 8px; font-weight: bold; font-size: 14px; text-transform: uppercase; border: 1px solid; cursor: pointer;" onclick="handleCancelModal()">ЗАКРЫТЬ</button>
         </div>
     </div>
@@ -278,7 +296,7 @@
     <input type="file" id="gallery-input" accept="image/*" style="display: none;" onchange="handlePhoto(event)">
     <canvas id="resize-canvas" style="display: none;"></canvas>
 
-    <script src="config.js?v=5.4.1"></script>
+    <script src="config.js?v=5.4.2"></script>
     <script>
         const translations = {
             ru: {
@@ -326,6 +344,7 @@
         let currentLang = localStorage.getItem('pos_lang') || 'ru';
         let db = [], cart = [], mode = 'sale', pendingMethod = null;
         let staffList = [], currentUser = null;
+        let currentPinInput = '';
 
         function applyLanguage(lang) {
             currentLang = lang;
@@ -352,24 +371,49 @@
             document.body.style.backgroundColor = m === 'return' ? '#2c0b0b' : '#0a0a0a';
         }
 
-        // --- ЛОГИН СЕССИИ ---
+        // --- ЛОГИКА КАСТОМНОЙ КЛАВИАТУРЫ ---
+        function addPin(digit) {
+            if (currentPinInput.length < 4) {
+                currentPinInput += digit;
+                document.getElementById('pin-field').value = currentPinInput;
+                if (currentPinInput.length === 4) {
+                    handleAutoLogin(currentPinInput);
+                }
+            }
+        }
+
+        function clearPin() {
+            currentPinInput = '';
+            document.getElementById('pin-field').value = '';
+        }
+
+        function delPin() {
+            currentPinInput = currentPinInput.slice(0, -1);
+            document.getElementById('pin-field').value = currentPinInput;
+        }
+
         function handleAutoLogin(val) {
             const err = document.getElementById('login-error');
-            if (val.length === 4) {
-                if (staffList.length === 0) {
-                    err.innerText = "ОШИБКА: БАЗА СОТРУДНИКОВ ПУСТА";
-                    err.style.visibility = 'visible';
-                    setTimeout(() => { err.style.visibility = 'hidden'; err.innerText = "НЕВЕРНЫЙ ПИН-КОД"; }, 2500);
-                    document.getElementById('pin-field').value = '';
-                    return;
-                }
-                const user = staffList.find(u => u.pin === val);
-                if (user) login(user);
-                else {
-                    err.style.visibility = 'visible';
-                    document.getElementById('pin-field').value = '';
-                    setTimeout(() => { err.style.visibility = 'hidden'; }, 2000);
-                }
+            const field = document.getElementById('pin-field');
+            
+            if (staffList.length === 0) {
+                err.innerText = "ОШИБКА: БАЗА СОТРУДНИКОВ ПУСТА";
+                err.style.visibility = 'visible';
+                setTimeout(() => { err.style.visibility = 'hidden'; err.innerText = "НЕВЕРНЫЙ ПИН-КОД"; clearPin(); }, 2500);
+                return;
+            }
+            
+            const user = staffList.find(u => u.pin === val);
+            if (user) {
+                login(user);
+            } else {
+                field.classList.add('error-shake');
+                err.style.visibility = 'visible';
+                setTimeout(() => { 
+                    field.classList.remove('error-shake');
+                    err.style.visibility = 'hidden'; 
+                    clearPin();
+                }, 500);
             }
         }
 
@@ -380,8 +424,8 @@
             const badge = document.getElementById('cashier-info');
             badge.innerText = `👤 ${user.name.toUpperCase()} (${user.uid})`;
             badge.style.display = 'inline-block';
-            document.getElementById('pin-field').value = '';
-            document.getElementById('sb').focus();
+            clearPin();
+            document.getElementById('sb').blur(); 
         }
 
         function logout() {
@@ -389,8 +433,7 @@
             localStorage.removeItem('user_role');
             document.getElementById('cashier-info').style.display = 'none';
             document.getElementById('login-screen').style.display = 'flex';
-            document.getElementById('pin-field').value = '';
-            document.getElementById('pin-field').focus();
+            clearPin();
         }
 
         async function load() {
@@ -526,9 +569,8 @@
             const now = new Date();
             const localTime = now.toLocaleDateString('ru-RU') + ' ' + now.toLocaleTimeString('ru-RU');
             
-            // Фиксируем UID
             const p = {
-                tx_id: tid, tx_type: mode, payment_method: pendingMethod, source: "pos_v5.4.1", created_at: localTime,
+                tx_id: tid, tx_type: mode, payment_method: pendingMethod, source: "pos_v5.4.2", created_at: localTime,
                 seller_id: currentUser ? currentUser.uid : "S-XX", 
                 cart: cart.map(c => ({item_id:c.id, item_name:c.name, qty:c.qty, price:c.price, cost_price:c.cost}))
             };
@@ -605,49 +647,6 @@
         function openSettings() { document.getElementById('settings-modal').style.display = 'flex'; }
         function closeSettings() { document.getElementById('settings-modal').style.display = 'none'; }
 
-        // --- ДИНАМИЧЕСКАЯ ВЕРСИЯ ИЗ sw.js ---
-        function displayAppVersion() {
-            if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-                const messageChannel = new MessageChannel();
-                messageChannel.port1.onmessage = function(event) {
-                    if (event.data && event.data.version) {
-                        document.getElementById('app-version').innerText = "v: " + event.data.version;
-                    }
-                };
-                navigator.serviceWorker.controller.postMessage({ type: 'GET_VERSION' }, [messageChannel.port2]);
-            }
-        }
-
-        // Регистрация Service Worker и контроль обновлений
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./sw.js').then(() => {
-                    if (navigator.serviceWorker.controller) {
-                        displayAppVersion();
-                    }
-                });
-            });
-
-            navigator.serviceWorker.addEventListener('controllerchange', () => {
-                displayAppVersion();
-                // Если прилетело обновление и корзина пуста — тихо обновляем страницу
-                if (typeof cart !== 'undefined' && cart.length === 0) {
-                    window.location.reload(true);
-                }
-            });
-        }
-
-        // Стандартная загрузка окна
-        window.addEventListener('load', () => {
-            applyLanguage(currentLang); 
-            updateQueueCounter();
-            document.getElementById('login-screen').style.display = 'flex';
-            document.getElementById('pin-field').focus();
-            
-            // Запрашиваем версию с небольшой задержкой, чтобы sw.js успел ответить
-            setTimeout(displayAppVersion, 500);
-        });
-
         async function forceAppUpdate() {
             document.getElementById('update-status').innerText = '⏳'; 
             try {
@@ -662,7 +661,6 @@
             const controls = document.getElementById('date-range-controls');
             const titleEl = document.getElementById('rep-header-title');
             
-            // Фикс часового пояса для корректной даты "сегодня"
             const now = new Date();
             const offset = now.getTimezoneOffset() * 60000;
             const localISO = (new Date(now - offset)).toISOString().split('T')[0];
@@ -707,100 +705,179 @@
 
             repList.innerHTML = `<div style="text-align:center; color:#f39c12; margin-top:30px; font-weight: bold;">⏳ ${translations[currentLang].msg_loading}</div>`;
 
+            let reportDataToRender = [];
+            const cacheKey = `report_${start}_${end}_${currentUser ? currentUser.uid : 'all'}`;
+
             if (!navigator.onLine) {
-                repList.innerHTML = `<div style="text-align:center; color:#e74c3c; margin-top:30px;">${translations[currentLang].msg_no_internet}</div>`;
+                const cachedReport = localStorage.getItem(cacheKey);
+                if (cachedReport) {
+                    reportDataToRender = JSON.parse(cachedReport);
+                    if (!document.getElementById('rep-header-title').innerText.includes("OFFLINE")) {
+                        document.getElementById('rep-header-title').innerText += " (OFFLINE)";
+                    }
+                } else {
+                    if (!document.getElementById('rep-header-title').innerText.includes("OFFLINE")) {
+                        document.getElementById('rep-header-title').innerText += " (OFFLINE)";
+                    }
+                }
+            } else {
+                try {
+                    let url = `${APPS_SCRIPT_URL}?action=report&date=${serverStart}&endDate=${serverEnd}&t=${Date.now()}`;
+                    if (currentUser && currentUser.role !== 'manager') url += `&seller_id=${currentUser.uid}`;
+
+                    const response = await fetch(url, { redirect: 'follow' });
+                    const data = await response.json();
+                    if (data.error) throw new Error(data.error);
+                    
+                    reportDataToRender = data.report || [];
+                    localStorage.setItem(cacheKey, JSON.stringify(reportDataToRender));
+                } catch (error) {
+                    const cachedReport = localStorage.getItem(cacheKey);
+                    if (cachedReport) {
+                        reportDataToRender = JSON.parse(cachedReport);
+                        if (!document.getElementById('rep-header-title').innerText.includes("ОШИБКА СЕТИ")) {
+                            document.getElementById('rep-header-title').innerText += " (ОШИБКА СЕТИ - КЭШ)";
+                        }
+                    }
+                }
+            }
+
+            // --- ПОДМЕШИВАЕМ ОФФЛАЙН ЧЕКИ ИЗ ОЧЕРЕДИ ---
+            let queue = JSON.parse(localStorage.getItem('txQueue') || '[]');
+            if (queue.length > 0) {
+                queue.forEach(qTx => {
+                    if (currentUser && currentUser.role !== 'manager' && qTx.seller_id !== currentUser.uid) return;
+                    let qDate = qTx.created_at.split(' ')[0];
+                    let qTime = qTx.created_at.split(' ')[1].substring(0,5);
+                    if (qDate >= serverStart && qDate <= serverEnd) {
+                        let qTotal = qTx.cart.reduce((sum, c) => sum + (c.qty * c.price), 0);
+                        reportDataToRender.push({
+                            type: qTx.tx_type,
+                            total: qTotal,
+                            cart: qTx.cart.map(c => ({ name: c.item_name, qty: c.qty, price: c.price })),
+                            methodCode: qTx.payment_method,
+                            time: qTime + " ⏳",
+                            date: qDate
+                        });
+                    }
+                });
+            }
+
+            if (!reportDataToRender || reportDataToRender.length === 0) {
+                repList.innerHTML = `<div style="text-align:center; color:#666; margin-top:30px;">${translations[currentLang].msg_no_data}</div>`;
+                totalsBox.innerHTML = '';
+                searchInput.parentElement.style.display = 'none';
                 return;
             }
 
-            try {
-                let url = `${APPS_SCRIPT_URL}?action=report&date=${serverStart}&endDate=${serverEnd}&t=${Date.now()}`;
-                if (currentUser && currentUser.role !== 'manager') url += `&seller_id=${currentUser.uid}`;
+            const colors = { 'cash': '#27ae60', 'qr_kaspi': '#c0392b', 'installment': '#8e44ad', 'pos_terminal': '#2980b9', 'transfer': '#f39c12' };
+            const names = { 'cash': translations[currentLang].pay_cash, 'qr_kaspi': 'Kaspi QR', 'installment': 'Kaspi Red', 'pos_terminal': translations[currentLang].pay_card, 'transfer': translations[currentLang].pay_trans };
+            let t = { sale: 0, return: 0 };
+            
+            if (start !== end && (!currentUser || currentUser.role === 'manager')) {
+                searchInput.parentElement.style.display = 'block'; 
+                searchInput.value = ''; searchInput.placeholder = translations[currentLang].search_placeholder;
 
-                const response = await fetch(url, { redirect: 'follow' });
-                const data = await response.json();
-                
-                // ВЫВОД РЕАЛЬНОЙ ОШИБКИ БЕКЭНДА
-                if (data.error) {
-                    throw new Error(data.error); 
-                }
+                let aggregated = {};
+                let tSalesQty = 0, tSalesSum = 0, tReturnsQty = 0, tReturnsSum = 0;
+                const ui = { name: translations[currentLang].report_name, qty: translations[currentLang].report_qty, sum: translations[currentLang].report_sum, sales: translations[currentLang].report_sales, returns: translations[currentLang].report_returns, net: translations[currentLang].report_total_net };
 
-                if (!data.report || data.report.length === 0) {
-                    repList.innerHTML = `<div style="text-align:center; color:#666; margin-top:30px;">${translations[currentLang].msg_no_data}</div>`;
-                    totalsBox.innerHTML = '';
-                    searchInput.parentElement.style.display = 'none';
-                    return;
-                }
-
-                const colors = { 'cash': '#27ae60', 'qr_kaspi': '#c0392b', 'installment': '#8e44ad', 'pos_terminal': '#2980b9', 'transfer': '#f39c12' };
-                const names = { 'cash': translations[currentLang].pay_cash, 'qr_kaspi': 'Kaspi QR', 'installment': 'Kaspi Red', 'pos_terminal': translations[currentLang].pay_card, 'transfer': translations[currentLang].pay_trans };
-                let t = { sale: 0, return: 0 };
-                
-                if (start !== end && (!currentUser || currentUser.role === 'manager')) {
-                    searchInput.parentElement.style.display = 'block'; 
-                    searchInput.value = ''; searchInput.placeholder = translations[currentLang].search_placeholder;
-
-                    let aggregated = {};
-                    let tSalesQty = 0, tSalesSum = 0, tReturnsQty = 0, tReturnsSum = 0;
-                    const ui = { name: translations[currentLang].report_name, qty: translations[currentLang].report_qty, sum: translations[currentLang].report_sum, sales: translations[currentLang].report_sales, returns: translations[currentLang].report_returns, net: translations[currentLang].report_total_net };
-
-                    data.report.forEach(h => {
-                        let isRet = h.type === 'return';
-                        h.cart.forEach(c => {
-                            if (!aggregated[c.name]) aggregated[c.name] = { name: c.name, salesQty: 0, salesSum: 0, returnsQty: 0, returnsSum: 0 };
-                            if (isRet) { aggregated[c.name].returnsQty += c.qty; aggregated[c.name].returnsSum += (c.qty * c.price); tReturnsQty += c.qty; tReturnsSum += (c.qty * c.price); } 
-                            else { aggregated[c.name].salesQty += c.qty; aggregated[c.name].salesSum += (c.qty * c.price); tSalesQty += c.qty; tSalesSum += (c.qty * c.price); }
-                        });
+                reportDataToRender.forEach(h => {
+                    let isRet = h.type === 'return';
+                    h.cart.forEach(c => {
+                        if (!aggregated[c.name]) aggregated[c.name] = { name: c.name, salesQty: 0, salesSum: 0, returnsQty: 0, returnsSum: 0 };
+                        if (isRet) { aggregated[c.name].returnsQty += c.qty; aggregated[c.name].returnsSum += (c.qty * c.price); tReturnsQty += c.qty; tReturnsSum += (c.qty * c.price); } 
+                        else { aggregated[c.name].salesQty += c.qty; aggregated[c.name].salesSum += (c.qty * c.price); tSalesQty += c.qty; tSalesSum += (c.qty * c.price); }
                     });
+                });
 
-                    let sortedItems = Object.values(aggregated).sort((a, b) => (b.salesSum - b.returnsSum) - (a.salesSum - a.returnsSum));
-                    let htmlString = `<div class="rep-table-header"><div>${ui.name}</div><div style="text-align: right;">${ui.qty}</div><div style="text-align: right;">${ui.sum}</div></div>`;
-                    
-                    sortedItems.forEach(item => {
-                        const netQty = item.salesQty - item.returnsQty, netSum = item.salesSum - item.returnsSum;
-                        let detailsHtml = '';
-                        if (item.salesQty > 0) detailsHtml += `<div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 4px;"><span style="color: #888;">${ui.sales} (${item.salesQty})</span><span style="color: #4ade80;">${item.salesSum.toLocaleString()}</span></div>`;
-                        if (item.returnsQty > 0) detailsHtml += `<div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 4px;"><span style="color: #888;">${ui.returns} (${item.returnsQty})</span><span style="color: #f87171;">-${item.returnsSum.toLocaleString()}</span></div>`;
+                let sortedItems = Object.values(aggregated).sort((a, b) => (b.salesSum - b.returnsSum) - (a.salesSum - a.returnsSum));
+                let htmlString = `<div class="rep-table-header"><div>${ui.name}</div><div style="text-align: right;">${ui.qty}</div><div style="text-align: right;">${ui.sum}</div></div>`;
+                
+                sortedItems.forEach(item => {
+                    const netQty = item.salesQty - item.returnsQty, netSum = item.salesSum - item.returnsSum;
+                    let detailsHtml = '';
+                    if (item.salesQty > 0) detailsHtml += `<div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 4px;"><span style="color: #888;">${ui.sales} (${item.salesQty})</span><span style="color: #4ade80;">${item.salesSum.toLocaleString()}</span></div>`;
+                    if (item.returnsQty > 0) detailsHtml += `<div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 4px;"><span style="color: #888;">${ui.returns} (${item.returnsQty})</span><span style="color: #f87171;">-${item.returnsSum.toLocaleString()}</span></div>`;
 
-                        htmlString += `<div class="item-wrapper" data-name="${item.name.toLowerCase()}">
-                            <div class="item-card" onclick="this.parentElement.classList.toggle('active')">
-                                <div style="font-size: 12px; color: #e0e0e0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${item.name}</div>
-                                <div style="text-align: right; color: #888; font-size: 12px;">${netQty}</div>
-                                <div style="text-align: right; font-weight: 700; font-size: 13px; color: ${netSum < 0 ? '#f87171' : '#4ade80'}; display: flex; justify-content: flex-end; align-items: center; gap: 4px;">${netSum.toLocaleString()} <span class="dropdown-icon">▼</span></div>
-                            </div>
-                            <div class="item-details"><div style="padding: 6px 8px;">${detailsHtml}</div></div>
-                        </div>`;
-                    });
+                    htmlString += `<div class="item-wrapper" data-name="${item.name.toLowerCase()}">
+                        <div class="item-card" onclick="this.parentElement.classList.toggle('active')">
+                            <div style="font-size: 12px; color: #e0e0e0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${item.name}</div>
+                            <div style="text-align: right; color: #888; font-size: 12px;">${netQty}</div>
+                            <div style="text-align: right; font-weight: 700; font-size: 13px; color: ${netSum < 0 ? '#f87171' : '#4ade80'}; display: flex; justify-content: flex-end; align-items: center; gap: 4px;">${netSum.toLocaleString()} <span class="dropdown-icon">▼</span></div>
+                        </div>
+                        <div class="item-details"><div style="padding: 6px 8px;">${detailsHtml}</div></div>
+                    </div>`;
+                });
 
-                    repList.innerHTML = htmlString;
-                    totalsBox.innerHTML = `
-                        <div style="display: grid; grid-template-columns: 1fr 40px 85px; gap: 8px; font-size: 12px; color: #888; margin-bottom: 4px;"><div>${ui.sales}:</div><div style="text-align: right;">${tSalesQty}</div><div style="text-align: right;">${tSalesSum.toLocaleString()}</div></div>
-                        <div style="display: grid; grid-template-columns: 1fr 40px 85px; gap: 8px; font-size: 12px; color: #f87171; margin-bottom: 4px;"><div>${ui.returns}:</div><div style="text-align: right;">${tReturnsQty > 0 ? '-' + tReturnsQty : '0'}</div><div style="text-align: right;">${tReturnsSum > 0 ? '-' + tReturnsSum.toLocaleString() : '0'}</div></div>
-                        <div style="display: grid; grid-template-columns: 1fr 40px 85px; gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px dashed #444; align-items: center;"><div style="font-size: 14px; font-weight: 700; color: #fff;">${ui.net}</div><div style="text-align: right; font-size: 12px; font-weight: bold; color: #777;">${tSalesQty - tReturnsQty}</div><div style="text-align: right; font-size: 15px; font-weight: 900; color: #fff;">${(tSalesSum - tReturnsSum).toLocaleString()} ₸</div></div>
-                    `;
-                } else {
-                    searchInput.parentElement.style.display = 'none'; 
-                    repList.innerHTML = data.report.map(h => {
-                        let isRet = h.type === 'return';
-                        if (isRet) t.return += h.total; else t.sale += h.total;
-                        let itemsHtml = h.cart.map(c => `<div class="hb-item"><span>${c.name} (${c.qty})</span><span>${(c.qty*c.price).toLocaleString()} ₸</span></div>`).join('');
-                        return `<div class="hist-block" style="border-left-color: ${colors[h.methodCode] || '#2ecc71'};">
-                            <div class="hb-head" style="color: ${colors[h.methodCode] || '#2ecc71'};"><span>${h.time} | ${isRet ? translations[currentLang].btn_return : translations[currentLang].btn_sale} | ${names[h.methodCode]||h.methodCode}</span><span>${isRet?'-':''}${h.total.toLocaleString()} ₸</span></div>
-                            <div class="${isRet?'hb-type-r':''}">${itemsHtml}</div>
-                        </div>`;
-                    }).join('');
-                    
-                    totalsBox.innerHTML = `<div style="display:flex; justify-content:space-between; color:#2ecc71; font-size:12px; margin-bottom:4px;"><span>${translations[currentLang].report_sales.toUpperCase()}:</span><span>${t.sale.toLocaleString()} ₸</span></div>
-                        <div style="display:flex; justify-content:space-between; color:#e74c3c; font-size:12px; margin-bottom:4px;"><span>${translations[currentLang].report_returns.toUpperCase()}:</span><span>${t.return.toLocaleString()} ₸</span></div>
-                        <div style="display:flex; justify-content:space-between; color:#fff; font-weight:bold; font-size:16px; margin-top:8px; border-top:1px dashed #555; padding-top:8px;"><span>${translations[currentLang].report_in_register}</span><span>${(t.sale - t.return).toLocaleString()} ₸</span></div>`;
-                }
-            } catch (error) {
-                repList.innerHTML = `<div style="text-align:center; color:#e74c3c; margin-top:30px;">${translations[currentLang].msg_server_error}<br><small style="color:#888;">${error.message}</small></div>`;
+                repList.innerHTML = htmlString;
+                totalsBox.innerHTML = `
+                    <div style="display: grid; grid-template-columns: 1fr 40px 85px; gap: 8px; font-size: 12px; color: #888; margin-bottom: 4px;"><div>${ui.sales}:</div><div style="text-align: right;">${tSalesQty}</div><div style="text-align: right;">${tSalesSum.toLocaleString()}</div></div>
+                    <div style="display: grid; grid-template-columns: 1fr 40px 85px; gap: 8px; font-size: 12px; color: #f87171; margin-bottom: 4px;"><div>${ui.returns}:</div><div style="text-align: right;">${tReturnsQty > 0 ? '-' + tReturnsQty : '0'}</div><div style="text-align: right;">${tReturnsSum > 0 ? '-' + tReturnsSum.toLocaleString() : '0'}</div></div>
+                    <div style="display: grid; grid-template-columns: 1fr 40px 85px; gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px dashed #444; align-items: center;"><div style="font-size: 14px; font-weight: 700; color: #fff;">${ui.net}</div><div style="text-align: right; font-size: 12px; font-weight: bold; color: #777;">${tSalesQty - tReturnsQty}</div><div style="text-align: right; font-size: 15px; font-weight: 900; color: #fff;">${(tSalesSum - tReturnsSum).toLocaleString()} ₸</div></div>
+                `;
+            } else {
+                searchInput.parentElement.style.display = 'none'; 
+                
+                reportDataToRender.sort((a, b) => {
+                    if (a.time > b.time) return -1;
+                    if (a.time < b.time) return 1;
+                    return 0;
+                });
+
+                repList.innerHTML = reportDataToRender.map(h => {
+                    let isRet = h.type === 'return';
+                    if (isRet) t.return += h.total; else t.sale += h.total;
+                    let itemsHtml = h.cart.map(c => `<div class="hb-item"><span>${c.name} (${c.qty})</span><span>${(c.qty*c.price).toLocaleString()} ₸</span></div>`).join('');
+                    let timeHtml = h.time.includes('⏳') ? `<span style="color:#f1c40f">${h.time}</span>` : h.time;
+                    return `<div class="hist-block" style="border-left-color: ${colors[h.methodCode] || '#2ecc71'};">
+                        <div class="hb-head" style="color: ${colors[h.methodCode] || '#2ecc71'};"><span>${timeHtml} | ${isRet ? translations[currentLang].btn_return : translations[currentLang].btn_sale} | ${names[h.methodCode]||h.methodCode}</span><span>${isRet?'-':''}${h.total.toLocaleString()} ₸</span></div>
+                        <div class="${isRet?'hb-type-r':''}">${itemsHtml}</div>
+                    </div>`;
+                }).join('');
+                
+                totalsBox.innerHTML = `<div style="display:flex; justify-content:space-between; color:#2ecc71; font-size:12px; margin-bottom:4px;"><span>${translations[currentLang].report_sales.toUpperCase()}:</span><span>${t.sale.toLocaleString()} ₸</span></div>
+                    <div style="display:flex; justify-content:space-between; color:#e74c3c; font-size:12px; margin-bottom:4px;"><span>${translations[currentLang].report_returns.toUpperCase()}:</span><span>${t.return.toLocaleString()} ₸</span></div>
+                    <div style="display:flex; justify-content:space-between; color:#fff; font-weight:bold; font-size:16px; margin-top:8px; border-top:1px dashed #555; padding-top:8px;"><span>${translations[currentLang].report_in_register}</span><span>${(t.sale - t.return).toLocaleString()} ₸</span></div>`;
             }
         }
 
         function closeReport() { document.getElementById('report-modal').style.display = 'none'; }
-        load();
 
+        // --- ДИНАМИЧЕСКАЯ ВЕРСИЯ ИЗ SW ---
+        function displayAppVersion() {
+            if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+                const messageChannel = new MessageChannel();
+                messageChannel.port1.onmessage = function(event) {
+                    if (event.data && event.data.version) {
+                        document.getElementById('app-version').innerText = "v: " + event.data.version;
+                    }
+                };
+                navigator.serviceWorker.controller.postMessage({ type: 'GET_VERSION' }, [messageChannel.port2]);
+            }
+        }
+
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js').then(() => {
+                    if (navigator.serviceWorker.controller) displayAppVersion();
+                });
+            });
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+                displayAppVersion();
+                if (typeof cart !== 'undefined' && cart.length === 0) window.location.reload(true);
+            });
+        }
+
+        window.addEventListener('load', () => {
+            applyLanguage(currentLang); 
+            updateQueueCounter();
+            document.getElementById('login-screen').style.display = 'flex';
+            setTimeout(displayAppVersion, 500); 
+            load();
+        });
+
+        // --- ЛОГИКА ФОТО ---
         let selectedItemId = null, tempBase64 = null; 
         function openItemMenu(id) {
             selectedItemId = id; tempBase64 = null; 
@@ -813,7 +890,6 @@
             if (item.img && item.img.length > 10) {
                 let fileId = ""; const match = item.img.match(/[-\w]{25,}/); if (match) fileId = match[0];
                 if (fileId) {
-                    // ФИКС ФОТО: ИСПОЛЬЗУЕМ ПРОВЕРЕННУЮ ССЫЛКУ С БЕЗОПАСНЫМ ШАБЛОНОМ
                     const safeUrl = `https://lh3.googleusercontent.com/d/${fileId}`;
                     preview.innerHTML = `<img src="${safeUrl}" onclick="openFullscreen('${safeUrl}')" onerror="this.onerror=null; this.parentNode.innerHTML='<div style=\\'color:#f1c40f; padding: 15px; border: 1px dashed #f1c40f; border-radius: 8px; font-size: 11px; font-weight: bold;\\'>⚠️ ФОТО НЕДОСТУПНО<br><br>Откройте доступ к папке с фото на Гугл Диске</div>';" style="max-width: 100%; max-height: 250px; border-radius: 8px; border: 1px solid #444; margin-top: 10px; cursor: zoom-in;">`;
                 } else preview.innerHTML = '<div style="color:red;">Не удалось прочитать ссылку на фото</div>';
