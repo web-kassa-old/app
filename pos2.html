@@ -460,9 +460,13 @@
                 const data = await res.json();
                 if (data.items) db = data.items;
                 if (data.staff) {
-                    staffList = data.staff;
-                    localStorage.setItem('staff_cache', JSON.stringify(staffList));
-                }
+    staffList = data.staff;
+    localStorage.setItem('staff_cache', JSON.stringify(staffList));
+    
+    // ДОБАВИТЬ ЭТУ СТРОЧКУ:
+    // Она заново отрисует список продавцов на экране, используя уже новые данные
+    showLoginScreen(); 
+}
                 const t = data.totals || { cash: 0, qr_kaspi: 0, installment: 0, pos_terminal: 0, transfer: 0 };
                 document.getElementById('sum-cash').innerText = (t.cash || 0).toLocaleString() + ' ₸';
                 document.getElementById('sum-qr').innerText   = (t.qr_kaspi || t.qr || 0).toLocaleString() + ' ₸';
