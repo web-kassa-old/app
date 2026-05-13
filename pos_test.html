@@ -1128,8 +1128,12 @@ async function handleInvoiceSelected(event) {
 
         async function saveParsedItems(items) {
             const btn = document.getElementById('btn-select-invoice');
-            btn.innerHTML = "⏳ ЗАПИСЬ В БАЗУ...";
+            const originalText = btn.innerHTML;
             
+            // 1. ВКЛЮЧАЕМ ИНДИКАТОР
+            btn.innerHTML = "⌛ ИДЕТ ЗАПИСЬ В БАЗУ...";
+            btn.disabled = true;
+
             try {
                 const response = await fetch(APPS_SCRIPT_URL, {
                     method: 'POST',
@@ -1142,16 +1146,18 @@ async function handleInvoiceSelected(event) {
                 const result = await response.json();
                 
                 if (result.success) {
-                    alert(`✅ Готово!\n\nОбновлено старых товаров: ${result.updated}\nДобавлено новых позиций: ${result.added}`);
-                    // Перезагружаем кассу, чтобы она скачала новые остатки
-                    window.location.reload(); 
+                    alert(`УСПЕШНО!\nОбновлено: ${result.updated}\nДобавлено: ${result.added}`);
+                    // ПРИМЕЧАНИЕ: Если здесь стоит location.reload(), приложение перезагрузится.
+                    // Если вы хотите остаться на странице, просто не вызывайте перезагрузку.
                 } else {
-                    alert("Ошибка при сохранении: " + result.error);
+                    alert("Ошибка: " + result.error);
                 }
-            } catch(e) {
-                alert("Ошибка сети при сохранении: " + e);
+            } catch (error) {
+                alert("Ошибка связи: " + error);
             } finally {
-                closeImport();
+                // 2. ВОЗВРАЩАЕМ КНОПКУ В НОРМУ
+                btn.innerHTML = originalText;
+                btn.disabled = false;
             }
         }
     </script>
