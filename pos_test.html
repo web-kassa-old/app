@@ -1084,9 +1084,6 @@ function handleInvoiceSelected(event) {
                     // Отправляем файл на наш сервер
                     const response = await fetch(APPS_SCRIPT_URL, {
                         method: 'POST',
-                        headers: {
-                            'Content-Type': 'text/plain;charset=utf-8'
-                        },
                         body: JSON.stringify({
                             action: 'upload_invoice',
                             fileName: file.name,
@@ -1095,21 +1092,22 @@ function handleInvoiceSelected(event) {
                         })
                     });
                     
-                    const result = await response.json();
+                    // СЕКРЕТНЫЙ ДЕБАГ: Читаем ответ как сырой текст
+                    const rawText = await response.text();
+                    alert("СЕРВЕР ПРИСЛАЛ ЭТО:\n\n" + rawText);
+                    
+                    // Пытаемся превратить текст в JSON
+                    const result = JSON.parse(rawText);
                     
                     if (result.success) {
-                        alert(`Успешно! Найдено товаров: ${result.itemsFound}.\n\nСмотрите консоль для деталей.`);
+                        alert(`Успешно! Найдено товаров: ${result.itemsFound}.`);
                         console.log("Распознанные товары:", result.items);
-                        // Здесь мы позже добавим вызов функции для отправки этих товаров в базу Items
                         closeImport();
                     } else {
-                        alert("Ошибка обработки инвойса.");
+                        alert("Сервер вернул ошибку логики: " + JSON.stringify(result));
                     }
                 } catch (error) {
-                    alert("Ошибка связи с сервером: " + error);
-                } finally {
-                    btn.innerHTML = "📄 ВЫБРАТЬ ФАЙЛ";
-                    btn.disabled = false;
+                    alert("Ошибка связи/парсинга JSON: " + error);
                 }
             };
             reader.readAsDataURL(file);
