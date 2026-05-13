@@ -1068,7 +1068,7 @@
             document.getElementById('import-modal').style.display = 'none';
         }
 
-function handleInvoiceSelected(event) {
+async function handleInvoiceSelected(event) {
             const file = event.target.files[0];
             if (!file) return;
 
@@ -1094,17 +1094,57 @@ function handleInvoiceSelected(event) {
                     const result = await response.json();
                     
                     if (result.success) {
-                        alert(`Успешно! Найдено товаров: ${result.itemsFound}.`);
-                        console.log("Распознанные товары:", result.items);
-                        closeImport();
+                        // Очищаем от технического мусора (контейнеры и т.д.)
+                        const validItems = result.items.filter(item => item.name && item.name.length > 2 && item.cost !== null);
+                        
+                        // Спрашиваем пользователя
+                        if (confirm(`Инвойс прочитан!\nЧистых позиций: ${validItems.length}.\n\nЗаписать эти шины в базу данных?`)) {
+                            saveParsedItems(validItems);
+                        } else {
+                            btn.innerHTML = "📄 ВЫБРАТЬ ФАЙЛ";
+                            btn.disabled = false;
+                        }
                     } else {
-                        alert("Сервер вернул ошибку логики: " + JSON.stringify(result));
+                        alert("Ошибка обработки инвойса.");
+                        btn.innerHTML = "📄 ВЫБРАТЬ ФАЙЛ";
+                        btn.disabled = false;
                     }
                 } catch (error) {
-                    alert("Ошибка связи с сервером: " + error);
+                    alert("Ошибка связи: " + error);
+                    btn.innerHTML = "📄 ВЫБРАТЬ ФАЙЛ";
+                    btn.disabled = false;
                 }
             };
             reader.readAsDataURL(file);
+        }
+
+        async function saveParsedItems(items) {
+            const btn = document.getElementById('btn-select-invoice');
+            btn.innerHTML = "⏳ ЗАПИСЬ В БАЗУ...";
+            
+            try {
+                const response = await fetch(APPS_SCRIPT_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        action: 'save_invoice',
+                        items: items
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert(`✅ Готово!\n\nОбновлено старых товаров: ${result.updated}\nДобавлено новых позиций: ${result.added}`);
+                    // Перезагружаем кассу, чтобы она скачала новые остатки
+                    window.location.reload(); 
+                } else {
+                    alert("Ошибка при сохранении: " + result.error);
+                }
+            } catch(e) {
+                alert("Ошибка сети при сохранении: " + e);
+            } finally {
+                closeImport();
+            }
         }
     </script>
 </body>
