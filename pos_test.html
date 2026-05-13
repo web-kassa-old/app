@@ -1068,34 +1068,49 @@
             document.getElementById('import-modal').style.display = 'none';
         }
 
-        function handleInvoiceSelected(event) {
+function handleInvoiceSelected(event) {
             const file = event.target.files[0];
             if (!file) return;
 
             const btn = document.getElementById('btn-select-invoice');
-            btn.innerHTML = "⏳ ЗАГРУЗКА...";
+            btn.innerHTML = "⏳ ЧТЕНИЕ ИНВОЙСА...";
             btn.disabled = true;
 
-            // Читаем файл как Base64 для отправки на сервер
             const reader = new FileReader();
-            reader.onload = function(e) {
+            reader.onload = async function(e) {
                 const base64Data = e.target.result.split(',')[1];
-                const fileName = file.name;
-                const mimeType = file.type || "application/octet-stream";
                 
-                // Здесь мы будем отправлять base64Data в наш code.gs
-                console.log("Файл готов к отправке:", fileName);
-                
-                // Временная заглушка, пока не напишем серверную часть
-                setTimeout(() => {
+                try {
+                    // Отправляем файл на наш сервер
+                    const response = await fetch(scriptURL, {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            action: 'upload_invoice',
+                            fileName: file.name,
+                            mimeType: file.type || "application/vnd.ms-excel",
+                            base64: base64Data
+                        })
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        alert(`Успешно! Найдено товаров: ${result.itemsFound}.\n\nСмотрите консоль для деталей.`);
+                        console.log("Распознанные товары:", result.items);
+                        // Здесь мы позже добавим вызов функции для отправки этих товаров в базу Items
+                        closeImport();
+                    } else {
+                        alert("Ошибка обработки инвойса.");
+                    }
+                } catch (error) {
+                    alert("Ошибка связи с сервером: " + error);
+                } finally {
                     btn.innerHTML = "📄 ВЫБРАТЬ ФАЙЛ";
                     btn.disabled = false;
-                    alert("Интерфейс готов! Ждем серверный скрипт.");
-                }, 1000);
+                }
             };
             reader.readAsDataURL(file);
         }
-
     </script>
 </body>
 </html>
