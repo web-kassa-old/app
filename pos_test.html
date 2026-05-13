@@ -1073,7 +1073,7 @@ async function handleInvoiceSelected(event) {
             if (!file) return;
 
             const btn = document.getElementById('btn-select-invoice');
-            btn.innerHTML = "⏳ ЧТЕНИЕ ИНВОЙСА...";
+            btn.innerHTML = "⏳ ЧТЕНИЕ...";
             btn.disabled = true;
 
             const reader = new FileReader();
@@ -1091,26 +1091,34 @@ async function handleInvoiceSelected(event) {
                         })
                     });
                     
-                    const result = await response.json();
+                    const rawText = await response.text();
+                    console.log("RAW RESPONSE:", rawText); // Лог для консоли
                     
-                    if (result.success) {
-                        // Очищаем от технического мусора (контейнеры и т.д.)
-                        const validItems = result.items.filter(item => item.name && item.name.length > 2 && item.cost !== null);
-                        
-                        // Спрашиваем пользователя
-                        if (confirm(`Инвойс прочитан!\nЧистых позиций: ${validItems.length}.\n\nЗаписать эти шины в базу данных?`)) {
-                            saveParsedItems(validItems);
-                        } else {
-                            btn.innerHTML = "📄 ВЫБРАТЬ ФАЙЛ";
-                            btn.disabled = false;
-                        }
-                    } else {
-                        alert("Ошибка обработки инвойса.");
+                    let result;
+                    try {
+                        result = JSON.parse(rawText);
+                    } catch(err) {
+                        alert("КРИТИЧЕСКАЯ ОШИБКА: Сервер прислал не JSON!\n\nТекст ответа:\n" + rawText.substring(0, 500));
                         btn.innerHTML = "📄 ВЫБРАТЬ ФАЙЛ";
                         btn.disabled = false;
+                        return;
+                    }
+                    
+                    if (result.success) {
+                        if (!result.items || result.items.length === 0) {
+                            alert("ВНИМАНИЕ: Инвойс прочитан, но ТОВАРОВ НЕ НАЙДЕНО.\nПроверьте, есть ли в Excel колонки 'Code' или 'Артикул'.");
+                        } else {
+                            const validItems = result.items.filter(item => item.name && item.name.length > 2);
+                            if (confirm(`Инвойс прочитан!\nНайдено позиций: ${result.items.length}\nЧистых для базы: ${validItems.length}\n\nЗаписать их в базу данных?`)) {
+                                saveParsedItems(validItems);
+                            }
+                        }
+                    } else {
+                        alert("ОШИБКА СЕРВЕРА: " + (result.error || "Неизвестная ошибка"));
                     }
                 } catch (error) {
-                    alert("Ошибка связи: " + error);
+                    alert("ОШИБКА СВЯЗИ: " + error);
+                } finally {
                     btn.innerHTML = "📄 ВЫБРАТЬ ФАЙЛ";
                     btn.disabled = false;
                 }
