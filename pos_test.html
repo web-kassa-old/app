@@ -169,9 +169,9 @@
                 <span id="clear-search" onclick="clearSearch()" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: #888; font-size: 16px; cursor: pointer; display: none; padding: 5px; height: 100%; align-items: center; justify-content: center;">✕</span>
             </div>
             
-            <button onclick="openReport()" style="padding: 0 15px; background: #111; color: #f1c40f; border: 1px solid #333; border-radius: 4px; font-size: 16px; cursor: pointer;">📊</button>
-            <button id="btn-settings" onclick="openSettings()" style="padding: 0 15px; background: #222; color: #eee; border: 1px solid #555; border-radius: 4px; cursor: pointer;">⚙️ <span id="queue-counter" class="queue-badge">0</span></button>
-        </div>
+<button onclick="openReport()" style="padding: 0 15px; background: #111; color: #f1c40f; border: 1px solid #333; border-radius: 4px; font-size: 16px; cursor: pointer;">📊</button>
+<button onclick="openImport()" style="padding: 0 15px; background: #111; color: #3498db; border: 1px solid #333; border-radius: 4px; font-size: 16px; cursor: pointer;" title="Приемка товара">📥</button>
+<button id="btn-settings" onclick="openSettings()" style="padding: 0 15px; background: #222; color: #eee; border: 1px solid #555; border-radius: 4px; cursor: pointer;">⚙️ <span id="queue-counter" class="queue-badge">0</span></button>        </div>
         
         <div class="list-header">
             <div style="flex-grow: 1; display: flex; align-items: center; gap: 10px;">
@@ -260,6 +260,26 @@
                 </button>
             </div>
             <button class="cancel-btn" style="width: 100%; margin-top: 10px;" onclick="closeSettings()" data-i18n="btn_close">ЗАКРЫТЬ</button>
+        </div>
+    </div>
+
+<div id="import-modal" class="modal-overlay">
+        <div class="settings-box">
+            <div class="r-title" style="margin-bottom: 10px;">ПРИЕМКА ТОВАРА</div>
+            <div style="text-align: center; margin-bottom: 20px; color: #888; font-size: 11px; line-height: 1.4;">
+                Загрузите файл накладной (.xls, .xlsx, .csv). Система сама распознает колонки и обновит остатки.
+            </div>
+
+            <input type="file" id="invoice-file" accept=".xls,.xlsx,.csv" style="display: none;" onchange="handleInvoiceSelected(event)">
+
+            <button id="btn-select-invoice" onclick="document.getElementById('invoice-file').click()" style="width: 100%; padding: 15px; background: #0f2c40; color: #3498db; border: 1px solid #3498db; border-radius: 8px; font-weight: bold; font-size: 14px; text-transform: uppercase; cursor: pointer; margin-bottom: 15px;">
+                📄 ВЫБРАТЬ ФАЙЛ
+            </button>
+
+            <div id="import-status-area" style="display: none; padding: 15px; background: #1a1a1a; border: 1px dashed #555; border-radius: 8px; font-size: 12px; margin-bottom: 15px; color: #fff;">
+                </div>
+
+            <button class="cancel-btn" style="width: 100%;" onclick="closeImport()">ЗАКРЫТЬ</button>
         </div>
     </div>
 
@@ -759,9 +779,12 @@
             const totalsBox = document.getElementById('rep-totals');
             const searchInput = document.getElementById('rep-search');
             
-            const fmt = (d) => d.split('-').reverse().join('.');
-            const serverStart = fmt(start);
-            const serverEnd = fmt(end);
+            // const fmt = (d) => d.split('-').reverse().join('.');
+            // const serverStart = fmt(start);
+            // const serverEnd = fmt(end);
+            // Отправляем даты "как есть", без переворота с точками
+            const serverStart = start;
+            const serverEnd = end;
 
             repList.innerHTML = `<div style="text-align:center; color:#f39c12; margin-top:30px; font-weight: bold;">⏳ ${translations[currentLang].msg_loading}</div>`;
 
@@ -1035,6 +1058,111 @@
             if (e.key === 'Enter') { if (barcodeBuffer.length > 2) { e.preventDefault(); const item = db.find(i => String(i.barcode) === String(barcodeBuffer)); if (item) { add(item.id); if (navigator.vibrate) navigator.vibrate(50); } barcodeBuffer = ''; } } else barcodeBuffer += e.key;
             lastKeyTime = currentTime;
         });
+        // --- ЛОГИКА ПРИЕМКИ (ИНВОЙСЫ) ---
+        function openImport() {
+            // Очищаем предыдущие состояния при открытии
+            document.getElementById('invoice-file').value = ''; 
+            document.getElementById('import-status-area').style.display = 'none';
+            document.getElementById('btn-select-invoice').style.display = 'block';
+            document.getElementById('import-modal').style.display = 'flex';
+        }
+
+        function closeImport() {
+            document.getElementById('import-modal').style.display = 'none';
+        }
+
+async function handleInvoiceSelected(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const btn = document.getElementById('btn-select-invoice');
+            btn.innerHTML = "⏳ ЧТЕНИЕ...";
+            btn.disabled = true;
+
+            const reader = new FileReader();
+            reader.onload = async function(e) {
+                const base64Data = e.target.result.split(',')[1];
+                
+                try {
+                    const response = await fetch(APPS_SCRIPT_URL, {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            action: 'upload_invoice',
+                            fileName: file.name,
+                            mimeType: file.type || "application/vnd.ms-excel",
+                            base64: base64Data
+                        })
+                    });
+                    
+                    const rawText = await response.text();
+                    console.log("RAW RESPONSE:", rawText); // Лог для консоли
+                    
+                    let result;
+                    try {
+                        result = JSON.parse(rawText);
+                    } catch(err) {
+                        alert("КРИТИЧЕСКАЯ ОШИБКА: Сервер прислал не JSON!\n\nТекст ответа:\n" + rawText.substring(0, 500));
+                        btn.innerHTML = "📄 ВЫБРАТЬ ФАЙЛ";
+                        btn.disabled = false;
+                        return;
+                    }
+                    
+                    if (result.success) {
+                        if (!result.items || result.items.length === 0) {
+                            alert("ВНИМАНИЕ: Инвойс прочитан, но ТОВАРОВ НЕ НАЙДЕНО.\nПроверьте, есть ли в Excel колонки 'Code' или 'Артикул'.");
+                        } else {
+                            const validItems = result.items.filter(item => item.name && item.name.length > 2);
+                            if (confirm(`Инвойс прочитан!\nНайдено позиций: ${result.items.length}\nЧистых для базы: ${validItems.length}\n\nЗаписать их в базу данных?`)) {
+                                saveParsedItems(validItems);
+                            }
+                        }
+                    } else {
+                        alert("ОШИБКА СЕРВЕРА: " + (result.error || "Неизвестная ошибка"));
+                    }
+                } catch (error) {
+                    alert("ОШИБКА СВЯЗИ: " + error);
+                } finally {
+                    btn.innerHTML = "📄 ВЫБРАТЬ ФАЙЛ";
+                    btn.disabled = false;
+                }
+            };
+            reader.readAsDataURL(file);
+        }
+
+        async function saveParsedItems(items) {
+            const btn = document.getElementById('btn-select-invoice');
+            const originalText = btn.innerHTML;
+            
+            // 1. ВКЛЮЧАЕМ ИНДИКАТОР
+            btn.innerHTML = "⌛ ИДЕТ ЗАПИСЬ В БАЗУ...";
+            btn.disabled = true;
+
+            try {
+                const response = await fetch(APPS_SCRIPT_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        action: 'save_invoice',
+                        items: items
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert(`УСПЕШНО!\nОбновлено: ${result.updated}\nДобавлено: ${result.added}`);
+                    // ПРИМЕЧАНИЕ: Если здесь стоит location.reload(), приложение перезагрузится.
+                    // Если вы хотите остаться на странице, просто не вызывайте перезагрузку.
+                } else {
+                    alert("Ошибка: " + result.error);
+                }
+            } catch (error) {
+                alert("Ошибка связи: " + error);
+            } finally {
+                // 2. ВОЗВРАЩАЕМ КНОПКУ В НОРМУ
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        }
     </script>
 </body>
 </html>
