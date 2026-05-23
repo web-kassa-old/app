@@ -7,148 +7,290 @@
     <title>POS Noir v5.4.3</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
+        /* =========================================
+           ЕДИНЫЙ ЦЕНТР УПРАВЛЕНИЯ ЦВЕТАМИ И ТЕМАМИ
+           ========================================= */
+        
+        /* 1. ТЕМНАЯ ТЕМА (ПО УМОЛЧАНИЮ) */
+        :root {
+            color-scheme: dark;
+            --bg-body: #0a0a0a;
+            --bg-panel: #111111;
+            --bg-card: #141414;
+            --bg-hover: #1a1a1a;
+            --bg-modal: #111111;
+            --bg-overlay: rgba(0,0,0,0.85);
+
+            --border-main: #222222;
+            --border-light: #333333;
+            --border-focus: #444444;
+
+            --text-main: #ffffff;
+            --text-muted: #888888;
+            --text-placeholder: #555555;
+            --text-dark: #000000;
+
+            --accent-yellow: #f1c40f;
+            --accent-green: #2ecc71;
+            --accent-red: #e74c3c;
+            --accent-blue: #3498db;
+
+            --bg-success-dim: #1a3a20;
+            --bg-danger-dim: #3a1a1a;
+            --bg-return: #2c0b0b;
+
+            --stock-bg: #003333;
+            --stock-text: #00ffff;
+            --stock-border: #008888;
+
+            --font-weight-main: normal;
+        }
+
+        /* 2. СВЕТЛАЯ ТЕМА (IOS CLASSIC) */
+        body.light-theme {
+            color-scheme: light;
+            --bg-body: #f2f2f7;
+            --bg-panel: #ffffff;
+            --bg-card: #ffffff;
+            --bg-hover: #e5e5ea;
+            --bg-modal: #ffffff;
+            --bg-overlay: rgba(0,0,0,0.5);
+
+            --border-main: #c6c6c8;
+            --border-light: #d1d1d6;
+            --border-focus: #a1a1a6;
+
+            --text-main: #000000;
+            --text-muted: #666666;
+            --text-placeholder: #888888;
+            --text-dark: #000000; 
+
+            --accent-yellow: #d4ac0d;
+            --accent-green: #27ae60;
+            --accent-red: #c0392b;
+            --accent-blue: #007bff;
+
+            --bg-success-dim: #e8f5e9;
+            --bg-danger-dim: #ffebee;
+            --bg-return: #ffebee; /* Сигнальный светло-красный фон для возврата */
+
+            --stock-bg: #e0f7fa;
+            --stock-text: #006064;
+            --stock-border: #00bcd4;
+
+            --font-weight-main: bold;
+        }
+
+        /* ========================================= */
+
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: "Courier New", Courier, monospace; }
-        body { background: #0a0a0a; color: #fff; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; transition: background-color 0.3s; }
+        
+        body { background: var(--bg-body); color: var(--text-main); font-weight: var(--font-weight-main); height: 100dvh; display: flex; flex-direction: column; overflow: hidden; transition: background-color 0.3s; }
+        
+        /* ЗАПРЕТ ВЫДЕЛЕНИЯ ТЕКСТА КАК В НАСТОЯЩЕМ ПРИЛОЖЕНИИ */
+        body {
+            -webkit-user-select: none; /* Для Safari и старых браузеров */
+            -moz-user-select: none;    /* Для Firefox */
+            -ms-user-select: none;     /* Для Edge */
+            user-select: none;         /* Стандартный синтаксис */
+        }
+
+        /* ИСКЛЮЧЕНИЕ: РАЗРЕШАЕМ ВЫДЕЛЕНИЕ ТОЛЬКО В ПОЛЯХ ВВОДА */
+        input, textarea {
+            -webkit-user-select: auto;
+            -moz-user-select: auto;
+            -ms-user-select: auto;
+            user-select: auto;
+        }
+
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 3px; }
+
+        /* КАТЕГОРИИ ТОВАРОВ */
+        .cat-bar { display: flex; overflow-x: auto; gap: 8px; padding: 10px 15px; border-bottom: 1px solid var(--border-main); flex-shrink: 0; min-height: 52px; background: var(--bg-body); }
+        .cat-btn { background: var(--bg-panel); color: var(--text-muted); border: 1px solid var(--border-light); font-weight: var(--font-weight-main); padding: 6px 14px; border-radius: 15px; font-size: 12px; cursor: pointer; white-space: nowrap; transition: 0.2s; text-transform: uppercase; }
+        .cat-btn.active { background: var(--accent-yellow); color: var(--text-dark); font-weight: bold; border-color: var(--accent-yellow); }
+        .cat-bar::-webkit-scrollbar { height: 4px; }
+        .cat-bar::-webkit-scrollbar-track { background: transparent; }
+        .cat-bar::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 4px; }
+        .cat-bar::-webkit-scrollbar-thumb:hover { background: var(--accent-yellow); }
+
+        /* КОНТЕЙНЕР УЛЬТРА-МИНИМАЛИЗМА (ПРИЕМКА) */
+        .minimal-input-container { display: flex; gap: 10px; align-items: center; width: 100%; margin-bottom: 15px; }
+        .currency-minimal-container { flex: 0 0 70px; position: relative; }
+        .currency-minimal-header { width: 100%; background: var(--bg-body); border: 1px solid var(--border-light); padding: 12px 10px; border-radius: 4px; font-size: 14px; font-weight: bold; color: var(--accent-yellow); cursor: pointer; box-sizing: border-box; transition: 0.2s; display: flex; justify-content: space-between; align-items: center; user-select: none; }
+        .currency-minimal-header:hover, .currency-minimal-header.active { border-color: var(--accent-yellow); background: var(--bg-card); }
+        .curr-arrow-mini { color: var(--text-placeholder); font-size: 8px; margin-left: 3px; }
+        .currency-minimal-list { position: absolute; top: 100%; left: 0; width: 80px; background: var(--bg-panel); border: 1px solid var(--border-light); border-top: none; border-radius: 0 0 4px 4px; z-index: 10; display: none; flex-direction: column; margin-top: 1px; }
+        .currency-minimal-list.show { display: flex; }
+        .currency-minimal-item { padding: 10px; cursor: pointer; border-bottom: 1px solid var(--bg-hover); transition: background 0.2s; font-size: 13px; font-weight: bold; color: var(--text-main); text-align: center; }
+        .currency-minimal-item:last-child { border-bottom: none; }
+        .currency-minimal-item:hover { background: var(--bg-hover); color: var(--text-main); }
+        .currency-minimal-item.selected { color: var(--text-dark); background: var(--accent-yellow); }
+        
+        .file-input-wrapper { flex: 1; position: relative; }
+        .file-upload-label { display: flex; align-items: center; justify-content: space-between; width: 100%; background: var(--bg-body); color: var(--text-main); border: 1px dashed var(--border-focus); padding: 12px; border-radius: 4px; font-size: 13px; cursor: pointer; box-sizing: border-box; transition: all 0.2s ease-in-out; overflow: hidden; white-space: nowrap; }
+        .file-upload-label:hover { background: var(--bg-card); border-color: var(--accent-yellow); color: var(--text-main); }
+        .file-placeholder-text { color: var(--text-placeholder); transition: 0.2s; }
+        .file-upload-label:hover .file-placeholder-text { color: var(--text-main); }
+        .file-content { display: flex; align-items: center; gap: 8px; overflow: hidden; text-overflow: ellipsis; }
 
         /* --- ЭКРАН ВХОДА И КЛАВИАТУРА --- */
-        #login-screen {
-            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-            background-color: #050505; z-index: 9999;
-            display: flex; flex-direction: column; justify-content: center; align-items: center;
-        }
-        .login-label { color: #2ecc71; font-size: 24px; margin-bottom: 25px; font-weight: bold; letter-spacing: 5px; }
+        #login-screen { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: var(--bg-body); z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+        .login-label { color: var(--accent-green); font-size: 24px; margin-bottom: 25px; font-weight: bold; letter-spacing: 5px; }
         
-        .pin-input {
-            background: #141414; border: 1px solid #333; color: #f1c40f;
-            padding: 15px; font-size: 32px; width: 220px; text-align: center;
-            margin-bottom: 10px; outline: none; letter-spacing: 12px; border-radius: 8px;
-        }
+        .pin-input { background: var(--bg-card); border: 1px solid var(--border-light); color: var(--accent-yellow); padding: 15px; font-size: 32px; width: 220px; text-align: center; margin-bottom: 10px; outline: none; letter-spacing: 12px; border-radius: 8px; }
         
-        #login-error { color: #e74c3c; font-size: 12px; visibility: hidden; font-weight: bold; min-height: 15px; margin-bottom: 15px; }
+        #login-error { color: var(--accent-red); font-size: 12px; visibility: hidden; font-weight: bold; min-height: 15px; margin-bottom: 15px; }
 
-        @keyframes shake {
-            0%, 100% { transform: translateX(0); }
-            20%, 60% { transform: translateX(-10px); }
-            40%, 80% { transform: translateX(10px); }
-        }
-        .error-shake { animation: shake 0.4s; border-color: #e74c3c !important; color: #e74c3c !important; }
+        @keyframes shake { 0%, 100% { transform: translateX(0); } 20%, 60% { transform: translateX(-10px); } 40%, 80% { transform: translateX(10px); } }
+        .error-shake { animation: shake 0.4s; border-color: var(--accent-red) !important; color: var(--accent-red) !important; }
 
         .numpad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
-        .num-btn { 
-            background: #1a1a1a; border: 1px solid #333; color: #fff; font-size: 28px; 
-            width: 70px; height: 70px; border-radius: 50%; cursor: pointer; 
-            display: flex; align-items: center; justify-content: center; 
-            user-select: none; transition: 0.1s; font-weight: bold;
-        }
-        .num-btn:active { background: #333; border-color: #2ecc71; transform: scale(0.95); }
-        .num-btn.btn-clear { color: #e74c3c; font-size: 22px; }
+        .num-btn { background: var(--bg-hover); border: 1px solid var(--border-light); color: var(--text-main); font-size: 28px; width: 70px; height: 70px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; user-select: none; transition: 0.1s; font-weight: bold; }
+        .num-btn:active { background: var(--border-light); border-color: var(--accent-green); transform: scale(0.95); }
+        .num-btn.btn-clear { color: var(--accent-red); font-size: 22px; }
 
         /* --- ШАПКА --- */
-        .header-area { flex-shrink: 0; border-bottom: 1px solid #222; }
+        .header-area { flex-shrink: 0; border-bottom: 1px solid var(--border-main); background: var(--bg-panel); }
         .modes { display: flex; padding: 4px; gap: 4px; }
-        .m-btn { flex: 1; height: 35px; line-height: 1; padding: 0; border: 1px solid #333; background: #111; color: #444; font-weight: 900; border-radius: 4px; font-size: 13px; text-transform: uppercase; transition: 0.2s; }
-        .m-btn.active-s { background: #1a3a20; color: #2ecc71; border-color: #2ecc71; }
-        .m-btn.active-r { background: #3a1a1a; color: #e74c3c; border-color: #e74c3c; }
+        .m-btn { flex: 1; height: 35px; line-height: 1; padding: 0; border: 1px solid var(--border-light); background: var(--bg-panel); color: var(--text-muted); font-weight: 900; border-radius: 4px; font-size: 13px; text-transform: uppercase; transition: 0.2s; }
+        .m-btn.active-s { background: var(--bg-success-dim); color: var(--accent-green); border-color: var(--accent-green); }
+        .m-btn.active-r { background: var(--bg-danger-dim); color: var(--accent-red); border-color: var(--accent-red); }
 
-        .btn-exit-top { flex: 0.25; background: #2c0b0b; color: #e74c3c; border: 1px solid #e74c3c; border-radius: 4px; font-size: 20px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+        .btn-exit-top { flex: 0.25; background: var(--bg-danger-dim); color: var(--accent-red); border: 1px solid var(--accent-red); border-radius: 4px; font-size: 20px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; }
 
-        .search-area { padding: 0 4px 4px; }
-        .s-input { width: 100%; background: #141414; color: #fff; border: 1px solid #333; border-radius: 4px; padding: 10px; font-size: 14px; outline: none; }
+        /* Сжатая структура кнопок для увеличения поиска */
+        .search-area { padding: 0 4px 4px; display: flex; gap: 4px; align-items: stretch; }
+        .s-input-container { position: relative; flex-grow: 1; flex-shrink: 1; min-width: 0; }
+        .s-input { width: 100%; height: 100%; background: var(--bg-card); color: var(--text-main); font-weight: var(--font-weight-main); border: 1px solid var(--border-light); border-radius: 4px; padding: 8px 30px 8px 10px; font-size: 14px; outline: none; box-sizing: border-box; }
+        
+        .header-action-btn { padding: 0 8px; background: var(--bg-panel); border: 1px solid var(--border-light); border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
+        .header-btn-sync { color: var(--accent-blue); font-size: 18px; font-weight: bold; }
+        .header-btn-report { color: var(--accent-yellow); font-size: 16px; }
+        .header-btn-income { background: var(--bg-success-dim); color: var(--accent-green); border-color: var(--accent-green); font-size: 11px; font-weight: bold; gap: 3px; padding: 0 6px; }
+        .header-btn-settings { background: var(--border-main); color: var(--text-main); font-size: 16px; border-color: var(--text-muted); }
 
-        .list-header { display: flex; align-items: center; gap: 8px; padding: 4px 14px; font-size: 10px; color: #666; font-weight: bold; border-bottom: 1px solid #222; }
-        .badge { font-size: 9px; color: #888; background: #1a1a1a; padding: 2px 6px; border-radius: 6px; border: 1px solid #333; text-transform: lowercase; }
-        .cashier-badge { color: #2ecc71; border-color: #1a3a20; text-transform: uppercase; font-weight: 900; margin-left: 10px; }
-
+        .list-header { display: flex; align-items: center; gap: 8px; padding: 4px 14px; font-size: 10px; color: var(--text-muted); font-weight: bold; border-bottom: 1px solid var(--border-main); background: var(--bg-body); }
+.badge { 
+            font-size: 9px; 
+            color: var(--text-muted); 
+            background: var(--bg-hover); 
+            padding: 2px 6px; 
+            border-radius: 6px; 
+            border: 1px solid var(--border-light); 
+            text-transform: lowercase; 
+            white-space: nowrap; 
+        }
+        
+        .cashier-badge { 
+            color: var(--accent-green); 
+            border-color: var(--bg-success-dim); 
+            text-transform: uppercase; 
+            font-weight: 900; 
+            margin-left: 10px; 
+            white-space: nowrap; 
+            overflow: hidden;    
+            text-overflow: ellipsis; 
+            max-width: 110px;    
+        }
         /* --- КАССА --- */
-        #catalog { flex-grow: 1; min-height: 0; overflow-y: auto; padding: 4px; border-bottom: 1px solid #222; }
-        .c-item { background: #141414; border: 1px solid #222; border-radius: 4px; padding: 8px 10px; margin-bottom: 3px; display: flex; align-items: center; gap: 8px; }
-        .i-name { flex-grow: 1; font-size: 12px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .i-price { width: 85px; font-size: 13px; font-weight: bold; text-align: right; color: #fff; }
-        .i-stock { width: 45px; font-size: 14px; font-weight: bold; text-align: center; color: #00ffff; background: #003333; border: 1px solid #008888; border-radius: 3px; padding: 2px 0; }
+        #catalog { flex-grow: 1; min-height: 0; overflow-y: auto; padding: 4px; border-bottom: 1px solid var(--border-main); background: var(--bg-body); }
+        .c-item { background: var(--bg-card); border: 1px solid var(--border-main); border-radius: 4px; padding: 8px 10px; margin-bottom: 3px; display: flex; align-items: center; gap: 8px; cursor: pointer; transition: 0.2s; }
+        .c-item:hover { background: var(--bg-hover); }
+        .i-name { flex-grow: 1; font-size: 12px; font-weight: bold; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .i-price { width: 85px; font-size: 13px; font-weight: bold; text-align: right; color: var(--accent-green); }
+        /* ВЫРАВНИВАНИЕ ОСТАТКОВ ПО ПРАВОМУ КРАЮ */
+        .i-stock { width: 50px; font-size: 14px; font-weight: bold; text-align: right; padding-right: 4px; color: var(--stock-text); background: var(--stock-bg); border: 1px solid var(--stock-border); border-radius: 3px; }
 
-        .cart-sec { flex-shrink: 0; background: rgba(0,0,0,0.5); border-top: 2px solid #2ecc71; display: flex; flex-direction: column; max-height: 40dvh; }
-        .cart-sec.r-theme { border-top-color: #e74c3c; }
-        #cart-list { overflow-y: auto; padding: 4px; padding-bottom: 15px; }
+        .cart-sec { flex-shrink: 0; background: var(--bg-panel); border-top: 2px solid var(--accent-green); display: flex; flex-direction: column; max-height: 40dvh; }
+        .cart-sec.r-theme { border-top-color: var(--accent-red); }
+        #cart-list { overflow-y: auto; padding: 4px; padding-bottom: 15px; background: var(--bg-body); }
         #cart-list:empty { padding: 0; }
         
-        .cart-row { background: #111; padding: 6px; border-radius: 4px; margin-bottom: 3px; border: 1px solid #222; }
-        .row-top { font-size: 11px; font-weight: bold; color: #888; margin-bottom: 4px; display: flex; justify-content: space-between; gap: 10px; }
+        .cart-row { background: var(--bg-panel); padding: 6px; border-radius: 4px; margin-bottom: 3px; border: 1px solid var(--border-main); color: var(--text-main); }
+        .row-top { font-size: 11px; font-weight: bold; color: var(--text-muted); margin-bottom: 4px; display: flex; justify-content: space-between; gap: 10px; }
         .row-ctrl { display: flex; justify-content: space-between; align-items: center; }
         
-        .qty-box { display: flex; align-items: center; background: #000; border: 1px solid #333; border-radius: 4px; height: 38px; overflow: hidden; }
-        .q-btn { background: #1a1a1a; color: #f1c40f; width: 38px; height: 100%; border: none; font-size: 20px; cursor: pointer; }
-        .q-val { width: 80px; height: 100%; text-align: center; font-size: 16px; font-weight: bold; background: transparent; border: none; color: #fff; outline: none; border-left: 1px solid #333; border-right: 1px solid #333; }
-        .p-input { width: 85px; height: 38px; background: #000; color: #f1c40f; border: 1px solid #333; text-align: right; padding: 8px; border-radius: 4px; font-size: 15px; font-weight: bold; outline: none; }
+        .qty-box { display: flex; align-items: center; background: var(--bg-card); border: 1px solid var(--border-light); border-radius: 4px; height: 38px; overflow: hidden; }
+        .q-btn { background: var(--bg-hover); color: var(--accent-yellow); width: 38px; height: 100%; border: none; font-size: 20px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        .q-btn:hover { background: var(--border-light); }
+        .q-val { width: 80px; height: 100%; text-align: center; font-size: 16px; font-weight: bold; background: transparent; border: none; color: var(--text-main); outline: none; border-left: 1px solid var(--border-light); border-right: 1px solid var(--border-light); }
+        .p-input { width: 85px; height: 38px; background: var(--bg-card); color: var(--accent-yellow); border: 1px solid var(--border-light); text-align: right; padding: 8px; border-radius: 4px; font-size: 15px; font-weight: bold; outline: none; }
         
-        .footer { flex-shrink: 0; padding: 6px 4px; border-top: 1px solid #222; }
-        .total-box { display: flex; justify-content: space-between; font-size: 18px; font-weight: 900; margin-bottom: 6px; padding: 0 4px; }
+        .footer { flex-shrink: 0; padding: 6px 4px; border-top: 1px solid var(--border-main); background: var(--bg-panel); }
+        .total-box { display: flex; justify-content: space-between; font-size: 18px; font-weight: 900; margin-bottom: 6px; padding: 0 4px; color: var(--text-main); }
         
         .btns { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; }
-        .pay { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 50px; border: none; border-radius: 4px; color: #fff; cursor: pointer; padding: 2px; }
+        .pay { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 50px; border: none; border-radius: 4px; color: #ffffff; cursor: pointer; padding: 2px; }
         .pay-title { font-weight: bold; font-size: 8px; text-transform: uppercase; margin-bottom: 2px; }
         .pay-sum { font-size: 9px; font-weight: 900; opacity: 0.9; white-space: nowrap; }
         
-        .p-cash { background: #27ae60; } .p-qr { background: #c0392b; } .p-red { background: #8e44ad; } .p-card { background: #2980b9; } .p-trans { background: #f39c12; color: #000 !important; } .p-trans .pay-sum { color: #000; }
+        .p-cash { background: #27ae60; } .p-qr { background: #c0392b; } .p-red { background: #8e44ad; } .p-card { background: #2980b9; } .p-trans { background: #f39c12; color: #000000; } .p-trans .pay-sum { color: #000000; }
 
         /* --- МОДАЛЬНЫЕ ОКНА --- */
-        .modal-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.95); z-index: 100; display: none; flex-direction: column; justify-content: center; align-items: center; padding: 20px; }
-        .receipt-box { width: 100%; max-width: 400px; border: 2px dashed #444; background: #111; padding: 20px; border-radius: 8px; }
-        .r-title { text-align: center; font-size: 18px; font-weight: bold; margin-bottom: 5px; }
-        .r-method { text-align: center; font-size: 12px; color: #f1c40f; margin-bottom: 15px; text-transform: uppercase; }
-        .r-item { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 6px; border-bottom: 1px dotted #333; padding-bottom: 2px; }
-        .r-total { text-align: right; font-size: 18px; font-weight: bold; margin-top: 15px; border-top: 1px solid #444; padding-top: 10px; }
+        .modal-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: var(--bg-overlay); z-index: 100; display: none; flex-direction: column; justify-content: center; align-items: center; padding: 20px; }
+        .receipt-box { width: 100%; max-width: 400px; border: 2px dashed var(--border-focus); background: var(--bg-modal); padding: 20px; border-radius: 8px; color: var(--text-main); }
+        .r-title { text-align: center; font-size: 18px; font-weight: bold; margin-bottom: 5px; color: var(--text-main); }
+        .r-method { text-align: center; font-size: 12px; color: var(--accent-yellow); margin-bottom: 15px; text-transform: uppercase; }
+        .r-item { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 6px; border-bottom: 1px dotted var(--border-light); padding-bottom: 2px; color: var(--text-main); }
+        .r-total { text-align: right; font-size: 18px; font-weight: bold; margin-top: 15px; border-top: 1px solid var(--border-focus); padding-top: 10px; color: var(--text-main); }
         
         .modal-btns { display: flex; gap: 10px; margin-top: 25px; }
-        .cancel-btn { flex: 1; padding: 15px; background: #333; color: #fff; border: 1px solid #555; border-radius: 4px; font-weight: bold; cursor: pointer; text-transform: uppercase; font-size: 12px; }
-        .confirm-btn { flex: 2; padding: 15px; background: #2ecc71; color: #000; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; text-transform: uppercase; font-size: 14px; }
+        .cancel-btn { flex: 1; padding: 15px; background: var(--bg-hover); color: var(--text-main); border: 1px solid var(--border-focus); border-radius: 4px; font-weight: bold; cursor: pointer; text-transform: uppercase; font-size: 12px; }
+        .confirm-btn { flex: 2; padding: 15px; background: var(--accent-green); color: var(--text-dark); border: none; border-radius: 4px; font-weight: bold; cursor: pointer; text-transform: uppercase; font-size: 14px; }
 
-        .hist-block { background: #141414; border: 1px solid #333; border-left-width: 4px; border-radius: 4px; padding: 10px; margin-bottom: 8px; }
-        .hb-head { display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 6px; font-weight: bold; border-bottom: 1px dashed #333; padding-bottom: 6px; text-transform: uppercase; }
-        .hb-item { display: flex; justify-content: space-between; font-size: 11px; color: #aaa; margin-bottom: 4px; }
+        .hist-block { background: var(--bg-card); border: 1px solid var(--border-light); border-left-width: 4px; border-radius: 4px; padding: 10px; margin-bottom: 8px; }
+        .hb-head { display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 6px; font-weight: bold; border-bottom: 1px dashed var(--border-light); padding-bottom: 6px; text-transform: uppercase; }
+        .hb-item { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); margin-bottom: 4px; }
         .hb-type-r { text-decoration: line-through; opacity: 0.6; }
 
-        .settings-box { width: 100%; max-width: 350px; background: #111; border: 1px solid #444; padding: 20px; border-radius: 8px; }
-        .s-group { margin-bottom: 15px; border-bottom: 1px solid #222; padding-bottom: 15px; }
-        .s-title { font-size: 11px; color: #888; margin-bottom: 10px; text-transform: uppercase; font-weight: bold; }
-        .s-btn { width: 100%; padding: 12px; background: #222; color: #eee; border: 1px solid #444; border-radius: 4px; margin-bottom: 5px; cursor: pointer; text-align: left; display: flex; justify-content: space-between; font-size: 13px; align-items: center;}
+        .settings-box { width: 100%; max-width: 350px; background: var(--bg-modal); border: 1px solid var(--border-focus); padding: 20px; border-radius: 8px; color: var(--text-main); box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
+        .s-group { margin-bottom: 15px; border-bottom: 1px solid var(--border-main); padding-bottom: 15px; }
+        .s-title { font-size: 11px; color: var(--text-muted); margin-bottom: 10px; text-transform: uppercase; font-weight: bold; }
+        .s-btn { width: 100%; padding: 12px; background: var(--bg-hover); color: var(--text-main); border: 1px solid var(--border-focus); border-radius: 4px; margin-bottom: 5px; cursor: pointer; text-align: left; display: flex; justify-content: space-between; font-size: 13px; align-items: center; font-weight: var(--font-weight-main); }
         .lang-row { display: flex; gap: 5px; }
-        .lang-btn { flex: 1; padding: 12px; background: #222; color: #888; border: 1px solid #444; border-radius: 4px; cursor: pointer; text-align: center; font-weight: bold; transition: 0.2s;}
-        .lang-btn.active { background: #1a3a20; color: #2ecc71; border-color: #2ecc71; }
+        .lang-btn { flex: 1; padding: 12px; background: var(--bg-hover); color: var(--text-muted); border: 1px solid var(--border-focus); border-radius: 4px; cursor: pointer; text-align: center; font-weight: bold; transition: 0.2s;}
+        .lang-btn.active { background: var(--bg-success-dim); color: var(--accent-green); border-color: var(--accent-green); }
         
-        .queue-badge { background: #e74c3c; color: #fff; padding: 2px 6px; border-radius: 10px; font-size: 10px; font-weight: bold; display: none; margin-left: 5px; }
+        .queue-badge { background: var(--accent-red); color: #fff; padding: 2px 6px; border-radius: 10px; font-size: 10px; font-weight: bold; display: none; margin-left: 5px; }
 
         input[type="date"] { position: relative; }
         input[type="date"]::-webkit-calendar-picker-indicator { position: absolute; top: 0; left: 0; right: 0; bottom: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
         
         .item-wrapper { margin-bottom: 4px; }
-.item-card { 
-    display: grid; 
-    /* 1fr для имени, 45px для кол-ва, и минимум 90px (или больше) для суммы */
-    grid-template-columns: 1fr 45px minmax(90px, auto); 
-    gap: 8px; 
-    padding: 6px 8px; 
-    border: 1px solid #333; 
-    border-radius: 5px; 
-    background: #2d2d30; 
-    cursor: pointer; 
-    transition: background 0.2s; 
-    align-items: center; 
-}        .item-wrapper.active .dropdown-icon { transform: rotate(180deg); color: #4ade80; }
+        .item-card { display: grid; grid-template-columns: 1fr 45px minmax(90px, auto); gap: 8px; padding: 6px 8px; border: 1px solid var(--border-light); border-radius: 5px; background: var(--bg-card); cursor: pointer; transition: background 0.2s; align-items: center; }        
+        .item-wrapper.active .dropdown-icon { transform: rotate(180deg); color: var(--accent-green); }
         .item-wrapper.active .item-details { max-height: 120px; }
-        .item-details { background: #252526; border: 1px solid #333; border-top: none; border-bottom-left-radius: 5px; border-bottom-right-radius: 5px; max-height: 0; overflow: hidden; transition: max-height 0.2s ease-out; }
+        .item-details { background: var(--bg-body); border: 1px solid var(--border-light); border-top: none; border-bottom-left-radius: 5px; border-bottom-right-radius: 5px; max-height: 0; overflow: hidden; transition: max-height 0.2s ease-out; }
     
         .rep-search-container { position: relative; width: 100%; }
-        #rep-clear-search { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: #666; font-size: 16px; cursor: pointer; display: none; padding: 5px; }
-        .rep-table-header { position: sticky; top: 0; z-index: 10; background: #111; display: grid; grid-template-columns: 1fr 40px 85px; gap: 8px; font-size: 10px; color: #666; font-weight: bold; padding: 8px 8px; border-bottom: 1px solid #333; text-transform: uppercase; }
+        #rep-clear-search { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-size: 16px; cursor: pointer; display: none; padding: 5px; }
+        .rep-table-header { position: sticky; top: 0; z-index: 10; background: var(--bg-panel); display: grid; grid-template-columns: 1fr 40px 85px; gap: 8px; font-size: 10px; color: var(--text-muted); font-weight: bold; padding: 8px 8px; border-bottom: 1px solid var(--border-light); text-transform: uppercase; }
+    
+        /* --- КНОПКА SOFT SYNC --- */
+        @keyframes spin-sync { 100% { transform: rotate(360deg); } }
+        .sync-spin { animation: spin-sync 1s linear infinite; color: var(--accent-green) !important; border-color: var(--accent-green) !important; pointer-events: none; }
+    
+    /* Стили для свайпа текста в отчете */
+        .swipeable-text {
+            flex: 1; 
+            min-width: 0; 
+            white-space: nowrap; 
+            overflow-x: auto; 
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+        }
+        .swipeable-text::-webkit-scrollbar {
+            display: none;
+        }
     </style>
 </head>
 <body>
 
     <div id="login-screen">
-        <div class="login-label">ВХОД</div>
+        <div class="login-label" data-i18n="login_title">ВХОД</div>
         <input type="password" id="pin-field" class="pin-input" placeholder="****" readonly>
         <div id="login-error">НЕВЕРНЫЙ ПИН-КОД</div>
         
@@ -175,17 +317,23 @@
             <button class="btn-exit-top" onclick="logout()">✖</button>
         </div>
         
-        <div class="search-area" style="display: flex; gap: 10px;">
-            <div style="position: relative; flex-grow: 1; margin: 0;">
-                <input type="text" id="sb" class="s-input" data-i18n-placeholder="search_placeholder" placeholder="ПОИСК..." oninput="handleSearchInput()" style="width: 100%; padding-right: 35px;">
-                <span id="clear-search" onclick="clearSearch()" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: #888; font-size: 16px; cursor: pointer; display: none; padding: 5px; height: 100%; align-items: center; justify-content: center;">✕</span>
+        <div class="search-area">
+            <div class="s-input-container">
+                <input type="text" id="sb" class="s-input" data-i18n-placeholder="search_placeholder" placeholder="ПОИСК..." oninput="handleSearchInput()">
+                <span id="clear-search" onclick="clearSearch()" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-size: 16px; cursor: pointer; display: none; padding: 5px; height: 100%; align-items: center; justify-content: center;">✕</span>
             </div>
             
-            <button onclick="openReport()" style="padding: 0 15px; background: #111; color: #f1c40f; border: 1px solid #333; border-radius: 4px; font-size: 16px; cursor: pointer;">📊</button>
+            <button id="btn-sync-data" class="header-action-btn header-btn-sync" onclick="refreshPosData()" title="Обновить остатки и цены">↻</button>
             
-            <button onclick="toggleIncomeModule()" style="padding: 0 10px; background: #1a3a20; color: #2ecc71; border: 1px solid #2ecc71; border-radius: 4px; font-size: 12px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 5px;">📦 <span data-i18n="receive_btn">ПРИЕМКА</span></button>
+            <button class="header-action-btn header-btn-report" onclick="openReport()">📊</button>
             
-            <button id="btn-settings" onclick="openSettings()" style="padding: 0 15px; background: #222; color: #eee; border: 1px solid #555; border-radius: 4px; cursor: pointer;">⚙️ <span id="queue-counter" class="queue-badge">0</span></button>
+            <button class="header-action-btn header-btn-income" onclick="toggleIncomeModule()">
+                📦 <span data-i18n="receive_btn" style="max-width: 60px; overflow: hidden; text-overflow: ellipsis;">ПРИЕМКА</span>
+            </button>
+            
+            <button id="btn-settings" class="header-action-btn header-btn-settings" onclick="openSettings()">
+                ⚙️ <span id="queue-counter" class="queue-badge">0</span>
+            </button>
         </div>
         
         <div class="list-header">
@@ -195,9 +343,11 @@
                 <span id="cashier-info" class="cashier-badge" style="display: none;">👤 ---</span>
             </div>
             <div style="width: 85px; text-align: right;" data-i18n="header_price">ЦЕНА</div>
-            <div style="width: 45px; text-align: center;" data-i18n="header_stock">ОСТ</div>
+            <div style="width: 50px; text-align: right; padding-right: 4px;" data-i18n="header_stock">ОСТ</div>
         </div>
     </div>
+
+    <div class="cat-bar" id="categoryBar"></div>
 
     <div id="catalog"></div>
 
@@ -229,23 +379,23 @@
     </div>
 
     <div id="report-modal" class="modal-overlay">
-        <div class="receipt-box" style="max-height: 85vh; display: flex; flex-direction: column; width: 100%; max-width: 400px; padding: 15px; border-color: #555;">
-            <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 10px; border-bottom: 1px solid #333; padding-bottom: 10px;">
-                <div id="rep-header-title" style="font-size: 14px; font-weight: bold; color: #fff; text-align: center;">ОТЧЕТ</div>
+        <div class="receipt-box" style="max-height: 85vh; display: flex; flex-direction: column; width: 100%; max-width: 400px; padding: 15px; border-color: var(--border-focus);">
+            <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 10px; border-bottom: 1px solid var(--border-light); padding-bottom: 10px;">
+                <div id="rep-header-title" style="font-size: 14px; font-weight: bold; color: var(--text-main); text-align: center;">ОТЧЕТ</div>
                 <div id="date-range-controls" style="display: none; flex-direction: column; gap: 10px; width: 100%; margin-top: 10px;">
                     <div style="display: flex; align-items: center; justify-content: center; gap: 5px;">
-                        <input type="date" id="rep-date-start" style="background: #222; color: #fff; border: 1px solid #444; padding: 5px; border-radius: 4px; color-scheme: dark; font-size: 11px; width: 115px;" onchange="renderReport()">
-                        <span style="color: #666;">—</span>
-                        <input type="date" id="rep-date-end" style="background: #222; color: #fff; border: 1px solid #444; padding: 5px; border-radius: 4px; color-scheme: dark; font-size: 11px; width: 115px;" onchange="renderReport()">
+                        <input type="date" id="rep-date-start" style="background: var(--border-main); color: var(--text-main); border: 1px solid var(--border-focus); padding: 5px; border-radius: 4px; font-size: 11px; width: 115px;" onchange="renderReport()">
+                        <span style="color: var(--text-muted);">—</span>
+                        <input type="date" id="rep-date-end" style="background: var(--border-main); color: var(--text-main); border: 1px solid var(--border-focus); padding: 5px; border-radius: 4px; font-size: 11px; width: 115px;" onchange="renderReport()">
                     </div>
                     <div class="rep-search-container" id="rep-search-wrap" style="display: none;">
-                        <input type="text" id="rep-search" data-i18n-placeholder="search_placeholder" placeholder="ПОИСК..." oninput="filterReport()" style="-webkit-appearance: none; background: #1a1a1a; color: #fff; border: 1px solid #444; padding: 8px 35px 8px 10px; border-radius: 4px; font-size: 12px; outline: none; width: 100%; box-sizing: border-box;">
+                        <input type="text" id="rep-search" data-i18n-placeholder="search_placeholder" placeholder="ПОИСК..." oninput="filterReport()" style="-webkit-appearance: none; background: var(--bg-hover); color: var(--text-main); border: 1px solid var(--border-focus); padding: 8px 35px 8px 10px; border-radius: 4px; font-size: 12px; outline: none; width: 100%; box-sizing: border-box; font-weight: var(--font-weight-main);">
                         <span id="rep-clear-search" onclick="clearReportSearch()">✕</span>
                     </div>
                 </div>
             </div>
             <div id="rep-list" style="flex-grow: 1; overflow-y: auto; padding-right: 5px;"></div>
-            <div id="rep-totals" style="margin-top: 15px; border-top: 2px solid #444; padding-top: 10px;"></div>
+            <div id="rep-totals" style="margin-top: 15px; border-top: 2px solid var(--border-focus); padding-top: 10px;"></div>
             <div class="modal-btns" style="margin-top: 15px;">
                 <button class="cancel-btn" style="width: 100%;" onclick="closeReport()" data-i18n="btn_close_report">ЗАКРЫТЬ ОТЧЕТ</button>
             </div>
@@ -268,12 +418,20 @@
                     <span data-i18n="btn_sync">Отправить чеки</span><span id="sync-status">📡</span>
                 </button>
             </div>
-            <div class="s-group" style="border: none;">
+            <div class="s-group">
                 <div class="s-title" data-i18n="settings_system">Система</div>
                 <button class="s-btn" onclick="forceAppUpdate()">
                     <span data-i18n="btn_update">Обновить кэш</span><span id="update-status">🔄</span>
                 </button>
             </div>
+            
+            <div class="s-group" style="border: none; padding-bottom: 0;">
+                <div class="s-title" data-i18n="settings_theme">Оформление</div>
+                <button class="s-btn" onclick="toggleTheme()">
+                    <span data-i18n="theme_toggle">СМЕНА ТЕМЫ</span><span>🌓</span>
+                </button>
+            </div>
+
             <button class="cancel-btn" style="width: 100%; margin-top: 10px;" onclick="closeSettings()" data-i18n="btn_close">ЗАКРЫТЬ</button>
         </div>
     </div>
@@ -283,22 +441,22 @@
             <div id="menu-item-name" class="r-title" style="font-size: 14px; margin-bottom: 20px;">Название товара</div>
             <div id="photo-preview" style="text-align: center; margin: 10px 0; min-height: 20px;"></div>
             
-            <button id="btn-add-cart" onclick="confirmAddFromMenu()" style="background: #1a3a20; color: #2ecc71; border-color: #2ecc71; margin-bottom: 12px; width: 100%; padding: 15px; border-radius: 8px; font-weight: bold; font-size: 14px; text-transform: uppercase; border: 1px solid; cursor: pointer;">🛒 <span data-i18n="btn_add_cart">В КОРЗИНУ</span></button>
-            <button id="btn-save-db" onclick="confirmUpload()" style="display: none; background: #0f2c40; color: #3498db; border-color: #3498db; margin-bottom: 12px; width: 100%; padding: 15px; border-radius: 8px; font-weight: bold; font-size: 14px; text-transform: uppercase; border: 1px solid; cursor: pointer;">💾 <span data-i18n="btn_save_db">СОХРАНИТЬ В БАЗУ</span></button>
+            <button id="btn-add-cart" onclick="confirmAddFromMenu()" style="background: var(--bg-success-dim); color: var(--accent-green); border-color: var(--accent-green); margin-bottom: 12px; width: 100%; padding: 15px; border-radius: 8px; font-weight: bold; font-size: 14px; text-transform: uppercase; border: 1px solid; cursor: pointer;">🛒 <span data-i18n="btn_add_cart">В КОРЗИНУ</span></button>
+            <button id="btn-save-db" onclick="confirmUpload()" style="display: none; background: var(--bg-panel); color: var(--accent-blue); border-color: var(--accent-blue); margin-bottom: 12px; width: 100%; padding: 15px; border-radius: 8px; font-weight: bold; font-size: 14px; text-transform: uppercase; border: 1px solid; cursor: pointer;">💾 <span data-i18n="btn_save_db">СОХРАНИТЬ В БАЗУ</span></button>
 
             <div id="btn-take-photo" style="margin-bottom: 12px; width: 100%;">
                 <div style="display: flex; gap: 10px;">
-                    <button onclick="triggerCamera()" style="flex: 1; background: #222; color: #eee; border-color: #555; padding: 15px; border-radius: 8px; font-weight: bold; font-size: 13px; text-transform: uppercase; border: 1px solid; cursor: pointer;">📸 <span data-i18n="btn_camera">КАМЕРА</span></button>
-                    <button onclick="triggerGallery()" style="flex: 1; background: #222; color: #eee; border-color: #555; padding: 15px; border-radius: 8px; font-weight: bold; font-size: 13px; text-transform: uppercase; border: 1px solid; cursor: pointer;">📂 <span data-i18n="btn_gallery">ГАЛЕРЕЯ</span></button>
+                    <button onclick="triggerCamera()" style="flex: 1; background: var(--bg-hover); color: var(--text-main); border-color: var(--border-focus); padding: 15px; border-radius: 8px; font-weight: bold; font-size: 13px; text-transform: uppercase; border: 1px solid; cursor: pointer;">📸 <span data-i18n="btn_camera">КАМЕРА</span></button>
+                    <button onclick="triggerGallery()" style="flex: 1; background: var(--bg-hover); color: var(--text-main); border-color: var(--border-focus); padding: 15px; border-radius: 8px; font-weight: bold; font-size: 13px; text-transform: uppercase; border: 1px solid; cursor: pointer;">📂 <span data-i18n="btn_gallery">ГАЛЕРЕЯ</span></button>
                 </div>
             </div>
             <div id="btn-retake-photo" style="display: none; margin-bottom: 12px; width: 100%;">
                 <div style="display: flex; gap: 10px;">
-                    <button onclick="triggerCamera()" style="flex: 1; background: #222; color: #eee; border-color: #555; padding: 15px; border-radius: 8px; font-weight: bold; font-size: 13px; text-transform: uppercase; border: 1px solid; cursor: pointer;">🔄 <span data-i18n="btn_camera">КАМЕРА</span></button>
-                    <button onclick="triggerGallery()" style="flex: 1; background: #222; color: #eee; border-color: #555; padding: 15px; border-radius: 8px; font-weight: bold; font-size: 13px; text-transform: uppercase; border: 1px solid; cursor: pointer;">🔄 <span data-i18n="btn_gallery">ГАЛЕРЕЯ</span></button>
+                    <button onclick="triggerCamera()" style="flex: 1; background: var(--bg-hover); color: var(--text-main); border-color: var(--border-focus); padding: 15px; border-radius: 8px; font-weight: bold; font-size: 13px; text-transform: uppercase; border: 1px solid; cursor: pointer;">🔄 <span data-i18n="btn_camera">КАМЕРА</span></button>
+                    <button onclick="triggerGallery()" style="flex: 1; background: var(--bg-hover); color: var(--text-main); border-color: var(--border-focus); padding: 15px; border-radius: 8px; font-weight: bold; font-size: 13px; text-transform: uppercase; border: 1px solid; cursor: pointer;">🔄 <span data-i18n="btn_gallery">ГАЛЕРЕЯ</span></button>
                 </div>
             </div>
-            <button id="btn-cancel-modal" class="cancel-btn" style="width: 100%; margin-top: 10px; background: #3a1a1a; color: #e74c3c; border-color: #e74c3c; padding: 15px; border-radius: 8px; font-weight: bold; font-size: 14px; text-transform: uppercase; border: 1px solid; cursor: pointer;" onclick="handleCancelModal()">ЗАКРЫТЬ</button>
+            <button id="btn-cancel-modal" class="cancel-btn" style="width: 100%; margin-top: 10px; background: var(--bg-danger-dim); color: var(--accent-red); border-color: var(--accent-red); padding: 15px; border-radius: 8px; font-weight: bold; font-size: 14px; text-transform: uppercase; border: 1px solid; cursor: pointer;" onclick="handleCancelModal()">ЗАКРЬІТЬ</button>
         </div>
     </div>
 
@@ -346,7 +504,22 @@
                 income_meta_supplier: "Поставщик",
                 income_meta_doc: "Документ",
                 income_meta_items: "Позиций",
-                receive_btn: "ПРИЕМКА"
+                receive_btn: "ПРИЕМКА",
+                pin_no_internet: "НЕТ ИНТЕРНЕТА", pin_checking: "ПРОВЕРКА...", pin_granted: "ДОСТУП РАЗРЕШЕН",
+                pin_wrong: "НЕВЕРНЫЙ ПИН-КОД", pin_wrong_left: "НЕВЕРНЫЙ ПИН. ОСТАЛОСЬ: ", pin_conn_error: "СБОЙ ПОДКЛЮЧЕНИЯ",
+                inc_file_selected: "Выбрано файлов: ", inc_file_placeholder: "Нажмите для выбора Excel",
+                inc_err_no_doc: "нет номера инвойса", inc_err_no_sup: "нет поставщика", inc_err_no_table: "таблица с товарами не найдена",
+                inc_err_missing: "в шапке (строка {0}) не найдено: ", inc_err_no_items: "из таблицы не удалось извлечь товары",
+                inc_success: "{0} поз. распознано", inc_err_doc_format: "ОШИБКА НОМЕРА",
+                inc_lbl_sup: "Поставщик:", inc_lbl_doc: "Документ:", inc_lbl_items: "Позиций:",
+                inc_empty_cart: "Корзина пуста!", inc_doc_empty: "Номер документа не может быть пустым!",
+                inc_sending: "Отправка {0}...", inc_server_err: "Ошибка сервера", inc_send_err: "❌ Ошибка при отправке инвойса: ",
+                inc_archive_created: "Архив создан! Склад обновлен.", inc_all_done: "✅ Все накладные успешно проведены!",
+                word_code: "«Код»", word_qty: "«Кол-во»", word_price: "«Цена»", login_title: "ВХОД", inc_err_sheet_missing: "[Лист {0}] стр. {1}: нет ",
+                inc_err_sheet_no_table: "[Лист {0}]: нет таблицы с цифрами", cat_all: "Все",
+                server_dup: "Накладная с номером {0} уже была проведена ранее.",
+                server_no_db: "База не привязана. Нажмите POS Setup -> Привязать базу.",
+                theme_toggle: "СМЕНА ТЕМЫ (ДЕНЬ/НОЧЬ)", settings_theme: "ОФОРМЛЕНИЕ"
             },
             kz: {
                 btn_sale: "САТУ", btn_return: "ҚАЙТАРУ", search_placeholder: "ІЗДЕУ...",
@@ -380,14 +553,101 @@
                 income_meta_supplier: "Жеткізуші",
                 income_meta_doc: "Құжат",
                 income_meta_items: "Позициялар",
-                receive_btn: "ҚАБЫЛДАУ"
+                receive_btn: "ҚАБЫЛДАУ",
+                pin_no_internet: "ИНТЕРНЕТ ЖОҚ", pin_checking: "БАЗАДАН ТЕКСЕРІЛУДЕ...", pin_granted: "РУҚСАТ БЕРІЛДІ",
+                pin_wrong: "ҚАТЕ ПИН-КОД", pin_wrong_left: "ҚАТЕ ПИН. ҚАЛДЫ: ", pin_conn_error: "ҚОСЫЛУ ҚАТЕСІ",
+                inc_file_selected: "Таңдалған файлдар: ", inc_file_placeholder: "Excel файлын таңдау үшін басыңыз",
+                inc_err_no_doc: "инвойс нөмірі жоқ", inc_err_no_sup: "жеткізуші жоқ", inc_err_no_table: "тауарлар кестесі табылмады",
+                inc_err_missing: "бас жағында ({0}-жол) табылмады: ", inc_err_no_items: "кестеден тауарларды оқу мүмкінপ্রবাসী болмады",
+                inc_success: "{0} поз. анықталды", inc_err_doc_format: "НӨМІР ҚАТЕСІ",
+                inc_lbl_sup: "Жеткізуші:", inc_lbl_doc: "Құжат:", inc_lbl_items: "Позициялар:",
+                inc_empty_cart: "Себет бос!", inc_doc_empty: "Құжат нөмірі бос болмауы керек!",
+                inc_sending: "{0} жіберілуде...", inc_server_err: "Сервер қатесі", inc_send_err: "❌ Инвойсты жіберу қатесі: ",
+                inc_archive_created: "Мұрағат құрылды! Қойма жаңартылды.", inc_all_done: "✅ Барлық жүкқұжаттар сәтті өтті!",
+                word_code: "«Код»", word_qty: "«Саны»", word_price: "«Бағасы»", login_title: "КІРУ", inc_err_sheet_missing: "[{0} парағы] {1}-жол: табылмады ",
+                inc_err_sheet_no_table: "[{0} парағы]: цифрлары бар кесте жоқ", cat_all: "Барлығы",
+                server_dup: "{0} нөмірлі жүкқұжат бұрын қабылданған.",
+                server_no_db: "Дерекқор байланыспаған. POS Setup -> Привязать базу түймесін басыңыз.",
+                theme_toggle: "ТАҚЫРЫПТЫ АУЫСТЫРУ (КҮН/ТҮН)", settings_theme: "КӨРІНІС"
             }
         };
+
+        // Загружаем сохраненную тему
+        let currentTheme = localStorage.getItem('pos_theme') || 'dark';
+        if (currentTheme === 'light') { document.body.classList.add('light-theme'); }
+
+        function toggleTheme() {
+            const isLight = document.body.classList.toggle('light-theme');
+            localStorage.setItem('pos_theme', isLight ? 'light' : 'dark');
+        }
 
         let currentLang = localStorage.getItem('pos_lang') || 'ru';
         let db = [], cart = [], mode = 'sale', pendingMethod = null;
         let staffList = [], currentUser = null;
         let currentPinInput = '';
+
+        let failedAttempts = parseInt(localStorage.getItem('pos_fails')) || 0;
+        let blockUntil = parseInt(localStorage.getItem('pos_block')) || 0;
+        
+        let invoiceSynonyms = {};
+        let currentCategory = 'all';
+
+        function renderCategories() {
+            const categories = new Set();
+            document.querySelectorAll('.c-item').forEach(el => {
+                const cat = el.getAttribute('data-cat');
+                if (cat) categories.add(cat);
+            });
+
+            const bar = document.getElementById('categoryBar');
+            if (!bar) return;
+
+            let html = `<div class="cat-btn ${currentCategory === 'all' ? 'active' : ''}" onclick="setCategory('all')" data-i18n="cat_all">${translations[currentLang].cat_all}</div>`;
+
+            categories.forEach(c => {
+                html += `<div class="cat-btn ${currentCategory === c ? 'active' : ''}" onclick="setCategory('${c}')">${c}</div>`;
+            });
+
+            bar.innerHTML = html;
+        }
+
+        function setCategory(cat) {
+            currentCategory = cat;
+            renderCategories();
+            filter();
+        }
+
+        function checkBlockTimer() {
+            if (blockUntil > Date.now()) {
+                const err = document.getElementById('login-error');
+                const field = document.getElementById('pin-field');
+                
+                field.style.color = 'var(--accent-red)';
+                err.style.color = 'var(--accent-red)';
+                err.style.visibility = 'visible';
+                
+                const interval = setInterval(() => {
+                    const remaining = Math.ceil((blockUntil - Date.now()) / 1000);
+                    
+                    if (remaining <= 0) {
+                        clearInterval(interval);
+                        failedAttempts = 0;
+                        localStorage.removeItem('pos_fails');
+                        localStorage.removeItem('pos_block');
+                        
+                        err.style.visibility = 'hidden';
+                        field.style.color = 'var(--accent-yellow)'; 
+                        err.innerText = "НЕВЕРНЫЙ ПИН-КОД";
+                    } else {
+                        const mins = Math.floor(remaining / 60);
+                        const secs = remaining % 60;
+                        err.innerText = `БЛОКИРОВКА. ОЖИДАНИЕ: ${mins}:${secs < 10 ? '0' : ''}${secs}`;
+                    }
+                }, 1000);
+                return true;
+            }
+            return false;
+        }
 
         function applyLanguage(lang) {
             currentLang = lang;
@@ -411,7 +671,13 @@
             document.getElementById('mr').classList.toggle('active-r', m==='return');
             document.getElementById('cs').classList.toggle('r-theme', m==='return');
             document.getElementById('tl').innerText = m === 'return' ? translations[currentLang].total_label_return : translations[currentLang].total_label_sale;
-            document.body.style.backgroundColor = m === 'return' ? '#2c0b0b' : '#0a0a0a';
+            
+            // МАГИЯ ПЕРЕМЕННЫХ: Принудительно меняем базовый цвет ВСЕЙ программы
+            if (m === 'return') {
+                document.body.style.setProperty('--bg-body', 'var(--bg-return)');
+            } else {
+                document.body.style.removeProperty('--bg-body');
+            }
         }
 
         function addPin(digit) {
@@ -434,54 +700,141 @@
             document.getElementById('pin-field').value = currentPinInput;
         }
 
-        function handleAutoLogin(val) {
+        async function handleAutoLogin(val) {
+            if (blockUntil > Date.now()) {
+                clearPin();
+                return; 
+            }
+
             const err = document.getElementById('login-error');
             const field = document.getElementById('pin-field');
             
-            if (staffList.length === 0) {
-                err.innerText = "ОШИБКА: БАЗА СОТРУДНИКОВ ПУСТА";
+            if (!navigator.onLine) {
+                field.style.color = 'var(--accent-red)'; 
+                field.classList.add('error-shake');
+                err.innerText = translations[currentLang].pin_no_internet; 
+                err.style.color = 'var(--accent-red)'; 
                 err.style.visibility = 'visible';
-                setTimeout(() => { err.style.visibility = 'hidden'; err.innerText = "НЕВЕРНЫЙ ПИН-КОД"; clearPin(); }, 2500);
+                setTimeout(() => { field.classList.remove('error-shake'); err.style.visibility = 'hidden'; field.style.color = 'var(--accent-yellow)'; clearPin(); }, 1200);
                 return;
             }
-            
-            const user = staffList.find(u => u.pin === val);
-            if (user) {
-                login(user);
-            } else {
+
+            field.style.color = 'var(--accent-blue)'; 
+            err.innerText = translations[currentLang].pin_checking;
+            err.style.color = 'var(--accent-blue)';
+            err.style.visibility = 'visible';
+
+            try {
+                const response = await fetch(APPS_SCRIPT_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({ action: 'verifyPin', pin: val })
+                });
+
+                const textRes = await response.text(); 
+                let res;
+                try {
+                    res = JSON.parse(textRes);
+                } catch (e) {
+                    throw new Error("SERVER_ERROR");
+                }
+
+                if (res.success) {
+                    failedAttempts = 0;
+                    localStorage.removeItem('pos_fails');
+                    localStorage.removeItem('pos_block');
+
+                    field.style.color = 'var(--accent-green)'; 
+                    err.innerText = translations[currentLang].pin_granted;
+                    err.style.color = 'var(--accent-green)';
+                    
+                    setTimeout(() => {
+                        login(res.user); 
+                        field.style.color = 'var(--accent-yellow)';
+                        err.style.color = 'var(--accent-red)';
+                        err.style.visibility = 'hidden';
+                        err.innerText = translations[currentLang].pin_wrong;
+                    }, 400);
+
+                } else {
+                    throw new Error("WRONG_PIN");
+                }
+
+            } catch (error) {
+                console.error("Ошибка авторизации:", error);
+                
+                let isWrongPin = error.message === "WRONG_PIN";
+                
+                if (isWrongPin) {
+                    failedAttempts++;
+                    localStorage.setItem('pos_fails', failedAttempts);
+                }
+
+                if (failedAttempts >= 3) {
+                    blockUntil = Date.now() + 5 * 60 * 1000;
+                    localStorage.setItem('pos_block', blockUntil);
+                    field.classList.add('error-shake');
+                    setTimeout(() => { field.classList.remove('error-shake'); clearPin(); }, 800);
+                    checkBlockTimer(); 
+                    return;
+                }
+
+                field.style.color = 'var(--accent-red)'; 
                 field.classList.add('error-shake');
+                
+                const attemptsLeft = Math.max(0, 3 - failedAttempts);
+                err.innerText = isWrongPin ? `${translations[currentLang].pin_wrong_left}${attemptsLeft}` : translations[currentLang].pin_conn_error;
+                err.style.color = 'var(--accent-red)';
                 err.style.visibility = 'visible';
+
                 setTimeout(() => { 
                     field.classList.remove('error-shake');
                     err.style.visibility = 'hidden'; 
+                    field.style.color = 'var(--accent-yellow)'; 
                     clearPin();
-                }, 500);
+                }, 1200);
             }
         }
 
         function login(user) {
             currentUser = user;
             localStorage.setItem('user_role', user.role);
+            localStorage.setItem('user_uid', user.uid); // Запоминаем кто именно вошел
             document.getElementById('login-screen').style.display = 'none';
             const badge = document.getElementById('cashier-info');
             badge.innerText = `👤 ${user.name.toUpperCase()} (${user.uid})`;
             badge.style.display = 'inline-block';
             clearPin();
             document.getElementById('sb').blur(); 
+            
+            // Мгновенно запрашиваем персональную кассу сразу после успешного входа
+            refreshPosData(); 
         }
 
         function logout() {
             currentUser = null;
             localStorage.removeItem('user_role');
+            localStorage.removeItem('user_uid'); // Стираем данные сессии
             document.getElementById('cashier-info').style.display = 'none';
             document.getElementById('login-screen').style.display = 'flex';
             clearPin();
+            
+            // Визуально обнуляем суммы при выходе, чтобы сменщик их не увидел
+            ['sum-cash','sum-qr','sum-red','sum-card','sum-trans'].forEach(id => {
+                const el = document.getElementById(id);
+                if(el) el.innerText = '0 ₸';
+            });
         }
 
         async function load() {
+            // Читаем, кто сейчас работает, чтобы запросить правильные суммы
+            const savedUid = localStorage.getItem('user_uid') || (currentUser ? currentUser.uid : '');
+            const savedRole = localStorage.getItem('user_role') || '';
+            // Делаем персональный кэш, чтобы продавцы не видели суммы друг друга при перезагрузке
+            const cacheKey = 'totals_cache_' + (savedUid || 'anon');
+
             try {
                 const cachedDb = localStorage.getItem('db_cache');
-                const cachedTotals = localStorage.getItem('totals_cache');
+                const cachedTotals = localStorage.getItem(cacheKey);
                 const cachedStaff = localStorage.getItem('staff_cache'); 
                 if (cachedDb) db = JSON.parse(cachedDb);
                 if (cachedStaff) staffList = JSON.parse(cachedStaff);
@@ -498,13 +851,20 @@
 
             if (!navigator.onLine) return; 
             try {
-                const res = await fetch(APPS_SCRIPT_URL + "?t=" + Date.now(), { redirect: 'follow' });
+                // Передаем серверу данные авторизованного пользователя
+                const fetchUrl = `${APPS_SCRIPT_URL}?t=${Date.now()}&uid=${savedUid}&role=${savedRole}`;
+                const res = await fetch(fetchUrl, { redirect: 'follow' });
                 const data = await res.json();
                 if (data.items) db = data.items;
                 if (data.staff) {
                     staffList = data.staff;
                     localStorage.setItem('staff_cache', JSON.stringify(staffList));
                 }
+                
+                if (data.synonyms && Object.keys(data.synonyms).length > 0) {
+                    invoiceSynonyms = data.synonyms;
+                }
+                
                 const t = data.totals || { cash: 0, qr_kaspi: 0, installment: 0, pos_terminal: 0, transfer: 0 };
                 document.getElementById('sum-cash').innerText = (t.cash || 0).toLocaleString() + ' ₸';
                 document.getElementById('sum-qr').innerText   = (t.qr_kaspi || t.qr || 0).toLocaleString() + ' ₸';
@@ -513,28 +873,50 @@
                 document.getElementById('sum-trans').innerText= (t.transfer || 0).toLocaleString() + ' ₸';
                 render();
                 localStorage.setItem('db_cache', JSON.stringify(db));
-                localStorage.setItem('totals_cache', JSON.stringify(t));
+                localStorage.setItem(cacheKey, JSON.stringify(t)); // Сохраняем в персональный кэш
             } catch (e) { console.error("Ошибка загрузки данных"); }
+        }
+
+        async function refreshPosData() {
+            if (!navigator.onLine) {
+                alert(translations[currentLang].msg_no_internet);
+                return;
+            }
+            const btn = document.getElementById('btn-sync-data');
+            btn.classList.add('sync-spin'); 
+            try { await load(); } finally { setTimeout(() => { btn.classList.remove('sync-spin'); }, 600); }
         }
 
         function render() {
             const catalog = document.getElementById('catalog');
-            if (!db || db.length === 0) return catalog.innerHTML = '<div style="color:#aaa; padding:20px; text-align:center;">Загрузка товаров...</div>';
+            if (!db || db.length === 0) return catalog.innerHTML = '<div style="color:var(--text-muted); padding:20px; text-align:center;">Загрузка товаров...</div>';
             catalog.innerHTML = db.map(i => {
                 const hasPhoto = i.img && i.img.toString().length > 10;
-                const photoBadge = `<span onclick="openItemMenu('${i.id}'); event.stopPropagation();" style="background-color: ${hasPhoto?'#f1c40f':'#333'}; color: ${hasPhoto?'#000':'#888'}; font-size: 10px; font-weight: bold; padding: 2px 6px; border-radius: 4px; margin-right: 8px; border: 1px solid #444;">ФОТО</span>`;
-                return `<div class="c-item" onclick="add('${i.id}')">
-                    <div class="i-name" style="display:flex; align-items:center;">${photoBadge} <span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${i.name || 'Без названия'}</span></div>
-                    <div class="i-price">${(Number(i.price)||0).toLocaleString()} ₸</div>
+                const photoBadge = `<span onclick="openItemMenu('${i.id}'); event.stopPropagation();" style="background-color: ${hasPhoto?'var(--accent-yellow)':'var(--border-light)'}; color: ${hasPhoto?'var(--text-dark)':'var(--text-muted)'}; font-size: 10px; font-weight: bold; padding: 2px 6px; border-radius: 4px; margin-right: 8px; border: 1px solid var(--border-focus);">ФОТО</span>`;
+                
+                const roundedPrice = Math.round(Number(i.price) || 0);
+                
+                return `<div class="c-item" onclick="add('${i.id}')" data-cat="${i.category || ''}">
+                    <div class="i-name" style="display:flex; align-items:center;">${photoBadge} <span class="swipeable-text">${i.name || 'Без названия'}</span></div>
+                    <div class="i-price">${roundedPrice.toLocaleString()} ₸</div>
                     <div class="i-stock">${Number(i.stock)||0}</div>
                 </div>`;
             }).join('');
+            
+            renderCategories();
+            filter(); 
         }
 
         function filter() {
             let q = document.getElementById('sb').value.toLowerCase();
             document.querySelectorAll('.c-item').forEach(el => {
-                el.style.display = el.querySelector('.i-name').innerText.toLowerCase().includes(q) ? 'flex' : 'none';
+                const name = el.querySelector('.i-name').innerText.toLowerCase();
+                const itemCat = el.getAttribute('data-cat') || '';
+                
+                const matchesSearch = name.includes(q);
+                const matchesCat = (currentCategory === 'all' || itemCat === currentCategory);
+                
+                el.style.display = (matchesSearch && matchesCat) ? 'flex' : 'none';
             });
         }
 
@@ -552,7 +934,36 @@
         function add(id) {
             const p = db.find(x => x.id === id);
             const inC = cart.find(x => x.id === id);
-            if (inC) inC.qty++; else cart.push({id:p.id, name:p.name, qty:1, price:p.price, origPrice:p.price, cost:p.cost});
+            
+            const roundedPrice = Math.round(Number(p.price) || 0);
+            const roundedCost = Math.round(Number(p.cost) || 0);
+            
+            if (inC) {
+                inC.qty++; 
+            } else {
+                cart.push({id: p.id, name: p.name, qty: 1, price: roundedPrice, origPrice: roundedPrice, cost: roundedCost});
+            }
+            
+            // --- 1. ВИБРООТКЛИК (для мобильных устройств) ---
+            if (navigator.vibrate) {
+                navigator.vibrate(40); // Легкий, четкий толчок
+            }
+
+            // --- 2. ВИЗУАЛЬНАЯ ВСПЫШКА ---
+            // Находим карточку, по которой кликнули, и на 150мс меняем ей фон
+            const clickedElement = event.currentTarget || event.target.closest('.c-item');
+            if (clickedElement && clickedElement.classList.contains('c-item')) {
+                const originalBg = clickedElement.style.background;
+                // Вспышка (используем наш зеленый акцент, но с прозрачностью, чтобы текст читался)
+                clickedElement.style.background = 'var(--bg-success-dim)'; 
+                clickedElement.style.transition = 'none'; // Убираем плавность для резкой вспышки
+                
+                setTimeout(() => {
+                    clickedElement.style.transition = 'background 0.3s'; // Возвращаем плавность затухания
+                    clickedElement.style.background = originalBg || '';
+                }, 150);
+            }
+
             update();
         }
 
@@ -577,29 +988,55 @@
                             <button class="q-btn" onclick="qty('${item.id}',1)">+</button>
                         </div>
                         <div style="position: relative;">
-                            <span style="position: absolute; bottom: calc(100% + 4px); right: 0; color: #666; font-size: 10px; white-space: nowrap; pointer-events: none;">${item.origPrice ? item.origPrice.toLocaleString() : item.price.toLocaleString()} ₸</span>
+                            <span style="position: absolute; bottom: calc(100% + 4px); right: 0; color: var(--text-muted); font-size: 10px; white-space: nowrap; pointer-events: none;">${item.origPrice ? item.origPrice.toLocaleString() : item.price.toLocaleString()} ₸</span>
                             <input type="text" inputmode="numeric" class="p-input" value="${item.price}" onfocus="handleFocus(this, 'r-${item.id}')" oninput="cart[${idx}].price=parseFloat(this.value)||0; total()">
                         </div>
-                        <div onclick="rm('${item.id}')" style="color:#e74c3c;padding:3px;font-size:18px; cursor: pointer;">✕</div>
+                        <div onclick="rm('${item.id}')" style="color:var(--accent-red);padding:3px;font-size:18px; cursor: pointer;">✕</div>
                     </div>
                 </div>`).join('');
             total();
         }
 
-        function qty(id, d) { const i = cart.find(x => x.id === id); if(i) { i.qty += d; if(i.qty <= 0) rm(id); else update(); } }
+        function qty(id, d) { 
+            const i = cart.find(x => x.id === id); 
+            if(i) { 
+                i.qty += d; 
+                if(i.qty <= 0) {
+                    rm(id); 
+                } else { 
+                    update(); // Перерисовываем корзину с новыми цифрами
+                    
+                    // 1. Виброотклик (для Android-устройств)
+                    if (navigator.vibrate) navigator.vibrate(40);
+                    
+                    // 2. Визуальная вспышка нужной строки
+                    const row = document.getElementById('r-' + id);
+                    if (row) {
+                        // Если d > 0 (плюс) — зеленая вспышка, иначе — красная
+                        row.style.background = d > 0 ? 'var(--bg-success-dim)' : 'var(--bg-danger-dim)';
+                        row.style.transition = 'none'; // Резко включаем цвет
+                        
+                        setTimeout(() => {
+                            row.style.transition = 'background 0.3s'; // Плавно гасим
+                            row.style.background = ''; // Возвращаем родной фон панели
+                        }, 150);
+                    }
+                } 
+            } 
+        }
         function rm(id) { cart = cart.filter(x => x.id !== id); update(); }
         function total() { document.getElementById('ta').innerText = cart.reduce((a, b) => a + (b.price * b.qty), 0).toLocaleString() + ' ₸'; }
 
         function initPay(methodCode, methodName) {
             if (!cart.length) return;
             pendingMethod = methodCode; 
-            const colors = { 'cash': '#27ae60', 'qr_kaspi': '#c0392b', 'installment': '#8e44ad', 'pos_terminal': '#2980b9', 'transfer': '#f39c12' };
-            const activeColor = colors[methodCode] || '#2ecc71';
+            const colors = { 'cash': 'var(--accent-green)', 'qr_kaspi': 'var(--accent-red)', 'installment': '#8e44ad', 'pos_terminal': '#2980b9', 'transfer': '#f39c12' };
+            const activeColor = colors[methodCode] || 'var(--accent-green)';
             document.querySelector('.receipt-box').style.borderColor = activeColor;
             document.getElementById('r-method').style.color = activeColor;
             const btnConfirm = document.getElementById('btn-confirm');
             btnConfirm.style.background = activeColor;
-            btnConfirm.style.color = methodCode === 'transfer' ? '#000' : '#fff';
+            btnConfirm.style.color = methodCode === 'transfer' ? 'var(--text-dark)' : '#fff';
             document.getElementById('r-title').innerText = mode === 'sale' ? translations[currentLang].txt_sale_confirm : translations[currentLang].txt_return_confirm;
             document.getElementById('r-method').innerText = translations[currentLang].txt_payment + methodName;
             document.getElementById('r-items-list').innerHTML = cart.map(c => `<div class="r-item"><span>${c.name}</span><b>${c.qty} x ${c.price.toLocaleString()}</b></div>`).join('');
@@ -654,10 +1091,10 @@
             const settingsBtn = document.getElementById('btn-settings');
             if (queue.length > 0) {
                 badge.innerText = queue.length; badge.style.display = 'inline-block';
-                settingsBtn.style.background = '#3a1a1a'; settingsBtn.style.borderColor = '#e74c3c'; settingsBtn.style.color = '#e74c3c';
+                settingsBtn.style.background = 'var(--bg-danger-dim)'; settingsBtn.style.borderColor = 'var(--accent-red)'; settingsBtn.style.color = 'var(--accent-red)';
             } else {
                 badge.style.display = 'none';
-                settingsBtn.style.background = '#222'; settingsBtn.style.borderColor = '#555'; settingsBtn.style.color = '#eee';
+                settingsBtn.style.background = 'var(--bg-panel)'; settingsBtn.style.borderColor = 'var(--border-light)'; settingsBtn.style.color = 'var(--text-main)';
             }
         }
 
@@ -686,7 +1123,8 @@
                             cart: tx.cart.map(c => ({ name: c.item_name, qty: c.qty, price: c.price })),
                             methodCode: tx.payment_method,
                             time: qTime,
-                            date: qDate
+                            date: qDate,
+                            seller: tx.seller_id // <-- Добавили это поле
                         });
                         localStorage.setItem(key, JSON.stringify(reportData));
                     }
@@ -793,7 +1231,7 @@
             const serverStart = fmt(start);
             const serverEnd = fmt(end);
 
-            repList.innerHTML = `<div style="text-align:center; color:#f39c12; margin-top:30px; font-weight: bold;">⏳ ${translations[currentLang].msg_loading}</div>`;
+            repList.innerHTML = `<div style="text-align:center; color:var(--accent-yellow); margin-top:30px; font-weight: bold;">⏳ ${translations[currentLang].msg_loading}</div>`;
 
             let reportDataToRender = [];
             const cacheKey = `report_${start}_${end}_${currentUser ? currentUser.uid : 'all'}`;
@@ -846,20 +1284,21 @@
                             cart: qTx.cart.map(c => ({ name: c.item_name, qty: c.qty, price: c.price })),
                             methodCode: qTx.payment_method,
                             time: qTime + " ⏳",
-                            date: qDate
+                            date: qDate,
+                            seller: qTx.seller_id
                         });
                     }
                 });
             }
 
             if (!reportDataToRender || reportDataToRender.length === 0) {
-                repList.innerHTML = `<div style="text-align:center; color:#666; margin-top:30px;">${translations[currentLang].msg_no_data}</div>`;
+                repList.innerHTML = `<div style="text-align:center; color:var(--text-muted); margin-top:30px;">${translations[currentLang].msg_no_data}</div>`;
                 totalsBox.innerHTML = '';
                 searchInput.parentElement.style.display = 'none';
                 return;
             }
 
-            const colors = { 'cash': '#27ae60', 'qr_kaspi': '#c0392b', 'installment': '#8e44ad', 'pos_terminal': '#2980b9', 'transfer': '#f39c12' };
+            const colors = { 'cash': 'var(--accent-green)', 'qr_kaspi': 'var(--accent-red)', 'installment': '#8e44ad', 'pos_terminal': '#2980b9', 'transfer': '#f39c12' };
             const names = { 'cash': translations[currentLang].pay_cash, 'qr_kaspi': 'Kaspi QR', 'installment': 'Kaspi Red', 'pos_terminal': translations[currentLang].pay_card, 'transfer': translations[currentLang].pay_trans };
             let t = { sale: 0, return: 0 };
             
@@ -873,67 +1312,78 @@
 
                 reportDataToRender.forEach(h => {
                     let isRet = h.type === 'return';
+                    let sellerId = h.seller || 'Анон'; // Берем ID продавца
                     h.cart.forEach(c => {
-                        if (!aggregated[c.name]) aggregated[c.name] = { name: c.name, salesQty: 0, salesSum: 0, returnsQty: 0, returnsSum: 0 };
-                        if (isRet) { aggregated[c.name].returnsQty += c.qty; aggregated[c.name].returnsSum += (c.qty * c.price); tReturnsQty += c.qty; tReturnsSum += (c.qty * c.price); } 
-                        else { aggregated[c.name].salesQty += c.qty; aggregated[c.name].salesSum += (c.qty * c.price); tSalesQty += c.qty; tSalesSum += (c.qty * c.price); }
+                        if (!aggregated[c.name]) aggregated[c.name] = { name: c.name, salesQty: 0, salesSum: 0, returnsQty: 0, returnsSum: 0, sellers: {} };
+                        if (!aggregated[c.name].sellers[sellerId]) aggregated[c.name].sellers[sellerId] = { salesQty: 0, salesSum: 0, returnsQty: 0, returnsSum: 0 };
+                        
+                        if (isRet) { 
+                            aggregated[c.name].returnsQty += c.qty; aggregated[c.name].returnsSum += (c.qty * c.price); 
+                            aggregated[c.name].sellers[sellerId].returnsQty += c.qty; aggregated[c.name].sellers[sellerId].returnsSum += (c.qty * c.price);
+                            tReturnsQty += c.qty; tReturnsSum += (c.qty * c.price); 
+                        } else { 
+                            aggregated[c.name].salesQty += c.qty; aggregated[c.name].salesSum += (c.qty * c.price); 
+                            aggregated[c.name].sellers[sellerId].salesQty += c.qty; aggregated[c.name].sellers[sellerId].salesSum += (c.qty * c.price);
+                            tSalesQty += c.qty; tSalesSum += (c.qty * c.price); 
+                        }
                     });
                 });
 
                 let sortedItems = Object.values(aggregated).sort((a, b) => (b.salesSum - b.returnsSum) - (a.salesSum - a.returnsSum));
                 let htmlString = `<div class="rep-table-header"><div>${ui.name}</div><div style="text-align: right;">${ui.qty}</div><div style="text-align: right;">${ui.sum}</div></div>`;
                 
-                // Внутри renderReport, где идет цикл по sortedItems:
-sortedItems.forEach(item => {
-    const netQty = item.salesQty - item.returnsQty;
-    const netSum = item.salesSum - item.returnsSum;
-    let detailsHtml = '';
+                sortedItems.forEach(item => {
+                    const netQty = item.salesQty - item.returnsQty;
+                    const netSum = item.salesSum - item.returnsSum;
+                    let detailsHtml = '';
 
-    if (item.salesQty > 0) {
-        // РАСЧЕТ СРЕДНЕЙ ЦЕНЫ ПРОДАЖИ
-        let avgSale = Math.round(item.salesSum / item.salesQty);
-        detailsHtml += `
-            <div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 4px;">
-                <span style="color: #888;">${ui.sales} (${item.salesQty}) <small>| ${translations[currentLang].report_avg} ${avgSale.toLocaleString()} ₸</small></span>
-                <span style="color: #4ade80;">${item.salesSum.toLocaleString()}</span>
-            </div>`;
-    }
+                    // Перебираем всех продавцов, кто продавал этот товар
+                    for (let seller in item.sellers) {
+                        let s = item.sellers[seller];
+                        
+                        if (s.salesQty > 0) {
+                            let avgSale = Math.round(s.salesSum / s.salesQty);
+                            detailsHtml += `
+                                <div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 4px;">
+                                    <span style="color: var(--text-muted);">${ui.sales} (${s.salesQty}) 👤 ${seller} <small>| ${translations[currentLang].report_avg} ${avgSale.toLocaleString()} ₸</small></span>
+                                    <span style="color: var(--accent-green);">${s.salesSum.toLocaleString()}</span>
+                                </div>`;
+                        }
 
-    if (item.returnsQty > 0) {
-        // РАСЧЕТ СРЕДНЕЙ ЦЕНЫ ВОЗВРАТА
-        let avgReturn = Math.round(item.returnsSum / item.returnsQty);
-        detailsHtml += `
-            <div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 4px;">
-                <span style="color: #888;">${ui.returns} (${item.returnsQty}) <small>| ${translations[currentLang].report_avg} ${avgReturn.toLocaleString()} ₸</small></span>
-                <span style="color: #f87171;">-${item.returnsSum.toLocaleString()}</span>
-            </div>`;
-    }
+                        if (s.returnsQty > 0) {
+                            let avgReturn = Math.round(s.returnsSum / s.returnsQty);
+                            detailsHtml += `
+                                <div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 4px;">
+                                    <span style="color: var(--text-muted);">${ui.returns} (${s.returnsQty}) 👤 ${seller} <small>| ${translations[currentLang].report_avg} ${avgReturn.toLocaleString()} ₸</small></span>
+                                    <span style="color: var(--accent-red);">-${s.returnsSum.toLocaleString()}</span>
+                                </div>`;
+                        }
+                    }
 
-    htmlString += `
-        <div class="item-wrapper" data-name="${item.name.toLowerCase()}">
-            <div class="item-card" onclick="this.parentElement.classList.toggle('active')">
-                <div style="font-size: 12px; color: #e0e0e0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${item.name}</div>
-                <div style="text-align: right; color: #888; font-size: 12px;">${netQty}</div>
-                <div style="text-align: right; font-weight: 700; font-size: 13px; color: ${netSum < 0 ? '#f87171' : '#4ade80'}; gap: 4px;">${netSum.toLocaleString()} <span class="dropdown-icon" style="font-size:8px">▼</span></div>
-            </div>
-            <div class="item-details"><div style="padding: 6px 8px;">${detailsHtml}</div></div>
-        </div>`;
-});
+                    htmlString += `
+                        <div class="item-wrapper" data-name="${item.name.toLowerCase()}">
+                            <div class="item-card" onclick="this.parentElement.classList.toggle('active')">
+                                <div class="swipeable-text" style="font-size: 12px; color: var(--text-main);">${item.name}</div>
+                                <div style="text-align: right; color: var(--text-muted); font-size: 12px;">${netQty}</div>
+                                <div style="text-align: right; font-weight: 700; font-size: 13px; color: ${netSum < 0 ? 'var(--accent-red)' : 'var(--accent-green)'}; gap: 4px;">${netSum.toLocaleString()} <span class="dropdown-icon" style="font-size:8px">▼</span></div>
+                            </div>
+                            <div class="item-details"><div style="padding: 6px 8px;">${detailsHtml}</div></div>
+                        </div>`;
+                });
 
                 repList.innerHTML = htmlString;
                 totalsBox.innerHTML = `
-    <div style="display: grid; grid-template-columns: 1fr 45px minmax(90px, auto); gap: 8px; font-size: 12px; color: #888; margin-bottom: 4px;">
-        <div>${ui.sales}:</div><div style="text-align: right;">${tSalesQty}</div><div style="text-align: right;">${tSalesSum.toLocaleString()}</div>
-    </div>
-    <div style="display: grid; grid-template-columns: 1fr 45px minmax(90px, auto); gap: 8px; font-size: 12px; color: #f87171; margin-bottom: 4px;">
-        <div>${ui.returns}:</div><div style="text-align: right;">${tReturnsQty > 0 ? '-' + tReturnsQty : '0'}</div><div style="text-align: right;">${tReturnsSum > 0 ? '-' + tReturnsSum.toLocaleString() : '0'}</div>
-    </div>
-    <div style="display: grid; grid-template-columns: 1fr 45px minmax(90px, auto); gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px dashed #444; align-items: center;">
-        <div style="font-size: 13px; font-weight: 700; color: #fff;">${ui.net}</div>
-        <div style="text-align: right; font-size: 12px; font-weight: bold; color: #777;">${tSalesQty - tReturnsQty}</div>
-        <div style="text-align: right; font-size: 15px; font-weight: 900; color: #fff; white-space: nowrap;">${(tSalesSum - tReturnsSum).toLocaleString()} ₸</div>
-    </div>
-`;
+                    <div style="display: grid; grid-template-columns: 1fr 45px minmax(90px, auto); gap: 8px; font-size: 12px; color: var(--text-muted); margin-bottom: 4px;">
+                        <div>${ui.sales}:</div><div style="text-align: right;">${tSalesQty}</div><div style="text-align: right;">${tSalesSum.toLocaleString()}</div>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 45px minmax(90px, auto); gap: 8px; font-size: 12px; color: var(--accent-red); margin-bottom: 4px;">
+                        <div>${ui.returns}:</div><div style="text-align: right;">${tReturnsQty > 0 ? '-' + tReturnsQty : '0'}</div><div style="text-align: right;">${tReturnsSum > 0 ? '-' + tReturnsSum.toLocaleString() : '0'}</div>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 45px minmax(90px, auto); gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border-focus); align-items: center;">
+                        <div style="font-size: 13px; font-weight: 700; color: var(--text-main);">${ui.net}</div>
+                        <div style="text-align: right; font-size: 12px; font-weight: bold; color: var(--text-muted);">${tSalesQty - tReturnsQty}</div>
+                        <div style="text-align: right; font-size: 15px; font-weight: 900; color: var(--text-main); white-space: nowrap;">${(tSalesSum - tReturnsSum).toLocaleString()} ₸</div>
+                    </div>`;
             } else {
                 searchInput.parentElement.style.display = 'none'; 
                 
@@ -946,24 +1396,30 @@ sortedItems.forEach(item => {
                 repList.innerHTML = reportDataToRender.map(h => {
                     let isRet = h.type === 'return';
                     if (isRet) t.return += h.total; else t.sale += h.total;
-                    let itemsHtml = h.cart.map(c => `<div class="hb-item"><span>${c.name} (${c.qty})</span><span>${(c.qty*c.price).toLocaleString()} ₸</span></div>`).join('');
-                    let timeHtml = h.time.includes('⏳') ? `<span style="color:#f1c40f">${h.time}</span>` : h.time;
-                    return `<div class="hist-block" style="border-left-color: ${colors[h.methodCode] || '#2ecc71'};">
-                        <div class="hb-head" style="color: ${colors[h.methodCode] || '#2ecc71'};"><span>${timeHtml} | ${isRet ? translations[currentLang].btn_return : translations[currentLang].btn_sale} | ${names[h.methodCode]||h.methodCode}</span><span>${isRet?'-':''}${h.total.toLocaleString()} ₸</span></div>
+                    let itemsHtml = h.cart.map(c => `<div class="hb-item" style="gap: 10px;"><span class="swipeable-text">${c.name} (${c.qty})</span><span style="white-space: nowrap; flex-shrink: 0;">${(c.qty*c.price).toLocaleString()} ₸</span></div>`).join('');
+                    let timeHtml = h.time.includes('⏳') ? `<span style="color:var(--accent-yellow)">${h.time}</span>` : h.time;
+                    return `<div class="hist-block" style="border-left-color: ${colors[h.methodCode] || 'var(--accent-green)'};">
+                        <div class="hb-head" style="color: ${colors[h.methodCode] || 'var(--accent-green)'}; gap: 10px;">
+                            <span class="swipeable-text">${timeHtml} | ${isRet ? translations[currentLang].btn_return : translations[currentLang].btn_sale} | ${names[h.methodCode]||h.methodCode} | 👤 ${h.seller || 'Анон'}</span>
+                            <span style="white-space: nowrap; flex-shrink: 0;">${isRet?'-':''}${h.total.toLocaleString()} ₸</span>
+                        </div>
                         <div class="${isRet?'hb-type-r':''}">${itemsHtml}</div>
                     </div>`;
                 }).join('');
                 
-                totalsBox.innerHTML = `<div style="display:flex; justify-content:space-between; color:#2ecc71; font-size:12px; margin-bottom:4px;"><span>${translations[currentLang].report_sales.toUpperCase()}:</span><span>${t.sale.toLocaleString()} ₸</span></div>
-                    <div style="display:flex; justify-content:space-between; color:#e74c3c; font-size:12px; margin-bottom:4px;"><span>${translations[currentLang].report_returns.toUpperCase()}:</span><span>${t.return.toLocaleString()} ₸</span></div>
-                    <div style="display:flex; justify-content:space-between; color:#fff; font-weight:bold; font-size:16px; margin-top:8px; border-top:1px dashed #555; padding-top:8px;"><span>${translations[currentLang].report_in_register}</span><span>${(t.sale - t.return).toLocaleString()} ₸</span></div>`;
+                totalsBox.innerHTML = `<div style="display:flex; justify-content:space-between; color:var(--accent-green); font-size:12px; margin-bottom:4px;"><span>${translations[currentLang].report_sales.toUpperCase()}:</span><span>${t.sale.toLocaleString()} ₸</span></div>
+                    <div style="display:flex; justify-content:space-between; color:var(--accent-red); font-size:12px; margin-bottom:4px;"><span>${translations[currentLang].report_returns.toUpperCase()}:</span><span>${t.return.toLocaleString()} ₸</span></div>
+                    <div style="display:flex; justify-content:space-between; color:var(--text-main); font-weight:bold; font-size:16px; margin-top:8px; border-top:1px dashed var(--border-focus); padding-top:8px;"><span>${translations[currentLang].report_in_register}</span><span>${(t.sale - t.return).toLocaleString()} ₸</span></div>`;
             }
         }
 
         function closeReport() { document.getElementById('report-modal').style.display = 'none'; }
 
-    // --- ДИНАМИЧЕСКАЯ ВЕРСИЯ ИЗ SW ---
         function displayAppVersion() {
+            // Жесткий Fallback: если Service Worker спит, показываем актуальную версию
+            const fallbackVersion = "5.4.4";
+            document.getElementById('app-version').innerText = "v: " + fallbackVersion;
+            
             if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
                 const messageChannel = new MessageChannel();
                 messageChannel.port1.onmessage = function(event) {
@@ -988,6 +1444,7 @@ sortedItems.forEach(item => {
         }
 
         window.addEventListener('load', () => {
+            checkBlockTimer(); 
             applyLanguage(currentLang); 
             updateQueueCounter();
             document.getElementById('login-screen').style.display = 'flex';
@@ -995,7 +1452,6 @@ sortedItems.forEach(item => {
             load();
         });
 
-        // --- ЛОГИКА ФОТО ---
         let selectedItemId = null, tempBase64 = null; 
         function openItemMenu(id) {
             selectedItemId = id; tempBase64 = null; 
@@ -1012,7 +1468,7 @@ sortedItems.forEach(item => {
                     safeUrl = 'https://drive.google.com/thumbnail?id=' + match[0] + '&sz=w800';
                 }
                 
-                preview.innerHTML = `<img src="${safeUrl}" onclick="openFullscreen('${safeUrl}')" onerror="this.onerror=null; this.parentNode.innerHTML='<div style=\\'color:#f1c40f; padding: 15px; border: 1px dashed #f1c40f; border-radius: 8px; font-size: 11px; font-weight: bold;\\'>⚠️ ФОТО НЕДОСТУПНО<br><br>Google отклонил запрос или файл удален</div>';" style="max-width: 100%; max-height: 250px; border-radius: 8px; border: 1px solid #444; margin-top: 10px; cursor: zoom-in;">`;
+                preview.innerHTML = `<img src="${safeUrl}" onclick="openFullscreen('${safeUrl}')" onerror="this.onerror=null; this.parentNode.innerHTML='<div style=\\'color:var(--accent-yellow); padding: 15px; border: 1px dashed var(--accent-yellow); border-radius: 8px; font-size: 11px; font-weight: bold;\\'>⚠️ ФОТО НЕДОСТУПНО<br><br>Google отклонил запрос или файл удален</div>';" style="max-width: 100%; max-height: 250px; border-radius: 8px; border: 1px solid var(--border-focus); margin-top: 10px; cursor: zoom-in;">`;
                 
                 document.getElementById('btn-take-photo').style.display = 'none'; 
                 document.getElementById('btn-retake-photo').style.display = 'block';
@@ -1042,7 +1498,7 @@ sortedItems.forEach(item => {
                     canvas.width = width; canvas.height = height;
                     canvas.getContext('2d').drawImage(img, 0, 0, width, height);
                     tempBase64 = canvas.toDataURL('image/jpeg', 0.7);
-                    document.getElementById('photo-preview').innerHTML = `<img src="${tempBase64}" onclick="openFullscreen('${tempBase64}')" style="max-width: 100%; max-height: 250px; border-radius: 8px; border: 1px solid #444; margin-top: 10px; cursor: zoom-in;">`;
+                    document.getElementById('photo-preview').innerHTML = `<img src="${tempBase64}" onclick="openFullscreen('${tempBase64}')" style="max-width: 100%; max-height: 250px; border-radius: 8px; border: 1px solid var(--border-focus); margin-top: 10px; cursor: zoom-in;">`;
                     document.getElementById('btn-add-cart').style.display = 'none'; document.getElementById('btn-save-db').style.display = 'block';
                     document.getElementById('btn-take-photo').style.display = 'none'; document.getElementById('btn-retake-photo').style.display = 'block';
                     document.getElementById('btn-cancel-modal').innerText = translations[currentLang].btn_cancel;
@@ -1090,6 +1546,53 @@ sortedItems.forEach(item => {
         
         // --- МОДУЛЬ УМНОЙ ПРИЕМКИ (ИНВОЙСЫ) ---
         let parsedInvoiceData = [];
+        let invoiceGroups = {}; 
+
+        function toggleDropdown() {
+            const list = document.getElementById('dropdownList');
+            const header = document.getElementById('dropdownHeader');
+            list.classList.toggle('show');
+            header.classList.toggle('active');
+        }
+
+        function selectCurrency(value) {
+            document.getElementById('dropdownSelectedCode').innerText = value;
+            document.getElementById('invoiceCurrency').value = value;
+            const items = document.querySelectorAll('.currency-minimal-item');
+            items.forEach(item => item.classList.remove('selected'));
+            event.target.classList.add('selected');
+            document.getElementById('dropdownList').classList.remove('show');
+            document.getElementById('dropdownHeader').classList.remove('active');
+        }
+
+        document.addEventListener('click', function(event) {
+            if (!event.target.closest('.currency-minimal-container')) {
+                const list = document.getElementById('dropdownList');
+                if (list) list.classList.remove('show');
+                const header = document.getElementById('dropdownHeader');
+                if (header) header.classList.remove('active');
+            }
+        });
+
+        function updateFileNameCompactUI(input) {
+            const fileNameText = document.getElementById('fileNameTextCompact');
+            const containerBox = document.getElementById('fileInputLabel');
+            if (input.files && input.files.length > 0) {
+                fileNameText.innerText = input.files.length > 1 ? "Выбрано файлов: " + input.files.length : input.files[0].name;
+                fileNameText.classList.remove('file-placeholder-text');
+                fileNameText.style.color = 'var(--text-main)';          
+                containerBox.style.borderColor = 'var(--accent-green)'; 
+                containerBox.style.background = 'var(--bg-success-dim)';  
+                containerBox.style.color = 'var(--text-main)';  
+            } else {
+                fileNameText.innerText = "Нажмите для выбора Excel";
+                fileNameText.classList.add('file-placeholder-text');
+                fileNameText.style.color = 'var(--text-placeholder)';
+                containerBox.style.borderColor = 'var(--border-focus)';
+                containerBox.style.background = 'var(--bg-body)';
+                containerBox.style.color = 'var(--text-muted)';
+            }
+        }
 
         function toggleIncomeModule() {
             const modal = document.getElementById('income-modal');
@@ -1098,145 +1601,285 @@ sortedItems.forEach(item => {
             } else {
                 modal.style.display = 'none';
                 document.getElementById('invoicePreviewArea').style.display = 'none';
-                document.getElementById('invoiceFileInput').value = '';
+                document.getElementById('debug-container').style.display = 'none';
+                document.getElementById('debug-container').innerHTML = '';
+                document.getElementById('parseInvoiceBtn').style.display = 'block'; 
+                
+                const fileInput = document.getElementById('invoiceFileInput');
+                fileInput.value = '';
+                updateFileNameCompactUI(fileInput); 
                 parsedInvoiceData = [];
             }
         }
 
-        function processInvoiceFile() {
+        async function processInvoiceFile() {
             const fileInput = document.getElementById('invoiceFileInput');
             if (!fileInput.files.length) return alert("Пожалуйста, выберите файл!");
 
-            const file = fileInput.files[0];
-            const reader = new FileReader();
+            parsedInvoiceData = []; 
+            invoiceGroups = {}; 
+            let processingLogs = []; 
 
-            reader.onload = function(e) {
-                const data = new Uint8Array(e.target.result);
-                
+            const markers = (invoiceSynonyms['supplier_keywords'] || ["the seller", "vendor", "supplier", "поставщик"]);
+            const excludes = (invoiceSynonyms['exclude'] || ["commercial invoice", "packing list", "invoice", "specification", "sales contract", "contract"]);
+
+            function isSynonym(cellValue, targetKey) {
+                if (!cellValue) return false;
+                const cleanCell = String(cellValue).replace(/\s+/g, '').toLowerCase();
+                const synonymsList = (invoiceSynonyms[targetKey] || []).map(s => s.replace(/\s+/g, '').toLowerCase());
+                return synonymsList.some(syn => syn !== "" && cleanCell.includes(syn));
+            }
+
+            for (let file of fileInput.files) {
+                let fileErrors = [];
+                let itemsInFile = 0;
+                let fileParsedSuccessfully = false;
+                let sheetErrorsList = []; 
+
+                const b64Promise = new Promise((resolve) => {
+                    const reader = new FileReader();
+                    reader.onload = (e) => resolve(e.target.result);
+                    reader.readAsDataURL(file);
+                });
+                const originalBase64 = await b64Promise;
+
+                const dataPromise = new Promise((resolve) => {
+                    const reader = new FileReader();
+                    reader.onload = (e) => resolve(new Uint8Array(e.target.result));
+                    reader.readAsArrayBuffer(file);
+                });
+
+                const arrayBuffer = await dataPromise;
+                let file_doc_no = 'UNKNOWN';
+                let file_supplier = 'UNKNOWN';
+
                 try {
-                    const workbook = XLSX.read(data, {type: 'array'});
-                    const firstSheetName = workbook.SheetNames[0];
-                    const worksheet = workbook.Sheets[firstSheetName];
+                    const workbook = XLSX.read(arrayBuffer, {type: 'array'});
                     
-                    const rows = XLSX.utils.sheet_to_json(worksheet, {header: 1});
+                    for (let sheetName of workbook.SheetNames) {
+                        const worksheet = workbook.Sheets[sheetName];
+                        const rows = XLSX.utils.sheet_to_json(worksheet, {header: 1});
+                        if (!rows || rows.length === 0) continue;
 
-                    let doc_no = 'UNKNOWN', supplier = 'UNKNOWN';
-                    let headerRowIdx = -1;
-                    let colMap = { code: -1, brand: -1, desc: -1, qty: -1, price: -1 };
-
-                    for (let i = 0; i < Math.min(30, rows.length); i++) {
-                        const row = rows[i] || [];
-                        if (row.length === 0) continue;
-
-                        for (let j = 0; j < row.length; j++) {
-                            const cellValue = String(row[j] || '').toUpperCase().trim();
-                            
-                            // Умный поиск контракта (ищем первое непустое значение правее)
-                            if (cellValue.includes('CONTRACT NO')) {
-                                for (let k = j + 1; k < row.length; k++) {
-                                    if (row[k] && String(row[k]).trim() !== '') {
-                                        doc_no = String(row[k]).trim();
-                                        break;
+                        if (file_supplier === 'UNKNOWN') {
+                            for (let i = 0; i < Math.min(10, rows.length); i++) {
+                                let row = rows[i];
+                                if (!row) continue;
+                                for (let j = 0; j < row.length; j++) {
+                                    let cellVal = String(row[j] || "").toLowerCase();
+                                    if (markers.some(m => cellVal.includes(m.toLowerCase()))) {
+                                        for (let k = j + 1; k < row.length; k++) {
+                                            if (row[k] && String(row[k]).trim() !== '') {
+                                                file_supplier = String(row[k]).trim().replace(/^"|"$/g, ''); 
+                                                break;
+                                            }
+                                        }
                                     }
                                 }
                             }
-                            
-                            // Умный поиск поставщика (ищем первое непустое значение правее)
-                            if (cellValue.includes('THE SELLER') || cellValue.includes('VENDOR')) {
-                                for (let k = j + 1; k < row.length; k++) {
-                                    if (row[k] && String(row[k]).trim() !== '') {
-                                        supplier = String(row[k]).trim();
-                                        // Очищаем от лишних кавычек, если они есть
-                                        supplier = supplier.replace(/^"|"$/g, '');
+                            if (file_supplier === 'UNKNOWN') {
+                                for (let i = 0; i < Math.min(8, rows.length); i++) {
+                                    let row = rows[i] || [];
+                                    let text = String(row[0] || "").trim();
+                                    if (text && !excludes.some(ex => text.toLowerCase().includes(ex.toLowerCase()))) {
+                                        file_supplier = text.replace(/^"|"$/g, '');
                                         break;
                                     }
                                 }
                             }
                         }
 
-                        let cIdx = row.findIndex(c => String(c||'').toUpperCase().trim() === 'CODE' || String(c||'').toUpperCase().trim() === 'ITEM');
-                        let qIdx = row.findIndex(c => String(c||'').toUpperCase().trim().includes('QUANTITY') || String(c||'').toUpperCase().trim() === 'QTY');
-                        let pIdx = row.findIndex(c => String(c||'').toUpperCase().trim().includes('PRICE'));
-                        let bIdx = row.findIndex(c => String(c||'').toUpperCase().trim() === 'BRAND');
-                        let dIdx = row.findIndex(c => String(c||'').toUpperCase().trim().includes('DESCRIPTION'));
-
-                        if (cIdx !== -1 && qIdx !== -1 && pIdx !== -1) {
-                            headerRowIdx = i;
-                            colMap = { code: cIdx, brand: bIdx, desc: dIdx, qty: qIdx, price: pIdx };
-                            break;
+                        if (file_doc_no === 'UNKNOWN') {
+                            for (let i = 0; i < Math.min(20, rows.length); i++) {
+                                let row = rows[i] || [];
+                                for (let j = 0; j < row.length; j++) {
+                                    if (isSynonym(row[j], 'invoice_no')) {
+                                        file_doc_no = String(row[j+1] || 'UNKNOWN').trim();
+                                    }
+                                }
+                            }
                         }
-                    }
 
-                    if (headerRowIdx === -1) return alert("❌ Не удалось найти заголовки таблицы (Code, Quantity, Price).");
+                        let firstDataRowIdx = -1;
+                        for (let i = 0; i < Math.min(50, rows.length); i++) {
+                            let row = rows[i] || [];
+                            if (row.length === 0) continue;
 
-                    parsedInvoiceData = [];
-                    for (let i = headerRowIdx + 1; i < rows.length; i++) {
-                        const row = rows[i];
-                        if (!row || row.length === 0) continue;
-                        
-                        const codeCell = String(row[colMap.code] || '').trim();
-                        if (!codeCell) continue;
-                        
-                        if (codeCell.toUpperCase().includes('TOTAL') || codeCell.toUpperCase().includes('NOTE')) break;
+                            let numCount = row.filter(c => {
+                                let val = String(c).trim().replace(/,/g, '');
+                                return val !== '' && !isNaN(Number(val));
+                            }).length;
 
-                        let qty = parseFloat(row[colMap.qty]);
-                        let price = parseFloat(row[colMap.price]);
-                        
-                        let brandStr = colMap.brand !== -1 ? String(row[colMap.brand] || '').trim() : '';
-                        let descStr = colMap.desc !== -1 ? String(row[colMap.desc] || '').trim() : '';
-                        let fullName = `${brandStr} ${descStr}`.trim();
-                        if (!fullName) fullName = 'Без названия';
+                            if (numCount >= 2) {
+                                let firstCol = String(row[0] || '').toUpperCase();
+                                if (!firstCol.includes('TOTAL')) {
+                                    firstDataRowIdx = i;
+                                    break;
+                                }
+                            }
+                        }
 
-                        if (!isNaN(qty) && !isNaN(price)) {
-                            parsedInvoiceData.push({
-                                doc_no: doc_no,
-                                supplier: supplier,
-                                item_id: codeCell,
-                                item_name: fullName,
-                                qty: qty,
-                                cost: price,
-                                staff_id: (typeof currentUser !== 'undefined' && currentUser) ? currentUser.uid : 'Auto-Import' 
+                        if (firstDataRowIdx > 0) {
+                            let headerRowIdx = firstDataRowIdx - 1;
+                            let colMap = { code: -1, brand: -1, desc: -1, qty: -1, price: -1 };
+                            
+                            let headerRow = rows[headerRowIdx] || [];
+                            
+                            for (let j = 0; j < headerRow.length; j++) {
+                                let val = String(headerRow[j] || '').trim();
+                                
+                                if (colMap.code === -1 && isSynonym(val, 'id')) colMap.code = j;
+                                if (colMap.qty === -1 && isSynonym(val, 'qty')) colMap.qty = j;
+                                if (colMap.price === -1 && isSynonym(val, 'price')) colMap.price = j;
+                                if (colMap.brand === -1 && isSynonym(val, 'brand')) colMap.brand = j;
+                                if (colMap.desc === -1 && isSynonym(val, 'name')) colMap.desc = j;
+                            }
+
+                            if (colMap.code !== -1 && colMap.qty !== -1 && colMap.price !== -1) {
+                                fileParsedSuccessfully = true; 
+                                
+                                if (!invoiceGroups[file_doc_no]) {
+                                    invoiceGroups[file_doc_no] = { supplier: file_supplier, items: [], originalFiles: [] };
+                                }
+
+                                for (let i = firstDataRowIdx; i < rows.length; i++) {
+                                    const row = rows[i];
+                                    if (!row || row.length === 0) continue;
+                                    
+                                    let codeCell = String(row[colMap.code] || '').trim();
+                                    if (!codeCell || codeCell.toUpperCase().includes('TOTAL')) break;
+
+                                    let qty = parseFloat(row[colMap.qty]);
+                                    let price = parseFloat(row[colMap.price]);
+                                    let brandStr = colMap.brand !== -1 ? String(row[colMap.brand] || '').trim() : '';
+                                    let descStr = colMap.desc !== -1 ? String(row[colMap.desc] || '').trim() : '';
+                                    
+                                    if (!isNaN(qty) && !isNaN(price)) {
+                                        const itemData = {
+                                            doc_no: file_doc_no, 
+                                            supplier: file_supplier, 
+                                            item_id: codeCell,
+                                            item_name: `${brandStr} ${descStr}`.trim(), 
+                                            qty: qty, 
+                                            cost: price,
+                                            staff_id: currentUser ? currentUser.uid : 'Auto-Import' 
+                                        };
+                                        parsedInvoiceData.push(itemData);
+                                        invoiceGroups[file_doc_no].items.push(itemData);
+                                        itemsInFile++;
+                                    }
+                                }
+                            } else {
+                                let missing = [];
+                                if (colMap.code === -1) missing.push(translations[currentLang].word_code);
+                                if (colMap.qty === -1) missing.push(translations[currentLang].word_qty);
+                                if (colMap.price === -1) missing.push(translations[currentLang].word_price);
+                                sheetErrorsList.push(translations[currentLang].inc_err_sheet_missing.replace('{0}', sheetName).replace('{1}', headerRowIdx + 1) + missing.join(', '));
+                            }
+                        } else {
+                            sheetErrorsList.push(translations[currentLang].inc_err_sheet_no_table.replace('{0}', sheetName));
+                        }
+                    } 
+                    
+                    if (invoiceGroups[file_doc_no] && fileParsedSuccessfully) {
+                        const alreadyAdded = invoiceGroups[file_doc_no].originalFiles.some(f => f.fileName === file.name);
+                        if (!alreadyAdded) {
+                            invoiceGroups[file_doc_no].originalFiles.push({
+                                fileName: file.name,
+                                fileBase64: originalBase64
                             });
                         }
                     }
 
-                    const labels = translations[currentLang];
-                    const labelStyle = 'color: #888; font-weight: normal;';
-                    const dataStyle = 'color: #f1c40f; font-weight: bold;';
-
-                    document.getElementById('invoiceMetadata').innerHTML = `
-                        <span style="${labelStyle}">${labels.income_meta_supplier}:</span> <span style="${dataStyle}">${supplier}</span> | 
-                        <span style="${labelStyle}">${labels.income_meta_doc}:</span> <span style="${dataStyle}">${doc_no}</span> | 
-                        <span style="${labelStyle}">${labels.income_meta_items}:</span> <span style="${dataStyle}">${parsedInvoiceData.length}</span>
-                    `;
-
-                    const tbody = document.getElementById('invoiceTableBody');
-                    tbody.innerHTML = '';
-                    parsedInvoiceData.forEach(item => {
-                        tbody.innerHTML += `
-                            <tr style="border-bottom: 1px solid #333;">
-                                <td style="padding: 5px;">${item.item_id}</td>
-                                <td style="padding: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 120px;">${item.item_name}</td>
-                                <td style="padding: 5px;">${item.qty}</td>
-                                <td style="padding: 5px;">$${item.cost}</td>
-                            </tr>`;
-                    });
-                    document.getElementById('invoicePreviewArea').style.display = 'flex';
-
-                } catch (error) {
-                    console.error(error);
-                    alert("❌ Ошибка при чтении файла Excel.");
+                } catch (err) {
+                    console.error("Ошибка чтения файла: " + file.name, err);
+                    fileErrors.push("Файл поврежден или не является таблицей");
                 }
-            };
+
+                if (file_doc_no === 'UNKNOWN') fileErrors.push(translations[currentLang].inc_err_no_doc);
+                if (file_supplier === 'UNKNOWN') fileErrors.push(translations[currentLang].inc_err_no_sup);
+                
+                if (!fileParsedSuccessfully) {
+                    fileErrors.push(sheetErrorsList.join('<br>'));
+                } else if (itemsInFile === 0) {
+                    fileErrors.push(translations[currentLang].inc_err_no_items);
+                }
+
+                if (fileErrors.length > 0) {
+                    processingLogs.push(`<div style="color:var(--accent-red); font-size:12px; margin-bottom:4px; padding:6px; border-left:3px solid var(--accent-red); background:var(--bg-hover);">⚠️ <b>${file.name}</b>:<br>${fileErrors.join('<br>')}</div>`);
+                } else {
+                    processingLogs.push(`<div style="color:var(--accent-green); font-size:12px; margin-bottom:4px; padding:6px; border-left:3px solid var(--accent-green); background:var(--bg-hover);">✅ <b>${file.name}</b>: ${translations[currentLang].inc_success.replace('{0}', itemsInFile)}</div>`);
+                }
+            }
+
+            const debugContainer = document.getElementById('debug-container');
+            debugContainer.style.maxHeight = 'none'; 
+            debugContainer.style.overflowY = 'visible';
+            debugContainer.innerHTML = processingLogs.join('');
+            debugContainer.style.display = 'flex';
+
+            if (parsedInvoiceData.length === 0) {
+                document.getElementById('invoicePreviewArea').style.display = 'none';
+                return; 
+            }
+
+            const uniqueDocs = Object.keys(invoiceGroups).filter(k => k !== 'UNKNOWN');
+            const uniqueSuppliers = [...new Set(parsedInvoiceData.map(i => i.supplier))];
+
+            let docUiHtml = '';
+            if (uniqueDocs.length === 1) {
+                docUiHtml = `<input type="text" id="ui-doc-no" value="${uniqueDocs[0]}" style="background:var(--bg-hover); color:var(--accent-yellow); border:1px dashed var(--border-focus); padding:2px 6px; border-radius:3px; font-weight:bold; font-size:13px; width: 140px; outline:none;" title="Можно редактировать">`;
+            } else if (uniqueDocs.length > 1) {
+                docUiHtml = `<span style="color:var(--accent-yellow); font-weight:bold;">${uniqueDocs.join(', ')}</span>`;
+            } else {
+                docUiHtml = `<span style="color:var(--accent-red); font-weight:bold;">${translations[currentLang].inc_err_doc_format}</span>`;
+            }
+
+            document.getElementById('invoiceMetadata').innerHTML = `
+                <span style="color:var(--text-muted); font-weight:normal; font-size:13px;">${translations[currentLang].inc_lbl_sup}</span> 
+                <span style="color:var(--accent-yellow); font-weight:bold; font-size:14px; letter-spacing:0.5px;">${uniqueSuppliers.join(', ')}</span> 
+                
+                <span style="color:var(--border-light); margin:0 10px;">|</span> 
+                
+                <span style="color:var(--text-muted); font-weight:normal; font-size:13px;">${translations[currentLang].inc_lbl_doc}</span> 
+                ${docUiHtml} 
+                
+                <span style="color:var(--border-light); margin:0 10px;">|</span> 
+                
+                <span style="color:var(--text-muted); font-weight:normal; font-size:13px;">${translations[currentLang].inc_lbl_items}</span> 
+                <span style="color:var(--accent-yellow); font-weight:bold; font-size:14px;">${parsedInvoiceData.length}</span>
+            `;
             
-            reader.readAsArrayBuffer(file);
+            document.getElementById('invoiceTableBody').innerHTML = parsedInvoiceData.map(item => `
+                <tr style="border-bottom:1px solid var(--border-light); color:var(--text-main);">
+                    <td style="padding:5px;">${item.item_id}</td>
+                    <td style="padding:5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 150px;">
+                        ${item.item_name}
+                        ${uniqueDocs.length > 1 ? `<br><span style="font-size:9px; color:var(--text-muted);">[Инвойс: ${item.doc_no}]</span>` : ''}
+                    </td>
+                    <td style="padding:5px;">${item.qty}</td>
+                    <td style="padding:5px;">$${item.cost}</td>
+                </tr>`).join('');
+            
+            document.getElementById('invoicePreviewArea').style.display = 'flex';
+            document.getElementById('parseInvoiceBtn').style.display = 'none';
         }
 
-        function sendInvoiceToBackend() {
+        async function sendInvoiceToBackend() {
             if (parsedInvoiceData.length === 0) return alert("Корзина пуста!");
+
+            const docKeys = Object.keys(invoiceGroups);
+            const docInput = document.getElementById('ui-doc-no');
             
-            const rateInput = document.getElementById('exchangeRate');
-            const rate = rateInput ? (parseFloat(rateInput.value) || 1) : 1;
+            if (docKeys.length === 1 && docInput) {
+                const finalDocNo = docInput.value.trim();
+                if (!finalDocNo) return alert("Номер документа не может быть пустым!");
+                if (finalDocNo !== docKeys[0]) {
+                    invoiceGroups[finalDocNo] = invoiceGroups[docKeys[0]];
+                    delete invoiceGroups[docKeys[0]];
+                    invoiceGroups[finalDocNo].items.forEach(i => i.doc_no = finalDocNo);
+                }
+            }
 
             const btn = document.getElementById('sendInvoiceBtn');
             const statusContainer = document.getElementById('status-container');
@@ -1244,72 +1887,110 @@ sortedItems.forEach(item => {
             const statusText = document.getElementById('status-text');
             const statusPercent = document.getElementById('status-percent');
 
-            btn.disabled = true;
-            btn.style.opacity = '0.5';
+            btn.disabled = true; btn.style.opacity = '0.5';
             statusContainer.style.display = 'block';
-            
-            statusText.innerText = "Связь с сервером...";
-            statusBar.style.width = '10%';
-            statusPercent.innerText = '10%';
+            statusBar.style.width = '10%'; statusPercent.innerText = '10%';
 
-            fetch(APPS_SCRIPT_URL, {
-                method: 'POST',
-                body: JSON.stringify({ action: 'income', data: parsedInvoiceData, rate: rate })
-            })
-            .then(r => r.json())
-            .then(res => {
-                statusBar.style.width = '100%';
-                statusPercent.innerText = '100%';
-                
-                if (res.success) {
-                    statusText.innerText = "Готово! Склад обновлен.";
-                    setTimeout(() => {
-                        alert("✅ Накладная успешно проведена!");
-                        toggleIncomeModule();
-                        if (typeof load === 'function') load(); 
-                    }, 500);
-                } else {
-                    statusText.innerText = "Ошибка сервера";
-                    statusText.style.color = "#e74c3c";
-                    alert("❌ Ошибка сервера: " + res.error);
+            const totalSteps = Object.keys(invoiceGroups).length;
+            let currentStep = 0;
+
+            for (let docNo of Object.keys(invoiceGroups)) {
+                currentStep++;
+                let group = invoiceGroups[docNo];
+
+                statusText.innerText = `Отправка ${docNo}... (${currentStep}/${totalSteps})`;
+                let pct = Math.round((currentStep / totalSteps) * 100);
+                statusBar.style.width = pct + '%'; statusPercent.innerText = pct + '%';
+
+                try {
+                    const response = await fetch(APPS_SCRIPT_URL, {
+                        method: 'POST',
+                        body: JSON.stringify({ 
+                            action: 'income', 
+                            data: group.items,
+                            files: group.originalFiles, 
+                            docNo: docNo, 
+                            currency: document.getElementById('invoiceCurrency').value
+                        })
+                    });
+                    
+                    const res = await response.json();
+                    if (!res.success) {
+                        throw new Error(res.error);
+                    }
+                } catch (err) {
+                    statusText.innerText = translations[currentLang].inc_server_err; 
+                    statusText.style.color = "var(--accent-red)";
+                    
+                    let errorMsg = err.message;
+                    
+                    let dupMatch = errorMsg.match(/Накладная с номером (.*?) уже была/i);
+                    if (dupMatch && dupMatch[1]) {
+                        errorMsg = translations[currentLang].server_dup.replace('{0}', dupMatch[1].trim());
+                    } else if (errorMsg.includes("База не привязана")) {
+                        errorMsg = translations[currentLang].server_no_db;
+                    }
+
+                    alert(translations[currentLang].inc_send_err + errorMsg);
+                    btn.disabled = false; btn.style.opacity = '1';
+                    return;
                 }
-            })
-            .catch(err => {
-                statusText.innerText = "Ошибка сети";
-                statusText.style.color = "#e74c3c";
-                alert("❌ Ошибка сети: " + err);
-            })
-            .finally(() => {
-                btn.disabled = false;
-                btn.style.opacity = '1';
-            });
+            }
+
+            statusBar.style.width = '100%'; statusPercent.innerText = '100%';
+            statusText.innerText = "Архив создан! Склад обновлен.";
+            setTimeout(() => { 
+                alert("✅ Все накладные успешно проведены, оригиналы сохранены в папки!"); 
+                toggleIncomeModule(); 
+                if (typeof load === 'function') load(); 
+            }, 800);
+            
+            btn.disabled = false; btn.style.opacity = '1';
         }
     </script>
 
-    <div id="income-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.85); z-index: 10000; justify-content: center; align-items: center; backdrop-filter: blur(3px);">
-        <div style="background: #111; border: 1px solid #333; border-radius: 8px; width: 95%; max-width: 600px; padding: 20px; color: #fff; max-height: 90vh; display: flex; flex-direction: column; position: relative;">
-            <button onclick="toggleIncomeModule()" style="position: absolute; right: 15px; top: 15px; background: transparent; border: none; color: #888; font-size: 20px; cursor: pointer;">✕</button>
-            <h3 style="margin-bottom: 10px; color: #2ecc71;" data-i18n="income_title">📦 Импорт накладной</h3>
+    <div id="income-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: var(--bg-overlay); z-index: 10000; justify-content: center; align-items: center; backdrop-filter: blur(3px);">
+        <div style="background: var(--bg-modal); border: 1px solid var(--border-light); border-radius: 8px; width: 95%; max-width: 600px; padding: 20px; color: var(--text-main); max-height: 90vh; display: flex; flex-direction: column; position: relative;">
+            <button onclick="toggleIncomeModule()" style="position: absolute; right: 15px; top: 15px; background: transparent; border: none; color: var(--text-muted); font-size: 20px; cursor: pointer;">✕</button>
+            <h3 style="margin-bottom: 10px; color: var(--accent-green);" data-i18n="income_title">📦 Импорт накладной</h3>
             
-            <div style="display: flex; gap: 10px; margin-bottom: 15px;">
-                <div style="flex: 1;">
-                    <label style="font-size: 10px; color: #888;" data-i18n="income_rate">Курс USD/KZT:</label>
-                    <input type="number" id="exchangeRate" value="450" style="width: 100%; background: #0a0a0a; color: #f1c40f; border: 1px dashed #555; padding: 10px; border-radius: 4px; font-weight: bold; font-size: 14px;">
+            <div class="minimal-input-container">
+                <div class="currency-minimal-container">
+                    <div class="currency-minimal-header" id="dropdownHeader" onclick="toggleDropdown()">
+                        <span id="dropdownSelectedCode">USD</span><span class="curr-arrow-mini">▼</span>
+                    </div>
+                    <div class="currency-minimal-list" id="dropdownList">
+                        <div class="currency-minimal-item" onclick="selectCurrency('KZT')">KZT</div>
+                        <div class="currency-minimal-item selected" onclick="selectCurrency('USD')">USD</div>
+                        <div class="currency-minimal-item" onclick="selectCurrency('CNY')">CNY</div>
+                        <div class="currency-minimal-item" onclick="selectCurrency('EUR')">EUR</div>
+                        <div class="currency-minimal-item" onclick="selectCurrency('RUB')">RUB</div>
+                    </div>
+                    <input type="hidden" id="invoiceCurrency" value="USD">
                 </div>
-                <div style="flex: 2;">
-                    <label style="font-size: 10px; color: #888;" data-i18n="income_file">Выберите файл:</label>
-                    <input type="file" id="invoiceFileInput" accept=".csv, .xls, .xlsx" style="width: 100%; color: #fff; border: 1px dashed #555; padding: 10px; background: #0a0a0a; border-radius: 4px; font-size: 12px;">
+
+                <div class="file-input-wrapper">
+                    <label for="invoiceFileInput" id="fileInputLabel" class="file-upload-label">
+                        <div class="file-content">
+                            <span style="color: var(--text-muted); font-size: 10px;">📄</span>
+                            <span id="fileNameTextCompact" class="file-placeholder-text">Нажмите для выбора Excel</span>
+                        </div>
+                        <span style="color: var(--text-muted); font-size: 11px;">📎</span>
+                    </label>
+                    <input type="file" id="invoiceFileInput" accept=".csv, .xls, .xlsx" style="display: none;" multiple onchange="updateFileNameCompactUI(this)">
                 </div>
             </div>
             
-            <button onclick="processInvoiceFile()" style="background: #1a3a20; color: #2ecc71; border: 1px solid #2ecc71; padding: 12px 15px; border-radius: 4px; cursor: pointer; width: 100%; font-weight: bold; font-size: 14px;" data-i18n="income_parse">РАСПОЗНАТЬ ФАЙЛ</button>
+            <button id="parseInvoiceBtn" onclick="processInvoiceFile()" style="background: var(--bg-success-dim); color: var(--accent-green); border: 1px solid var(--accent-green); padding: 12px 15px; border-radius: 4px; cursor: pointer; width: 100%; font-weight: bold; font-size: 14px;" data-i18n="income_parse">РАСПОЗНАТЬ ФАЙЛ</button>            
             
+            <div id="debug-container" style="display: none; margin-top: 15px; flex-direction: column; overflow-y: auto; max-height: 50vh;"></div>
+
             <div id="invoicePreviewArea" style="display: none; margin-top: 20px; flex-direction: column; overflow: hidden;">
-                <div id="invoiceMetadata" style="margin-bottom: 10px; font-weight: bold; color: #f1c40f; font-size: 13px; text-align: center;"></div>
-                <div style="overflow-y: auto; border: 1px solid #333; margin-bottom: 15px; flex-grow: 1;">
-                    <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
-                        <thead style="background: #222; position: sticky; top: 0;">
-                            <tr style="border-bottom: 1px solid #555; text-align: left;">
+                <div id="invoiceMetadata" style="margin-bottom: 10px; font-weight: bold; color: var(--accent-yellow); font-size: 13px; text-align: center;"></div>
+                <div style="overflow-y: auto; border: 1px solid var(--border-light); margin-bottom: 15px; flex-grow: 1;">
+                    <table style="width: 100%; border-collapse: collapse; font-size: 12px; color: var(--text-main);">
+                        <thead style="background: var(--border-main); position: sticky; top: 0;">
+                            <tr style="border-bottom: 1px solid var(--text-muted); text-align: left;">
                                 <th style="padding: 8px;" data-i18n="income_code">Код</th>
                                 <th style="padding: 8px;" data-i18n="income_name">Наименование</th>
                                 <th style="padding: 8px;" data-i18n="income_qty">Кол-во</th>
@@ -1320,21 +2001,21 @@ sortedItems.forEach(item => {
                     </table>
                 </div>
                 
-                <div id="status-container" style="display: none; margin-bottom: 15px; padding: 10px; background: #050505; border: 1px solid #333; border-radius: 4px;">
+                <div id="status-container" style="display: none; margin-bottom: 15px; padding: 10px; background: var(--bg-body); border: 1px solid var(--border-light); border-radius: 4px;">
                     <div style="display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 11px;">
-                        <span id="status-text" style="color: #2ecc71;">Подготовка...</span>
-                        <span id="status-percent" style="color: #aaa;">0%</span>
+                        <span id="status-text" style="color: var(--accent-green);">Подготовка...</span>
+                        <span id="status-percent" style="color: var(--text-muted);">0%</span>
                     </div>
-                    <div style="width: 100%; height: 4px; background: #222; border-radius: 2px; overflow: hidden;">
-                        <div id="status-bar" style="width: 0%; height: 100%; background: #2ecc71; transition: width 0.3s;"></div>
+                    <div style="width: 100%; height: 4px; background: var(--border-main); border-radius: 2px; overflow: hidden;">
+                        <div id="status-bar" style="width: 0%; height: 100%; background: var(--accent-green); transition: width 0.3s;"></div>
                     </div>
                 </div>
                 
-                <button id="sendInvoiceBtn" onclick="sendInvoiceToBackend()" style="background: #007bff; color: white; padding: 12px 20px; border: none; border-radius: 4px; width: 100%; cursor: pointer; font-weight: bold;" data-i18n="income_confirm">
+                <button id="sendInvoiceBtn" onclick="sendInvoiceToBackend()" style="background: var(--accent-blue); color: #ffffff; padding: 12px 20px; border: none; border-radius: 4px; width: 100%; cursor: pointer; font-weight: bold;" data-i18n="income_confirm">
                     ✅ ОПРИХОДОВАТЬ НА СКЛАД
                 </button>
             </div>
-            </div>
         </div>
-    </body>
+    </div>
+</body>
 </html>
