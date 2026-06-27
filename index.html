@@ -4,7 +4,8 @@
     <link rel="manifest" href="manifest.json">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>POS Noir v5.4.3</title>
+    <title>Trade Control v5.5.0</title>
+    <meta name="google-site-verification" content="tVEMyhwnt22QkX5IOJYMit7h7tQXTuvqhE-GnzDYkq4" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -68,7 +69,7 @@
             --text-placeholder: #888888;
             --text-dark: #000000; 
 
-            --accent-yellow: #d4ac0d;
+            --accent-yellow: #9a7b00;
             --accent-green: #27ae60;
             --accent-red: #c0392b;
             --accent-blue: #007bff;
@@ -87,9 +88,11 @@
         /* ========================================= */
 
         * { 
-    /* ваши старые параметры (margin, padding и т.д.) остаются */
-    font-family: 'Roboto Condensed', sans-serif !important; 
-}
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Roboto Condensed', sans-serif !important; 
+        }
         
         html {
             overscroll-behavior: none; /* Запрещаем эффект оттяжки на уровне документа */
@@ -99,7 +102,7 @@
         body { 
             position: fixed; /* Намертво прибиваем приложение к экрану */
             top: 0; left: 0; right: 0; bottom: 0;
-            width: 100%;
+            width: 100vw;
             height: 100dvh; 
             background: var(--bg-body); 
             color: var(--text-main); 
@@ -180,7 +183,7 @@
         .file-content { display: flex; align-items: center; gap: 8px; overflow: hidden; text-overflow: ellipsis; }
 
         /* --- ЭКРАН ВХОДА И КЛАВИАТУРА --- */
-        #login-screen { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: var(--bg-body); z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+        #pin-screen { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: var(--bg-body); z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; }
         .login-label { color: var(--accent-green); font-size: 24px; margin-bottom: 25px; font-weight: bold; letter-spacing: 5px; }
         
         .pin-input { background: var(--bg-card); border: 1px solid var(--border-light); color: var(--accent-yellow); padding: 15px; font-size: 32px; width: 220px; text-align: center; margin-bottom: 10px; outline: none; letter-spacing: 12px; border-radius: 8px; }
@@ -337,11 +340,39 @@
 .hb-item span:last-child {
     font-family: 'Roboto', sans-serif !important;
 }
+
+/* --- УМНЫЙ ФОКУС ПРИ ОТКРЫТОЙ КЛАВИАТУРЕ --- */
+        body.keyboard-open .modes,
+        body.keyboard-open .cat-bar,
+        body.keyboard-open .pay-row-5,
+        body.keyboard-open .list-header {
+            display: none !important;
+        }
+        body.keyboard-open .cart-sec {
+            border-top-width: 1px; /* Делаем рамку тоньше для экономии места */
+        }
     </style>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
 
-    <div id="login-screen">
+    <body>
+
+    <div id="google-screen" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 10000; display: flex; flex-direction: column; align-items: center; justify-content: center; background-color: #1e1e1e; color: white; padding: 20px; text-align: center;">
+        
+        <div style="max-width: 600px; margin-bottom: 30px; text-align: left; background: rgba(255,255,255,0.1); padding: 20px; border-radius: 8px;">
+            <h2 style="margin-top: 0; color: #f1c40f;">Trade Control POS</h2>
+            <p>Trade Control is a web-based Point of Sale (POS) application designed for internal inventory management and daily sales tracking.</p>
+            <p><strong>How it works:</strong> The application requires access to your Google Sheets. It reads product data (names, prices, barcodes) from your personal spreadsheet to display them in the POS interface, and writes completed sales transactions directly back into your spreadsheet.</p>
+            <p><a href="privacy.html" style="color: #3498db;">Privacy Policy</a></p>
+        </div>
+        <h1 style="margin-bottom: 20px;">Вход в Trade Control</h1>
+        <button onclick="loginWithGoogle()" style="padding: 15px 30px; font-size: 16px; background-color: #4285F4; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;">
+            Войти через Google
+        </button>
+    </div>
+
+    <div id="pin-screen" style="display: none;">
         <div class="login-label" data-i18n="login_title">ВХОД</div>
         <input type="password" id="pin-field" class="pin-input" placeholder="****" readonly>
         <div id="login-error">НЕВЕРНЫЙ ПИН-КОД</div>
@@ -566,7 +597,7 @@
                 income_code: "Код",
                 income_name: "Наименование",
                 income_qty: "Кол-во",
-                income_price: "Цена ($)",
+                income_price: "Цена",
                 income_confirm: "✅ ОПРИХОДОВАТЬ НА СКЛАД",
                 income_meta_supplier: "Поставщик",
                 income_meta_doc: "Документ",
@@ -591,7 +622,39 @@
                 pay_qr_full: "QR",
                 pay_red_full: "РАССРОЧКА",
                 pay_card_full: "ТЕРМИНАЛ",
-                pay_trans_full: "ПЕРЕВОД"
+                pay_trans_full: "ПЕРЕВОД",
+                income_cbm: "Объем (CBM)",
+                income_weight: "Вес (кг)",
+                inc_file_selected: "Выбрано файлов: ",
+                inc_file_placeholder: "Нажмите для выбора Excel",
+                inc_no_file: "Пожалуйста, выберите файл!",
+                inc_file_corrupted: "Файл поврежден или не является таблицей",
+                inc_empty_cart: "Корзина пуста!",
+                inc_doc_empty: "Номер документа не может быть пустым!",
+                inc_all_done: "✅ Все накладные успешно проведены, оригиналы сохранены в папки!",
+                err_server: "Ошибка сервера",
+                err_network: "Ошибка сети",
+                pin_block: "БЛОКИРОВКА. ОЖИДАНИЕ: ",
+                pin_wrong: "НЕВЕРНЫЙ ПИН-КОД",
+                loading_items: "Загрузка товаров...",
+                status_offline: " (OFFLINE)",
+                status_net_err: " (ОШИБКА СЕТИ - КЭШ)",
+                photo_err: "⚠️ ФОТО НЕДОСТУПНО<br><br>Google отклонил запрос или файл удален",
+                inc_status_db: "Связь с базой данных... ⏳",
+                inc_status_write: "Запись товаров в таблицу... 📝",
+                inc_status_drive: "Создаем архив на Google Drive... 📂",
+                inc_status_almost: "Завершаем обработку... Осталось чуть-чуть ⏳",
+                inc_status_done: "✅ Архив создан! Склад обновлен.",
+                server_dup_fp: "Файл с точно таким же составом товаров уже был загружен ранее! Проверьте базу.",
+                kaspi_check_btn: "🔍 ПРОВЕРИТЬ РЕЗЕРВ KASPI",
+                kaspi_checking: "⏳ ПРОВЕРКА...",
+                kaspi_err_net: "НЕТ ИНТЕРНЕТА",
+                kaspi_err_server: "ОШИБКА СВЯЗИ С СЕРВЕРОМ",
+                kaspi_no_token: "ТОКЕН KASPI НЕ НАСТРОЕН",
+                kaspi_safe: "В РЕЗЕРВЕ ЧИСТО. МОЖНО ПРОДАВАТЬ",
+                kaspi_danger: "ВНИМАНИЕ! ЗАКАЗАН НА KASPI:",
+                kaspi_pcs: "шт. ОПАСНО!",
+                kaspi_err_api: "ОШИБКА СЕРВЕРА KASPI"
             },
             kz: {
                 btn_sale: "САТУ", btn_return: "ҚАЙТАРУ", search_placeholder: "ІЗДЕУ...",
@@ -620,7 +683,7 @@
                 income_code: "Коды",
                 income_name: "Атауы",
                 income_qty: "Саны",
-                income_price: "Бағасы ($)",
+                income_price: "Бағасы",
                 income_confirm: "✅ ҚОЙМАҒА КІРІСТЕУ",
                 income_meta_supplier: "Жеткізуші",
                 income_meta_doc: "Құжат",
@@ -630,7 +693,7 @@
                 pin_wrong: "ҚАТЕ ПИН-КОД", pin_wrong_left: "ҚАТЕ ПИН. ҚАЛДЫ: ", pin_conn_error: "ҚОСЫЛУ ҚАТЕСІ",
                 inc_file_selected: "Таңдалған файлдар: ", inc_file_placeholder: "Excel файлын таңдау үшін басыңыз",
                 inc_err_no_doc: "инвойс нөмірі жоқ", inc_err_no_sup: "жеткізуші жоқ", inc_err_no_table: "тауарлар кестесі табылмады",
-                inc_err_missing: "бас жағында ({0}-жол) табылмады: ", inc_err_no_items: "кестеден тауарларды оқу мүмкінপ্রবাসী болмады",
+                inc_err_missing: "бас жағында ({0}-жол) табылмады: ", inc_err_no_items: "кестеден тауарларды оқу мүмкін болмады",
                 inc_success: "{0} поз. анықталды", inc_err_doc_format: "НӨМІР ҚАТЕСІ",
                 inc_lbl_sup: "Жеткізуші:", inc_lbl_doc: "Құжат:", inc_lbl_items: "Позициялар:",
                 inc_empty_cart: "Себет бос!", inc_doc_empty: "Құжат нөмірі бос болмауы керек!",
@@ -645,7 +708,39 @@
                 pay_qr_full: "QR",
                 pay_red_full: "БӨЛІП ТӨЛЕУ",
                 pay_card_full: "ТЕРМИНАЛ",
-                pay_trans_full: "АУДАРЫМ"
+                pay_trans_full: "АУДАРЫМ",
+                income_cbm: "Көлемі (CBM)",
+                income_weight: "Салмағы (кг)",
+                inc_file_selected: "Таңдалған файлдар: ",
+                inc_file_placeholder: "Excel файлын таңдау үшін басыңыз",
+                inc_no_file: "Файлды таңдаңыз!",
+                inc_file_corrupted: "Файл зақымдалған немесе кесте емес",
+                inc_empty_cart: "Себет бос!",
+                inc_doc_empty: "Құжат нөмірі бос болмауы керек!",
+                inc_all_done: "✅ Барлық жүкқұжаттар сәтті өтті, түпнұсқалар папкаларға сақталды!",
+                err_server: "Сервер қатесі",
+                err_network: "Желі қатесі",
+                pin_block: "БҰҒАТТАУ. КҮТУ: ",
+                pin_wrong: "ҚАТЕ ПИН-КОД",
+                loading_items: "Тауарларды жүктеу...",
+                status_offline: " (ОФФЛАЙН)",
+                status_net_err: " (ЖЕЛІ ҚАТЕСІ - КЭШ)",
+                photo_err: "⚠️ ФОТО ҚОЛЖЕТІМСІЗ<br><br>Google сұрауды қабылдамады немесе файл жойылды",
+                inc_status_db: "Дерекқормен байланыс... ⏳",
+                inc_status_write: "Тауарларды кестеге жазу... 📝",
+                inc_status_drive: "Google Drive-та архив жасау... 📂",
+                inc_status_almost: "Өңдеуді аяқтау... Сәл қалды ⏳",
+                inc_status_done: "✅ Архив жасалды! Қойма жаңартылды.",
+                server_dup_fp: "Құрамы дәл осындай файл бұрын жүктелген! Базаны тексеріңіз.",
+                kaspi_check_btn: "🔍 KASPI РЕЗЕРВІН ТЕКСЕРУ",
+                kaspi_checking: "⏳ ТЕКСЕРІЛУДЕ...",
+                kaspi_err_net: "ИНТЕРНЕТ ЖОҚ",
+                kaspi_err_server: "СЕРВЕРМЕН БАЙЛАНЫС ҚАТЕСІ",
+                kaspi_no_token: "KASPI ТОКЕНІ БАПТАЛМАҒАН",
+                kaspi_safe: "РЕЗЕРВ ТАЗА. САТУҒА БОЛАДЫ",
+                kaspi_danger: "KASPI-ДЕ ТАПСЫРЫС БЕРІЛГЕН:",
+                kaspi_pcs: "дана. ҚАУІПТІ!",
+                kaspi_err_api: "KASPI СЕРВЕРІНІҢ ҚАТЕСІ"
             }
         };
 
@@ -714,11 +809,11 @@
                         
                         err.style.visibility = 'hidden';
                         field.style.color = 'var(--accent-yellow)'; 
-                        err.innerText = "НЕВЕРНЫЙ ПИН-КОД";
+                        err.innerText = translations[currentLang].pin_wrong;
                     } else {
                         const mins = Math.floor(remaining / 60);
                         const secs = remaining % 60;
-                        err.innerText = `БЛОКИРОВКА. ОЖИДАНИЕ: ${mins}:${secs < 10 ? '0' : ''}${secs}`;
+                        err.innerText = translations[currentLang].pin_block + `${mins}:${secs < 10 ? '0' : ''}${secs}`;
                     }
                 }, 1000);
                 return true;
@@ -804,7 +899,7 @@
             try {
                 const response = await fetch(APPS_SCRIPT_URL, {
                     method: 'POST',
-                    body: JSON.stringify({ action: 'verifyPin', pin: val })
+                    body: JSON.stringify({ api_key: CLIENT_API_KEY, action: 'verifyPin', pin: parseInt(val, 10) })
                 });
 
                 const textRes = await response.text(); 
@@ -876,7 +971,7 @@
             currentUser = user;
             localStorage.setItem('user_role', user.role);
             localStorage.setItem('user_uid', user.uid); // Запоминаем кто именно вошел
-            document.getElementById('login-screen').style.display = 'none';
+            document.getElementById('pin-screen').style.display = 'none';
             const badge = document.getElementById('cashier-info');
             badge.innerText = `👤 ${user.name.toUpperCase()} (${user.uid})`;
             badge.style.display = 'inline-block';
@@ -892,7 +987,7 @@
             localStorage.removeItem('user_role');
             localStorage.removeItem('user_uid'); // Стираем данные сессии
             document.getElementById('cashier-info').style.display = 'none';
-            document.getElementById('login-screen').style.display = 'flex';
+            document.getElementById('pin-screen').style.display = 'flex';
             clearPin();
             
             // Визуально обнуляем суммы при выходе, чтобы сменщик их не увидел
@@ -929,7 +1024,7 @@
             if (!navigator.onLine) return; 
             try {
                 // Передаем серверу данные авторизованного пользователя
-                const fetchUrl = `${APPS_SCRIPT_URL}?t=${Date.now()}&uid=${savedUid}&role=${savedRole}`;
+                const fetchUrl = `${APPS_SCRIPT_URL}?action=getInitialData&api_key=${CLIENT_API_KEY}&t=${Date.now()}&uid=${savedUid}&role=${savedRole}`;
                 const res = await fetch(fetchUrl, { redirect: 'follow' });
                 const data = await res.json();
                 if (data.items) db = data.items;
@@ -966,7 +1061,7 @@
 
         function render() {
             const catalog = document.getElementById('catalog');
-            if (!db || db.length === 0) return catalog.innerHTML = '<div style="color:var(--text-muted); padding:20px; text-align:center;">Загрузка товаров...</div>';
+            if (!db || db.length === 0) return catalog.innerHTML = '<div style="color:var(--text-muted); padding:20px; text-align:center;">' + translations[currentLang].loading_items + '</div>';
             catalog.innerHTML = db.map(i => {
                 const hasPhoto = i.img && i.img.toString().length > 10;
                 // Компактная иконка вместо слова ФОТО с правильным курсором
@@ -1029,7 +1124,16 @@
             if (inC) {
                 inC.qty++; 
             } else {
-                cart.push({id: p.id, name: p.name, qty: 1, price: roundedPrice, origPrice: roundedPrice, cost: roundedCost});
+                cart.push({
+                id: p.id, 
+                name: p.name, 
+                qty: 1, 
+                price: roundedPrice, 
+                origPrice: roundedPrice, 
+                cost: roundedCost,
+                stock: parseFloat(p.stock) || 0,
+                min_stock: parseFloat(p.min_stock) || 1
+            });
             }
             
             // --- 1. ВИБРООТКЛИК (для мобильных устройств) ---
@@ -1066,8 +1170,38 @@
         }
 
         function update() {
-            document.getElementById('cart-list').innerHTML = cart.map((item, idx) => `
-                <div class="cart-row" id="r-${item.id}">
+            document.getElementById('cart-list').innerHTML = cart.map((item, idx) => {
+                
+                // === НОВЫЙ БЛОК: ПРОВЕРКА КРИТИЧЕСКОГО ОСТАТКА ===
+                let remainingStock = item.stock - item.qty;
+                // Задаем стандартные стили строки
+                let rowBgColor = "var(--bg-panel)";
+                let rowBorder = "1px solid var(--border-main)";
+                let kaspiBtnHtml = "";
+
+                // Если остаток опускается до или ниже критического уровня (по умолчанию 1)
+                let minStockLevel = item.min_stock !== undefined ? item.min_stock : 1;
+                
+                // Если остаток упал до минимума — включаем тревогу
+                if (remainingStock <= minStockLevel) {
+                    // Агрессивный фон (светло-красный в светлой теме, бордовый в темной)
+                    rowBgColor = "var(--bg-danger-dim)"; 
+                    // Толстая красная рамка (2px вместо 1px)
+                    rowBorder = "2px solid var(--accent-red)"; 
+                    
+                    // Кнопка тоже становится красной и более массивной
+                    kaspiBtnHtml = `
+                        <div style="width: 100%; margin-top: 8px;">
+                            <button onclick="checkKaspiFromCart('${item.id}', this)" style="width: 100%; background: var(--bg-card); color: var(--accent-red); border: 2px dashed var(--accent-red); padding: 10px; border-radius: 4px; font-size: 12px; font-weight: 900; cursor: pointer; text-transform: uppercase; transition: 0.2s;">
+                                ${translations[currentLang].kaspi_check_btn}
+                            </button>
+                        </div>
+                    `;
+                }
+                // ===============================================
+
+                return `
+                <div class="cart-row" id="r-${item.id}" style="background: ${rowBgColor}; border: ${rowBorder}; padding: 6px 10px; display: flex; flex-direction: column; gap: 6px; border-radius: 4px; margin-bottom: 3px; color: var(--text-main);">
                     
                     <div style="display: flex; justify-content: space-between; align-items: center;">
                         
@@ -1086,18 +1220,74 @@
                         
                         <div class="qty-box">
                             <button class="q-btn" onclick="qty('${item.id}',-1)">-</button>
-                            <input type="text" inputmode="numeric" class="q-val" value="${item.qty.toLocaleString('ru-RU')}" onfocus="handleFocus(this, 'r-${item.id}')" oninput="cart[${idx}].qty=parseInt(this.value.replace(/\\s/g, ''))||0; total()" onchange="update()">
+                            <input type="text" inputmode="numeric" class="q-val" value="${item.qty.toLocaleString('ru-RU')}" 
+                                onfocus="handleFocus(this, 'r-${item.id}')" 
+                                oninput="cart[${idx}].qty=parseInt(this.value.replace(/\\s/g, ''))||0; total()" 
+                                onblur="if(cart[${idx}].qty <= 0) { rm('${item.id}'); } else { this.value = cart[${idx}].qty.toLocaleString('ru-RU'); }">
                             <button class="q-btn" onclick="qty('${item.id}',1)">+</button>
                         </div>
-                        
+                                                
                         <div style="position: relative; width: 110px; flex-shrink: 0;">
-                            <input type="text" inputmode="numeric" class="p-input" value="${item.price.toLocaleString('ru-RU')}" onfocus="handleFocus(this, 'r-${item.id}')" oninput="cart[${idx}].price=parseFloat(this.value.replace(/\\s/g, '').replace(',', '.'))||0; total()" onchange="update()">
+                            <input type="text" inputmode="numeric" class="p-input" value="${item.price.toLocaleString('ru-RU')}" 
+                                onfocus="handleFocus(this, 'r-${item.id}')" 
+                                oninput="cart[${idx}].price=parseFloat(this.value.replace(/\\s/g, '').replace(',', '.'))||0; total()" 
+                                onblur="this.value = cart[${idx}].price.toLocaleString('ru-RU')">
                             <span style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); color: var(--accent-yellow); font-size: 14px; pointer-events: none; font-family: 'Roboto', sans-serif; font-weight: bold;">₸</span>
                         </div>
                     </div>
+                    
+                    ${kaspiBtnHtml}
 
-                </div>`).join('');
+                </div>`
+            }).join('');
             total();
+        }
+
+        async function checkKaspiFromCart(itemId, btnElem) {
+            if (!navigator.onLine) return alert(translations[currentLang].kaspi_err_net);
+            
+            const originalText = btnElem.innerHTML;
+            btnElem.innerHTML = translations[currentLang].kaspi_checking;
+            btnElem.disabled = true;
+            btnElem.style.opacity = '0.7';
+
+            try {
+                const response = await fetch(APPS_SCRIPT_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({ api_key: CLIENT_API_KEY, action: 'check_kaspi', item_id: itemId })
+                });
+                
+                const res = await response.json();
+                
+                if (res.safe === false) {
+                    // Умный поиск цифры (количества штук) в ответе сервера
+                    let match = res.message ? res.message.match(/\((\d+)/) : null;
+                    let qty = match ? match[1] : '!';
+
+                    btnElem.style.background = 'var(--bg-danger-dim)';
+                    btnElem.style.color = 'var(--accent-red)';
+                    btnElem.style.border = '2px solid var(--accent-red)';
+                    btnElem.innerHTML = `⚠️ ${translations[currentLang].kaspi_danger} ${qty} ${translations[currentLang].kaspi_pcs}`;
+                    if (navigator.vibrate) navigator.vibrate([100, 50, 100]); 
+                } else if (res.safe === true) {
+                    btnElem.style.background = 'var(--bg-success-dim)';
+                    btnElem.style.color = 'var(--accent-green)';
+                    btnElem.style.border = '2px solid var(--accent-green)';
+                    btnElem.innerHTML = `✅ ${translations[currentLang].kaspi_safe}`;
+                } else if (res.warning) {
+                    btnElem.style.background = 'var(--bg-hover)';
+                    btnElem.style.color = 'var(--text-main)';
+                    btnElem.style.border = '1px solid var(--border-focus)';
+                    btnElem.innerHTML = `⚙️ ${translations[currentLang].kaspi_no_token}`;
+                } else {
+                    btnElem.innerHTML = `❌ ${translations[currentLang].kaspi_err_api}`;
+                }
+            } catch (e) {
+                alert(translations[currentLang].kaspi_err_server);
+                btnElem.innerHTML = originalText;
+                btnElem.disabled = false;
+                btnElem.style.opacity = '1';
+            }
         }
 
         function qty(id, d) { 
@@ -1157,7 +1347,8 @@
             const localTime = now.toLocaleDateString('ru-RU') + ' ' + now.toLocaleTimeString('ru-RU');
             
             const p = {
-                tx_id: tid, tx_type: mode, payment_method: pendingMethod, source: "pos_v5.4.3", created_at: localTime,
+                tx_id: tid, tx_type: mode, payment_method: pendingMethod, source: "pos_v5.5.0", 
+                created_at: localTime,
                 seller_id: currentUser ? currentUser.uid : "S-XX", 
                 cart: cart.map(c => ({item_id:c.id, item_name:c.name, qty:c.qty, price:c.price, cost_price:c.cost}))
             };
@@ -1181,6 +1372,24 @@
                     }
                 }
                 document.getElementById('receipt-modal').style.display = 'none';
+                
+                // ==========================================
+                // НАЧАЛО: Локальное обновление остатков (Optimistic UI)
+                // ==========================================
+                cart.forEach(c => {
+                    // Ищем товар в локальном массиве db
+                    let dbItem = db.find(i => String(i.id) === String(c.id));
+                    if (dbItem) {
+                        let sign = (mode === 'sale') ? -1 : 1; // Продажа: минус, Возврат: плюс
+                        dbItem.stock = (parseFloat(dbItem.stock) || 0) + (c.qty * sign);
+                    }
+                });
+                render(); // Мгновенно перерисовываем каталог с новыми цифрами
+                localStorage.setItem('db_cache', JSON.stringify(db));
+                // ==========================================
+                // КОНЕЦ: Локальное обновление остатков
+                // ==========================================
+
                 cart = []; update(); sm('sale'); 
                 const searchInput = document.getElementById('sb');
                 searchInput.value = ''; searchInput.blur(); filter(); 
@@ -1242,7 +1451,7 @@
             if (queue.length === 0) return; 
             isSyncing = true;
             try {
-                const res = await fetch(APPS_SCRIPT_URL, { method: 'POST', body: JSON.stringify(queue[0]) });
+                const res = await fetch(APPS_SCRIPT_URL, { method: 'POST', body: JSON.stringify({ api_key: CLIENT_API_KEY, action: 'syncQueue', transactions: [queue[0]] }) });
                 if ((await res.json()).success) { 
                     moveTxToCacheLocally(queue[0]); 
                     queue.shift(); 
@@ -1261,7 +1470,7 @@
             let hasError = false;
             while(queue.length > 0) {
                 try {
-                    const res = await fetch(APPS_SCRIPT_URL, { method: 'POST', body: JSON.stringify(queue[0]) });
+                    const res = await fetch(APPS_SCRIPT_URL, { method: 'POST', body: JSON.stringify({ api_key: CLIENT_API_KEY, action: 'syncQueue', transactions: [queue[0]] }) });
                     if ((await res.json()).success) { 
                         moveTxToCacheLocally(queue[0]); 
                         queue.shift(); 
@@ -1343,12 +1552,12 @@
                 const cachedReport = localStorage.getItem(cacheKey);
                 if (cachedReport) {
                     reportDataToRender = JSON.parse(cachedReport);
-                    if (!document.getElementById('rep-header-title').innerText.includes("OFFLINE")) {
-                        document.getElementById('rep-header-title').innerText += " (OFFLINE)";
+                    if (!document.getElementById('rep-header-title').innerText.includes(translations[currentLang].status_offline)) {
+                        document.getElementById('rep-header-title').innerText += translations[currentLang].status_offline;
                     }
                 } else {
-                    if (!document.getElementById('rep-header-title').innerText.includes("OFFLINE")) {
-                        document.getElementById('rep-header-title').innerText += " (OFFLINE)";
+                    if (!document.getElementById('rep-header-title').innerText.includes(translations[currentLang].status_offline)) {
+                        document.getElementById('rep-header-title').innerText += translations[currentLang].status_offline;
                     }
                 }
             } else {
@@ -1366,8 +1575,8 @@
                     const cachedReport = localStorage.getItem(cacheKey);
                     if (cachedReport) {
                         reportDataToRender = JSON.parse(cachedReport);
-                        if (!document.getElementById('rep-header-title').innerText.includes("ОШИБКА СЕТИ")) {
-                            document.getElementById('rep-header-title').innerText += " (ОШИБКА СЕТИ - КЭШ)";
+                        if (!document.getElementById('rep-header-title').innerText.includes(translations[currentLang].status_net_err)) {
+                            document.getElementById('rep-header-title').innerText += translations[currentLang].status_net_err;
                         }
                     }
                 }
@@ -1405,7 +1614,6 @@
             const names = { 'cash': translations[currentLang].pay_cash, 'qr_kaspi': 'Kaspi QR', 'installment': 'Kaspi Red', 'pos_terminal': translations[currentLang].pay_card, 'transfer': translations[currentLang].pay_trans };
             let t = { sale: 0, return: 0 };
             
-            // Теперь красивый отчет с поиском, группировкой и средней ценой работает ВСЕГДА (даже за 1 день)
             if (true) {
                 searchInput.parentElement.style.display = 'block'; 
                 searchInput.value = ''; searchInput.placeholder = translations[currentLang].search_placeholder;
@@ -1495,7 +1703,7 @@
 
         function displayAppVersion() {
             // Жесткий Fallback: если Service Worker спит, показываем актуальную версию
-            const fallbackVersion = "5.4.4";
+            const fallbackVersion = "5.5.0";
             document.getElementById('app-version').innerText = "v: " + fallbackVersion;
             
             if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
@@ -1525,9 +1733,33 @@
             checkBlockTimer(); 
             applyLanguage(currentLang); 
             updateQueueCounter();
-            document.getElementById('login-screen').style.display = 'flex';
+            document.getElementById('google-screen').style.display = 'flex';
+            document.getElementById('pin-screen').style.display = 'none';
             setTimeout(displayAppVersion, 500); 
             load();
+
+            // === НАЧАЛО: ФИКС ДЛЯ КЛАВИАТУРЫ iOS SAFARI (УМНЫЙ ФОКУС) ===
+            if (window.visualViewport) {
+                // Запоминаем изначальную высоту экрана телефона
+                const baseHeight = window.innerHeight; 
+                
+                window.visualViewport.addEventListener('resize', () => {
+                    const currentHeight = window.visualViewport.height;
+                    document.body.style.height = currentHeight + 'px';
+                    
+                    // Если видимая высота стала меньше 75% (значит, вылезла клавиатура)
+                    if (currentHeight < baseHeight * 0.75) {
+                        document.body.classList.add('keyboard-open'); // Прячем лишние кнопки
+                        document.getElementById('cs').style.maxHeight = '65%'; // Расширяем лимит корзины
+                    } else {
+                        // Клавиатура скрыта - возвращаем всё как было
+                        document.body.classList.remove('keyboard-open');
+                        document.getElementById('cs').style.maxHeight = '40dvh';
+                    }
+                    window.scrollTo(0, 0);
+                });
+            }
+            // === КОНЕЦ ФИКСА ===
         });
 
         let selectedItemId = null, tempBase64 = null; 
@@ -1546,7 +1778,7 @@
                     safeUrl = 'https://drive.google.com/thumbnail?id=' + match[0] + '&sz=w800';
                 }
                 
-                preview.innerHTML = `<img src="${safeUrl}" onclick="openFullscreen('${safeUrl}')" onerror="this.onerror=null; this.parentNode.innerHTML='<div style=\\'color:var(--accent-yellow); padding: 15px; border: 1px dashed var(--accent-yellow); border-radius: 8px; font-size: 11px; font-weight: bold;\\'>⚠️ ФОТО НЕДОСТУПНО<br><br>Google отклонил запрос или файл удален</div>';" style="max-width: 100%; max-height: 250px; border-radius: 8px; border: 1px solid var(--border-focus); margin-top: 10px; cursor: zoom-in;">`;
+                preview.innerHTML = `<img src="${safeUrl}" onclick="openFullscreen('${safeUrl}')" onerror="this.onerror=null; this.parentNode.innerHTML='<div style=\\'color:var(--accent-yellow); padding: 15px; border: 1px dashed var(--accent-yellow); border-radius: 8px; font-size: 11px; font-weight: bold;\\'>' + translations[currentLang].photo_err + '</div>';" style="max-width: 100%; max-height: 250px; border-radius: 8px; border: 1px solid var(--border-focus); margin-top: 10px; cursor: zoom-in;">`;
                 
                 document.getElementById('btn-take-photo').style.display = 'none'; 
                 document.getElementById('btn-retake-photo').style.display = 'block';
@@ -1589,10 +1821,10 @@
             const btnSaveDb = document.getElementById('btn-save-db');
             btnSaveDb.innerText = "⏳ " + translations[currentLang].btn_saving; btnSaveDb.disabled = true;
             try {
-                const res = await fetch(APPS_SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action: 'upload_photo', item_id: selectedItemId, base64: tempBase64 }) });
+                const res = await fetch(APPS_SCRIPT_URL, { method: 'POST', body: JSON.stringify({ api_key: CLIENT_API_KEY, action: 'upload_photo', item_id: selectedItemId, base64: tempBase64 }) });
                 if ((await res.json()).success) { btnSaveDb.innerText = "✅ " + translations[currentLang].btn_saved; setTimeout(() => { location.reload(); }, 800); }
-                else { alert("Ошибка сервера"); btnSaveDb.innerHTML = '💾 ' + translations[currentLang].btn_save_db; btnSaveDb.disabled = false; }
-            } catch (e) { alert("Ошибка сети"); btnSaveDb.innerHTML = '💾 ' + translations[currentLang].btn_save_db; btnSaveDb.disabled = false; }
+                else { alert(translations[currentLang].err_server); btnSaveDb.innerHTML = '💾 ' + translations[currentLang].btn_save_db; btnSaveDb.disabled = false; }
+            } catch (e) { alert(translations[currentLang].err_network); btnSaveDb.innerHTML = '💾 ' + translations[currentLang].btn_save_db; btnSaveDb.disabled = false; }
         }
 
         let fsScale = 1, fsX = 0, fsY = 0, fsStartX = 0, fsStartY = 0, fsInitDist = 0, fsInitScale = 1, isDragging = false;
@@ -1641,6 +1873,10 @@
             event.target.classList.add('selected');
             document.getElementById('dropdownList').classList.remove('show');
             document.getElementById('dropdownHeader').classList.remove('active');
+            
+            // НОВОЕ: Меняем валюту в шапке таблицы
+            let headerSpan = document.getElementById('dynamicCurrencySpan');
+            if (headerSpan) headerSpan.innerText = value;
         }
 
         document.addEventListener('click', function(event) {
@@ -1656,14 +1892,14 @@
             const fileNameText = document.getElementById('fileNameTextCompact');
             const containerBox = document.getElementById('fileInputLabel');
             if (input.files && input.files.length > 0) {
-                fileNameText.innerText = input.files.length > 1 ? "Выбрано файлов: " + input.files.length : input.files[0].name;
+                fileNameText.innerText = input.files.length > 1 ? translations[currentLang].inc_file_selected + input.files.length : input.files[0].name;
                 fileNameText.classList.remove('file-placeholder-text');
                 fileNameText.style.color = 'var(--text-main)';          
                 containerBox.style.borderColor = 'var(--accent-green)'; 
                 containerBox.style.background = 'var(--bg-success-dim)';  
                 containerBox.style.color = 'var(--text-main)';  
             } else {
-                fileNameText.innerText = "Нажмите для выбора Excel";
+                fileNameText.innerText = translations[currentLang].inc_file_placeholder;
                 fileNameText.classList.add('file-placeholder-text');
                 fileNameText.style.color = 'var(--text-placeholder)';
                 containerBox.style.borderColor = 'var(--border-focus)';
@@ -1692,7 +1928,7 @@
 
         async function processInvoiceFile() {
             const fileInput = document.getElementById('invoiceFileInput');
-            if (!fileInput.files.length) return alert("Пожалуйста, выберите файл!");
+            if (!fileInput.files.length) return alert(translations[currentLang].inc_no_file);
 
             parsedInvoiceData = []; 
             invoiceGroups = {}; 
@@ -1772,10 +2008,21 @@
                                 let row = rows[i] || [];
                                 for (let j = 0; j < row.length; j++) {
                                     if (isSynonym(row[j], 'invoice_no')) {
-                                        file_doc_no = String(row[j+1] || 'UNKNOWN').trim();
+                                        let val = String(row[j+1] || '').trim();
+                                        if (val && val !== 'UNKNOWN') file_doc_no = val;
                                     }
                                 }
                             }
+                        }
+
+                        // НОВОЕ: Если оригинальный номер не найден — ставим заглушку (Дата+Время)
+                        if (file_doc_no === 'UNKNOWN' || file_doc_no === '') {
+                            let now = new Date();
+                            let day = String(now.getDate()).padStart(2, '0');
+                            let month = String(now.getMonth() + 1).padStart(2, '0');
+                            let hours = String(now.getHours()).padStart(2, '0');
+                            let minutes = String(now.getMinutes()).padStart(2, '0');
+                            file_doc_no = `IN-${day}.${month}-${hours}${minutes}`;
                         }
 
                         let firstDataRowIdx = -1;
@@ -1799,18 +2046,65 @@
 
                         if (firstDataRowIdx > 0) {
                             let headerRowIdx = firstDataRowIdx - 1;
-                            let colMap = { code: -1, brand: -1, desc: -1, qty: -1, price: -1 };
+                            let colMap = { code: -1, brand: -1, desc: -1, qty: -1, price: -1, cbm: -1, weight: -1 };
                             
-                            let headerRow = rows[headerRowIdx] || [];
+                            let headerRow = rows[headerRowIdx] || []; // <-- ЭТУ СТРОКУ ОСТАВЛЯЕМ!
+                            
+                            // 1. Читаем системные исключения
+                            let baseKeys = [];
+                            if (invoiceSynonyms && invoiceSynonyms['system_ignore_in_id']) {
+                                baseKeys = invoiceSynonyms['system_ignore_in_id'].map(s => s.toLowerCase().trim());
+                            }
+                            // ЖЕСТКИЙ ПРЕДОХРАНИТЕЛЬ (на случай опечаток в Google Таблице)
+                            ['id', 'qty', 'price', 'cost', 'cbm', 'weight', 'barcode', 'exclude', 'supplier_keywords', 'invoice_no', 'contract_no'].forEach(k => {
+                                if (!baseKeys.includes(k)) baseKeys.push(k);
+                            });
+
+                            // 2. ЗАМЕНЯЕМ varMap НА МАССИВ (чтобы размер не затирался моделью)
+                            let activeCols = [];
                             
                             for (let j = 0; j < headerRow.length; j++) {
-                                let val = String(headerRow[j] || '').trim();
+                                let val = String(headerRow[j] || '').replace(/[\r\n]+/g, ' ').trim();
+                                
+                                if (val.toLowerCase().includes('total') || val.toLowerCase().includes('итого') || val.toLowerCase().includes('общий')) {
+                                    continue; 
+                                }
                                 
                                 if (colMap.code === -1 && isSynonym(val, 'id')) colMap.code = j;
                                 if (colMap.qty === -1 && isSynonym(val, 'qty')) colMap.qty = j;
                                 if (colMap.price === -1 && isSynonym(val, 'price')) colMap.price = j;
                                 if (colMap.brand === -1 && isSynonym(val, 'brand')) colMap.brand = j;
                                 if (colMap.desc === -1 && isSynonym(val, 'name')) colMap.desc = j;
+                                if (colMap.cbm === -1 && isSynonym(val, 'cbm')) colMap.cbm = j;
+                                if (colMap.weight === -1 && isSynonym(val, 'weight')) colMap.weight = j;
+
+                                // --- ГЛАВНАЯ ЗАЩИТА ОТ СОВПАДЕНИЙ (unitPRice != PR) ---
+                                // Проверяем, не является ли эта колонка системной (цена, количество, инвойс и т.д.)
+                                let isSystemColumn = false;
+                                for (let bk of baseKeys) {
+                                    if (isSynonym(val, bk)) {
+                                        isSystemColumn = true;
+                                        break;
+                                    }
+                                }
+
+                                // Если это Цена или Кол-во, мы намертво блокируем её. Она не попадет в генератор ID!
+                                if (isSystemColumn) continue;
+
+                                if (invoiceSynonyms) {
+                                    for (let key in invoiceSynonyms) {
+                                        let cleanKey = key.trim().toLowerCase();
+                                        
+                                        if (cleanKey === 'system_ignore_in_id') continue;
+                                        
+                                        if (!baseKeys.includes(cleanKey)) {
+                                            if (isSynonym(val, key)) {
+                                                activeCols.push({ key: cleanKey, colIdx: j });
+                                                break; // Нашли совпадение — выходим, чтобы колонка не привязалась к двум ключам сразу
+                                            }
+                                        }
+                                    }
+                                }
                             }
 
                             if (colMap.code !== -1 && colMap.qty !== -1 && colMap.price !== -1) {
@@ -1820,28 +2114,126 @@
                                     invoiceGroups[file_doc_no] = { supplier: file_supplier, items: [], originalFiles: [] };
                                 }
 
+                                // --- ИСПРАВЛЕНИЕ 2: ПАМЯТЬ ДЛЯ ОБЪЕДИНЕННЫХ ЯЧЕЕК ---
+                                let lastCode = "UNKNOWN";
+                                let lastBrand = "";
+                                let lastDesc = "";
+                                let varMemory = {}; // НОВОЕ: Память для параметров (размер, вылет и тд)
+
                                 for (let i = firstDataRowIdx; i < rows.length; i++) {
                                     const row = rows[i];
                                     if (!row || row.length === 0) continue;
                                     
                                     let codeCell = String(row[colMap.code] || '').trim();
-                                    if (!codeCell || codeCell.toUpperCase().includes('TOTAL')) break;
-
                                     let qty = parseFloat(row[colMap.qty]);
                                     let price = parseFloat(row[colMap.price]);
                                     let brandStr = colMap.brand !== -1 ? String(row[colMap.brand] || '').trim() : '';
                                     let descStr = colMap.desc !== -1 ? String(row[colMap.desc] || '').trim() : '';
+
+                                    // Логика "Протягивания" вниз
+                                    if (codeCell === "" && (!isNaN(qty) || !isNaN(price))) {
+                                        // Если код пустой, но есть цифры -> берем данные из памяти
+                                        codeCell = lastCode;
+                                        if (brandStr === "") brandStr = lastBrand;
+                                        if (descStr === "") descStr = lastDesc;
+                                    } else if (codeCell !== "") {
+                                        // Если код написан, проверяем не конец ли это таблицы
+                                        if (codeCell.toUpperCase().includes('TOTAL')) break; 
+                                        // Запоминаем для следующих пустых строк
+                                        lastCode = codeCell;
+                                        lastBrand = brandStr;
+                                        lastDesc = descStr;
+                                    } else {
+                                        // Если и код пустой, и цифр нет - значит таблица кончилась
+                                        break; 
+                                    }
                                     
                                     if (!isNaN(qty) && !isNaN(price)) {
+                                        
+                                        // --- НАЧАЛО НОВОГО БЛОКА ОЧИСТКИ И МАТЕМАТИКИ ---
+                                        let rawCbm = colMap.cbm !== -1 ? (parseFloat((row[colMap.cbm] || '0').toString().replace(',', '.')) || 0) : 0;
+                                        let finalCbm = rawCbm;
+
+                                        if (colMap.cbm !== -1 && qty > 0) {
+                                            let leftVal = parseFloat((row[colMap.cbm - 1] || '0').toString().replace(',', '.')) || 0;
+                                            let rightVal = parseFloat((row[colMap.cbm + 1] || '0').toString().replace(',', '.')) || 0;
+                                            
+                                            if (leftVal > 0 && rawCbm > 0 && Math.abs((leftVal * qty) - rawCbm) < 0.2) {
+                                                finalCbm = leftVal; 
+                                            } else if (rightVal > 0 && rawCbm > 0 && Math.abs((rightVal * qty) - rawCbm) < 0.2) {
+                                                finalCbm = rightVal; 
+                                            } else if (rawCbm === 0) {
+                                                if (leftVal > 0 && leftVal < 1) finalCbm = leftVal;
+                                                else if (rightVal > 0 && rightVal < 1) finalCbm = rightVal;
+                                            }
+                                        }
+                                        
+                                        let finalWeight = colMap.weight !== -1 ? (parseFloat((row[colMap.weight] || '0').toString().replace(',', '.')) || 0) : 0;
+
+                                        // --- РАЗДЕЛЬНАЯ ГЕНЕРАЦИЯ ID И ИМЕНИ ---
+                                        let allowedForName = ['brand', 'name', 'size']; // Что разрешено показывать на кассе
+                                        let excludeFromId = ['brand']; // ОПТИМИЗАЦИЯ: Что НЕ нужно дублировать в ID
+                                        
+                                        let nameParts = [];
+                                        let idParts = [];
+
+                                        // Идем по нашему массиву найденных колонок
+                                        for (let col of activeCols) {
+                                            let colIdx = col.colIdx;
+                                            let key = col.key;
+                                            
+                                            let cellVal = String(row[colIdx] || '').trim();
+                                            let activeVal = "";
+                                            
+                                            // Память столбцов (привязка к номеру колонки)
+                                            if (cellVal !== '') {
+                                                varMemory[colIdx] = cellVal;
+                                                activeVal = cellVal;
+                                            } else if (varMemory[colIdx]) {
+                                                activeVal = varMemory[colIdx];
+                                            }
+                                            
+                                            if (activeVal !== '') {
+                                                // 1. Для короткого Имени на кассе
+                                                if (allowedForName.includes(key)) {
+                                                    nameParts.push(activeVal.toUpperCase());
+                                                }
+                                                
+                                                // 2. Для длинного ID (Если ключ НЕ в списке исключений, добавляем его!)
+                                                if (!excludeFromId.includes(key)) {
+                                                    let idVal = activeVal.toUpperCase().replace(/\*/g, 'X').replace(/\s+/g, '');
+                                                    // Ключ сортировки
+                                                    idParts.push({ sortKey: key.toUpperCase() + colIdx, val: idVal });
+                                                }
+                                            }
+                                        }
+
+                                        // 1. Собираем короткое ИМЯ
+                                        let finalName = nameParts.join(' ').trim();
+                                        if (finalName === "") finalName = codeCell;
+
+                                        // 2. Собираем длинный ID (Сортируем ключи - защита от перестановки колонок)
+                                        idParts.sort((a, b) => a.sortKey.localeCompare(b.sortKey));
+                                        let compositeId = codeCell;
+                                        for (let p of idParts) {
+                                            compositeId += "_" + p.val;
+                                        }
+                                        // ---------------------------------------------
+
                                         const itemData = {
                                             doc_no: file_doc_no, 
+                                            category: file_doc_no, // НОВОЕ: Единая категория, равная номеру партии
                                             supplier: file_supplier, 
-                                            item_id: codeCell,
-                                            item_name: `${brandStr} ${descStr}`.trim(), 
+                                            item_id: compositeId, 
+                                            item_name: finalName, 
                                             qty: qty, 
                                             cost: price,
+                                            cbm: finalCbm,
+                                            weight: finalWeight,
                                             staff_id: currentUser ? currentUser.uid : 'Auto-Import' 
                                         };
+                                        // --- КОНЕЦ НОВОГО БЛОКА ---
+
                                         parsedInvoiceData.push(itemData);
                                         invoiceGroups[file_doc_no].items.push(itemData);
                                         itemsInFile++;
@@ -1871,7 +2263,7 @@
 
                 } catch (err) {
                     console.error("Ошибка чтения файла: " + file.name, err);
-                    fileErrors.push("Файл поврежден или не является таблицей");
+                    fileErrors.push(translations[currentLang].inc_file_corrupted);
                 }
 
                 if (file_doc_no === 'UNKNOWN') fileErrors.push(translations[currentLang].inc_err_no_doc);
@@ -1936,7 +2328,9 @@
                         ${uniqueDocs.length > 1 ? `<br><span style="font-size:9px; color:var(--text-muted);">[Инвойс: ${item.doc_no}]</span>` : ''}
                     </td>
                     <td style="padding:5px;">${item.qty}</td>
-                    <td style="padding:5px;">$${item.cost}</td>
+                    <td style="padding:5px;">${item.cbm}</td>
+                    <td style="padding:5px;">${item.weight}</td>
+                    <td style="padding:5px;">${item.cost}</td>
                 </tr>`).join('');
             
             document.getElementById('invoicePreviewArea').style.display = 'flex';
@@ -1944,14 +2338,14 @@
         }
 
         async function sendInvoiceToBackend() {
-            if (parsedInvoiceData.length === 0) return alert("Корзина пуста!");
+            if (parsedInvoiceData.length === 0) return alert(translations[currentLang].inc_empty_cart);
 
             const docKeys = Object.keys(invoiceGroups);
             const docInput = document.getElementById('ui-doc-no');
             
             if (docKeys.length === 1 && docInput) {
                 const finalDocNo = docInput.value.trim();
-                if (!finalDocNo) return alert("Номер документа не может быть пустым!");
+                if (!finalDocNo) return alert(translations[currentLang].inc_doc_empty);
                 if (finalDocNo !== docKeys[0]) {
                     invoiceGroups[finalDocNo] = invoiceGroups[docKeys[0]];
                     delete invoiceGroups[docKeys[0]];
@@ -1967,7 +2361,10 @@
 
             btn.disabled = true; btn.style.opacity = '0.5';
             statusContainer.style.display = 'block';
-            statusBar.style.width = '10%'; statusPercent.innerText = '10%';
+            
+            // Стартуем с 5%
+            let currentDisplayPct = 5;
+            statusBar.style.width = '5%'; statusPercent.innerText = '5%';
 
             const totalSteps = Object.keys(invoiceGroups).length;
             let currentStep = 0;
@@ -1975,28 +2372,55 @@
             for (let docNo of Object.keys(invoiceGroups)) {
                 currentStep++;
                 let group = invoiceGroups[docNo];
+                
+                // Высчитываем целевой процент для этого шага (но оставим 5% на финализацию)
+                let targetPct = Math.round((currentStep / totalSteps) * 95);
 
-                statusText.innerText = `Отправка ${docNo}... (${currentStep}/${totalSteps})`;
-                let pct = Math.round((currentStep / totalSteps) * 100);
-                statusBar.style.width = pct + '%'; statusPercent.innerText = pct + '%';
+                statusText.innerText = translations[currentLang].inc_status_db;
+                
+                // ЗАПУСКАЕМ АНИМАЦИЮ ОЖИДАНИЯ СЕРВЕРА
+                let fakeProgress = setInterval(() => {
+                    let remaining = targetPct - currentDisplayPct;
+                    if (remaining > 0) {
+                        // Полоска замедляется по мере приближения к концу
+                        let step = Math.max(1, Math.floor(remaining / 10)); 
+                        currentDisplayPct += step;
+                        statusBar.style.width = currentDisplayPct + '%';
+                        statusPercent.innerText = currentDisplayPct + '%';
+
+                        // Меняем текст, чтобы развлекать и информировать пользователя
+                        if (currentDisplayPct > 20 && currentDisplayPct < 50) statusText.innerText = translations[currentLang].inc_status_write;
+                        if (currentDisplayPct >= 50 && currentDisplayPct < 85) statusText.innerText = translations[currentLang].inc_status_drive;
+                        if (currentDisplayPct >= 85) statusText.innerText = translations[currentLang].inc_status_almost;
+                    }
+                }, 600);
 
                 try {
+                    // НОВОЕ: Генерируем уникальный слепок содержимого инвойса
+                    let fp = "FP_" + group.items.length + "шт_" + group.items.reduce((sum, i) => sum + (Number(i.qty) || 0), 0) + "кол_" + (group.items[0].item_name || "").replace(/\s/g, '').substring(0, 10);
+
                     const response = await fetch(APPS_SCRIPT_URL, {
                         method: 'POST',
                         body: JSON.stringify({ 
+                            api_key: CLIENT_API_KEY,
                             action: 'income', 
                             data: group.items,
                             files: group.originalFiles, 
                             docNo: docNo, 
-                            currency: document.getElementById('invoiceCurrency').value
+                            currency: document.getElementById('invoiceCurrency').value,
+                            fingerprint: fp 
                         })
                     });
                     
                     const res = await response.json();
+                    
+                    clearInterval(fakeProgress); // Останавливаем анимацию
+                    
                     if (!res.success) {
                         throw new Error(res.error);
                     }
                 } catch (err) {
+                    clearInterval(fakeProgress); // Останавливаем анимацию при ошибке
                     statusText.innerText = translations[currentLang].inc_server_err; 
                     statusText.style.color = "var(--accent-red)";
                     
@@ -2007,6 +2431,9 @@
                         errorMsg = translations[currentLang].server_dup.replace('{0}', dupMatch[1].trim());
                     } else if (errorMsg.includes("База не привязана")) {
                         errorMsg = translations[currentLang].server_no_db;
+                    } else if (errorMsg.includes("с точно таким же составом")) {
+                        // НОВОЕ: Перехватываем ошибку цифрового слепка
+                        errorMsg = translations[currentLang].server_dup_fp;
                     }
 
                     alert(translations[currentLang].inc_send_err + errorMsg);
@@ -2015,10 +2442,13 @@
                 }
             }
 
+            // Жестко ставим 100% только когда сервер ответил УСПЕХОМ
             statusBar.style.width = '100%'; statusPercent.innerText = '100%';
-            statusText.innerText = "Архив создан! Склад обновлен.";
+            statusText.innerText = translations[currentLang].inc_status_done;
+            statusText.style.color = "var(--accent-green)";
+            
             setTimeout(() => { 
-                alert("✅ Все накладные успешно проведены, оригиналы сохранены в папки!"); 
+                alert(translations[currentLang].inc_all_done); 
                 toggleIncomeModule(); 
                 if (typeof load === 'function') load(); 
             }, 800);
@@ -2072,7 +2502,11 @@
                                 <th style="padding: 8px;" data-i18n="income_code">Код</th>
                                 <th style="padding: 8px;" data-i18n="income_name">Наименование</th>
                                 <th style="padding: 8px;" data-i18n="income_qty">Кол-во</th>
-                                <th style="padding: 8px;" data-i18n="income_price">Цена ($)</th>
+                                <th style="padding: 8px;" data-i18n="income_cbm">Объем (CBM)</th>
+                                <th style="padding: 8px;" data-i18n="income_weight">Вес (кг)</th>
+                                <th style="padding: 8px;">
+    <span data-i18n="income_price">Цена</span> (<span id="dynamicCurrencySpan" style="color: var(--accent-yellow);">USD</span>)
+</th>
                             </tr>
                         </thead>
                         <tbody id="invoiceTableBody"></tbody>
@@ -2095,5 +2529,36 @@
             </div>
         </div>
     </div>
+
+<script>
+        let tokenClient;
+
+        // Эта функция срабатывает, когда страница загрузилась
+        window.onload = function() {
+            tokenClient = google.accounts.oauth2.initTokenClient({
+                // ВАЖНО: Замените эту строку на ваш Client ID из Google Cloud!
+                client_id: '111350733592-lv842k2vclj6bpp7ipaav3iragm2i4au.apps.googleusercontent.com', 
+                
+                // Запрашиваем доступ к таблицам
+                scope: 'https://www.googleapis.com/auth/spreadsheets',
+                
+                // Что делать после успешного входа:
+                callback: (tokenResponse) => {
+                    if (tokenResponse && tokenResponse.access_token) {
+                        // 1. Прячем экран Google
+                        document.getElementById('google-screen').style.display = 'none';
+                        // 2. Показываем Пин-пад
+                        document.getElementById('pin-screen').style.display = 'flex';
+                    }
+                },
+            });
+        };
+
+        // Эта функция срабатывает при клике на синюю кнопку
+        function loginWithGoogle() {
+            tokenClient.requestAccessToken();
+        }
+    </script>
+
 </body>
 </html>
