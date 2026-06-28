@@ -776,6 +776,15 @@
         let invoiceSynonyms = {};
         let currentCategory = 'all';
 
+        // Криптографическое хеширование ПИН-кода на стороне кассы
+        async function getSecurePin(rawPin) {
+            const encoder = new TextEncoder();
+            const data = encoder.encode(String(rawPin).trim());
+            const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        }
+
         function renderCategories() {
             const categories = new Set();
             document.querySelectorAll('.c-item').forEach(el => {
@@ -909,9 +918,13 @@
             err.style.visibility = 'visible';
 
             try {
+                // 1. Превращаем введенные цифры в крипто-хеш
+                const securedPin = await getSecurePin(val);
+
+                // 2. Отправляем зашифрованный ПИН на сервер
                 const response = await fetch(APPS_SCRIPT_URL, {
                     method: 'POST',
-                    body: JSON.stringify({ api_key: CLIENT_API_KEY, action: 'verifyPin', pin: parseInt(val, 10) })
+                    body: JSON.stringify({ api_key: CLIENT_API_KEY, action: 'verifyPin', pin: securedPin })
                 });
 
                 const textRes = await response.text(); 
