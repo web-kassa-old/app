@@ -1727,9 +1727,7 @@
         function closeReport() { document.getElementById('report-modal').style.display = 'none'; }
 
         function displayAppVersion() {
-            // Жесткий Fallback: если Service Worker спит, показываем актуальную версию
-            const fallbackVersion = "5.5.0";
-            document.getElementById('app-version').innerText = "v: " + fallbackVersion;
+            document.getElementById('app-version').innerText = "v: загрузка...";
             
             if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
                 const messageChannel = new MessageChannel();
@@ -1739,6 +1737,8 @@
                     }
                 };
                 navigator.serviceWorker.controller.postMessage({ type: 'GET_VERSION' }, [messageChannel.port2]);
+            } else {
+                document.getElementById('app-version').innerText = "v: sw off";
             }
         }
 
