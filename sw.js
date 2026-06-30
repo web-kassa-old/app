@@ -5,7 +5,7 @@ const ASSETS = [
   './index.html',
   './config.js',
   './manifest.json',
-  './icon.png' // <--- Вот она, разгадка! Мы указали правильное имя.
+  './icon-512.png' // <--- Вот она, разгадка! Мы указали правильное имя.
 ];
 
 self.addEventListener('install', e => {
