@@ -5,5 +5,3 @@ const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyOp6fzexVQwUHV
 
 // 2. Уникальный ключ клиента (Tenant ID / API Key)
 const CLIENT_API_KEY = "TEST_STORE_001";
-// Добавьте ссылку на ваш Тонкий клиент (шлюз)
-const GATEWAY_URL = "https://script.google.com/macros/s/AKfycbwqoibThI304igVBBhs3dN_ethD3Hq0WPVPKcfLuOJEKirZs8EDu0ItGP1bxmCMUiQbKA/exec";
