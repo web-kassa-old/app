@@ -2645,34 +2645,54 @@
     </div>
 
 <script>
-        let tokenClient;
+    let tokenClient;
 
-        // Функция ждет, пока Google полностью скачается
-        function initGoogleAuth() {
-            tokenClient = google.accounts.oauth2.initTokenClient({
-                // ВАЖНО: Замените эту строку на ваш Client ID из Google Cloud!
-                client_id: '1071015264018-s100se0ek42af15rm9vhq260b3lr7qer.apps.googleusercontent.com', 
-                
-                // Запрашиваем доступ к таблицам
-                scope: 'https://www.googleapis.com/auth/spreadsheets',
-                
-                // Что делать после успешного входа:
-                callback: (tokenResponse) => {
-                    if (tokenResponse && tokenResponse.access_token) {
-                        // 1. Прячем экран Google
-                        document.getElementById('google-screen').style.display = 'none';
-                        // 2. Показываем Пин-пад
-                        document.getElementById('pin-screen').style.display = 'flex';
-                    }
-                },
-            });
-        };
+    // 1. Детектор встроенных браузеров (Telegram, Instagram и т.д.)
+    function isBadInAppBrowser() {
+        const ua = navigator.userAgent || navigator.vendor || window.opera;
+        return (ua.indexOf('Telegram') > -1 || ua.indexOf('Instagram') > -1 || ua.indexOf('FBAN') > -1 || ua.indexOf('FBAV') > -1);
+    }
 
-        // Эта функция срабатывает при клике на синюю кнопку
-        function loginWithGoogle() {
+    // Функция ждет, пока Google полностью скачается
+    function initGoogleAuth() {
+        // Если открыли через Telegram — блокируем интерфейс и просим открыть в Safari/Chrome
+        if (isBadInAppBrowser()) {
+            document.getElementById('google-screen').innerHTML = `
+                <div style="text-align: center; padding: 30px; background: var(--bg-panel); border-radius: 8px; border: 2px dashed var(--accent-red); max-width: 360px; width: 90%;">
+                    <div style="font-size: 40px; margin-bottom: 15px;">🚫</div>
+                    <h2 style="color: var(--accent-red); margin-bottom: 15px; font-size: 18px;">Встроенный браузер</h2>
+                    <p style="color: var(--text-main); font-size: 14px; margin-bottom: 20px;">
+                        Встроенный браузер Telegram блокирует авторизацию Google.
+                    </p>
+                    <p style="color: var(--accent-yellow); font-size: 14px; font-weight: bold; line-height: 1.5;">
+                        Нажмите на меню (три точки вверху или иконку компаса внизу)<br>и выберите:<br>
+                        <span style="color: #fff; background: var(--bg-hover); padding: 5px 10px; border-radius: 4px; display: inline-block; margin-top: 10px;">«Открыть в браузере»</span>
+                    </p>
+                </div>
+            `;
+            return; // Прерываем загрузку логина
+        }
+
+        // Если это нормальный браузер — запускаем стандартную инициализацию
+        tokenClient = google.accounts.oauth2.initTokenClient({
+            client_id: '1071015264018-s100se0ek42af15rm9vhq260b3lr7qer.apps.googleusercontent.com', 
+            scope: 'https://www.googleapis.com/auth/spreadsheets',
+            callback: (tokenResponse) => {
+                if (tokenResponse && tokenResponse.access_token) {
+                    document.getElementById('google-screen').style.display = 'none';
+                    document.getElementById('pin-screen').style.display = 'flex';
+                }
+            },
+        });
+    }
+
+    // Эта функция срабатывает при клике на синюю кнопку
+    function loginWithGoogle() {
+        if (tokenClient) {
             tokenClient.requestAccessToken();
         }
-    </script>
+    }
+</script>
 
 </body>
 </html>
