@@ -2424,18 +2424,19 @@
                     // НОВОЕ: Генерируем уникальный слепок содержимого инвойса
                     let fp = "FP_" + group.items.length + "шт_" + group.items.reduce((sum, i) => sum + (Number(i.qty) || 0), 0) + "кол_" + (group.items[0].item_name || "").replace(/\s/g, '').substring(0, 10);
 
-                    const response = await fetch(APPS_SCRIPT_URL, {
-                        method: 'POST',
-                        body: JSON.stringify({ 
-                            api_key: CLIENT_API_KEY,
-                            action: 'income', 
-                            data: group.items,
-                            files: group.originalFiles, 
-                            docNo: docNo, 
-                            currency: document.getElementById('invoiceCurrency').value,
-                            fingerprint: fp 
-                        })
-                    });
+                    const response = await fetch(GATEWAY_URL, { // 1. Меняем адрес отправки на шлюз
+    method: 'POST',
+    body: JSON.stringify({ 
+        master_url: APPS_SCRIPT_URL, // 2. Передаем шлюзу адрес Мастер-сервера, куда переслать цифры
+        api_key: CLIENT_API_KEY,
+        action: 'income', 
+        data: group.items,
+        files: group.originalFiles, 
+        docNo: docNo, 
+        currency: document.getElementById('invoiceCurrency').value,
+        fingerprint: fp 
+    })
+});
                     
                     const res = await response.json();
                     
