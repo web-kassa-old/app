@@ -1767,20 +1767,10 @@
         function closeReport() { document.getElementById('report-modal').style.display = 'none'; }
 
         function displayAppVersion() {
-            document.getElementById('app-version').innerText = "v: загрузка...";
-            
-            if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-                const messageChannel = new MessageChannel();
-                messageChannel.port1.onmessage = function(event) {
-                    if (event.data && event.data.version) {
-                        document.getElementById('app-version').innerText = "v: " + event.data.version;
-                    }
-                };
-                navigator.serviceWorker.controller.postMessage({ type: 'GET_VERSION' }, [messageChannel.port2]);
-            } else {
-                document.getElementById('app-version').innerText = "v: sw off";
-            }
-        }
+    // Касса сама возьмет версию из config.js
+    const v = typeof APP_VERSION !== 'undefined' ? APP_VERSION : "5.5.0";
+    document.getElementById('app-version').innerText = "v: " + v;
+}
 
         // === ПРИНУДИТЕЛЬНОЕ УДАЛЕНИЕ SERVICE WORKER ===
         if ('serviceWorker' in navigator) {
@@ -1846,7 +1836,7 @@
                 let safeUrl = item.img; 
                 const match = item.img.match(/[-\w]{25,}/); 
                 if (match) {
-                    safeUrl = 'https://drive.google.com/thumbnail?id=' + match[0] + '&sz=w800';
+                    safeUrl = 'https://drive.google.com/uc?export=view&id=' + match[0];
                 }
                 
                 preview.innerHTML = `<img src="${safeUrl}" onclick="openFullscreen('${safeUrl}')" onerror="this.onerror=null; this.parentNode.innerHTML='<div style=\\'color:var(--accent-yellow); padding: 15px; border: 1px dashed var(--accent-yellow); border-radius: 8px; font-size: 11px; font-weight: bold;\\'>' + translations[currentLang].photo_err + '</div>';" style="max-width: 100%; max-height: 250px; border-radius: 8px; border: 1px solid var(--border-focus); margin-top: 10px; cursor: zoom-in;">`;
