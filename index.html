@@ -1842,15 +1842,50 @@
         }
 
         async function confirmUpload() {
-            if (!navigator.onLine) return alert(translations[currentLang].msg_sync_error);
-            const btnSaveDb = document.getElementById('btn-save-db');
-            btnSaveDb.innerText = "⏳ " + translations[currentLang].btn_saving; btnSaveDb.disabled = true;
-            try {
-                const res = await fetch(APPS_SCRIPT_URL, { method: 'POST', body: JSON.stringify({ api_key: CLIENT_API_KEY, action: 'upload_photo', item_id: selectedItemId, base64: tempBase64 }) });
-                if ((await res.json()).success) { btnSaveDb.innerText = "✅ " + translations[currentLang].btn_saved; setTimeout(() => { location.reload(); }, 800); }
-                else { alert(translations[currentLang].err_server); btnSaveDb.innerHTML = '💾 ' + translations[currentLang].btn_save_db; btnSaveDb.disabled = false; }
-            } catch (e) { alert(translations[currentLang].err_network); btnSaveDb.innerHTML = '💾 ' + translations[currentLang].btn_save_db; btnSaveDb.disabled = false; }
+    if (!navigator.onLine) return alert(translations[currentLang].msg_sync_error);
+    
+    const btnSaveDb = document.getElementById('btn-save-db');
+    btnSaveDb.innerText = "⏳ " + translations[currentLang].btn_saving; 
+    btnSaveDb.disabled = true;
+    
+    try {
+        const res = await fetch(APPS_SCRIPT_URL, { 
+            method: 'POST', 
+            body: JSON.stringify({ api_key: CLIENT_API_KEY, action: 'upload_photo', item_id: selectedItemId, base64: tempBase64 }) 
+        });
+        
+        // 1. Читаем ответ сервера КАК ТЕКСТ, чтобы перехватить любые сбои
+        const rawText = await res.text(); 
+        console.log("🔥 СЫРОЙ ОТВЕТ СЕРВЕРА:", rawText); 
+
+        let responseData;
+        try {
+            // 2. Пытаемся превратить текст в JSON
+            responseData = JSON.parse(rawText); 
+        } catch (parseError) {
+            // Если сервер вернул HTML-страницу ошибки Google (не JSON)
+            console.error("Ошибка парсинга:", parseError);
+            alert("Сервер вернул не JSON! Откройте консоль (F12), чтобы увидеть ответ.");
+            btnSaveDb.innerHTML = '💾 ' + translations[currentLang].btn_save_db; 
+            btnSaveDb.disabled = false; 
+            return; 
         }
+        
+        // 3. Стандартная обработка логики
+        if (responseData.success) { 
+            btnSaveDb.innerText = "✅ " + translations[currentLang].btn_saved; 
+            setTimeout(() => { location.reload(); }, 800); 
+        } else { 
+            alert("Ошибка бизнес-логики: " + responseData.error); 
+            btnSaveDb.innerHTML = '💾 ' + translations[currentLang].btn_save_db; 
+            btnSaveDb.disabled = false; 
+        }
+    } catch (e) { 
+        alert(translations[currentLang].err_network); 
+        btnSaveDb.innerHTML = '💾 ' + translations[currentLang].btn_save_db; 
+        btnSaveDb.disabled = false; 
+    }
+}
 
         let fsScale = 1, fsX = 0, fsY = 0, fsStartX = 0, fsStartY = 0, fsInitDist = 0, fsInitScale = 1, isDragging = false;
         
