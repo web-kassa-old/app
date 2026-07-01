@@ -363,7 +363,37 @@
 </head>
 <body>
 
-    <body>
+    <script>
+    // 1. Агрессивный детектор In-App браузеров СРАЗУ при запуске
+    (function checkBadBrowser() {
+        const ua = navigator.userAgent || navigator.vendor || window.opera;
+        const isBad = (ua.indexOf('Telegram') > -1 || ua.indexOf('Instagram') > -1 || ua.indexOf('FBAN') > -1 || ua.indexOf('FBAV') > -1);
+        
+        if (isBad) {
+            document.documentElement.innerHTML = `
+                <head>
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+                    <style>
+                        body { background: #0a0a0a; color: #fff; font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+                        .card { text-align: center; padding: 30px; background: #111; border-radius: 8px; border: 2px dashed #e74c3c; max-width: 360px; width: 90%; }
+                    </style>
+                </head>
+                <body>
+                    <div class="card">
+                        <div style="font-size: 40px; margin-bottom: 15px;">🚫</div>
+                        <h2 style="color: #e74c3c; margin-bottom: 15px; font-size: 18px;">Встроенный браузер</h2>
+                        <p style="font-size: 14px; margin-bottom: 20px;">Telegram блокирует авторизацию Google.</p>
+                        <p style="color: #f1c40f; font-size: 14px; font-weight: bold; line-height: 1.5;">
+                            Нажмите на меню (три точки вверху или компас)<br>и выберите:<br>
+                            <span style="color: #000; background: #f1c40f; padding: 5px 10px; border-radius: 4px; display: inline-block; margin-top: 10px;">«Открыть в браузере»</span>
+                        </p>
+                    </div>
+                </body>
+            `;
+            window.stop(); 
+        }
+    })();
+</script>
 
     <div id="google-screen" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100dvh; z-index: 10000; display: flex; flex-direction: column; align-items: center; justify-content: center; background: var(--bg-body); color: var(--text-main);">
     <div style="text-align: center; margin-bottom: 30px;">
@@ -1752,16 +1782,22 @@
             }
         }
 
+        // === ПРИНУДИТЕЛЬНОЕ УДАЛЕНИЕ SERVICE WORKER ===
         if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./sw.js').then(() => {
-                    if (navigator.serviceWorker.controller) displayAppVersion();
+            navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                for (let registration of registrations) {
+                    registration.unregister(); // Убиваем старый SW
+                }
+            });
+            // Удаляем старые кэши браузера
+            if ('caches' in window) {
+                caches.keys().then(function(names) {
+                    for (let name of names) {
+                        caches.delete(name);
+                    }
                 });
-            });
-            navigator.serviceWorker.addEventListener('controllerchange', () => {
-                displayAppVersion();
-                if (typeof cart !== 'undefined' && cart.length === 0) window.location.reload(true);
-            });
+            }
+            document.getElementById('app-version').innerText = "v: 5.5.0";
         }
 
         window.addEventListener('load', () => {
