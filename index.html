@@ -201,7 +201,7 @@
         .error-shake { animation: shake 0.4s; border-color: var(--accent-red) !important; color: var(--accent-red) !important; }
 
         .numpad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
-        .num-btn { background: var(--bg-hover); border: 1px solid var(--border-light); color: var(--text-main); font-size: 28px; width: 70px; height: 70px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; user-select: none; transition: 0.1s; font-weight: bold; }
+        .num-btn { background: var(--bg-hover); border: 1px solid var(--border-light); color: var(--text-main); font-size: 28px; width: 70px; height: 70px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; user-select: none; transition: 0.1s; font-weight: bold; touch-action: manipulation; }
         .num-btn:active { background: var(--border-light); border-color: var(--accent-green); transform: scale(0.95); }
         .num-btn.btn-clear { color: var(--accent-red); font-size: 22px; }
 
@@ -668,7 +668,10 @@
                 kaspi_safe: "В РЕЗЕРВЕ ЧИСТО. МОЖНО ПРОДАВАТЬ",
                 kaspi_danger: "ВНИМАНИЕ! ЗАКАЗАН НА KASPI:",
                 kaspi_pcs: "шт. ОПАСНО!",
-                kaspi_err_api: "ОШИБКА СЕРВЕРА KASPI"
+                kaspi_err_api: "ОШИБКА СЕРВЕРА KASPI",
+                btn_delete_photo: "УДАЛИТЬ ФОТО",
+                msg_photo_deleting: "УДАЛЕНИЕ...",
+                confirm_delete_photo: "Удалить фотографию этого товара?"
             },
             kz: {
                 btn_sale: "САТУ", btn_return: "ҚАЙТАРУ", search_placeholder: "ІЗДЕУ...",
@@ -754,7 +757,10 @@
                 kaspi_safe: "РЕЗЕРВ ТАЗА. САТУҒА БОЛАДЫ",
                 kaspi_danger: "KASPI-ДЕ ТАПСЫРЫС БЕРІЛГЕН:",
                 kaspi_pcs: "дана. ҚАУІПТІ!",
-                kaspi_err_api: "KASPI СЕРВЕРІНІҢ ҚАТЕСІ"
+                kaspi_err_api: "KASPI СЕРВЕРІНІҢ ҚАТЕСІ",
+                btn_delete_photo: "СУРЕТТІ ЖОЮ",
+                msg_photo_deleting: "ЖОЮ...",
+                confirm_delete_photo: "Бұл тауардың суретін жою керек пе?"
             }
         };
 
@@ -1852,67 +1858,66 @@
         async function confirmUpload() {
     if (!navigator.onLine) return alert(translations[currentLang].msg_sync_error);
     const btnSaveDb = document.getElementById('btn-save-db');
-    btnSaveDb.innerText = "⏳ " + translations[currentLang].btn_saving; btnSaveDb.disabled = true;
+    btnSaveDb.innerText = "⏳ " + translations[currentLang].btn_saving; 
+    btnSaveDb.disabled = true;
     try {
         const res = await fetch(APPS_SCRIPT_URL, { method: 'POST', body: JSON.stringify({ api_key: CLIENT_API_KEY, action: 'upload_photo', item_id: selectedItemId, base64: tempBase64 }) });
         
-        const responseData = await res.json(); // Сохраняем ответ сервера, чтобы вытащить URL
+        const responseData = await res.json(); 
         
         if (responseData.success) { 
             btnSaveDb.innerText = "✅ " + translations[currentLang].btn_saved; 
             
-            // Записываем новую ссылку в локальную память
+            // 1. Сохраняем новую ссылку
             const item = db.find(x => x.id === selectedItemId);
             if (item) item.img = responseData.url; 
             
-            // Тихо перерисовываем окно через 800мс
+            // 2. Мгновенно перерисовываем список на фоне (иконка станет желтой)
+            render(); 
+            
+            // 3. Тихо обновляем окно товара
             setTimeout(() => { 
                 openItemMenu(selectedItemId); 
-                btnSaveDb.innerHTML = '💾 ' + translations[currentLang].btn_save_db; 
+                btnSaveDb.innerHTML = '💾 <span data-i18n="btn_save_db">' + translations[currentLang].btn_save_db + '</span>'; 
                 btnSaveDb.disabled = false; 
                 btnSaveDb.style.display = 'none'; 
             }, 800); 
         }
-        else { alert(translations[currentLang].err_server); btnSaveDb.innerHTML = '💾 ' + translations[currentLang].btn_save_db; btnSaveDb.disabled = false; }
-    } catch (e) { alert(translations[currentLang].err_network); btnSaveDb.innerHTML = '💾 ' + translations[currentLang].btn_save_db; btnSaveDb.disabled = false; }
+        else { alert(translations[currentLang].err_server); btnSaveDb.innerHTML = '💾 <span data-i18n="btn_save_db">' + translations[currentLang].btn_save_db + '</span>'; btnSaveDb.disabled = false; }
+    } catch (e) { alert(translations[currentLang].err_network); btnSaveDb.innerHTML = '💾 <span data-i18n="btn_save_db">' + translations[currentLang].btn_save_db + '</span>'; btnSaveDb.disabled = false; }
 }
 
         async function deletePhoto() {
     if (!navigator.onLine) return alert(translations[currentLang].msg_sync_error);
     
-    if (!confirm("Удалить фотографию этого товара?")) return;
+    // Единое окно подтверждения на выбранном языке
+    if (!confirm(translations[currentLang].confirm_delete_photo)) return;
 
     const btnDelete = document.getElementById('btn-delete-photo');
     const originalText = btnDelete.innerHTML;
-    btnDelete.innerText = "⏳ УДАЛЕНИЕ..."; 
+    btnDelete.innerText = "⏳ " + translations[currentLang].msg_photo_deleting; 
     btnDelete.disabled = true;
 
     try {
         const res = await fetch(APPS_SCRIPT_URL, { 
             method: 'POST', 
-            body: JSON.stringify({ 
-                api_key: CLIENT_API_KEY, 
-                action: 'delete_photo', 
-                item_id: selectedItemId 
-            }) 
+            body: JSON.stringify({ api_key: CLIENT_API_KEY, action: 'delete_photo', item_id: selectedItemId }) 
         });
         
         const responseData = await res.json(); 
         
         if (responseData.success) { 
-            // === БЕСШОВНОЕ ОБНОВЛЕНИЕ ===
-            // 1. Находим товар в оперативной памяти и стираем ссылку
+            // 1. Стираем фото из памяти
             const item = db.find(x => x.id === selectedItemId);
             if (item) item.img = ""; 
 
-            // 2. Перезапускаем меню товара (оно само скроет фото и кнопку удаления)
+            // 2. Гасим желтую иконку в списке товаров
+            render(); 
+
+            // 3. Перерисовываем меню товара (фото исчезнет, появятся кнопки камеры)
+            // Никаких дополнительных alert() не показываем, всё происходит бесшовно!
             openItemMenu(selectedItemId);
             
-            // 3. Если у вас есть функция отрисовки списка товаров, раскомментируйте строку ниже
-            // renderItems(); 
-            // ============================
-            
-            alert("✅ Фото удалено");
         } else { 
             alert(translations[currentLang].err_server + ": " + responseData.error); 
             btnDelete.innerHTML = originalText;
@@ -1924,7 +1929,6 @@
         btnDelete.disabled = false;
     }
 }
-
         let fsScale = 1, fsX = 0, fsY = 0, fsStartX = 0, fsStartY = 0, fsInitDist = 0, fsInitScale = 1, isDragging = false;
         
         function openFullscreen(src) {
