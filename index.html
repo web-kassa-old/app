@@ -1719,66 +1719,102 @@
                 const ui = { name: translations[currentLang].report_name, qty: translations[currentLang].report_qty, sum: translations[currentLang].report_sum, sales: translations[currentLang].report_sales, returns: translations[currentLang].report_returns, net: translations[currentLang].report_total_net };
 
                 reportDataToRender.forEach(h => {
-                    let isRet = h.type === 'return';
+                    // ИСПРАВЛЕНИЕ 1: Жесткая проверка типа транзакции (sale или return)
+                    let isRet = (h.type === 'return' || h.type === 'refund'); 
                     let sellerId = h.seller || 'Анон'; 
+                    // ИСПРАВЛЕНИЕ 2: Берем метод оплаты для цветового кодирования (Вариант 1)
+                    let pMethod = h.methodCode || 'cash'; 
+
                     h.cart.forEach(c => {
-                        if (!aggregated[c.name]) aggregated[c.name] = { name: c.name, salesQty: 0, salesSum: 0, returnsQty: 0, returnsSum: 0, sellers: {} };
-                        if (!aggregated[c.name].sellers[sellerId]) aggregated[c.name].sellers[sellerId] = { salesQty: 0, salesSum: 0, returnsQty: 0, returnsSum: 0 };
+                        // ИСПРАВЛЕНИЕ 3: Составной ключ группировки (Имя + Тип операции + Метод оплаты)
+                        let groupKey = `${c.name}_${isRet ? 'return' : 'sale'}_${pMethod}`;
+
+                        if (!aggregated[groupKey]) {
+                            aggregated[groupKey] = { 
+                                name: c.name, 
+                                isReturn: isRet,
+                                method: pMethod,
+                                qty: 0, 
+                                sum: 0, 
+                                sellers: {} 
+                            };
+                        }
                         
+                        if (!aggregated[groupKey].sellers[sellerId]) {
+                            aggregated[groupKey].sellers[sellerId] = { qty: 0, sum: 0 };
+                        }
+                        
+                        // Агрегируем суммы по новому ключу
+                        aggregated[groupKey].qty += c.qty;
+                        aggregated[groupKey].sum += (c.qty * c.price);
+                        
+                        aggregated[groupKey].sellers[sellerId].qty += c.qty;
+                        aggregated[groupKey].sellers[sellerId].sum += (c.qty * c.price);
+                        
+                        // ИСПРАВЛЕНИЕ 4: Глобальная математика для футера
                         if (isRet) { 
-                            aggregated[c.name].returnsQty += c.qty; aggregated[c.name].returnsSum += (c.qty * c.price); 
-                            aggregated[c.name].sellers[sellerId].returnsQty += c.qty; aggregated[c.name].sellers[sellerId].returnsSum += (c.qty * c.price);
-                            tReturnsQty += c.qty; tReturnsSum += (c.qty * c.price); 
+                            tReturnsQty += c.qty; 
+                            tReturnsSum += (c.qty * c.price); 
                         } else { 
-                            aggregated[c.name].salesQty += c.qty; aggregated[c.name].salesSum += (c.qty * c.price); 
-                            aggregated[c.name].sellers[sellerId].salesQty += c.qty; aggregated[c.name].sellers[sellerId].salesSum += (c.qty * c.price);
-                            tSalesQty += c.qty; tSalesSum += (c.qty * c.price); 
+                            tSalesQty += c.qty; 
+                            tSalesSum += (c.qty * c.price); 
                         }
                     });
                 });
 
-                let sortedItems = Object.values(aggregated).sort((a, b) => (b.salesSum - b.returnsSum) - (a.salesSum - a.returnsSum));
+                // Сортируем: сначала продажи (по убыванию суммы), затем возвраты
+                let sortedItems = Object.values(aggregated).sort((a, b) => {
+                    if (a.isReturn === b.isReturn) return b.sum - a.sum;
+                    return a.isReturn ? 1 : -1; 
+                });
+
                 let htmlString = `<div class="rep-table-header"><div>${ui.name}</div><div style="text-align: right;">${ui.qty}</div><div style="text-align: right;">${ui.sum}</div></div>`;
                 
                 sortedItems.forEach(item => {
-                    const netQty = item.salesQty - item.returnsQty;
-                    const netSum = item.salesSum - item.returnsSum;
                     let detailsHtml = '';
+                    // Определяем цвет на основе метода оплаты
+                    let methodColor = colors[item.method] || 'var(--text-muted)';
+                    let methodName = names[item.method] || item.method;
 
                     for (let seller in item.sellers) {
                         let s = item.sellers[seller];
-                        
-                        if (s.salesQty > 0) {
-                            let avgSale = Math.round(s.salesSum / s.salesQty);
-                            detailsHtml += `
-                                <div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 4px;">
-                                    <span style="color: var(--text-muted);">${ui.sales} (${s.salesQty}) 👤 ${seller} <small>| ${translations[currentLang].report_avg} ${avgSale.toLocaleString()} ₸</small></span>
-                                    <span style="color: var(--accent-green);">${s.salesSum.toLocaleString()}</span>
-                                </div>`;
-                        }
+                        if (s.qty > 0) {
+                            let avg = Math.round(s.sum / s.qty);
+                            let typeLabel = item.isReturn ? ui.returns : ui.sales;
+                            let sumColor = item.isReturn ? 'var(--accent-red)' : 'var(--accent-green)';
+                            let prefix = item.isReturn ? '-' : '';
 
-                        if (s.returnsQty > 0) {
-                            let avgReturn = Math.round(s.returnsSum / s.returnsQty);
                             detailsHtml += `
                                 <div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 4px;">
-                                    <span style="color: var(--text-muted);">${ui.returns} (${s.returnsQty}) 👤 ${seller} <small>| ${translations[currentLang].report_avg} ${avgReturn.toLocaleString()} ₸</small></span>
-                                    <span style="color: var(--accent-red);">-${s.returnsSum.toLocaleString()}</span>
+                                    <span style="color: var(--text-muted);">${typeLabel} (${s.qty}) 👤 ${seller} <small>| ${translations[currentLang].report_avg} ${avg.toLocaleString()} ₸</small></span>
+                                    <span style="color: ${sumColor};">${prefix}${s.sum.toLocaleString()}</span>
                                 </div>`;
                         }
                     }
 
+                    // Индикатор возврата для главной строки
+                    let arrowIcon = item.isReturn ? `<span style="color:var(--accent-red); font-size:10px;">▲</span>` : `<span style="color:var(--accent-green); font-size:10px;">▼</span>`;
+                    let mainSumColor = item.isReturn ? 'var(--accent-red)' : 'var(--accent-green)';
+                    let mainPrefix = item.isReturn ? '-' : '';
+
                     htmlString += `
-                        <div class="item-wrapper" data-name="${item.name.toLowerCase()}">
-                            <div class="item-card" onclick="this.parentElement.classList.toggle('active')">
-                                <div class="swipeable-text" style="font-size: 12px; color: var(--text-main);">${item.name}</div>
-                                <div style="text-align: right; color: var(--text-muted); font-size: 12px;">${netQty}</div>
-                                <div style="text-align: right; font-weight: 700; font-size: 13px; color: ${netSum < 0 ? 'var(--accent-red)' : 'var(--accent-green)'}; display: flex; align-items: center; justify-content: flex-end; gap: 4px;">${netSum.toLocaleString()} <span class="dropdown-icon" style="font-size:8px">▼</span></div>
+                        <div class="item-wrapper ${item.method}" data-name="${item.name.toLowerCase()}">
+                            <div class="item-card" onclick="this.parentElement.classList.toggle('active')" style="border-left: 3px solid ${methodColor}; padding-left: 8px;">
+                                <div class="swipeable-text" style="font-size: 12px; color: var(--text-main);">
+                                    ${item.name} <span style="font-size: 9px; color: ${methodColor}; margin-left: 4px;">[${methodName}]</span>
+                                </div>
+                                <div style="text-align: right; color: var(--text-muted); font-size: 12px;">${item.qty}</div>
+                                <div style="text-align: right; font-weight: 700; font-size: 13px; color: ${mainSumColor}; display: flex; align-items: center; justify-content: flex-end; gap: 4px;">
+                                    ${mainPrefix}${item.sum.toLocaleString()} ${arrowIcon}
+                                </div>
                             </div>
                             <div class="item-details"><div style="padding: 6px 8px;">${detailsHtml}</div></div>
                         </div>`;
                 });
 
                 repList.innerHTML = htmlString;
+                
+                // ИСПРАВЛЕНИЕ 5: Формирование футера с правильным вычитанием
                 totalsBox.innerHTML = `
                     <div style="display: grid; grid-template-columns: 1fr 45px minmax(90px, auto); gap: 8px; font-size: 12px; color: var(--text-muted); margin-bottom: 4px;">
                         <div>${ui.sales}:</div><div style="text-align: right;">${tSalesQty}</div><div style="text-align: right;">${tSalesSum.toLocaleString()}</div>
