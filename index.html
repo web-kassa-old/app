@@ -1063,7 +1063,7 @@
         function login(user) {
             currentUser = user;
             localStorage.setItem('user_role', user.role);
-            localStorage.setItem('user_uid', user.uid); // Запоминаем кто именно вошел
+            localStorage.setItem('user_uid', user.uid);
             document.getElementById('pin-screen').style.display = 'none';
             const badge = document.getElementById('cashier-info');
             badge.innerText = `👤 ${user.name.toUpperCase()} (${user.uid})`;
@@ -1071,8 +1071,8 @@
             clearPin();
             document.getElementById('sb').blur(); 
             
-            // Мгновенно запрашиваем персональную кассу сразу после успешного входа
-            refreshPosData(); 
+            // Мгновенно запрашиваем персональную кассу (без всплывающих окон об ошибке сети)
+            refreshPosData(true); 
         }
 
         function logout() {
@@ -1142,9 +1142,12 @@
             } catch (e) { console.error("Ошибка загрузки данных"); }
         }
 
-        async function refreshPosData() {
+        async function refreshPosData(isSilent = false) {
             if (!navigator.onLine) {
-                alert(translations[currentLang].msg_no_internet);
+                // Выдаем ошибку только если обновление запрошено вручную
+                if (isSilent !== true) {
+                    alert(translations[currentLang].msg_no_internet);
+                }
                 return;
             }
             const btn = document.getElementById('btn-sync-data');
