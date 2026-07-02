@@ -1,6 +1,6 @@
 // Файл глобальных настроек (config.js)
 
-const APP_VERSION = "5.5.2"; // Меняйте версию только здесь
+const APP_VERSION = "5.5.21"; // Меняйте версию только здесь
 
 // 1. Ссылка на новый SaaS-роутер (POS Master Control)
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyOp6fzexVQwUHVNmL50hF62pz20TW9nNoTL1SKyBEVGb095SVh_h6kNdyOIaMdroyW/exec"; 
