@@ -1659,8 +1659,8 @@
             } else {
                 try {
                     let apiKey = localStorage.getItem('api_key') || 'TEST_STORE'; 
-let url = `${APPS_SCRIPT_URL}?action=report&date=${serverStart}&endDate=${serverEnd}&api_key=${apiKey}&t=${Date.now()}`;
-if (currentUser && currentUser.role !== 'manager') url += `&seller_id=${currentUser.uid}`;
+                    let url = `${APPS_SCRIPT_URL}?action=report&date=${serverStart}&endDate=${serverEnd}&api_key=${CLIENT_API_KEY}&t=${Date.now()}`;
+                    if (currentUser && currentUser.role !== 'manager') url += `&seller_id=${currentUser.uid}`;
 
                     const response = await fetch(url, { redirect: 'follow' });
                     const data = await response.json();
