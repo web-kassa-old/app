@@ -773,7 +773,7 @@
                 pin_block: "БҰҒАТТАУ. КҮТУ: ",
                 pin_wrong: "ҚАТЕ ПИН-КОД",
                 loading_items: "Тауарларды жүктеу...",
-                status_offline: " (ОФФЛАЙН)",
+                status_offline: " (ЖЕЛІСІЗ)",
                 status_net_err: " (ЖЕЛІ ҚАТЕСІ - КЭШ)",
                 photo_err: "⚠️ ФОТО ҚОЛЖЕТІМСІЗ<br><br>Google сұрауды қабылдамады немесе файл жойылды",
                 inc_status_db: "Дерекқормен байланыс... ⏳",
@@ -936,103 +936,129 @@
         }
 
         async function handleAutoLogin(val) {
-            if (blockUntil > Date.now()) {
-                clearPin();
-                return; 
-            }
+    if (blockUntil > Date.now()) {
+        clearPin();
+        return; 
+    }
 
-            const err = document.getElementById('login-error');
-            const field = document.getElementById('pin-field');
-            
-            if (!navigator.onLine) {
-                field.style.color = 'var(--accent-red)'; 
-                field.classList.add('error-shake');
-                err.innerText = translations[currentLang].pin_no_internet; 
-                err.style.color = 'var(--accent-red)'; 
-                err.style.visibility = 'visible';
-                setTimeout(() => { field.classList.remove('error-shake'); err.style.visibility = 'hidden'; field.style.color = 'var(--accent-yellow)'; clearPin(); }, 1200);
-                return;
-            }
-
-            field.style.color = 'var(--accent-blue)'; 
-            err.innerText = translations[currentLang].pin_checking;
-            err.style.color = 'var(--accent-blue)';
+    const err = document.getElementById('login-error');
+    const field = document.getElementById('pin-field');
+    
+    // 1. Сначала превращаем введенные цифры в крипто-хеш
+    const securedPin = await getSecurePin(val);
+    
+    // === НАЧАЛО: УМНАЯ ОФЛАЙН-АВТОРИЗАЦИЯ ===
+    if (!navigator.onLine) {
+        const savedPin = localStorage.getItem('offline_pin');
+        const savedUser = localStorage.getItem('offline_user');
+        
+        // Если хеш совпал с сохраненным в памяти — пускаем!
+        if (savedPin && savedUser && securedPin === savedPin) {
+            field.style.color = 'var(--accent-green)'; 
+            err.innerText = translations[currentLang].pin_granted + translations[currentLang].status_offline;
+            err.style.color = 'var(--accent-green)';
             err.style.visibility = 'visible';
-
-            try {
-                // 1. Сначала превращаем введенные цифры в крипто-хеш
-                const securedPin = await getSecurePin(val);
-
-                // 2. Отправляем зашифрованный ПИН на сервер
-                const response = await fetch(APPS_SCRIPT_URL, {
-                    method: 'POST',
-                    body: JSON.stringify({ api_key: CLIENT_API_KEY, action: 'verifyPin', pin: securedPin })
-                });
-
-                const textRes = await response.text(); 
-                let res;
-                try {
-                    res = JSON.parse(textRes);
-                } catch (e) {
-                    throw new Error("SERVER_ERROR");
-                }
-
-                if (res.success) {
-                    failedAttempts = 0;
-                    localStorage.removeItem('pos_fails');
-                    localStorage.removeItem('pos_block');
-
-                    field.style.color = 'var(--accent-green)'; 
-                    err.innerText = translations[currentLang].pin_granted;
-                    err.style.color = 'var(--accent-green)';
-                    
-                    setTimeout(() => {
-                        login(res.user); 
-                        field.style.color = 'var(--accent-yellow)';
-                        err.style.color = 'var(--accent-red)';
-                        err.style.visibility = 'hidden';
-                        err.innerText = translations[currentLang].pin_wrong;
-                    }, 400);
-
-                } else {
-                    throw new Error("WRONG_PIN");
-                }
-
-            } catch (error) {
-                console.error("Ошибка авторизации:", error);
-                
-                let isWrongPin = error.message === "WRONG_PIN";
-                
-                if (isWrongPin) {
-                    failedAttempts++;
-                    localStorage.setItem('pos_fails', failedAttempts);
-                }
-
-                if (failedAttempts >= 3) {
-                    blockUntil = Date.now() + 5 * 60 * 1000;
-                    localStorage.setItem('pos_block', blockUntil);
-                    field.classList.add('error-shake');
-                    setTimeout(() => { field.classList.remove('error-shake'); clearPin(); }, 800);
-                    checkBlockTimer(); 
-                    return;
-                }
-
-                field.style.color = 'var(--accent-red)'; 
-                field.classList.add('error-shake');
-                
-                const attemptsLeft = Math.max(0, 3 - failedAttempts);
-                err.innerText = isWrongPin ? `${translations[currentLang].pin_wrong_left}${attemptsLeft}` : translations[currentLang].pin_conn_error;
-                err.style.color = 'var(--accent-red)';
-                err.style.visibility = 'visible';
-
-                setTimeout(() => { 
-                    field.classList.remove('error-shake');
-                    err.style.visibility = 'hidden'; 
-                    field.style.color = 'var(--accent-yellow)'; 
-                    clearPin();
-                }, 1200);
-            }
+            
+            setTimeout(() => {
+                login(JSON.parse(savedUser)); 
+                field.style.color = 'var(--accent-yellow)';
+                err.style.visibility = 'hidden';
+            }, 400);
+            return;
+        } else {
+            // Если ПИН неверный или кассир еще ни разу не заходил с интернетом
+            field.style.color = 'var(--accent-red)'; 
+            field.classList.add('error-shake');
+            err.innerText = savedPin ? translations[currentLang].pin_wrong : translations[currentLang].pin_no_internet; 
+            err.style.color = 'var(--accent-red)'; 
+            err.style.visibility = 'visible';
+            setTimeout(() => { field.classList.remove('error-shake'); err.style.visibility = 'hidden'; field.style.color = 'var(--accent-yellow)'; clearPin(); }, 1200);
+            return;
         }
+    }
+    // === КОНЕЦ: ОФЛАЙН-АВТОРИЗАЦИЯ ===
+
+    field.style.color = 'var(--accent-blue)'; 
+    err.innerText = translations[currentLang].pin_checking;
+    err.style.color = 'var(--accent-blue)';
+    err.style.visibility = 'visible';
+
+    try {
+        // 2. Отправляем зашифрованный ПИН на сервер
+        const response = await fetch(APPS_SCRIPT_URL, {
+            method: 'POST',
+            body: JSON.stringify({ api_key: CLIENT_API_KEY, action: 'verifyPin', pin: securedPin })
+        });
+
+        const textRes = await response.text(); 
+        let res;
+        try {
+            res = JSON.parse(textRes);
+        } catch (e) {
+            throw new Error("SERVER_ERROR");
+        }
+
+        if (res.success) {
+            failedAttempts = 0;
+            localStorage.removeItem('pos_fails');
+            localStorage.removeItem('pos_block');
+            
+            // === СОХРАНЯЕМ СЛЕПОК В КЭШ ДЛЯ БУДУЩИХ ОФЛАЙН-ВХОДОВ ===
+            localStorage.setItem('offline_pin', securedPin);
+            localStorage.setItem('offline_user', JSON.stringify(res.user));
+            // ========================================================
+
+            field.style.color = 'var(--accent-green)'; 
+            err.innerText = translations[currentLang].pin_granted;
+            err.style.color = 'var(--accent-green)';
+            
+            setTimeout(() => {
+                login(res.user); 
+                field.style.color = 'var(--accent-yellow)';
+                err.style.color = 'var(--accent-red)';
+                err.style.visibility = 'hidden';
+                err.innerText = translations[currentLang].pin_wrong;
+            }, 400);
+
+        } else {
+            throw new Error("WRONG_PIN");
+        }
+
+    } catch (error) {
+        console.error("Ошибка авторизации:", error);
+        
+        let isWrongPin = error.message === "WRONG_PIN";
+        
+        if (isWrongPin) {
+            failedAttempts++;
+            localStorage.setItem('pos_fails', failedAttempts);
+        }
+
+        if (failedAttempts >= 3) {
+            blockUntil = Date.now() + 5 * 60 * 1000;
+            localStorage.setItem('pos_block', blockUntil);
+            field.classList.add('error-shake');
+            setTimeout(() => { field.classList.remove('error-shake'); clearPin(); }, 800);
+            checkBlockTimer(); 
+            return;
+        }
+
+        field.style.color = 'var(--accent-red)'; 
+        field.classList.add('error-shake');
+        
+        const attemptsLeft = Math.max(0, 3 - failedAttempts);
+        err.innerText = isWrongPin ? `${translations[currentLang].pin_wrong_left}${attemptsLeft}` : translations[currentLang].pin_conn_error;
+        err.style.color = 'var(--accent-red)';
+        err.style.visibility = 'visible';
+
+        setTimeout(() => { 
+            field.classList.remove('error-shake');
+            err.style.visibility = 'hidden'; 
+            field.style.color = 'var(--accent-yellow)'; 
+            clearPin();
+        }, 1200);
+    }
+}
 
         function login(user) {
             currentUser = user;
