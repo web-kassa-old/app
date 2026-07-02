@@ -1719,15 +1719,17 @@
                 const ui = { name: translations[currentLang].report_name, qty: translations[currentLang].report_qty, sum: translations[currentLang].report_sum, sales: translations[currentLang].report_sales, returns: translations[currentLang].report_returns, net: translations[currentLang].report_total_net };
 
                 reportDataToRender.forEach(h => {
-                    // ИСПРАВЛЕНИЕ 1: Жесткая проверка типа транзакции (sale или return)
                     let isRet = (h.type === 'return' || h.type === 'refund'); 
                     let sellerId = h.seller || 'Анон'; 
-                    // ИСПРАВЛЕНИЕ 2: Берем метод оплаты для цветового кодирования (Вариант 1)
                     let pMethod = h.methodCode || 'cash'; 
 
                     h.cart.forEach(c => {
-                        // ИСПРАВЛЕНИЕ 3: Составной ключ группировки (Имя + Тип операции + Метод оплаты)
                         let groupKey = `${c.name}_${isRet ? 'return' : 'sale'}_${pMethod}`;
+                        
+                        // ИСПРАВЛЕНИЕ: Берем данные по модулю (без минусов), 
+                        // чтобы интерфейс сам расставил знаки там, где нужно.
+                        let absQty = Math.abs(c.qty);
+                        let absSum = absQty * Math.abs(c.price);
 
                         if (!aggregated[groupKey]) {
                             aggregated[groupKey] = { 
@@ -1744,20 +1746,20 @@
                             aggregated[groupKey].sellers[sellerId] = { qty: 0, sum: 0 };
                         }
                         
-                        // Агрегируем суммы по новому ключу
-                        aggregated[groupKey].qty += c.qty;
-                        aggregated[groupKey].sum += (c.qty * c.price);
+                        // Плюсуем абсолютные значения
+                        aggregated[groupKey].qty += absQty;
+                        aggregated[groupKey].sum += absSum;
                         
-                        aggregated[groupKey].sellers[sellerId].qty += c.qty;
-                        aggregated[groupKey].sellers[sellerId].sum += (c.qty * c.price);
+                        aggregated[groupKey].sellers[sellerId].qty += absQty;
+                        aggregated[groupKey].sellers[sellerId].sum += absSum;
                         
-                        // ИСПРАВЛЕНИЕ 4: Глобальная математика для футера
+                        // Формируем Итого для футера
                         if (isRet) { 
-                            tReturnsQty += c.qty; 
-                            tReturnsSum += (c.qty * c.price); 
+                            tReturnsQty += absQty; 
+                            tReturnsSum += absSum; 
                         } else { 
-                            tSalesQty += c.qty; 
-                            tSalesSum += (c.qty * c.price); 
+                            tSalesQty += absQty; 
+                            tSalesSum += absSum; 
                         }
                     });
                 });
