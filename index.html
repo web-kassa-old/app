@@ -703,7 +703,8 @@
                 kaspi_err_api: "ОШИБКА СЕРВЕРА KASPI",
                 btn_delete_photo: "УДАЛИТЬ ФОТО",
                 msg_photo_deleting: "УДАЛЕНИЕ...",
-                confirm_delete_photo: "Удалить фотографию этого товара?"
+                confirm_delete_photo: "Удалить фотографию этого товара?",
+                msg_loading_photo: "Загрузка фото..."
             },
             kz: {
                 btn_sale: "САТУ", btn_return: "ҚАЙТАРУ", search_placeholder: "ІЗДЕУ...",
@@ -792,7 +793,8 @@
                 kaspi_err_api: "KASPI СЕРВЕРІНІҢ ҚАТЕСІ",
                 btn_delete_photo: "СУРЕТТІ ЖОЮ",
                 msg_photo_deleting: "ЖОЮ...",
-                confirm_delete_photo: "Бұл тауардың суретін жою керек пе?"
+                confirm_delete_photo: "Бұл тауардың суретін жою керек пе?",
+                msg_loading_photo: "Сурет жүктелуде..."
             }
         };
 
@@ -1838,7 +1840,7 @@
                     const fileId = match[0];
                     
                     // 1. Показываем статус загрузки
-                    preview.innerHTML = `<div style="color:var(--text-muted); font-size:12px; padding:20px;">⏳ Загрузка фото...</div>`;
+                    preview.innerHTML = `<div style="color:var(--text-muted); font-size:12px; padding:20px;">⏳ ${translations[currentLang].msg_loading_photo}</div>`;
                     
                     // 2. Настраиваем кнопки
                     document.getElementById('btn-take-photo').style.display = 'none'; 
