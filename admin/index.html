@@ -435,14 +435,11 @@
                 callBtn.style.opacity = "0.5";
             }
             
-            // --- РЕГУЛЯРНЫЙ ПАРСЕР ДАТЫ (ИЗВЛЕЧЕНИЕ ЦИФР) ---
             let htmlDate = "";
             let rawDate = String(t.date_end || "").trim();
             
             if (rawDate && rawDate !== "—" && rawDate !== "undefined" && rawDate !== "null") {
-                // Ищем формат ГГГГ-ММ-ДД (системный)
                 let isoMatch = rawDate.match(/(\d{4})[\.\-\/](\d{1,2})[\.\-\/](\d{1,2})/);
-                // Ищем формат ДД.ММ.ГГГГ или ДД/ММ/ГГГГ (пользовательский)
                 let euMatch = rawDate.match(/(\d{1,2})[\.\-\/](\d{1,2})[\.\-\/](\d{2,4})/);
 
                 if (isoMatch && isoMatch[1].length === 4) {
@@ -451,8 +448,18 @@
                     let d = euMatch[1].padStart(2, '0');
                     let m = euMatch[2].padStart(2, '0');
                     let y = euMatch[3];
-                    if (y.length === 2) y = "20" + y; // Если год двузначный (26), делаем 2026
+                    if (y.length === 2) y = "20" + y; 
                     htmlDate = `${y}-${m}-${d}`;
+                } else {
+                    // --- ИСПРАВЛЕННЫЙ БЛОК: НИКАКОГО UTC И toISOString() ---
+                    let parsed = new Date(rawDate);
+                    if (!isNaN(parsed.getTime())) {
+                        // Жестко забираем цифры прямо из локального времени устройства
+                        let lYear = parsed.getFullYear();
+                        let lMonth = String(parsed.getMonth() + 1).padStart(2, '0');
+                        let lDay = String(parsed.getDate()).padStart(2, '0');
+                        htmlDate = `${lYear}-${lMonth}-${lDay}`;
+                    }
                 }
             }
             
