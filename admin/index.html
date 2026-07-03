@@ -1,1 +1,248 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>MASTER CONTROL</title>
+    
+    <script src="config.js"></script>
 
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+            background-color: #f4f6f8;
+            color: #1a1a1a;
+            padding: 4px;
+            margin: 0;
+        }
+        .header-panel {
+            border-bottom: 3px solid #475569;
+            padding-bottom: 8px;
+            margin-bottom: 12px;
+            margin-top: 4px;
+        }
+        h2 {
+            font-size: 20px;
+            text-transform: uppercase;
+            margin: 0;
+            font-weight: 800;
+            color: #475569;
+            letter-spacing: 0.5px;
+            text-align: center;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: #fff;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            border-radius: 4px;
+            overflow: hidden;
+            table-layout: fixed;
+        }
+        th, td {
+            border-bottom: 1px solid #e2e8f0;
+            padding: 10px 6px;
+            vertical-align: middle;
+        }
+        th {
+            background-color: #475569;
+            color: #fff;
+            font-weight: 600;
+            font-size: 12px;
+            text-transform: uppercase;
+            padding: 12px 6px;
+            text-align: center;
+        }
+        
+        .client-col { text-align: left; padding-left: 8px; line-height: 1.3; }
+        .client-name { font-size: 16px; font-weight: 700; display: block; word-wrap: break-word; }
+        .client-key { font-size: 11px; color: #64748b; font-family: monospace; }
+
+        .control-cell {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            align-items: stretch;
+            padding: 0 4px;
+        }
+
+        .days-badge {
+            font-size: 13px;
+            font-weight: 800;
+            padding: 4px 0;
+            border-radius: 4px;
+            text-align: center;
+            text-transform: uppercase;
+        }
+        .safe-badge { background-color: #e8f5e9; color: #2e7d32; } 
+        .danger-badge { background-color: #ffebee; color: #c62828; } 
+        
+        .locked-row { background-color: #f8fafc; }
+        .locked-row .client-name { text-decoration: line-through; color: #94a3b8; }
+
+        .btn {
+            width: 100%;
+            padding: 12px 2px;
+            font-size: 11px;
+            font-weight: 700;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            color: #fff;
+            text-transform: uppercase;
+        }
+        .btn:active { opacity: 0.8; }
+        .btn-red { background-color: #dc2626; }
+        .btn-green { background-color: #16a34a; }
+        .btn:disabled { background-color: #cbd5e1; color: #64748b; cursor: wait; }
+        
+        .loader { padding: 30px; text-align: center; font-weight: bold; color: #64748b; }
+    </style>
+</head>
+<body>
+
+    <div class="header-panel">
+        <h2>MASTER CONTROL</h2>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th style="width: 60%;">Арендатор</th>
+                <th style="width: 40%;">Статус / Контроль</th>
+            </tr>
+        </thead>
+        <tbody id="table-body">
+            <tr><td colspan="2" class="loader">Синхронизация с сервером...</td></tr>
+        </tbody>
+    </table>
+
+    <script>
+        // Забираем ссылку динамически из подключенного config.js
+        const API_URL = CONFIG.API_URL;
+
+        async function loadData() {
+            try {
+                const response = await fetch(`${API_URL}?action=get_tenants`);
+                const data = await response.json();
+                renderTable(data);
+            } catch (error) {
+                document.getElementById('table-body').innerHTML = `<tr><td colspan="2" class="loader" style="color:red;">Ошибка соединения с базой</td></tr>`;
+            }
+        }
+
+        function renderTable(data) {
+            const tbody = document.getElementById('table-body');
+            let html = '';
+            let validCount = 0;
+
+            if (data && data.length > 0) {
+                data.forEach(t => {
+                    if (!t.api_key || String(t.api_key).trim() === "") return;
+                    validCount++;
+                    
+                    let isBlocked = (t.status !== 'active');
+                    let warningThreshold = parseInt(t.warning_days);
+                    if (isNaN(warningThreshold)) warningThreshold = 3;
+                    
+                    let daysLeft = '—';
+                    let badgeClass = 'safe-badge';
+                    
+                    if (t.date_end) {
+                        let eDate = null;
+                        let parts = String(t.date_end).trim().split('.');
+                        if (parts.length === 3) {
+                            eDate = new Date(parts[2], parts[1] - 1, parts[0]);
+                        } else {
+                            eDate = new Date(t.date_end);
+                        }
+
+                        if (eDate && !isNaN(eDate.getTime())) {
+                            let today = new Date();
+                            today.setHours(0, 0, 0, 0);
+                            eDate.setHours(0, 0, 0, 0);
+                            
+                            let diff = Math.round((eDate - today) / (1000 * 60 * 60 * 24));
+                            daysLeft = diff + ' дн.';
+                            
+                            if (diff <= warningThreshold) {
+                                badgeClass = 'danger-badge';
+                            }
+                        }
+                    }
+                    
+                    let rowClass = isBlocked ? 'locked-row' : '';
+                    let badgeText = 'Остаток: ' + daysLeft; 
+                    
+                    let btnClass = isBlocked ? 'btn-green' : 'btn-red';
+                    let btnLabel = isBlocked ? 'РАЗБЛОКИРОВАТЬ' : 'ЗАБЛОКИРОВАТЬ';
+
+                    html += `
+                        <tr id="row-${t.api_key}" class="${rowClass}">
+                            <td class="client-col">
+                                <span class="client-name">${t.client_name}</span>
+                                <span class="client-key">${t.api_key}</span>
+                            </td>
+                            <td>
+                                <div class="control-cell">
+                                    <div id="badge-${t.api_key}" class="days-badge ${badgeClass}">
+                                        ${badgeText}
+                                    </div>
+                                    <button id="btn-${t.api_key}" class="btn ${btnClass}" onclick="toggleBlock('${t.api_key}', '${t.status}')">
+                                        ${btnLabel}
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                });
+            }
+
+            if (validCount === 0) {
+                html = `<tr><td colspan="2" class="loader">БАЗА ПУСТА</td></tr>`;
+            }
+            
+            tbody.innerHTML = html;
+        }
+
+        async function toggleBlock(apiKey, currentStatus) {
+            const button = document.getElementById(`btn-${apiKey}`);
+            const row = document.getElementById(`row-${apiKey}`);
+            
+            const actionText = (currentStatus === 'active') ? 'заблокировать' : 'разблокировать';
+            if (!confirm(`Вы уверены, что хотите ${actionText} ${apiKey}?`)) return;
+            
+            button.disabled = true;
+            button.innerText = 'ОЖИДАЙТЕ...';
+            
+            try {
+                const response = await fetch(`${API_URL}?action=toggle_status&api_key=${apiKey}&current_status=${currentStatus}`);
+                const res = await response.json();
+                
+                if (res.error) throw new Error(res.error);
+                
+                const newStatus = res.newStatus;
+                
+                if (newStatus === 'active') {
+                    row.classList.remove('locked-row');
+                    button.className = 'btn btn-red';
+                    button.innerText = 'ЗАБЛОКИРОВАТЬ';
+                } else {
+                    row.classList.add('locked-row');
+                    button.className = 'btn btn-green';
+                    button.innerText = 'РАЗБЛОКИРОВАТЬ';
+                }
+                
+                button.setAttribute('onclick', `toggleBlock('${apiKey}', '${newStatus}')`);
+            } catch (err) {
+                alert('Ошибка сервера: ' + err.message);
+                button.innerText = (currentStatus === 'active') ? 'ЗАБЛОКИРОВАТЬ' : 'РАЗБЛОКИРОВАТЬ';
+            } finally {
+                button.disabled = false;
+            }
+        }
+
+        window.onload = loadData;
+    </script>
+</body>
+</html>
