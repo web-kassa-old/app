@@ -435,27 +435,24 @@
                 callBtn.style.opacity = "0.5";
             }
             
-            // --- УНИВЕРСАЛЬНЫЙ ПАРСЕР ДАТЫ (БРОНЕБОЙНЫЙ) ---
+            // --- РЕГУЛЯРНЫЙ ПАРСЕР ДАТЫ (ИЗВЛЕЧЕНИЕ ЦИФР) ---
             let htmlDate = "";
             let rawDate = String(t.date_end || "").trim();
             
-            if (rawDate && rawDate !== "—" && rawDate !== "undefined") {
-                if (rawDate.includes('.')) {
-                    // Если пришло в формате 15.07.2026
-                    let parts = rawDate.split('.');
-                    if (parts.length === 3) {
-                        let y = parts[2].length === 2 ? "20" + parts[2] : parts[2];
-                        htmlDate = `${y}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-                    }
-                } else if (rawDate.includes('-')) {
-                    // Если пришло как 2026-07-15 или 2026-07-15T18:00:00.000Z
-                    htmlDate = rawDate.split('T')[0];
-                } else {
-                    // Резервный вариант: пытаемся собрать дату системными средствами
-                    let parsed = new Date(rawDate);
-                    if (!isNaN(parsed.getTime())) {
-                        htmlDate = parsed.toISOString().split('T')[0];
-                    }
+            if (rawDate && rawDate !== "—" && rawDate !== "undefined" && rawDate !== "null") {
+                // Ищем формат ГГГГ-ММ-ДД (системный)
+                let isoMatch = rawDate.match(/(\d{4})[\.\-\/](\d{1,2})[\.\-\/](\d{1,2})/);
+                // Ищем формат ДД.ММ.ГГГГ или ДД/ММ/ГГГГ (пользовательский)
+                let euMatch = rawDate.match(/(\d{1,2})[\.\-\/](\d{1,2})[\.\-\/](\d{2,4})/);
+
+                if (isoMatch && isoMatch[1].length === 4) {
+                    htmlDate = `${isoMatch[1]}-${isoMatch[2].padStart(2, '0')}-${isoMatch[3].padStart(2, '0')}`;
+                } else if (euMatch) {
+                    let d = euMatch[1].padStart(2, '0');
+                    let m = euMatch[2].padStart(2, '0');
+                    let y = euMatch[3];
+                    if (y.length === 2) y = "20" + y; // Если год двузначный (26), делаем 2026
+                    htmlDate = `${y}-${m}-${d}`;
                 }
             }
             
