@@ -12,20 +12,20 @@
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
-            background-color: #242526; /* Мягкий матовый графит вместо черного */
+            background-color: #242526; 
             color: #e2e8f0;
             padding: 0;
             margin: 0;
-            touch-action: manipulation; /* БЛОКИРОВКА ЗУМА В iOS */
+            touch-action: manipulation; 
         }
 
         /* --- ЭКРАН ПИН-КОДА --- */
         #pin-screen {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background-color: #242526; /* Мягкий фон экрана блокировки */
+            background-color: #242526; 
             display: flex; flex-direction: column; align-items: center; justify-content: center;
-            z-index: 1000;
-            touch-action: manipulation; /* БЛОКИРОВКА ЗУМА */
+            z-index: 2000;
+            touch-action: manipulation; 
         }
         .pin-title { color: #94a3b8; font-size: 16px; font-weight: 600; margin-bottom: 24px; letter-spacing: 2px; }
         .pin-dots { display: flex; gap: 16px; margin-bottom: 40px; height: 16px; }
@@ -35,22 +35,20 @@
         
         .numpad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; width: 280px; }
         .num-btn {
-            background: #2f3136; /* Высветленные кнопки */
-            border: 1px solid #40444b; border-radius: 50%;
+            background: #2f3136; border: 1px solid #40444b; border-radius: 50%;
             width: 75px; height: 75px; color: #f8fafc; font-size: 28px; font-weight: 300;
             display: flex; align-items: center; justify-content: center;
             margin: 0 auto; cursor: pointer; transition: 0.1s;
-            touch-action: manipulation; /* ЗАЩИТА КНОПОК ОТ ЗУМА */
+            touch-action: manipulation; 
         }
         .num-btn:active { background: #40444b; transform: scale(0.95); }
         .num-btn.clear-btn { font-size: 16px; font-weight: 600; color: #94a3b8; }
         .num-btn:disabled { opacity: 0.5; pointer-events: none; }
 
         /* --- ОСНОВНОЙ ИНТЕРФЕЙС --- */
-        #main-app { display: none; padding: 4px; }
+        #main-app { display: none; padding: 4px; padding-bottom: 20px; }
         .header-panel { border-bottom: 2px solid #40444b; padding-bottom: 8px; margin-bottom: 12px; margin-top: 4px; }
         h2 { font-size: 20px; text-transform: uppercase; margin: 0; font-weight: 800; color: #cbd5e1; letter-spacing: 0.5px; text-align: center; }
-        
         .version-label { text-align: center; font-size: 10px; color: #64748b; font-family: monospace; margin-top: 4px; letter-spacing: 1px; }
         
         table { width: 100%; border-collapse: collapse; background: #2f3136; border-radius: 4px; overflow: hidden; table-layout: fixed; }
@@ -58,8 +56,15 @@
         th { background-color: #242526; color: #94a3b8; font-weight: 600; font-size: 12px; text-transform: uppercase; padding: 12px 6px; text-align: center; border-bottom: 2px solid #40444b; }
         
         .client-col { text-align: left; padding-left: 8px; line-height: 1.3; }
-        .client-name { font-size: 16px; font-weight: 700; color: #f8fafc; display: block; word-wrap: break-word; }
-        .client-key { font-size: 11px; color: #94a3b8; font-family: monospace; }
+        
+        /* Кликабельное имя арендатора */
+        .client-name { 
+            font-size: 16px; font-weight: 700; color: #f8fafc; display: inline-block; word-wrap: break-word; 
+            cursor: pointer; border-bottom: 1px dashed #64748b; padding-bottom: 2px; transition: color 0.2s;
+        }
+        .client-name:active { color: #94a3b8; }
+        
+        .client-key { font-size: 11px; color: #94a3b8; font-family: monospace; display: block; margin-top: 2px; }
         .control-cell { display: flex; flex-direction: column; gap: 6px; align-items: stretch; padding: 0 4px; }
         
         .days-badge { font-size: 13px; font-weight: 800; padding: 4px 0; border-radius: 4px; text-align: center; text-transform: uppercase; }
@@ -67,14 +72,39 @@
         .danger-badge { background-color: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(248, 113, 113, 0.3); } 
         
         .locked-row { background-color: #202225; opacity: 0.8; }
-        .locked-row .client-name { text-decoration: line-through; color: #64748b; }
+        .locked-row .client-name { text-decoration: line-through; color: #64748b; border-bottom: none; pointer-events: none; }
 
         .btn { width: 100%; padding: 12px 2px; font-size: 11px; font-weight: 700; border: none; border-radius: 4px; cursor: pointer; color: #fff; text-transform: uppercase; touch-action: manipulation; }
         .btn:active { opacity: 0.8; }
         .btn-red { background-color: #b91c1c; }
         .btn-green { background-color: #15803d; }
-        .btn:disabled { background-color: #40444b; color: #94a3b8; }
+        .btn-dark { background-color: #40444b; color: #cbd5e1; }
+        .btn:disabled { background-color: #40444b; color: #94a3b8; cursor: not-allowed; }
         .loader { padding: 30px; text-align: center; font-weight: bold; color: #94a3b8; }
+
+        /* --- МОДАЛЬНОЕ ОКНО РЕДАКТИРОВАНИЯ --- */
+        #edit-modal {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(18, 18, 18, 0.85); z-index: 1500;
+            align-items: center; justify-content: center; backdrop-filter: blur(4px);
+        }
+        .modal-content {
+            background-color: #242526; border: 1px solid #40444b; border-radius: 8px;
+            width: 90%; max-width: 360px; padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+        }
+        .modal-header { font-size: 16px; font-weight: 800; color: #cbd5e1; text-transform: uppercase; margin-bottom: 20px; letter-spacing: 1px; text-align: center; border-bottom: 1px solid #40444b; padding-bottom: 10px; }
+        
+        .form-group { margin-bottom: 16px; }
+        .form-label { display: block; font-size: 11px; color: #94a3b8; text-transform: uppercase; margin-bottom: 6px; font-weight: 600; }
+        .form-control {
+            width: 100%; box-sizing: border-box; background-color: #1e1e1e; border: 1px solid #40444b;
+            color: #f8fafc; padding: 12px; border-radius: 4px; font-family: monospace; font-size: 14px;
+        }
+        .form-control:focus { outline: none; border-color: #64748b; }
+        input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); opacity: 0.6; cursor: pointer; }
+        
+        .modal-actions { display: flex; gap: 10px; margin-top: 24px; }
+        .modal-actions .btn { flex: 1; padding: 14px 0; }
     </style>
 </head>
 <body>
@@ -119,11 +149,38 @@
         </table>
     </div>
 
+    <div id="edit-modal">
+        <div class="modal-content">
+            <div class="modal-header">EDIT TENANT</div>
+            
+            <input type="hidden" id="edit-api-key">
+            
+            <div class="form-group">
+                <label class="form-label">CLIENT NAME</label>
+                <input type="text" id="edit-name" class="form-control" autocomplete="off">
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">ACCESS VALID UNTIL</label>
+                <input type="date" id="edit-date" class="form-control">
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">WARNING THRESHOLD (DAYS)</label>
+                <input type="number" id="edit-warning" class="form-control" min="1" max="30">
+            </div>
+
+            <div class="modal-actions">
+                <button class="btn btn-dark" onclick="closeEditModal()">CANCEL</button>
+                <button class="btn btn-green" id="save-modal-btn" onclick="saveTenantData()">SAVE</button>
+            </div>
+        </div>
+    </div>
+
     <script>
-        const API_URL = CONFIG.API_URL;
-        
-        // Подтягиваем версию из конфига
-        document.getElementById('version-display').innerText = 'SYS.VER // ' + (CONFIG.VERSION || '1.0.0');
+        // Имитация заглушки для Live Server, если config.js не подгрузился
+        const API_URL = (typeof CONFIG !== 'undefined') ? CONFIG.API_URL : "";
+        document.getElementById('version-display').innerText = 'SYS.VER // ' + ((typeof CONFIG !== 'undefined') ? CONFIG.VERSION : 'UI.TEST');
 
         let currentPin = "";
         let isAuthenticating = false;
@@ -146,10 +203,7 @@
             if (isAuthenticating || currentPin.length >= 6) return;
             currentPin += num;
             updateDots();
-            
-            if (currentPin.length === 6) {
-                verifyAndLoad();
-            }
+            if (currentPin.length === 6) verifyAndLoad();
         }
 
         function clearPin() {
@@ -161,6 +215,8 @@
         }
 
         async function verifyAndLoad() {
+            if(!API_URL) { alert("API URL не найден. Для теста UI модального окна используйте существующий код или запустите на реальном сервере."); return; }
+            
             isAuthenticating = true;
             toggleNumpad(false);
             document.getElementById('pin-msg').innerText = "VERIFYING...";
@@ -173,11 +229,8 @@
                     document.getElementById('pin-msg').innerText = "ACCESS DENIED";
                     document.getElementById('pin-msg').style.color = "#ef4444";
                     updateDots(true);
-                    
                     setTimeout(() => {
-                        currentPin = "";
-                        isAuthenticating = false;
-                        toggleNumpad(true);
+                        currentPin = ""; isAuthenticating = false; toggleNumpad(true);
                         document.getElementById('pin-msg').innerText = "ENTER AUTH PIN";
                         document.getElementById('pin-msg').style.color = "#94a3b8";
                         updateDots();
@@ -189,11 +242,7 @@
                 }
             } catch (error) {
                 document.getElementById('pin-msg').innerText = "CONNECTION ERROR";
-                setTimeout(() => {
-                    clearPin();
-                    isAuthenticating = false;
-                    toggleNumpad(true);
-                }, 1500);
+                setTimeout(() => { clearPin(); isAuthenticating = false; toggleNumpad(true); }, 1500);
             }
         }
 
@@ -211,12 +260,13 @@
                     let warningThreshold = parseInt(t.warning_days) || 3;
                     let daysLeft = '—';
                     let badgeClass = 'safe-badge';
+                    let rawDate = String(t.date_end || "").trim();
                     
-                    if (t.date_end) {
+                    if (rawDate) {
                         let eDate = null;
-                        let parts = String(t.date_end).trim().split('.');
+                        let parts = rawDate.split('.');
                         if (parts.length === 3) eDate = new Date(parts[2], parts[1] - 1, parts[0]);
-                        else eDate = new Date(t.date_end);
+                        else eDate = new Date(rawDate);
 
                         if (eDate && !isNaN(eDate.getTime())) {
                             let today = new Date(); today.setHours(0, 0, 0, 0); eDate.setHours(0, 0, 0, 0);
@@ -231,10 +281,13 @@
                     let btnClass = isBlocked ? 'btn-green' : 'btn-red';
                     let btnLabel = isBlocked ? 'РАЗБЛОКИРОВАТЬ' : 'ЗАБЛОКИРОВАТЬ';
 
+                    // Экранируем данные для передачи в функцию открытия модалки
+                    const safeName = String(t.client_name).replace(/'/g, "&#39;").replace(/"/g, "&quot;");
+                    
                     html += `
                         <tr id="row-${t.api_key}" class="${rowClass}">
                             <td class="client-col">
-                                <span class="client-name">${t.client_name}</span>
+                                <span class="client-name" onclick="openEditModal('${t.api_key}', '${safeName}', '${rawDate}', ${warningThreshold})">${t.client_name}</span>
                                 <span class="client-key">${t.api_key}</span>
                             </td>
                             <td>
@@ -261,13 +314,11 @@
             const actionText = (currentStatus === 'active') ? 'заблокировать' : 'разблокировать';
             if (!confirm(`Вы уверены, что хотите ${actionText} ${apiKey}?`)) return;
             
-            button.disabled = true;
-            button.innerText = 'ОЖИДАЙТЕ...';
+            button.disabled = true; button.innerText = 'ОЖИДАЙТЕ...';
             
             try {
                 const response = await fetch(`${API_URL}?action=toggle_status&api_key=${apiKey}&current_status=${currentStatus}&pin=${currentPin}`, { redirect: 'follow' });
                 const res = await response.json();
-                
                 if (res.error) throw new Error(res.message || res.error);
                 
                 const newStatus = res.newStatus;
@@ -282,9 +333,50 @@
             } catch (err) {
                 alert('Ошибка: ' + err.message);
                 button.innerText = (currentStatus === 'active') ? 'ЗАБЛОКИРОВАТЬ' : 'РАЗБЛОКИРОВАТЬ';
-            } finally {
-                button.disabled = false;
+            } finally { button.disabled = false; }
+        }
+
+        // --- ЛОГИКА МОДАЛЬНОГО ОКНА ---
+        function openEditModal(apiKey, name, dateStr, warningDays) {
+            document.getElementById('edit-api-key').value = apiKey;
+            document.getElementById('edit-name').value = name;
+            document.getElementById('edit-warning').value = warningDays;
+            
+            // Конвертация даты из DD.MM.YYYY в YYYY-MM-DD для HTML-инпута
+            let htmlDate = "";
+            if (dateStr) {
+                let parts = dateStr.split('.');
+                if (parts.length === 3) {
+                    htmlDate = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+                }
             }
+            document.getElementById('edit-date').value = htmlDate;
+            
+            document.getElementById('edit-modal').style.display = 'flex';
+        }
+
+        function closeEditModal() {
+            document.getElementById('edit-modal').style.display = 'none';
+            document.getElementById('save-modal-btn').innerText = 'SAVE';
+            document.getElementById('save-modal-btn').disabled = false;
+        }
+
+        function saveTenantData() {
+            // Эта функция будет доработана позже для отправки данных на сервер
+            const btn = document.getElementById('save-modal-btn');
+            btn.disabled = true;
+            btn.innerText = 'SAVING...';
+            
+            // Заглушка для визуального теста
+            setTimeout(() => {
+                console.log("Данные подготовлены к отправке:");
+                console.log("Key:", document.getElementById('edit-api-key').value);
+                console.log("Name:", document.getElementById('edit-name').value);
+                console.log("Date:", document.getElementById('edit-date').value);
+                console.log("Warning:", document.getElementById('edit-warning').value);
+                
+                closeEditModal();
+            }, 800);
         }
     </script>
 </body>
