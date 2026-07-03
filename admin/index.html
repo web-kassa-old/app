@@ -205,7 +205,7 @@
 
     <script>
         const API_URL = (typeof CONFIG !== 'undefined') ? CONFIG.API_URL : "";
-        const currentVersion = 'SYS.VER // ' + ((typeof CONFIG !== 'undefined') ? CONFIG.VERSION : '1.0.4');
+        const currentVersion = 'SYS.VER // ' + ((typeof CONFIG !== 'undefined') ? CONFIG.VERSION : '1.0.5');
         
         document.getElementById('version-display').innerText = currentVersion;
         if(document.getElementById('pin-version-display')) document.getElementById('pin-version-display').innerText = currentVersion;
@@ -249,7 +249,8 @@
             if (currentPin.length === 6) verifyAndLoad();
         }
 
-        fn = removeDigit = function() {
+        // ИСПРАВЛЕНО: Убрана опечатка 'fn ='
+        function removeDigit() {
             if (isAuthenticating || currentPin.length === 0) return;
             currentPin = currentPin.slice(0, -1);
             updateDots();
@@ -263,7 +264,6 @@
             updateDots();
         }
 
-        // Блокировка и сброс сессии (Кнопка Замок)
         function lockApp() {
             currentPin = "";
             window.cachedTenants = [];
@@ -274,10 +274,9 @@
             clearPin();
         }
 
-        // Мгновенное бесшовное обновление данных (Кнопка Стрелки)
         async function refreshData() {
             const tbody = document.getElementById('table-body');
-            tbody.innerHTML = `<tr><td colspan="2" class="loader">Обновление данных...</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="2" class="loader">ОБНОВЛЕНИЕ БАЗЫ...</td></tr>`;
             try {
                 const response = await fetch(`${API_URL}?action=get_tenants&pin=${currentPin}`, { redirect: 'follow' });
                 const data = await response.json();
@@ -287,7 +286,7 @@
                     lockApp();
                 }
             } catch (e) {
-                tbody.innerHTML = `<tr><td colspan="2" class="loader" style="color:#ef4444;">ОШИБКА ОБНОВЛЕНИЯ</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="2" class="loader" style="color:#ef4444;">ОШИБКА СИНХРОНИЗАЦИИ</td></tr>`;
             }
         }
 
@@ -322,7 +321,7 @@
         }
 
         function renderTable(data) {
-            window.cachedTenants = data; // Записываем массив в ОЗУ
+            window.cachedTenants = data; 
             const tbody = document.getElementById('table-body');
             let html = '';
             let validCount = 0;
@@ -357,7 +356,6 @@
                     let btnClass = isBlocked ? 'btn-green' : 'btn-red';
                     let btnLabel = isBlocked ? 'РАЗБЛОКИРОВАТЬ' : 'ЗАБЛОКИРОВАТЬ';
                     
-                    // ИСПРАВЛЕНО: Теперь передается только api_key, никаких строк аргументов в HTML
                     html += `
                         <tr id="row-${t.api_key}" class="${rowClass}">
                             <td class="client-col">
@@ -401,17 +399,18 @@
                 }
                 button.setAttribute('onclick', `toggleBlock('${apiKey}', '${newStatus}')`);
                 
-                // Синхронизируем статус в ОЗУ
                 const t = window.cachedTenants.find(item => item.api_key === apiKey);
                 if(t) t.status = newStatus;
 
             } catch (err) {
                 alert('Ошибка: ' + err.message);
                 button.innerText = (currentStatus === 'active') ? 'ЗАБЛОКИРОВАТЬ' : 'РАЗБЛОКИРОВАТЬ';
-            } .finally { button.disabled = false; }
+            } finally { 
+                // ИСПРАВЛЕНО: Убрана точка перед finally
+                button.disabled = false; 
+            }
         }
 
-        // ИСПРАВЛЕНО: Безопасное извлечение параметров из кэша ОЗУ по ключу
         function openEditModal(apiKey) {
             const t = window.cachedTenants.find(item => item.api_key === apiKey);
             if (!t) return;
@@ -458,7 +457,6 @@
             const newContact = document.getElementById('edit-contact').value;
             const newNotes = document.getElementById('edit-notes').value;
 
-            // ИСПРАВЛЕНО: Обязательно только имя. Все остальные поля можно стирать/оставлять пустыми
             if (!newName) {
                 alert("Имя арендатора обязательно для заполнения"); return;
             }
@@ -479,7 +477,7 @@
                 if (res.error) throw new Error(res.error || res.message);
                 
                 closeEditModal();
-                refreshData(); // Бесшовно обновляем таблицу
+                refreshData(); 
             } catch (error) {
                 alert('Ошибка при сохранении: ' + error.message);
                 btn.disabled = false; btn.innerText = 'СОХРАНИТЬ';
