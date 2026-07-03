@@ -42,7 +42,20 @@
             touch-action: manipulation; 
         }
         .num-btn:active { background: #40444b; transform: scale(0.95); }
-        .num-btn.clear-btn { font-size: 16px; font-weight: 600; color: #94a3b8; }
+        /* Выделение кнопок отмены/удаления */
+        .num-btn.action-btn { 
+            font-size: 20px; font-weight: 600; 
+            color: #f87171; /* Приглушенный красный текст */
+            border-color: rgba(248, 113, 113, 0.2); 
+            background: rgba(239, 68, 68, 0.05); 
+        }
+        .num-btn.action-btn:active { background: rgba(239, 68, 68, 0.15); }
+        
+        /* Версия на экране блокировки */
+        .pin-version {
+            position: absolute; bottom: 30px; 
+            opacity: 0.6; /* Делаем чуть прозрачнее, чтобы не отвлекала */
+        }
         .num-btn:disabled { opacity: 0.5; pointer-events: none; }
 
         /* --- ОСНОВНОЙ ИНТЕРФЕЙС --- */
@@ -125,10 +138,11 @@
             <button class="num-btn" onclick="addDigit(7)">7</button>
             <button class="num-btn" onclick="addDigit(8)">8</button>
             <button class="num-btn" onclick="addDigit(9)">9</button>
-            <div></div>
+            <button class="num-btn action-btn" onclick="removeDigit()">⌫</button>
             <button class="num-btn" onclick="addDigit(0)">0</button>
-            <button class="num-btn clear-btn" onclick="clearPin()">C</button>
+            <button class="num-btn action-btn" onclick="clearPin()">C</button>
         </div>
+        <div class="version-label pin-version" id="pin-version-display"></div>
     </div>
 
     <div id="main-app">
@@ -151,40 +165,51 @@
 
     <div id="edit-modal">
         <div class="modal-content">
-            <div class="modal-header">EDIT TENANT</div>
+            <div class="modal-header">ПАРАМЕТРЫ КЛИЕНТА</div>
             
             <input type="hidden" id="edit-api-key">
             
             <div class="form-group">
-                <label class="form-label">CLIENT NAME</label>
+                <label class="form-label">ИМЯ АРЕНДАТОРА</label>
                 <input type="text" id="edit-name" class="form-control" autocomplete="off">
             </div>
             
             <div class="form-group">
-                <label class="form-label">ACCESS VALID UNTIL</label>
+                <label class="form-label">ДОСТУП ОТКРЫТ ДО</label>
                 <input type="date" id="edit-date" class="form-control">
             </div>
             
             <div class="form-group">
-                <label class="form-label">WARNING THRESHOLD (DAYS)</label>
-                <input type="number" id="edit-warning" class="form-control" min="1" max="30">
+                <label class="form-label">ПОРОГ ПРЕДУПРЕЖДЕНИЯ (ДНЕЙ)</label>
+                <input type="number" id="edit-warning" class="form-control" min="1" max="30" inputmode="numeric" pattern="[0-9]*" onfocus="this.select()">
             </div>
 
             <div class="modal-actions">
-                <button class="btn btn-dark" onclick="closeEditModal()">CANCEL</button>
-                <button class="btn btn-green" id="save-modal-btn" onclick="saveTenantData()">SAVE</button>
+                <button class="btn btn-dark" onclick="closeEditModal()">ОТМЕНА</button>
+                <button class="btn btn-green" id="save-modal-btn" onclick="saveTenantData()">СОХРАНИТЬ</button>
             </div>
         </div>
     </div>
 
     <script>
-        // Имитация заглушки для Live Server, если config.js не подгрузился
+        // 1. ИНИЦИАЛИЗАЦИЯ И ВЕРСИЯ
         const API_URL = (typeof CONFIG !== 'undefined') ? CONFIG.API_URL : "";
-        document.getElementById('version-display').innerText = 'SYS.VER // ' + ((typeof CONFIG !== 'undefined') ? CONFIG.VERSION : 'UI.TEST');
+        
+        // Формируем строку версии один раз
+        const currentVersion = 'SYS.VER // ' + ((typeof CONFIG !== 'undefined') ? CONFIG.VERSION : 'UI.TEST');
+        
+        // Вставляем версию в основной интерфейс
+        document.getElementById('version-display').innerText = currentVersion;
+        // Вставляем версию на экран ПИН-кода (если элемент существует)
+        if (document.getElementById('pin-version-display')) {
+            document.getElementById('pin-version-display').innerText = currentVersion;
+        }
 
+        // 2. ПЕРЕМЕННЫЕ СОСТОЯНИЯ
         let currentPin = "";
         let isAuthenticating = false;
 
+        // 3. ВИЗУАЛИЗАЦИЯ ТОЧЕК ВВОДА
         function updateDots(isError = false) {
             const dots = document.querySelectorAll('.pin-dot');
             dots.forEach((dot, index) => {
@@ -194,18 +219,36 @@
             });
         }
 
+        // Блокировка кнопок во время проверки
         function toggleNumpad(state) {
             const buttons = document.querySelectorAll('.num-btn');
             buttons.forEach(btn => btn.disabled = !state);
         }
 
+        // Добавление цифры
         function addDigit(num) {
             if (isAuthenticating || currentPin.length >= 6) return;
             currentPin += num;
             updateDots();
-            if (currentPin.length === 6) verifyAndLoad();
+            
+            if (currentPin.length === 6) {
+                verifyAndLoad();
+            }
         }
 
+        // --- НОВАЯ ЛОГИКА: УДАЛЕНИЕ ОДНОЙ ЦИФРЫ ---
+        function removeDigit() {
+            // Блокируем удаление, если идет проверка на сервере или если ПИН уже пустой
+            if (isAuthenticating || currentPin.length === 0) return;
+            
+            // Метод slice(0, -1) отрезает ровно один последний символ из строки
+            currentPin = currentPin.slice(0, -1);
+            
+            // Обновляем визуальные точки на экране
+            updateDots();
+        }
+
+        // Полный сброс (кнопка С)
         function clearPin() {
             if (isAuthenticating) return;
             currentPin = "";
@@ -214,6 +257,7 @@
             updateDots();
         }
 
+       
         async function verifyAndLoad() {
             if(!API_URL) { alert("API URL не найден. Для теста UI модального окна используйте существующий код или запустите на реальном сервере."); return; }
             
@@ -361,22 +405,43 @@
             document.getElementById('save-modal-btn').disabled = false;
         }
 
-        function saveTenantData() {
-            // Эта функция будет доработана позже для отправки данных на сервер
+        async function saveTenantData() {
             const btn = document.getElementById('save-modal-btn');
+            const apiKey = document.getElementById('edit-api-key').value;
+            const newName = document.getElementById('edit-name').value;
+            const newDate = document.getElementById('edit-date').value;
+            const newWarning = document.getElementById('edit-warning').value;
+
+            if (!newName || !newDate || !newWarning) {
+                alert("Заполните все поля");
+                return;
+            }
+
             btn.disabled = true;
-            btn.innerText = 'SAVING...';
-            
-            // Заглушка для визуального теста
-            setTimeout(() => {
-                console.log("Данные подготовлены к отправке:");
-                console.log("Key:", document.getElementById('edit-api-key').value);
-                console.log("Name:", document.getElementById('edit-name').value);
-                console.log("Date:", document.getElementById('edit-date').value);
-                console.log("Warning:", document.getElementById('edit-warning').value);
+            btn.innerText = 'СОХРАНЕНИЕ...';
+
+            try {
+                // Конвертируем дату из YYYY-MM-DD браузера обратно в DD.MM.YYYY для таблицы
+                const dateParts = newDate.split('-');
+                const formattedDate = `${dateParts[2]}.${dateParts[1]}.${dateParts[0]}`;
+
+                // Формируем URL с параметрами
+                const query = `?action=update_tenant&pin=${currentPin}&api_key=${encodeURIComponent(apiKey)}&client_name=${encodeURIComponent(newName)}&date_end=${encodeURIComponent(formattedDate)}&warning_days=${encodeURIComponent(newWarning)}`;
                 
+                const response = await fetch(`${API_URL}${query}`, { redirect: 'follow' });
+                const res = await response.json();
+                
+                if (res.error) throw new Error(res.error || res.message);
+                
+                // Успех! Закрываем окно и мгновенно обновляем таблицу в фоне
                 closeEditModal();
-            }, 800);
+                verifyAndLoad(); 
+
+            } catch (error) {
+                alert('Ошибка при сохранении: ' + error.message);
+                btn.disabled = false;
+                btn.innerText = 'СОХРАНИТЬ';
+            }
         }
     </script>
 </body>
