@@ -14,8 +14,7 @@
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
             background-color: #242526; 
             color: #e2e8f0;
-            padding: 0;
-            margin: 0;
+            padding: 0; margin: 0;
             touch-action: manipulation; 
         }
 
@@ -42,41 +41,34 @@
             touch-action: manipulation; 
         }
         .num-btn:active { background: #40444b; transform: scale(0.95); }
-        /* Выделение кнопок отмены/удаления */
         .num-btn.action-btn { 
             font-size: 20px; font-weight: 600; 
-            color: #f87171; /* Приглушенный красный текст */
-            border-color: rgba(248, 113, 113, 0.2); 
+            color: #f87171; border-color: rgba(248, 113, 113, 0.2); 
             background: rgba(239, 68, 68, 0.05); 
         }
-        .num-btn.action-btn:active { background: rgba(239, 68, 68, 0.15); }
-        
-        /* Версия на экране блокировки */
-        .pin-version {
-            position: absolute; bottom: 30px; 
-            opacity: 0.6; /* Делаем чуть прозрачнее, чтобы не отвлекала */
-        }
-        .num-btn:disabled { opacity: 0.5; pointer-events: none; }
+        .num-btn:active { background: rgba(239, 68, 68, 0.15); }
+        .pin-version { position: absolute; bottom: 30px; opacity: 0.6; }
 
         /* --- ОСНОВНОЙ ИНТЕРФЕЙС --- */
         #main-app { display: none; padding: 4px; padding-bottom: 20px; }
-        .header-panel { border-bottom: 2px solid #40444b; padding-bottom: 8px; margin-bottom: 12px; margin-top: 4px; }
+        .header-panel { border-bottom: 2px solid #40444b; padding-bottom: 8px; margin-bottom: 12px; margin-top: 4px; position: relative; }
         h2 { font-size: 20px; text-transform: uppercase; margin: 0; font-weight: 800; color: #cbd5e1; letter-spacing: 0.5px; text-align: center; }
         .version-label { text-align: center; font-size: 10px; color: #64748b; font-family: monospace; margin-top: 4px; letter-spacing: 1px; }
         
+        /* Кнопки управления в шапке */
+        .nav-controls { position: absolute; right: 8px; top: 4px; display: flex; gap: 14px; }
+        .nav-btn { background: transparent; border: none; font-size: 18px; cursor: pointer; padding: 4px; touch-action: manipulation; }
+        .nav-btn:active { transform: scale(0.9); opacity: 0.7; }
+
         table { width: 100%; border-collapse: collapse; background: #2f3136; border-radius: 4px; overflow: hidden; table-layout: fixed; }
         th, td { border-bottom: 1px solid #40444b; padding: 10px 6px; vertical-align: middle; }
         th { background-color: #242526; color: #94a3b8; font-weight: 600; font-size: 12px; text-transform: uppercase; padding: 12px 6px; text-align: center; border-bottom: 2px solid #40444b; }
         
         .client-col { text-align: left; padding-left: 8px; line-height: 1.3; }
-        
-        /* Кликабельное имя арендатора */
         .client-name { 
             font-size: 16px; font-weight: 700; color: #f8fafc; display: inline-block; word-wrap: break-word; 
-            cursor: pointer; border-bottom: 1px dashed #64748b; padding-bottom: 2px; transition: color 0.2s;
+            cursor: pointer; border-bottom: 1px dashed #64748b; padding-bottom: 2px;
         }
-        .client-name:active { color: #94a3b8; }
-        
         .client-key { font-size: 11px; color: #94a3b8; font-family: monospace; display: block; margin-top: 2px; }
         .control-cell { display: flex; flex-direction: column; gap: 6px; align-items: stretch; padding: 0 4px; }
         
@@ -85,7 +77,8 @@
         .danger-badge { background-color: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(248, 113, 113, 0.3); } 
         
         .locked-row { background-color: #202225; opacity: 0.8; }
-        .locked-row .client-name { text-decoration: line-through; color: #64748b; border-bottom: none; pointer-events: none; }
+        /* ИСПРАВЛЕНО: убрано pointer-events: none, теперь параметры заблокированных открываются свободно */
+        .locked-row .client-name { text-decoration: line-through; color: #64748b; border-bottom: 1px dashed #40444b; }
 
         .btn { width: 100%; padding: 12px 2px; font-size: 11px; font-weight: 700; border: none; border-radius: 4px; cursor: pointer; color: #fff; text-transform: uppercase; touch-action: manipulation; }
         .btn:active { opacity: 0.8; }
@@ -95,24 +88,21 @@
         .btn:disabled { background-color: #40444b; color: #94a3b8; cursor: not-allowed; }
         .loader { padding: 30px; text-align: center; font-weight: bold; color: #94a3b8; }
 
-        /* --- МОДАЛЬНОЕ ОКНО РЕДАКТИРОВАНИЯ --- */
+        /* --- МОДАЛЬНОЕ ОКНО --- */
         #edit-modal {
             display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background-color: rgba(18, 18, 18, 0.85); z-index: 1500;
-            align-items: flex-start; /* Смещаем к верхнему краю */
-            justify-content: center; backdrop-filter: blur(4px);
-            padding-top: 8vh; /* Отступ сверху */
-            overflow-y: auto; /* Разрешаем скролл всего экрана */
+            align-items: flex-start; justify-content: center; backdrop-filter: blur(4px);
+            padding-top: 15px; overflow-y: auto; 
         }
         .modal-content {
             background-color: #242526; border: 1px solid #40444b; border-radius: 8px;
             width: 90%; max-width: 360px; padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.5);
-            max-height: 80vh; /* Ограничиваем высоту */
-            overflow-y: auto; /* Внутренний скролл контента */
+            margin-bottom: 260px; 
         }
-        .modal-header { font-size: 16px; font-weight: 800; color: #cbd5e1; text-transform: uppercase; margin-bottom: 20px; letter-spacing: 1px; text-align: center; border-bottom: 1px solid #40444b; padding-bottom: 10px; }
+        .modal-header { font-size: 16px; font-weight: 800; color: #cbd5e1; text-transform: uppercase; margin-bottom: 16px; letter-spacing: 1px; text-align: center; border-bottom: 1px solid #40444b; padding-bottom: 8px; }
         
-        .form-group { margin-bottom: 16px; }
+        .form-group { margin-bottom: 14px; }
         .form-label { display: block; font-size: 11px; color: #94a3b8; text-transform: uppercase; margin-bottom: 6px; font-weight: 600; }
         .form-control {
             width: 100%; box-sizing: border-box; background-color: #1e1e1e; border: 1px solid #40444b;
@@ -121,7 +111,7 @@
         .form-control:focus { outline: none; border-color: #64748b; }
         input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); opacity: 0.6; cursor: pointer; }
         
-        .modal-actions { display: flex; gap: 10px; margin-top: 24px; }
+        .modal-actions { display: flex; gap: 10px; margin-top: 20px; }
         .modal-actions .btn { flex: 1; padding: 14px 0; }
     </style>
 </head>
@@ -154,6 +144,10 @@
         <div class="header-panel">
             <h2>MASTER CONTROL</h2>
             <div class="version-label" id="version-display"></div>
+            <div class="nav-controls">
+                <button class="nav-btn" onclick="refreshData()" title="Обновить базу">🔄</button>
+                <button class="nav-btn" onclick="lockApp()" title="Заблокировать">🔒</button>
+            </div>
         </div>
         <table>
             <thead>
@@ -182,14 +176,14 @@
             <div class="form-group" style="display: flex; gap: 8px; align-items: flex-end;">
                 <div style="flex: 1;">
                     <label class="form-label">КОНТАКТ (ТЕЛЕФОН)</label>
-                    <input type="tel" id="edit-contact" class="form-control" autocomplete="off" placeholder="+7 700 000 0000">
+                    <input type="tel" id="edit-contact" class="form-control" autocomplete="off" placeholder="+77001234567">
                 </div>
-                <a id="call-btn" href="#" class="btn btn-dark" style="display: flex; align-items: center; justify-content: center; height: 43px; width: 50px; text-decoration: none; font-size: 18px; border-radius: 4px;">📞</a>
+                <a id="call-btn" href="#" class="btn btn-dark" style="display: flex; align-items: center; justify-content: center; height: 45px; width: 50px; text-decoration: none; font-size: 18px; border-radius: 4px; box-sizing: border-box;">📞</a>
             </div>
 
             <div class="form-group">
                 <label class="form-label">ЗАМЕТКИ (ДЛЯ СЕБЯ)</label>
-                <textarea id="edit-notes" class="form-control" rows="2" style="resize: none;"></textarea>
+                <textarea id="edit-notes" class="form-control" rows="2" style="resize: none; font-family: inherit; font-size: 14px;"></textarea>
             </div>
             
             <div class="form-group">
@@ -210,24 +204,30 @@
     </div>
 
     <script>
-        // 1. ИНИЦИАЛИЗАЦИЯ И ВЕРСИЯ
         const API_URL = (typeof CONFIG !== 'undefined') ? CONFIG.API_URL : "";
+        const currentVersion = 'SYS.VER // ' + ((typeof CONFIG !== 'undefined') ? CONFIG.VERSION : '1.0.4');
         
-        // Формируем строку версии один раз
-        const currentVersion = 'SYS.VER // ' + ((typeof CONFIG !== 'undefined') ? CONFIG.VERSION : 'UI.TEST');
-        
-        // Вставляем версию в основной интерфейс
         document.getElementById('version-display').innerText = currentVersion;
-        // Вставляем версию на экран ПИН-кода (если элемент существует)
-        if (document.getElementById('pin-version-display')) {
-            document.getElementById('pin-version-display').innerText = currentVersion;
-        }
+        if(document.getElementById('pin-version-display')) document.getElementById('pin-version-display').innerText = currentVersion;
 
-        // 2. ПЕРЕМЕННЫЕ СОСТОЯНИЯ
         let currentPin = "";
         let isAuthenticating = false;
+        
+        // Глобальный массив хранения состояния данных клиентов в ОЗУ
+        window.cachedTenants = [];
 
-        // 3. ВИЗУАЛИЗАЦИЯ ТОЧЕК ВВОДА
+        document.getElementById('edit-contact').addEventListener('input', function() {
+            const callBtn = document.getElementById('call-btn');
+            const cleanPhone = String(this.value).replace(/[^\d+]/g, '');
+            if (cleanPhone) {
+                callBtn.href = `tel:${cleanPhone}`;
+                callBtn.style.opacity = "1";
+            } else {
+                callBtn.href = "#";
+                callBtn.style.opacity = "0.5";
+            }
+        });
+
         function updateDots(isError = false) {
             const dots = document.querySelectorAll('.pin-dot');
             dots.forEach((dot, index) => {
@@ -237,36 +237,24 @@
             });
         }
 
-        // Блокировка кнопок во время проверки
         function toggleNumpad(state) {
             const buttons = document.querySelectorAll('.num-btn');
             buttons.forEach(btn => btn.disabled = !state);
         }
 
-        // Добавление цифры
         function addDigit(num) {
             if (isAuthenticating || currentPin.length >= 6) return;
             currentPin += num;
             updateDots();
-            
-            if (currentPin.length === 6) {
-                verifyAndLoad();
-            }
+            if (currentPin.length === 6) verifyAndLoad();
         }
 
-        // --- НОВАЯ ЛОГИКА: УДАЛЕНИЕ ОДНОЙ ЦИФРЫ ---
-        function removeDigit() {
-            // Блокируем удаление, если идет проверка на сервере или если ПИН уже пустой
+        fn = removeDigit = function() {
             if (isAuthenticating || currentPin.length === 0) return;
-            
-            // Метод slice(0, -1) отрезает ровно один последний символ из строки
             currentPin = currentPin.slice(0, -1);
-            
-            // Обновляем визуальные точки на экране
             updateDots();
         }
 
-        // Полный сброс (кнопка С)
         function clearPin() {
             if (isAuthenticating) return;
             currentPin = "";
@@ -275,10 +263,35 @@
             updateDots();
         }
 
-       
+        // Блокировка и сброс сессии (Кнопка Замок)
+        function lockApp() {
+            currentPin = "";
+            window.cachedTenants = [];
+            updateDots();
+            document.getElementById('main-app').style.display = 'none';
+            document.getElementById('pin-screen').style.display = 'flex';
+            toggleNumpad(true);
+            clearPin();
+        }
+
+        // Мгновенное бесшовное обновление данных (Кнопка Стрелки)
+        async function refreshData() {
+            const tbody = document.getElementById('table-body');
+            tbody.innerHTML = `<tr><td colspan="2" class="loader">Обновление данных...</td></tr>`;
+            try {
+                const response = await fetch(`${API_URL}?action=get_tenants&pin=${currentPin}`, { redirect: 'follow' });
+                const data = await response.json();
+                if (data.error !== "ACCESS_DENIED") {
+                    renderTable(data);
+                } else {
+                    lockApp();
+                }
+            } catch (e) {
+                tbody.innerHTML = `<tr><td colspan="2" class="loader" style="color:#ef4444;">ОШИБКА ОБНОВЛЕНИЯ</td></tr>`;
+            }
+        }
+
         async function verifyAndLoad() {
-            if(!API_URL) { alert("API URL не найден. Для теста UI модального окна используйте существующий код или запустите на реальном сервере."); return; }
-            
             isAuthenticating = true;
             toggleNumpad(false);
             document.getElementById('pin-msg').innerText = "VERIFYING...";
@@ -309,6 +322,7 @@
         }
 
         function renderTable(data) {
+            window.cachedTenants = data; // Записываем массив в ОЗУ
             const tbody = document.getElementById('table-body');
             let html = '';
             let validCount = 0;
@@ -342,14 +356,12 @@
                     let badgeText = 'Остаток: ' + daysLeft; 
                     let btnClass = isBlocked ? 'btn-green' : 'btn-red';
                     let btnLabel = isBlocked ? 'РАЗБЛОКИРОВАТЬ' : 'ЗАБЛОКИРОВАТЬ';
-
-                    // Экранируем данные для передачи в функцию открытия модалки
-                    const safeName = String(t.client_name).replace(/'/g, "&#39;").replace(/"/g, "&quot;");
                     
+                    // ИСПРАВЛЕНО: Теперь передается только api_key, никаких строк аргументов в HTML
                     html += `
                         <tr id="row-${t.api_key}" class="${rowClass}">
                             <td class="client-col">
-                                <span class="client-name" onclick="openEditModal('${t.api_key}', '${safeName}', '${rawDate}', ${warningThreshold})">${t.client_name}</span>
+                                <span class="client-name" onclick="openEditModal('${t.api_key}')">${t.client_name}</span>
                                 <span class="client-key">${t.api_key}</span>
                             </td>
                             <td>
@@ -372,12 +384,10 @@
         async function toggleBlock(apiKey, currentStatus) {
             const button = document.getElementById(`btn-${apiKey}`);
             const row = document.getElementById(`row-${apiKey}`);
-            
             const actionText = (currentStatus === 'active') ? 'заблокировать' : 'разблокировать';
             if (!confirm(`Вы уверены, что хотите ${actionText} ${apiKey}?`)) return;
             
             button.disabled = true; button.innerText = 'ОЖИДАЙТЕ...';
-            
             try {
                 const response = await fetch(`${API_URL}?action=toggle_status&api_key=${apiKey}&current_status=${currentStatus}&pin=${currentPin}`, { redirect: 'follow' });
                 const res = await response.json();
@@ -385,43 +395,46 @@
                 
                 const newStatus = res.newStatus;
                 if (newStatus === 'active') {
-                    row.classList.remove('locked-row');
-                    button.className = 'btn btn-red'; button.innerText = 'ЗАБЛОКИРОВАТЬ';
+                    row.classList.remove('locked-row'); button.className = 'btn btn-red'; button.innerText = 'ЗАБЛОКИРОВАТЬ';
                 } else {
-                    row.classList.add('locked-row');
-                    button.className = 'btn btn-green'; button.innerText = 'РАЗБЛОКИРОВАТЬ';
+                    row.classList.add('locked-row'); button.className = 'btn btn-green'; button.innerText = 'РАЗБЛОКИРОВАТЬ';
                 }
                 button.setAttribute('onclick', `toggleBlock('${apiKey}', '${newStatus}')`);
+                
+                // Синхронизируем статус в ОЗУ
+                const t = window.cachedTenants.find(item => item.api_key === apiKey);
+                if(t) t.status = newStatus;
+
             } catch (err) {
                 alert('Ошибка: ' + err.message);
                 button.innerText = (currentStatus === 'active') ? 'ЗАБЛОКИРОВАТЬ' : 'РАЗБЛОКИРОВАТЬ';
-            } finally { button.disabled = false; }
+            } .finally { button.disabled = false; }
         }
 
-        // --- ЛОГИКА МОДАЛЬНОГО ОКНА ---
-        // Добавлены параметры contact и notes (если они придут с сервера)
-        function openEditModal(apiKey, name, dateStr, warningDays, contact = "", notes = "") {
-            document.getElementById('edit-api-key').value = apiKey;
-            document.getElementById('edit-name').value = name;
-            document.getElementById('edit-warning').value = warningDays;
-            document.getElementById('edit-contact').value = contact;
-            document.getElementById('edit-notes').value = notes;
+        // ИСПРАВЛЕНО: Безопасное извлечение параметров из кэша ОЗУ по ключу
+        function openEditModal(apiKey) {
+            const t = window.cachedTenants.find(item => item.api_key === apiKey);
+            if (!t) return;
+
+            document.getElementById('edit-api-key').value = t.api_key;
+            document.getElementById('edit-name').value = t.client_name || "";
+            document.getElementById('edit-warning').value = t.warning_days || 3;
+            document.getElementById('edit-contact').value = t.contact || "";
+            document.getElementById('edit-notes').value = t.notes || "";
             
-            // Настраиваем кнопку дозвона
             const callBtn = document.getElementById('call-btn');
-            if (contact) {
-                // Очищаем номер от пробелов и тире для правильного набора
-                const cleanPhone = String(contact).replace(/[^\d+]/g, '');
+            const cleanPhone = String(t.contact || "").replace(/[^\d+]/g, '');
+            if (cleanPhone) {
                 callBtn.href = `tel:${cleanPhone}`;
                 callBtn.style.opacity = "1";
             } else {
                 callBtn.href = "#";
-                callBtn.style.opacity = "0.5"; // Делаем полупрозрачной, если номера нет
+                callBtn.style.opacity = "0.5";
             }
             
             let htmlDate = "";
-            if (dateStr) {
-                let parts = dateStr.split('.');
+            if (t.date_end && t.date_end !== "—") {
+                let parts = t.date_end.split('.');
                 if (parts.length === 3) {
                     htmlDate = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
                 }
@@ -445,27 +458,28 @@
             const newContact = document.getElementById('edit-contact').value;
             const newNotes = document.getElementById('edit-notes').value;
 
-            if (!newName || !newDate || !newWarning) {
-                alert("Имя, дата и порог обязательны"); return;
+            // ИСПРАВЛЕНО: Обязательно только имя. Все остальные поля можно стирать/оставлять пустыми
+            if (!newName) {
+                alert("Имя арендатора обязательно для заполнения"); return;
             }
 
             btn.disabled = true; btn.innerText = 'СОХРАНЕНИЕ...';
 
             try {
-                const dateParts = newDate.split('-');
-                const formattedDate = `${dateParts[2]}.${dateParts[1]}.${dateParts[0]}`;
+                let formattedDate = "";
+                if (newDate) {
+                    const dateParts = newDate.split('-');
+                    formattedDate = `${dateParts[2]}.${dateParts[1]}.${dateParts[0]}`;
+                }
 
-                // Добавили contact и notes в запрос
                 const query = `?action=update_tenant&pin=${currentPin}&api_key=${encodeURIComponent(apiKey)}&client_name=${encodeURIComponent(newName)}&date_end=${encodeURIComponent(formattedDate)}&warning_days=${encodeURIComponent(newWarning)}&contact=${encodeURIComponent(newContact)}&notes=${encodeURIComponent(newNotes)}`;
                 
                 const response = await fetch(`${API_URL}${query}`, { redirect: 'follow' });
                 const res = await response.json();
-                
                 if (res.error) throw new Error(res.error || res.message);
                 
                 closeEditModal();
-                verifyAndLoad(); 
-
+                refreshData(); // Бесшовно обновляем таблицу
             } catch (error) {
                 alert('Ошибка при сохранении: ' + error.message);
                 btn.disabled = false; btn.innerText = 'СОХРАНИТЬ';
