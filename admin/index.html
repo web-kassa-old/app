@@ -99,11 +99,16 @@
         #edit-modal {
             display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background-color: rgba(18, 18, 18, 0.85); z-index: 1500;
-            align-items: center; justify-content: center; backdrop-filter: blur(4px);
+            align-items: flex-start; /* Смещаем к верхнему краю */
+            justify-content: center; backdrop-filter: blur(4px);
+            padding-top: 8vh; /* Отступ сверху */
+            overflow-y: auto; /* Разрешаем скролл всего экрана */
         }
         .modal-content {
             background-color: #242526; border: 1px solid #40444b; border-radius: 8px;
             width: 90%; max-width: 360px; padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            max-height: 80vh; /* Ограничиваем высоту */
+            overflow-y: auto; /* Внутренний скролл контента */
         }
         .modal-header { font-size: 16px; font-weight: 800; color: #cbd5e1; text-transform: uppercase; margin-bottom: 20px; letter-spacing: 1px; text-align: center; border-bottom: 1px solid #40444b; padding-bottom: 10px; }
         
@@ -172,6 +177,19 @@
             <div class="form-group">
                 <label class="form-label">ИМЯ АРЕНДАТОРА</label>
                 <input type="text" id="edit-name" class="form-control" autocomplete="off">
+            </div>
+            
+            <div class="form-group" style="display: flex; gap: 8px; align-items: flex-end;">
+                <div style="flex: 1;">
+                    <label class="form-label">КОНТАКТ (ТЕЛЕФОН)</label>
+                    <input type="tel" id="edit-contact" class="form-control" autocomplete="off" placeholder="+7 700 000 0000">
+                </div>
+                <a id="call-btn" href="#" class="btn btn-dark" style="display: flex; align-items: center; justify-content: center; height: 43px; width: 50px; text-decoration: none; font-size: 18px; border-radius: 4px;">📞</a>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">ЗАМЕТКИ (ДЛЯ СЕБЯ)</label>
+                <textarea id="edit-notes" class="form-control" rows="2" style="resize: none;"></textarea>
             </div>
             
             <div class="form-group">
@@ -381,12 +399,26 @@
         }
 
         // --- ЛОГИКА МОДАЛЬНОГО ОКНА ---
-        function openEditModal(apiKey, name, dateStr, warningDays) {
+        // Добавлены параметры contact и notes (если они придут с сервера)
+        function openEditModal(apiKey, name, dateStr, warningDays, contact = "", notes = "") {
             document.getElementById('edit-api-key').value = apiKey;
             document.getElementById('edit-name').value = name;
             document.getElementById('edit-warning').value = warningDays;
+            document.getElementById('edit-contact').value = contact;
+            document.getElementById('edit-notes').value = notes;
             
-            // Конвертация даты из DD.MM.YYYY в YYYY-MM-DD для HTML-инпута
+            // Настраиваем кнопку дозвона
+            const callBtn = document.getElementById('call-btn');
+            if (contact) {
+                // Очищаем номер от пробелов и тире для правильного набора
+                const cleanPhone = String(contact).replace(/[^\d+]/g, '');
+                callBtn.href = `tel:${cleanPhone}`;
+                callBtn.style.opacity = "1";
+            } else {
+                callBtn.href = "#";
+                callBtn.style.opacity = "0.5"; // Делаем полупрозрачной, если номера нет
+            }
+            
             let htmlDate = "";
             if (dateStr) {
                 let parts = dateStr.split('.');
@@ -395,13 +427,12 @@
                 }
             }
             document.getElementById('edit-date').value = htmlDate;
-            
             document.getElementById('edit-modal').style.display = 'flex';
         }
 
         function closeEditModal() {
             document.getElementById('edit-modal').style.display = 'none';
-            document.getElementById('save-modal-btn').innerText = 'SAVE';
+            document.getElementById('save-modal-btn').innerText = 'СОХРАНИТЬ';
             document.getElementById('save-modal-btn').disabled = false;
         }
 
@@ -411,36 +442,33 @@
             const newName = document.getElementById('edit-name').value;
             const newDate = document.getElementById('edit-date').value;
             const newWarning = document.getElementById('edit-warning').value;
+            const newContact = document.getElementById('edit-contact').value;
+            const newNotes = document.getElementById('edit-notes').value;
 
             if (!newName || !newDate || !newWarning) {
-                alert("Заполните все поля");
-                return;
+                alert("Имя, дата и порог обязательны"); return;
             }
 
-            btn.disabled = true;
-            btn.innerText = 'СОХРАНЕНИЕ...';
+            btn.disabled = true; btn.innerText = 'СОХРАНЕНИЕ...';
 
             try {
-                // Конвертируем дату из YYYY-MM-DD браузера обратно в DD.MM.YYYY для таблицы
                 const dateParts = newDate.split('-');
                 const formattedDate = `${dateParts[2]}.${dateParts[1]}.${dateParts[0]}`;
 
-                // Формируем URL с параметрами
-                const query = `?action=update_tenant&pin=${currentPin}&api_key=${encodeURIComponent(apiKey)}&client_name=${encodeURIComponent(newName)}&date_end=${encodeURIComponent(formattedDate)}&warning_days=${encodeURIComponent(newWarning)}`;
+                // Добавили contact и notes в запрос
+                const query = `?action=update_tenant&pin=${currentPin}&api_key=${encodeURIComponent(apiKey)}&client_name=${encodeURIComponent(newName)}&date_end=${encodeURIComponent(formattedDate)}&warning_days=${encodeURIComponent(newWarning)}&contact=${encodeURIComponent(newContact)}&notes=${encodeURIComponent(newNotes)}`;
                 
                 const response = await fetch(`${API_URL}${query}`, { redirect: 'follow' });
                 const res = await response.json();
                 
                 if (res.error) throw new Error(res.error || res.message);
                 
-                // Успех! Закрываем окно и мгновенно обновляем таблицу в фоне
                 closeEditModal();
                 verifyAndLoad(); 
 
             } catch (error) {
                 alert('Ошибка при сохранении: ' + error.message);
-                btn.disabled = false;
-                btn.innerText = 'СОХРАНИТЬ';
+                btn.disabled = false; btn.innerText = 'СОХРАНИТЬ';
             }
         }
     </script>
