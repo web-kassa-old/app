@@ -3,6 +3,8 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>MASTER CONTROL</title>
     
     <script src="config.js"></script>
@@ -10,124 +12,179 @@
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
-            background-color: #f4f6f8;
-            color: #1a1a1a;
-            padding: 4px;
+            background-color: #121212; /* Глубокий темный фон */
+            color: #e2e8f0;
+            padding: 0;
             margin: 0;
         }
-        .header-panel {
-            border-bottom: 3px solid #475569;
-            padding-bottom: 8px;
-            margin-bottom: 12px;
-            margin-top: 4px;
+
+        /* --- ЭКРАН ПИН-КОДА --- */
+        #pin-screen {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: #121212;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 1000;
         }
-        h2 {
-            font-size: 20px;
-            text-transform: uppercase;
-            margin: 0;
-            font-weight: 800;
-            color: #475569;
-            letter-spacing: 0.5px;
-            text-align: center;
+        .pin-title { color: #94a3b8; font-size: 16px; font-weight: 600; margin-bottom: 24px; letter-spacing: 2px; }
+        .pin-dots { display: flex; gap: 16px; margin-bottom: 40px; height: 16px; }
+        .pin-dot { width: 14px; height: 14px; border-radius: 50%; border: 2px solid #475569; background: transparent; transition: 0.2s; }
+        .pin-dot.filled { background: #e2e8f0; border-color: #e2e8f0; }
+        .pin-dot.error { border-color: #ef4444; background: #ef4444; }
+        
+        .numpad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; width: 280px; }
+        .num-btn {
+            background: #1e1e1e; border: 1px solid #2a2a2a; border-radius: 50%;
+            width: 75px; height: 75px; color: #e2e8f0; font-size: 28px; font-weight: 300;
+            display: flex; align-items: center; justify-content: center;
+            margin: 0 auto; cursor: pointer; transition: 0.1s;
         }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            background: #fff;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-            border-radius: 4px;
-            overflow: hidden;
-            table-layout: fixed;
-        }
-        th, td {
-            border-bottom: 1px solid #e2e8f0;
-            padding: 10px 6px;
-            vertical-align: middle;
-        }
-        th {
-            background-color: #475569;
-            color: #fff;
-            font-weight: 600;
-            font-size: 12px;
-            text-transform: uppercase;
-            padding: 12px 6px;
-            text-align: center;
-        }
+        .num-btn:active { background: #2a2a2a; transform: scale(0.95); }
+        .num-btn.clear-btn { font-size: 16px; font-weight: 600; color: #94a3b8; }
+        .num-btn:disabled { opacity: 0.5; pointer-events: none; }
+
+        /* --- ОСНОВНОЙ ИНТЕРФЕЙС --- */
+        #main-app { display: none; padding: 4px; }
+        .header-panel { border-bottom: 2px solid #333; padding-bottom: 8px; margin-bottom: 12px; margin-top: 4px; }
+        h2 { font-size: 20px; text-transform: uppercase; margin: 0; font-weight: 800; color: #94a3b8; letter-spacing: 0.5px; text-align: center; }
+        
+        table { width: 100%; border-collapse: collapse; background: #1e1e1e; border-radius: 4px; overflow: hidden; table-layout: fixed; }
+        th, td { border-bottom: 1px solid #2a2a2a; padding: 10px 6px; vertical-align: middle; }
+        th { background-color: #121212; color: #64748b; font-weight: 600; font-size: 12px; text-transform: uppercase; padding: 12px 6px; text-align: center; border-bottom: 2px solid #333; }
         
         .client-col { text-align: left; padding-left: 8px; line-height: 1.3; }
-        .client-name { font-size: 16px; font-weight: 700; display: block; word-wrap: break-word; }
+        .client-name { font-size: 16px; font-weight: 700; color: #e2e8f0; display: block; word-wrap: break-word; }
         .client-key { font-size: 11px; color: #64748b; font-family: monospace; }
-
-        .control-cell {
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-            align-items: stretch;
-            padding: 0 4px;
-        }
-
-        .days-badge {
-            font-size: 13px;
-            font-weight: 800;
-            padding: 4px 0;
-            border-radius: 4px;
-            text-align: center;
-            text-transform: uppercase;
-        }
-        .safe-badge { background-color: #e8f5e9; color: #2e7d32; } 
-        .danger-badge { background-color: #ffebee; color: #c62828; } 
+        .control-cell { display: flex; flex-direction: column; gap: 6px; align-items: stretch; padding: 0 4px; }
         
-        .locked-row { background-color: #f8fafc; }
-        .locked-row .client-name { text-decoration: line-through; color: #94a3b8; }
+        .days-badge { font-size: 13px; font-weight: 800; padding: 4px 0; border-radius: 4px; text-align: center; text-transform: uppercase; }
+        .safe-badge { background-color: rgba(22, 163, 74, 0.15); color: #4ade80; border: 1px solid rgba(74, 222, 128, 0.2); } 
+        .danger-badge { background-color: rgba(220, 38, 38, 0.15); color: #f87171; border: 1px solid rgba(248, 113, 113, 0.2); } 
+        
+        .locked-row { background-color: #161616; opacity: 0.7; }
+        .locked-row .client-name { text-decoration: line-through; color: #64748b; }
 
-        .btn {
-            width: 100%;
-            padding: 12px 2px;
-            font-size: 11px;
-            font-weight: 700;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            color: #fff;
-            text-transform: uppercase;
-        }
+        .btn { width: 100%; padding: 12px 2px; font-size: 11px; font-weight: 700; border: none; border-radius: 4px; cursor: pointer; color: #fff; text-transform: uppercase; }
         .btn:active { opacity: 0.8; }
-        .btn-red { background-color: #dc2626; }
-        .btn-green { background-color: #16a34a; }
-        .btn:disabled { background-color: #cbd5e1; color: #64748b; cursor: wait; }
-        
+        .btn-red { background-color: #b91c1c; }
+        .btn-green { background-color: #15803d; }
+        .btn:disabled { background-color: #333; color: #64748b; }
         .loader { padding: 30px; text-align: center; font-weight: bold; color: #64748b; }
     </style>
 </head>
 <body>
 
-    <div class="header-panel">
-        <h2>MASTER CONTROL</h2>
+    <div id="pin-screen">
+        <div class="pin-title" id="pin-msg">ENTER AUTH PIN</div>
+        <div class="pin-dots" id="dots-container">
+            <div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div>
+            <div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div>
+        </div>
+        <div class="numpad" id="numpad">
+            <button class="num-btn" onclick="addDigit(1)">1</button>
+            <button class="num-btn" onclick="addDigit(2)">2</button>
+            <button class="num-btn" onclick="addDigit(3)">3</button>
+            <button class="num-btn" onclick="addDigit(4)">4</button>
+            <button class="num-btn" onclick="addDigit(5)">5</button>
+            <button class="num-btn" onclick="addDigit(6)">6</button>
+            <button class="num-btn" onclick="addDigit(7)">7</button>
+            <button class="num-btn" onclick="addDigit(8)">8</button>
+            <button class="num-btn" onclick="addDigit(9)">9</button>
+            <div></div>
+            <button class="num-btn" onclick="addDigit(0)">0</button>
+            <button class="num-btn clear-btn" onclick="clearPin()">C</button>
+        </div>
     </div>
 
-    <table>
-        <thead>
-            <tr>
-                <th style="width: 60%;">Арендатор</th>
-                <th style="width: 40%;">Статус / Контроль</th>
-            </tr>
-        </thead>
-        <tbody id="table-body">
-            <tr><td colspan="2" class="loader">Синхронизация с сервером...</td></tr>
-        </tbody>
-    </table>
+    <div id="main-app">
+        <div class="header-panel">
+            <h2>MASTER CONTROL</h2>
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 60%;">Арендатор</th>
+                    <th style="width: 40%;">Статус / Контроль</th>
+                </tr>
+            </thead>
+            <tbody id="table-body">
+                <tr><td colspan="2" class="loader">Синхронизация...</td></tr>
+            </tbody>
+        </table>
+    </div>
 
     <script>
-        // Забираем ссылку динамически из подключенного config.js
         const API_URL = CONFIG.API_URL;
+        let currentPin = "";
+        let isAuthenticating = false;
 
-        async function loadData() {
+        function updateDots(isError = false) {
+            const dots = document.querySelectorAll('.pin-dot');
+            dots.forEach((dot, index) => {
+                dot.className = 'pin-dot';
+                if (isError) dot.classList.add('error');
+                else if (index < currentPin.length) dot.classList.add('filled');
+            });
+        }
+
+        function toggleNumpad(state) {
+            const buttons = document.querySelectorAll('.num-btn');
+            buttons.forEach(btn => btn.disabled = !state);
+        }
+
+        function addDigit(num) {
+            if (isAuthenticating || currentPin.length >= 6) return;
+            currentPin += num;
+            updateDots();
+            
+            if (currentPin.length === 6) {
+                verifyAndLoad();
+            }
+        }
+
+        function clearPin() {
+            if (isAuthenticating) return;
+            currentPin = "";
+            document.getElementById('pin-msg').innerText = "ENTER AUTH PIN";
+            document.getElementById('pin-msg').style.color = "#94a3b8";
+            updateDots();
+        }
+
+        async function verifyAndLoad() {
+            isAuthenticating = true;
+            toggleNumpad(false);
+            document.getElementById('pin-msg').innerText = "VERIFYING...";
+            
             try {
-                const response = await fetch(`${API_URL}?action=get_tenants`);
+                // Добавлен redirect: 'follow' для корректной работы PWA в iOS
+                const response = await fetch(`${API_URL}?action=get_tenants&pin=${currentPin}`, { redirect: 'follow' });
                 const data = await response.json();
-                renderTable(data);
+                
+                if (data.error === "ACCESS_DENIED") {
+                    document.getElementById('pin-msg').innerText = "ACCESS DENIED";
+                    document.getElementById('pin-msg').style.color = "#ef4444";
+                    updateDots(true);
+                    
+                    // Жесткая 3-секундная блокировка
+                    setTimeout(() => {
+                        currentPin = "";
+                        isAuthenticating = false;
+                        toggleNumpad(true);
+                        document.getElementById('pin-msg').innerText = "ENTER AUTH PIN";
+                        document.getElementById('pin-msg').style.color = "#94a3b8";
+                        updateDots();
+                    }, 3000);
+                } else {
+                    document.getElementById('pin-screen').style.display = 'none';
+                    document.getElementById('main-app').style.display = 'block';
+                    renderTable(data);
+                }
             } catch (error) {
-                document.getElementById('table-body').innerHTML = `<tr><td colspan="2" class="loader" style="color:red;">Ошибка соединения с базой</td></tr>`;
+                document.getElementById('pin-msg').innerText = "CONNECTION ERROR";
+                setTimeout(() => {
+                    clearPin();
+                    isAuthenticating = false;
+                    toggleNumpad(true);
+                }, 1500);
             }
         }
 
@@ -142,38 +199,26 @@
                     validCount++;
                     
                     let isBlocked = (t.status !== 'active');
-                    let warningThreshold = parseInt(t.warning_days);
-                    if (isNaN(warningThreshold)) warningThreshold = 3;
-                    
+                    let warningThreshold = parseInt(t.warning_days) || 3;
                     let daysLeft = '—';
                     let badgeClass = 'safe-badge';
                     
                     if (t.date_end) {
                         let eDate = null;
                         let parts = String(t.date_end).trim().split('.');
-                        if (parts.length === 3) {
-                            eDate = new Date(parts[2], parts[1] - 1, parts[0]);
-                        } else {
-                            eDate = new Date(t.date_end);
-                        }
+                        if (parts.length === 3) eDate = new Date(parts[2], parts[1] - 1, parts[0]);
+                        else eDate = new Date(t.date_end);
 
                         if (eDate && !isNaN(eDate.getTime())) {
-                            let today = new Date();
-                            today.setHours(0, 0, 0, 0);
-                            eDate.setHours(0, 0, 0, 0);
-                            
+                            let today = new Date(); today.setHours(0, 0, 0, 0); eDate.setHours(0, 0, 0, 0);
                             let diff = Math.round((eDate - today) / (1000 * 60 * 60 * 24));
                             daysLeft = diff + ' дн.';
-                            
-                            if (diff <= warningThreshold) {
-                                badgeClass = 'danger-badge';
-                            }
+                            if (diff <= warningThreshold) badgeClass = 'danger-badge';
                         }
                     }
                     
                     let rowClass = isBlocked ? 'locked-row' : '';
                     let badgeText = 'Остаток: ' + daysLeft; 
-                    
                     let btnClass = isBlocked ? 'btn-green' : 'btn-red';
                     let btnLabel = isBlocked ? 'РАЗБЛОКИРОВАТЬ' : 'ЗАБЛОКИРОВАТЬ';
 
@@ -185,9 +230,7 @@
                             </td>
                             <td>
                                 <div class="control-cell">
-                                    <div id="badge-${t.api_key}" class="days-badge ${badgeClass}">
-                                        ${badgeText}
-                                    </div>
+                                    <div id="badge-${t.api_key}" class="days-badge ${badgeClass}">${badgeText}</div>
                                     <button id="btn-${t.api_key}" class="btn ${btnClass}" onclick="toggleBlock('${t.api_key}', '${t.status}')">
                                         ${btnLabel}
                                     </button>
@@ -198,10 +241,7 @@
                 });
             }
 
-            if (validCount === 0) {
-                html = `<tr><td colspan="2" class="loader">БАЗА ПУСТА</td></tr>`;
-            }
-            
+            if (validCount === 0) html = `<tr><td colspan="2" class="loader">БАЗА ПУСТА</td></tr>`;
             tbody.innerHTML = html;
         }
 
@@ -216,33 +256,27 @@
             button.innerText = 'ОЖИДАЙТЕ...';
             
             try {
-                const response = await fetch(`${API_URL}?action=toggle_status&api_key=${apiKey}&current_status=${currentStatus}`);
+                const response = await fetch(`${API_URL}?action=toggle_status&api_key=${apiKey}&current_status=${currentStatus}&pin=${currentPin}`, { redirect: 'follow' });
                 const res = await response.json();
                 
-                if (res.error) throw new Error(res.error);
+                if (res.error) throw new Error(res.message || res.error);
                 
                 const newStatus = res.newStatus;
-                
                 if (newStatus === 'active') {
                     row.classList.remove('locked-row');
-                    button.className = 'btn btn-red';
-                    button.innerText = 'ЗАБЛОКИРОВАТЬ';
+                    button.className = 'btn btn-red'; button.innerText = 'ЗАБЛОКИРОВАТЬ';
                 } else {
                     row.classList.add('locked-row');
-                    button.className = 'btn btn-green';
-                    button.innerText = 'РАЗБЛОКИРОВАТЬ';
+                    button.className = 'btn btn-green'; button.innerText = 'РАЗБЛОКИРОВАТЬ';
                 }
-                
                 button.setAttribute('onclick', `toggleBlock('${apiKey}', '${newStatus}')`);
             } catch (err) {
-                alert('Ошибка сервера: ' + err.message);
+                alert('Ошибка: ' + err.message);
                 button.innerText = (currentStatus === 'active') ? 'ЗАБЛОКИРОВАТЬ' : 'РАЗБЛОКИРОВАТЬ';
             } finally {
                 button.disabled = false;
             }
         }
-
-        window.onload = loadData;
     </script>
 </body>
 </html>
