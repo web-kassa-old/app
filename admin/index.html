@@ -265,6 +265,7 @@
         }
 
         function lockApp() {
+            isAuthenticating = false; // <-- Снимаем системную блокировку
             currentPin = "";
             window.cachedTenants = [];
             updateDots();
@@ -310,6 +311,9 @@
                         updateDots();
                     }, 3000);
                 } else {
+                    // --- ИСПРАВЛЕННЫЙ БЛОК УСПЕШНОГО ВХОДА ---
+                    isAuthenticating = false; // Сбрасываем флаг загрузки
+                    toggleNumpad(true);       // Оживляем клавиатуру для будущих сессий
                     document.getElementById('pin-screen').style.display = 'none';
                     document.getElementById('main-app').style.display = 'block';
                     renderTable(data);
@@ -431,13 +435,30 @@
                 callBtn.style.opacity = "0.5";
             }
             
+            // --- УНИВЕРСАЛЬНЫЙ ПАРСЕР ДАТЫ (БРОНЕБОЙНЫЙ) ---
             let htmlDate = "";
-            if (t.date_end && t.date_end !== "—") {
-                let parts = t.date_end.split('.');
-                if (parts.length === 3) {
-                    htmlDate = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+            let rawDate = String(t.date_end || "").trim();
+            
+            if (rawDate && rawDate !== "—" && rawDate !== "undefined") {
+                if (rawDate.includes('.')) {
+                    // Если пришло в формате 15.07.2026
+                    let parts = rawDate.split('.');
+                    if (parts.length === 3) {
+                        let y = parts[2].length === 2 ? "20" + parts[2] : parts[2];
+                        htmlDate = `${y}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+                    }
+                } else if (rawDate.includes('-')) {
+                    // Если пришло как 2026-07-15 или 2026-07-15T18:00:00.000Z
+                    htmlDate = rawDate.split('T')[0];
+                } else {
+                    // Резервный вариант: пытаемся собрать дату системными средствами
+                    let parsed = new Date(rawDate);
+                    if (!isNaN(parsed.getTime())) {
+                        htmlDate = parsed.toISOString().split('T')[0];
+                    }
                 }
             }
+            
             document.getElementById('edit-date').value = htmlDate;
             document.getElementById('edit-modal').style.display = 'flex';
         }
