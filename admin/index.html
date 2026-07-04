@@ -442,13 +442,23 @@
                 callBtn.style.opacity = "0.5";
             }
             
+            // --- КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ ДЛЯ КАЛЕНДАРЯ ---
             let rawDate = String(t.date_end || "").trim();
             
-            if (rawDate.includes(' ')) {
+            // Если дата пришла с точками (например, 26.07.2026), переворачиваем её в YYYY-MM-DD
+            if (rawDate.includes('.')) {
+                let parts = rawDate.split('.');
+                if (parts.length === 3) {
+                    rawDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
+                }
+            } else if (rawDate.includes(' ')) {
+                // Если вдруг прилипло время, отрезаем его
                 rawDate = rawDate.split(' ')[0];
             }
             
+            // Теперь в календарь гарантированно падают только дефисы
             document.getElementById('edit-date').value = (rawDate.includes('-')) ? rawDate : "";
+            // ----------------------------------------------
             
             document.getElementById('edit-modal').style.display = 'flex';
         }
