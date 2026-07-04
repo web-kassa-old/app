@@ -205,7 +205,7 @@
 
     <script>
         const API_URL = (typeof CONFIG !== 'undefined') ? CONFIG.API_URL : "";
-        const currentVersion = 'SYS.VER // ' + ((typeof CONFIG !== 'undefined') ? CONFIG.VERSION : '1.0.5');
+        const currentVersion = 'SYS.VER // ' + ((typeof CONFIG !== 'undefined') ? CONFIG.VERSION : '1.0.6'); // Подняли версию
         
         document.getElementById('version-display').innerText = currentVersion;
         if(document.getElementById('pin-version-display')) document.getElementById('pin-version-display').innerText = currentVersion;
@@ -213,7 +213,6 @@
         let currentPin = "";
         let isAuthenticating = false;
         
-        // Глобальный массив хранения состояния данных клиентов в ОЗУ
         window.cachedTenants = [];
 
         document.getElementById('edit-contact').addEventListener('input', function() {
@@ -249,7 +248,6 @@
             if (currentPin.length === 6) verifyAndLoad();
         }
 
-        // ИСПРАВЛЕНО: Убрана опечатка 'fn ='
         function removeDigit() {
             if (isAuthenticating || currentPin.length === 0) return;
             currentPin = currentPin.slice(0, -1);
@@ -265,7 +263,7 @@
         }
 
         function lockApp() {
-            isAuthenticating = false; // <-- Снимаем системную блокировку
+            isAuthenticating = false; 
             currentPin = "";
             window.cachedTenants = [];
             updateDots();
@@ -279,7 +277,8 @@
             const tbody = document.getElementById('table-body');
             tbody.innerHTML = `<tr><td colspan="2" class="loader">ОБНОВЛЕНИЕ БАЗЫ...</td></tr>`;
             try {
-                const response = await fetch(`${API_URL}?action=get_tenants&pin=${currentPin}`, { redirect: 'follow' });
+                // ИСПРАВЛЕНИЕ КЭША: Добавляем &_=${Date.now()}, чтобы телефон всегда брал свежие данные
+                const response = await fetch(`${API_URL}?action=get_tenants&pin=${currentPin}&_=${Date.now()}`, { redirect: 'follow' });
                 const data = await response.json();
                 if (data.error !== "ACCESS_DENIED") {
                     renderTable(data);
@@ -297,7 +296,8 @@
             document.getElementById('pin-msg').innerText = "VERIFYING...";
             
             try {
-                const response = await fetch(`${API_URL}?action=get_tenants&pin=${currentPin}`, { redirect: 'follow' });
+                // ИСПРАВЛЕНИЕ КЭША: Добавляем &_=${Date.now()}
+                const response = await fetch(`${API_URL}?action=get_tenants&pin=${currentPin}&_=${Date.now()}`, { redirect: 'follow' });
                 const data = await response.json();
                 
                 if (data.error === "ACCESS_DENIED") {
@@ -311,9 +311,8 @@
                         updateDots();
                     }, 3000);
                 } else {
-                    // --- ИСПРАВЛЕННЫЙ БЛОК УСПЕШНОГО ВХОДА ---
-                    isAuthenticating = false; // Сбрасываем флаг загрузки
-                    toggleNumpad(true);       // Оживляем клавиатуру для будущих сессий
+                    isAuthenticating = false; 
+                    toggleNumpad(true);       
                     document.getElementById('pin-screen').style.display = 'none';
                     document.getElementById('main-app').style.display = 'block';
                     renderTable(data);
@@ -343,9 +342,17 @@
                     
                     if (rawDate) {
                         let eDate = null;
-                        let parts = rawDate.split('.');
-                        if (parts.length === 3) eDate = new Date(parts[2], parts[1] - 1, parts[0]);
-                        else eDate = new Date(rawDate);
+                        
+                        // ИСПРАВЛЕНИЕ: Правильный парсинг даты для бейджика "дней осталось", исключающий сдвиг UTC
+                        if (rawDate.includes('-')) {
+                            let parts = rawDate.split('-');
+                            if (parts.length === 3) eDate = new Date(parts[0], parts[1] - 1, parts[2]);
+                        } else if (rawDate.includes('.')) {
+                            let parts = rawDate.split('.');
+                            if (parts.length === 3) eDate = new Date(parts[2], parts[1] - 1, parts[0]);
+                        } else {
+                            eDate = new Date(rawDate);
+                        }
 
                         if (eDate && !isNaN(eDate.getTime())) {
                             let today = new Date(); today.setHours(0, 0, 0, 0); eDate.setHours(0, 0, 0, 0);
@@ -410,7 +417,6 @@
                 alert('Ошибка: ' + err.message);
                 button.innerText = (currentStatus === 'active') ? 'ЗАБЛОКИРОВАТЬ' : 'РАЗБЛОКИРОВАТЬ';
             } finally { 
-                // ИСПРАВЛЕНО: Убрана точка перед finally
                 button.disabled = false; 
             }
         }
@@ -424,7 +430,6 @@
             document.getElementById('edit-warning').value = t.warning_days || 3;
             document.getElementById('edit-contact').value = t.contact || "";
             
-            // Заметки снова работают в штатном режиме
             document.getElementById('edit-notes').value = t.notes || "";
             
             const callBtn = document.getElementById('call-btn');
@@ -458,7 +463,7 @@
             const btn = document.getElementById('save-modal-btn');
             const apiKey = document.getElementById('edit-api-key').value;
             const newName = document.getElementById('edit-name').value;
-            const newDate = document.getElementById('edit-date').value;
+            const newDate = document.getElementById('edit-date').value; // Это строка "YYYY-MM-DD" прямо из календаря
             const newWarning = document.getElementById('edit-warning').value;
             const newContact = document.getElementById('edit-contact').value;
             const newNotes = document.getElementById('edit-notes').value;
@@ -470,18 +475,15 @@
             btn.disabled = true; btn.innerText = 'СОХРАНЕНИЕ...';
 
             try {
-                let formattedDate = "";
-                if (newDate) {
-                    const dateParts = newDate.split('-');
-                    formattedDate = `${dateParts[2]}.${dateParts[1]}.${dateParts[0]}`;
-                }
-
-                const query = `?action=update_tenant&pin=${currentPin}&api_key=${encodeURIComponent(apiKey)}&client_name=${encodeURIComponent(newName)}&date_end=${encodeURIComponent(formattedDate)}&warning_days=${encodeURIComponent(newWarning)}&contact=${encodeURIComponent(newContact)}&notes=${encodeURIComponent(newNotes)}`;
+                // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Мы БОЛЬШЕ НЕ конвертируем дату в точки. 
+                // Отправляем newDate (YYYY-MM-DD) напрямую на бэкенд, как он того и ждет!
+                const query = `?action=update_tenant&pin=${currentPin}&api_key=${encodeURIComponent(apiKey)}&client_name=${encodeURIComponent(newName)}&date_end=${encodeURIComponent(newDate)}&warning_days=${encodeURIComponent(newWarning)}&contact=${encodeURIComponent(newContact)}&notes=${encodeURIComponent(newNotes)}`;
                 
                 const response = await fetch(`${API_URL}${query}`, { redirect: 'follow' });
                 const res = await response.json();
                 if (res.error) throw new Error(res.error || res.message);
                 
+                // Модалка закрывается и список обновляется ТОЛЬКО после успешного ответа сервера
                 closeEditModal();
                 refreshData(); 
             } catch (error) {
