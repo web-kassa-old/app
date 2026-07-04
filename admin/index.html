@@ -425,6 +425,10 @@
             const t = window.cachedTenants.find(item => item.api_key === apiKey);
             if (!t) return;
 
+            // --- ДОБАВЬТЕ ЭТУ СТРОКУ ДЛЯ ДИАГНОСТИКИ ---
+            alert("ДАТА ОТ СЕРВЕРА: [" + t.date_end + "]");
+            // -------------------------------------------
+
             document.getElementById('edit-api-key').value = t.api_key;
             document.getElementById('edit-name').value = t.client_name || "";
             document.getElementById('edit-warning').value = t.warning_days || 3;
