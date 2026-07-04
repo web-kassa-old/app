@@ -429,7 +429,6 @@
             document.getElementById('edit-name').value = t.client_name || "";
             document.getElementById('edit-warning').value = t.warning_days || 3;
             document.getElementById('edit-contact').value = t.contact || "";
-            
             document.getElementById('edit-notes').value = t.notes || "";
             
             const callBtn = document.getElementById('call-btn');
@@ -442,20 +441,22 @@
                 callBtn.style.opacity = "0.5";
             }
             
-            // --- КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: ПЕРЕВОД ТОЧЕК В ДЕФИСЫ ---
+            // --- ПРЕВРАЩАЕМ ТОЧКИ В ДЕФИСЫ ТОЛЬКО ДЛЯ КАЛЕНДАРЯ ---
             let rawDate = String(t.date_end || "").trim();
             
-            if (rawDate.includes('.')) {
-                let parts = rawDate.split('.');
-                if (parts.length === 3) {
-                    // Превращаем 26.07.2026 в 2026-07-26 для календаря
-                    rawDate = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-                }
-            } else if (rawDate.includes(' ')) {
+            // Отсекаем время, если оно случайно прилипло
+            if (rawDate.includes(' ')) {
                 rawDate = rawDate.split(' ')[0];
             }
             
-            // Теперь календарь 100% получит понятный ему формат
+            // Если дата пришла с точками (например, 26.07.2026), делаем из неё 2026-07-26
+            if (rawDate.includes('.')) {
+                let parts = rawDate.split('.');
+                if (parts.length === 3) {
+                    rawDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
+                }
+            }
+            
             document.getElementById('edit-date').value = rawDate;
             // --------------------------------------------------------
             
