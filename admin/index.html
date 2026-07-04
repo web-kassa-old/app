@@ -338,20 +338,26 @@
                     let warningThreshold = parseInt(t.warning_days) || 3;
                     let daysLeft = '—';
                     let badgeClass = 'safe-badge';
-                    let rawDate = String(t.date_end || "").trim();
                     
+                    let rawDate = String(t.date_end || "").trim();
+                    let eDate = null;
+
                     if (rawDate) {
-                        let eDate = null;
-                        
-                        // ИСПРАВЛЕНИЕ: Правильный парсинг даты для бейджика "дней осталось", исключающий сдвиг UTC
-                        if (rawDate.includes('-')) {
-                            let parts = rawDate.split('-');
-                            if (parts.length === 3) eDate = new Date(parts[0], parts[1] - 1, parts[2]);
-                        } else if (rawDate.includes('.')) {
+                        // 1. Ловим системный UTC объект от Google (тот самый 2026-07-25T19:00:00.000Z)
+                        if (rawDate.includes('T') && rawDate.includes('Z')) {
+                            // JS в браузере сам конвертирует UTC (+5) обратно в 26 июля 00:00
+                            eDate = new Date(rawDate); 
+                        } 
+                        // 2. Если вдруг пришли точки
+                        else if (rawDate.includes('.')) {
                             let parts = rawDate.split('.');
                             if (parts.length === 3) eDate = new Date(parts[2], parts[1] - 1, parts[0]);
-                        } else {
-                            eDate = new Date(rawDate);
+                        } 
+                        // 3. Если пришли обычные дефисы
+                        else if (rawDate.includes('-')) {
+                            let clean = rawDate.split(' ')[0];
+                            let parts = clean.split('-');
+                            if (parts.length === 3) eDate = new Date(parts[0], parts[1] - 1, parts[2]);
                         }
 
                         if (eDate && !isNaN(eDate.getTime())) {
@@ -425,10 +431,6 @@
             const t = window.cachedTenants.find(item => item.api_key === apiKey);
             if (!t) return;
 
-            // --- ДОБАВЬТЕ ЭТУ СТРОКУ ДЛЯ ДИАГНОСТИКИ ---
-            alert("ДАТА ОТ СЕРВЕРА: [" + t.date_end + "]");
-            // -------------------------------------------
-
             document.getElementById('edit-api-key').value = t.api_key;
             document.getElementById('edit-name').value = t.client_name || "";
             document.getElementById('edit-warning').value = t.warning_days || 3;
@@ -445,25 +447,29 @@
                 callBtn.style.opacity = "0.5";
             }
             
-            // --- ПРЕВРАЩАЕМ ТОЧКИ В ДЕФИСЫ ТОЛЬКО ДЛЯ КАЛЕНДАРЯ ---
             let rawDate = String(t.date_end || "").trim();
+            let finalDate = "";
             
-            // Отсекаем время, если оно случайно прилипло
-            if (rawDate.includes(' ')) {
-                rawDate = rawDate.split(' ')[0];
-            }
-            
-            // Если дата пришла с точками (например, 26.07.2026), делаем из неё 2026-07-26
-            if (rawDate.includes('.')) {
-                let parts = rawDate.split('.');
-                if (parts.length === 3) {
-                    rawDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
+            if (rawDate) {
+                // Если пришел системный UTC объект (2026-07-25T19:00:00.000Z)
+                if (rawDate.includes('T') && rawDate.includes('Z')) {
+                    let d = new Date(rawDate); 
+                    // Собираем правильную дату (в Алматы это будет 26-е число)
+                    let yyyy = d.getFullYear();
+                    let mm = String(d.getMonth() + 1).padStart(2, '0');
+                    let dd = String(d.getDate()).padStart(2, '0');
+                    finalDate = `${yyyy}-${mm}-${dd}`; // Идеальный формат для календаря
+                } 
+                else if (rawDate.includes('.')) {
+                    let parts = rawDate.split('.');
+                    if (parts.length === 3) finalDate = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+                } 
+                else if (rawDate.includes('-')) {
+                    finalDate = rawDate.split(' ')[0].split('T')[0];
                 }
             }
             
-            document.getElementById('edit-date').value = rawDate;
-            // --------------------------------------------------------
-            
+            document.getElementById('edit-date').value = finalDate;
             document.getElementById('edit-modal').style.display = 'flex';
         }
 
