@@ -424,9 +424,8 @@
             document.getElementById('edit-warning').value = t.warning_days || 3;
             document.getElementById('edit-contact').value = t.contact || "";
             
-            // Закомментируйте старые заметки и вставьте дебаггер:
-            // document.getElementById('edit-notes').value = t.notes || "";
-            document.getElementById('edit-notes').value = "ЛОГ СЕРВЕРА: " + String(t.date_end);
+            // Заметки снова работают в штатном режиме
+            document.getElementById('edit-notes').value = t.notes || "";
             
             const callBtn = document.getElementById('call-btn');
             const cleanPhone = String(t.contact || "").replace(/[^\d+]/g, '');
@@ -440,7 +439,6 @@
             
             let rawDate = String(t.date_end || "").trim();
             
-            // Если в строке есть пробел (значит пришло время), отрезаем его, чтобы календарь не сломался
             if (rawDate.includes(' ')) {
                 rawDate = rawDate.split(' ')[0];
             }
