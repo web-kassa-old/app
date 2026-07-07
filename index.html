@@ -2783,36 +2783,172 @@
 
     // Функция ждет, пока Google полностью скачается
     function initGoogleAuth() {
-        // Если открыли через Telegram — блокируем интерфейс и просим открыть в Safari/Chrome
-        if (isBadInAppBrowser()) {
-            document.getElementById('google-screen').innerHTML = `
-                <div style="text-align: center; padding: 30px; background: var(--bg-panel); border-radius: 8px; border: 2px dashed var(--accent-red); max-width: 360px; width: 90%;">
-                    <div style="font-size: 40px; margin-bottom: 15px;">🚫</div>
-                    <h2 style="color: var(--accent-red); margin-bottom: 15px; font-size: 18px;">Встроенный браузер</h2>
-                    <p style="color: var(--text-main); font-size: 14px; margin-bottom: 20px;">
-                        Встроенный браузер Telegram блокирует авторизацию Google.
-                    </p>
-                    <p style="color: var(--accent-yellow); font-size: 14px; font-weight: bold; line-height: 1.5;">
-                        Нажмите на меню (три точки вверху или иконку компаса внизу)<br>и выберите:<br>
-                        <span style="color: #fff; background: var(--bg-hover); padding: 5px 10px; border-radius: 4px; display: inline-block; margin-top: 10px;">«Открыть в браузере»</span>
-                    </p>
-                </div>
-            `;
-            return; // Прерываем загрузку логина
-        }
-
-        // Если это нормальный браузер — запускаем стандартную инициализацию
-        tokenClient = google.accounts.oauth2.initTokenClient({
-            client_id: '1071015264018-s100se0ek42af15rm9vhq260b3lr7qer.apps.googleusercontent.com', 
-            scope: 'https://www.googleapis.com/auth/spreadsheets',
-            callback: (tokenResponse) => {
-                if (tokenResponse && tokenResponse.access_token) {
-                    document.getElementById('google-screen').style.display = 'none';
-                    document.getElementById('pin-screen').style.display = 'flex';
-                }
-            },
-        });
+    // Если открыли через Telegram — блокируем интерфейс и просим открыть в Safari/Chrome
+    if (isBadInAppBrowser()) {
+        document.getElementById('google-screen').innerHTML = `
+            <div style="text-align: center; padding: 30px; background: var(--bg-panel); border-radius: 8px; border: 2px dashed var(--accent-red); max-width: 360px; width: 90%;">
+                <div style="font-size: 40px; margin-bottom: 15px;">🚫</div>
+                <h2 style="color: var(--accent-red); margin-bottom: 15px; font-size: 18px;">Встроенный браузер</h2>
+                <p style="color: var(--text-main); font-size: 14px; margin-bottom: 20px;">
+                    Встроенный браузер Telegram блокирует авторизацию Google.
+                </p>
+                <p style="color: var(--accent-yellow); font-size: 14px; font-weight: bold; line-height: 1.5;">
+                    Нажмите на меню (три точки вверху или иконку компаса внизу)<br>и выберите:<br>
+                    <span style="color: #fff; background: var(--bg-hover); padding: 5px 10px; border-radius: 4px; display: inline-block; margin-top: 10px;">«Открыть в браузере»</span>
+                </p>
+            </div>
+        `;
+        return; // Прерываем загрузку логина
     }
+
+    // === ФУНКЦИЯ ОТРИСОВКИ ИНТЕРФЕЙСА УСТАНОВЩИКА ДЛЯ НОВИЧКОВ ===
+function showInstallerForm(email) {
+    const googleScreen = document.getElementById('google-screen');
+    
+    // Внедряем HTML формы с переключателями в хедере
+    googleScreen.innerHTML = `
+        <div style="max-width: 480px; width: 90%; background: var(--bg-panel); padding: 30px; border-radius: 12px; border: 1px solid var(--border-light); text-align: left; box-shadow: 0 10px 30px rgba(0,0,0,0.5); position: relative;">
+            
+            <div style="display: flex; justify-content: flex-end; gap: 15px; margin-bottom: 20px;">
+                <button onclick="toggleSetupTheme()" id="setup-btn-theme" style="background: transparent; border: 1px solid var(--border-main); color: var(--text-muted); padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px; transition: 0.2s;">
+                    ☀️ Light
+                </button>
+                <button onclick="toggleSetupLang()" id="setup-btn-lang" style="background: transparent; border: 1px solid var(--border-main); color: var(--text-muted); padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px; transition: 0.2s; font-weight: bold;">
+                    KZ
+                </button>
+            </div>
+
+            <h2 style="margin-top: 0; color: var(--accent-yellow); text-align: center; font-weight: var(--font-weight-main);" data-i18n="setup_title">
+                Активация Системы
+            </h2>
+            
+            <div style="background: var(--bg-hover); padding: 12px; border-radius: 6px; text-align: center; margin-bottom: 25px; border: 1px solid var(--border-main); font-size: 14px;">
+                <span style="color: var(--text-muted);" data-i18n="setup_account">Аккаунт:</span>
+                <strong style="color: var(--text-main); margin-left: 5px;">${email}</strong>
+            </div>
+
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 8px; font-weight: bold; font-size: 14px; color: var(--text-main);" data-i18n="setup_store_name">
+                    Название магазина
+                </label>
+                <input type="text" id="setup-store-name" placeholder="Супермаркет Алатау" 
+                    style="width: 100%; box-sizing: border-box; padding: 12px 15px; background-color: var(--bg-card); border: 1px solid var(--border-main); color: var(--text-main); border-radius: 6px; font-size: 16px; outline: none;">
+            </div>
+
+            <div style="margin-bottom: 25px;">
+                <label style="display: block; margin-bottom: 8px; font-weight: bold; font-size: 14px; color: var(--text-main);" data-i18n="setup_plan">
+                    Тип лицензии
+                </label>
+                <select id="setup-plan-type" 
+                    style="width: 100%; padding: 12px 15px; background-color: var(--bg-card); border: 1px solid var(--border-main); color: var(--text-main); border-radius: 6px; font-size: 16px; outline: none; cursor: pointer;">
+                    <option value="trial" data-i18n="setup_plan_trial">Тест (7 дней)</option>
+                    <option value="pro" data-i18n="setup_plan_pro">Полная версия</option>
+                </select>
+            </div>
+
+            <button id="btn-start-setup" onclick="submitSetup('${email}')" 
+                style="width: 100%; padding: 15px; font-size: 16px; background-color: var(--accent-blue); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; transition: opacity 0.2s;">
+                <span data-i18n="setup_btn_start">Развернуть базу данных</span>
+            </button>
+            
+            <div style="text-align: center; font-size: 12px; color: var(--text-muted); margin-top: 15px;" data-i18n="setup_footer">
+                Система автоматически создаст структуру папок на вашем Google Диске.
+            </div>
+        </div>
+    `;
+
+    // Принудительно переводим на текущий язык интерфейса
+    if (typeof applyLanguage === 'function' && typeof currentLang !== 'undefined') {
+        applyLanguage(currentLang);
+    }
+}
+
+// === ЛОКАЛЬНЫЕ ФУНКЦИИ ПЕРЕКЛЮЧЕНИЯ ДЛЯ УСТАНОВЩИКА ===
+function toggleSetupTheme() {
+    const html = document.documentElement;
+    const btn = document.getElementById('setup-btn-theme');
+    
+    // Если у тебя в основном коде уже есть функция смены темы (например, toggleTheme), 
+    // лучше вызвать её. Если нет, меняем атрибут вручную:
+    if (html.getAttribute('data-theme') === 'dark' || !html.hasAttribute('data-theme')) {
+        html.setAttribute('data-theme', 'light');
+        btn.innerText = '🌙 Dark';
+        btn.style.color = 'var(--text-main)';
+    } else {
+        html.setAttribute('data-theme', 'dark');
+        btn.innerText = '☀️ Light';
+        btn.style.color = 'var(--text-muted)';
+    }
+}
+
+function toggleSetupLang() {
+    const btn = document.getElementById('setup-btn-lang');
+    
+    // Меняем глобальную переменную currentLang (убедись, что она у тебя глобальная)
+    currentLang = currentLang === 'ru' ? 'kz' : 'ru';
+    btn.innerText = currentLang === 'ru' ? 'KZ' : 'RU';
+    
+    // Вызываем твою штатную функцию перевода
+    if (typeof applyLanguage === 'function') {
+        applyLanguage(currentLang);
+    }
+    
+    // Меняем плейсхолдер вручную, так как у него нет data-i18n
+    const input = document.getElementById('setup-store-name');
+    if (input) {
+        input.placeholder = currentLang === 'ru' ? 'Супермаркет Алатау' : 'Мысалы: Алатау дүкені';
+    }
+}
+
+    // Если это нормальный браузер — запускаем инициализацию ШЛЮЗА
+    tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: '1071015264018-s100se0ek42af15rm9vhq260b3lr7qer.apps.googleusercontent.com', 
+        
+        // ДОБАВЛЕНО: scope для получения email
+        scope: 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/userinfo.email',
+        
+        callback: (tokenResponse) => {
+            if (tokenResponse && tokenResponse.access_token) {
+                const googleScreen = document.getElementById('google-screen');
+                
+                // Визуальная заглушка: используем твои CSS переменные
+                googleScreen.innerHTML = '<h2 style="color: var(--accent); margin-bottom: 15px;">Проверка доступа...</h2><p style="color: var(--text-main);">Соединение с сервером</p>';
+
+                // Получаем Email из токена
+                fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+                    headers: { Authorization: 'Bearer ' + tokenResponse.access_token }
+                })
+                .then(response => response.json())
+                .then(userInfo => {
+                    const userEmail = userInfo.email;
+                    
+                    // Запрашиваем Мастер-Сервер: Кто это?
+                    google.script.run
+                        .withSuccessHandler(function(serverResult) {
+                            if (serverResult.status === 'EXISTING_CLIENT') {
+                                // Постоянный клиент -> Открываем ПИН-пад
+                                googleScreen.style.display = 'none';
+                                document.getElementById('pin-screen').style.display = 'flex';
+                            } else if (serverResult.status === 'NEW_CLIENT') {
+                                // Новичок -> Показываем форму Установщика
+                                showInstallerForm(userEmail);
+                            } else if (serverResult.status === 'BLOCKED') {
+                                // Заблокирован
+                                googleScreen.innerHTML = '<h2 style="color: var(--accent-red);">Доступ приостановлен</h2><p style="color: var(--text-main);">Пожалуйста, обратитесь в поддержку.</p>';
+                            }
+                        })
+                        .withFailureHandler(function(error) {
+                            googleScreen.innerHTML = '<h2 style="color: var(--accent-red);">Ошибка сервера</h2><p style="color: var(--text-main);">' + error.message + '</p>';
+                        })
+                        .checkClientStatus(userEmail); // Вызов функции на сервере
+                })
+                .catch(error => {
+                    googleScreen.innerHTML = '<h2 style="color: var(--accent-red);">Ошибка авторизации</h2><p style="color: var(--text-main);">Не удалось получить данные аккаунта.</p>';
+                });
+            }
+        },
+    });
+}
 
     // Эта функция срабатывает при клике на синюю кнопку
     function loginWithGoogle() {
