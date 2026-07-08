@@ -3045,19 +3045,25 @@ async function submitSetup(email) {
 
         btn.innerHTML = '⚙️ <span style="font-size: 14px;">Создание структуры...</span>';
         
-        // 2. Создаем служебные подпапки внутри главной папки
+        // 2. Создаем служебные подпапки внутри главной папки и ЗАПОМИНАЕМ ИХ ID
         const subfolders = ['POS_Backups', 'POS_Images', 'POS_Invoices', 'POS_Secret_Backups'];
-        await Promise.all(subfolders.map(name =>
+        const subfolderResponses = await Promise.all(subfolders.map(name =>
             fetch('https://www.googleapis.com/drive/v3/files', {
                 method: 'POST',
                 headers: { 'Authorization': 'Bearer ' + clientAccessToken, 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name: name, mimeType: 'application/vnd.google-apps.folder', parents: [rootId] })
-            })
+            }).then(res => res.json())
         ));
+
+        // Собираем ID созданных папок в удобный объект
+        let folderIds = {};
+        subfolderResponses.forEach(f => {
+            if (f.name && f.id) folderIds[f.name] = f.id;
+        });
 
         btn.innerHTML = '⚙️ <span style="font-size: 14px;">Копирование баз данных...</span>';
         
-        // 3. Копируем твои Золотые Шаблоны в новую папку клиента (ИСПОЛЬЗУЕМ ВЫРЕЗАННЫЕ ID)
+        // 3. Копируем твои Золотые Шаблоны
         const copyTradeRes = await fetch(`https://www.googleapis.com/drive/v3/files/${tradeId}/copy`, {
             method: 'POST',
             headers: { 'Authorization': 'Bearer ' + clientAccessToken, 'Content-Type': 'application/json' },
@@ -3085,7 +3091,7 @@ async function submitSetup(email) {
 
         btn.innerHTML = '⚙️ <span style="font-size: 14px;">Регистрация в системе...</span>';
         
-        // 5. Отправляем ID новых файлов на твой сервер для регистрации
+        // 5. Отправляем ID новых файлов И ПАПОК на твой сервер для регистрации
         const regRes = await fetch(GATEWAY_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -3095,8 +3101,9 @@ async function submitSetup(email) {
                 storeName: storeName,
                 plan: planType,
                 lang: currentLang,
-                tradeId: newTrade.id,   // <-- Передаем серверу готовый ID
-                configId: newConfig.id  // <-- Передаем серверу готовый ID
+                tradeId: newTrade.id,   
+                configId: newConfig.id, 
+                folders: folderIds      // <-- ИСПРАВЛЕНИЕ: Передаем папки на сервер!
             })
         });
         const result = await regRes.json();
@@ -3112,7 +3119,7 @@ async function submitSetup(email) {
                         <span style="color: var(--text-muted); font-size: 12px; display: block; margin-bottom: 5px;" data-i18n="setup_pin_msg">ПИН-код администратора:</span>
                         <span style="color: var(--accent-yellow); font-size: 24px; font-weight: bold; letter-spacing: 2px;">1111</span>
                     </div>
-                    <button onclick="document.getElementById('google-screen').style.display='none'; document.getElementById('pin-screen').style.display='flex';" style="padding: 15px 30px; background-color: var(--accent-green); color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; width: 100%;">
+                    <button onclick="window.location.reload(true);" style="padding: 15px 30px; background-color: var(--accent-green); color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; width: 100%;">
                         Начать работу
                     </button>
                 </div>
