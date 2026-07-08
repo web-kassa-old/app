@@ -2862,7 +2862,7 @@ fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
             <pre style="white-space: pre-wrap; font-size: 12px;">${err.message}</pre>
         </div>
     `;
-});
+})
                 .then(response => response.json())
                 .then(userInfo => {
                     const userEmail = userInfo.email;
