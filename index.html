@@ -2801,7 +2801,7 @@
     }
 
     // Функция ждет, пока Google полностью скачается
-    function initGoogleAuth() {
+function initGoogleAuth() {
         if (isBadInAppBrowser()) {
             // ... (твой код заглушки для телеграма оставляем без изменений)
             document.getElementById('google-screen').innerHTML = `...`;
@@ -2810,124 +2810,103 @@
 
         tokenClient = google.accounts.oauth2.initTokenClient({
             client_id: GOOGLE_CLIENT_ID, 
-            // 🛑 ДОБАВИЛИ ПРАВА НА GOOGLE DRIVE (https://www.googleapis.com/auth/drive)
+            // ДОБАВИЛИ ПРАВА НА GOOGLE DRIVE
             scope: 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/drive',
             callback: (tokenResponse) => {
                 if (tokenResponse && tokenResponse.access_token) {
                     
-                    // 🛑 ЗАПОМИНАЕМ ТОКЕН В ГЛОБАЛЬНУЮ ПЕРЕМЕННУЮ
+                    // ЗАПОМИНАЕМ ТОКЕН В ГЛОБАЛЬНУЮ ПЕРЕМЕННУЮ
                     clientAccessToken = tokenResponse.access_token;
                     
                     const googleScreen = document.getElementById('google-screen');
                     googleScreen.innerHTML = '<h2 style="color: var(--accent-yellow); margin-bottom: 15px;">Проверка доступа...</h2><p style="color: var(--text-main);">Соединение с сервером</p>';
 
-// ... внутри initGoogleAuth после успешного получения токена от Google ...
-
-// 1. Проверяем токен в Google (как и было)
-fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-    headers: { Authorization: 'Bearer ' + clientAccessToken }
-})
-.then(async (res) => {
-    const text = await res.text();
-    if (!res.ok) throw new Error(`Ошибка Google Auth ${res.status}: ${text}`);
-    try {
-        return JSON.parse(text);
-    } catch {
-        throw new Error(`Google вернул не JSON:\n${text}`);
-    }
-})
-.then(userInfo => {
-    console.log("Юзер авторизован в Google:", userInfo.email);
-    
-    // 2. ИСПРАВЛЕНО: отправляем точный POST-запрос на твой шлюз, как требует code.gs
-    return fetch(GATEWAY_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({
-            action: 'check_status', // именно это условие прописано в doPost(e)
-            email: userInfo.email
-        })
-    }); 
-})
-.then(async (res) => {
-    const text = await res.text();
-    try {
-        return JSON.parse(text);
-    } catch {
-        throw new Error("Сервер GAS вернул не JSON:\n" + text);
-    }
-})
-.then(serverResult => {
-    console.log("Ответ от GAS:", serverResult);
-
-    // Если бэкенд перехватил ошибку в catch(err) и прислал её нам
-    if (serverResult.success === false && serverResult.error) {
-        throw new Error(serverResult.error);
-    }
-
-    // 3. НОВАЯ ЛОГИКА: Маршрутизация нового и старого клиента
-    if (serverResult.status === "NEW_USER") {
-        // Скрываем экран авторизации и открываем установщик базы
-        document.getElementById('google-screen').style.display = 'none';
-        document.getElementById('setup-screen').style.display = 'block'; 
-    } else if (serverResult.status === "EXISTING_CLIENT") {
-        // Если клиент уже есть — запускаем кассу в обычном режиме
-        document.getElementById('google-screen').style.display = 'none';
-        if (typeof startApp === 'function') startApp(); // или твоя функция запуска терминала
-    } else {
-        throw new Error("Неизвестный статус от сервера: " + JSON.stringify(serverResult));
-    }
-})
-// 4. ОСТАВЛЯЕМ: Тот самый бронированный вывод ошибок на экран от твоего зама
-.catch(err => {
-    console.error("КРИТИЧЕСКАЯ ОШИБКА:", err);
-    document.getElementById('google-screen').innerHTML = `
-        <div style="color: #ff6b6b; padding: 20px; text-align: left; background: #1a1a1a; border-radius: 8px; border: 1px solid #333;">
-            <h2 style="margin-top: 0;">Ошибка при загрузке:</h2>
-            <pre style="white-space: pre-wrap; font-size: 13px; background: #000; padding: 10px; border-radius: 4px; color: #ffb3b3;">${err.message}</pre>
-            <button onclick="window.location.reload(true)" style="margin-top: 15px; padding: 10px 20px; background: #ff6b6b; color: #fff; border: none; border-radius: 4px; cursor: pointer;">
-                Повторить попытку
-            </button>
-        </div>
-    `;
-})
-                .then(response => response.json())
-                .then(userInfo => {
-                    const userEmail = userInfo.email;
-                    
-                    // Обращение к серверу через fetch
-                    fetch(GATEWAY_URL, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                        body: JSON.stringify({
-                            action: 'check_status',
-                            email: userEmail
-                        })
+                    // 1. Проверяем токен в Google
+                    fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+                        headers: { Authorization: 'Bearer ' + clientAccessToken }
                     })
-                    .then(res => res.json())
-                    .then(serverResult => {
-                        if (serverResult.status === 'EXISTING_CLIENT') {
-                            localStorage.setItem('CLIENT_API_KEY', serverResult.api_key);
-                            
-                            googleScreen.style.display = 'none';
-                            document.getElementById('pin-screen').style.display = 'flex';
-                        } else if (serverResult.status === 'NEW_CLIENT') {
-                            showInstallerForm(userEmail);
-                        } else if (serverResult.status === 'BLOCKED') {
-                            googleScreen.innerHTML = '<h2 style="color: var(--accent-red);">Доступ приостановлен</h2><p style="color: var(--text-main);">Обратитесь в поддержку.</p>';
+                    .then(async (res) => {
+                        const text = await res.text();
+                        if (!res.ok) throw new Error(`Ошибка Google Auth ${res.status}: ${text}`);
+                        try {
+                            return JSON.parse(text);
+                        } catch {
+                            throw new Error(`Google вернул не JSON:\n${text}`);
                         }
                     })
-                    .catch(error => {
-                        googleScreen.innerHTML = '<h2 style="color: var(--accent-red);">Ошибка сервера</h2><p style="color: var(--text-main);">' + error.message + '</p>';
+                    .then(userInfo => {
+                        console.log("Юзер авторизован в Google:", userInfo.email);
+                        
+                        // 2. Отправляем точный POST-запрос на твой шлюз
+                        return fetch(GATEWAY_URL, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                            body: JSON.stringify({
+                                action: 'check_status', 
+                                email: userInfo.email
+                            })
+                        }); 
+                    })
+                    .then(async (res) => {
+                        const text = await res.text();
+                        try {
+                            return JSON.parse(text);
+                        } catch {
+                            throw new Error("Сервер GAS вернул не JSON:\n" + text);
+                        }
+                    })
+                    .then(serverResult => {
+                        console.log("Ответ от GAS:", serverResult);
+
+                        // Перехват серверной ошибки из блока catch(err) на бэкенде
+                        if (serverResult.success === false && serverResult.error) {
+                            throw new Error(serverResult.error);
+                        }
+
+                        // 3. МАРШРУТИЗАЦИЯ (Чистая и объединенная)
+                        if (serverResult.status === "NEW_USER" || serverResult.status === "NEW_CLIENT") {
+                            
+                            // Новый клиент: показываем окно установки базы
+                            googleScreen.style.display = 'none';
+                            document.getElementById('setup-screen').style.display = 'block'; 
+                            
+                            // Если у тебя есть отдельная функция для формы инсталлера, раскомментируй строку ниже:
+                            // if (typeof showInstallerForm === 'function') showInstallerForm(userInfo.email);
+
+                        } else if (serverResult.status === "EXISTING_CLIENT") {
+                            
+                            // Если сервер передал api_key, сохраняем его в память
+                            if (serverResult.api_key) {
+                                localStorage.setItem('CLIENT_API_KEY', serverResult.api_key);
+                            }
+                            
+                            // Старый клиент: показываем цифровой ПИН-ПАД
+                            googleScreen.style.display = 'none';
+                            document.getElementById('pin-screen').style.display = 'flex'; 
+
+                        } else if (serverResult.status === "BLOCKED") {
+                            throw new Error("Доступ приостановлен. Обратитесь в поддержку.");
+                        } else {
+                            throw new Error("Неизвестный статус от сервера: " + JSON.stringify(serverResult));
+                        }
+                    })
+                    // 4. ЕДИНЫЙ БЛОК ВЫВОДА ОШИБОК
+                    .catch(err => {
+                        console.error("КРИТИЧЕСКАЯ ОШИБКА:", err);
+                        googleScreen.innerHTML = `
+                            <div style="color: #ff6b6b; padding: 20px; text-align: left; background: #1a1a1a; border-radius: 8px; border: 1px solid #333;">
+                                <h2 style="margin-top: 0;">Ошибка при загрузке:</h2>
+                                <pre style="white-space: pre-wrap; font-size: 13px; background: #000; padding: 10px; border-radius: 4px; color: #ffb3b3;">${err.message}</pre>
+                                <button onclick="window.location.reload(true)" style="margin-top: 15px; padding: 10px 20px; background: #ff6b6b; color: #fff; border: none; border-radius: 4px; cursor: pointer;">
+                                    Повторить попытку
+                                </button>
+                            </div>
+                        `;
                     });
-                })
-                .catch(error => {
-                    googleScreen.innerHTML = '<h2 style="color: var(--accent-red);">Ошибка авторизации</h2><p style="color: var(--text-main);">Не удалось получить данные аккаунта.</p>';
-                });
+                }
             }
-        },
-    });
-}
+        });
+    }
 
 function showInstallerForm(email) {
     const googleScreen = document.getElementById('google-screen');
