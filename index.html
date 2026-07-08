@@ -2821,9 +2821,48 @@
                     const googleScreen = document.getElementById('google-screen');
                     googleScreen.innerHTML = '<h2 style="color: var(--accent-yellow); margin-bottom: 15px;">Проверка доступа...</h2><p style="color: var(--text-main);">Соединение с сервером</p>';
 
-                    fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-                        headers: { Authorization: 'Bearer ' + clientAccessToken } // <-- используем сохраненный токен
-                    })
+                    // ... внутри initGoogleAuth после получения токена ...
+
+fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+    headers: { Authorization: 'Bearer ' + clientAccessToken }
+})
+.then(async (res) => {
+    const text = await res.text(); // Получаем ответ как текст
+    if (!res.ok) throw new Error(`Ошибка сервера ${res.status}: ${text}`);
+    try {
+        return JSON.parse(text); // Пытаемся превратить в JSON
+    } catch {
+        throw new Error(`Сервер вернул не JSON, а это:\n${text}`); // Если пришел HTML — увидим его в консоли
+    }
+})
+.then(userInfo => {
+    // Если всё ок, идем дальше к твоему серверу
+    console.log("Юзер авторизован:", userInfo.email);
+    // Твой код вызова твоего GAS (checkClientStatus и т.д.)
+    return fetch(GATEWAY_URL + "?action=checkClientStatus&email=" + userInfo.email); 
+})
+.then(async (res) => {
+    const text = await res.text();
+    try {
+        return JSON.parse(text);
+    } catch {
+        throw new Error("Ошибка от твоего GAS-сервера:\n" + text);
+    }
+})
+.then(serverResult => {
+    // ВАША ЛОГИКА РАБОТЫ (EXISTING_CLIENT / NEW_CLIENT)
+    console.log("Ответ от GAS:", serverResult);
+    // ... остальной твой код ...
+})
+.catch(err => {
+    console.error("КРИТИЧЕСКАЯ ОШИБКА:", err);
+    document.getElementById('google-screen').innerHTML = `
+        <div style="color: red; padding: 20px;">
+            <h2>Ошибка при загрузке:</h2>
+            <pre style="white-space: pre-wrap; font-size: 12px;">${err.message}</pre>
+        </div>
+    `;
+});
                 .then(response => response.json())
                 .then(userInfo => {
                     const userEmail = userInfo.email;
