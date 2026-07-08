@@ -2971,27 +2971,29 @@ function showInstallerForm(email) {
 }
 
 function toggleSetupTheme() {
-    const html = document.documentElement;
-    const btn = document.getElementById('setup-btn-theme');
+    // Используем штатный механизм кассы (класс 'light-theme' на body)
+    const isLight = document.body.classList.toggle('light-theme');
+    localStorage.setItem('pos_theme', isLight ? 'light' : 'dark'); // Запоминаем навсегда
     
-    if (html.getAttribute('data-theme') === 'dark' || !html.hasAttribute('data-theme')) {
-        html.setAttribute('data-theme', 'light');
+    const btn = document.getElementById('setup-btn-theme');
+    if (isLight) {
         btn.innerText = '🌙 Dark';
         btn.style.color = 'var(--text-main)';
     } else {
-        html.setAttribute('data-theme', 'dark');
         btn.innerText = '☀️ Light';
         btn.style.color = 'var(--text-muted)';
     }
 }
 
 function toggleSetupLang() {
-    const btn = document.getElementById('setup-btn-lang');
     currentLang = currentLang === 'ru' ? 'kz' : 'ru';
+    localStorage.setItem('pos_lang', currentLang); // Запоминаем навсегда
+    
+    const btn = document.getElementById('setup-btn-lang');
     btn.innerText = currentLang === 'ru' ? 'KZ' : 'RU';
     
     if (typeof applyLanguage === 'function') {
-        applyLanguage(currentLang);
+        applyLanguage(currentLang); // Переводим интерфейс мгновенно
     }
     
     const input = document.getElementById('setup-store-name');
