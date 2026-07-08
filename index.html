@@ -2866,12 +2866,15 @@ function initGoogleAuth() {
                         // 3. МАРШРУТИЗАЦИЯ (Чистая и объединенная)
                         if (serverResult.status === "NEW_USER" || serverResult.status === "NEW_CLIENT") {
                             
-                            // Новый клиент: показываем окно установки базы
+                            // Скрываем окно загрузки Google
                             googleScreen.style.display = 'none';
-                            document.getElementById('setup-screen').style.display = 'block'; 
                             
-                            // Если у тебя есть отдельная функция для формы инсталлера, раскомментируй строку ниже:
-                            // if (typeof showInstallerForm === 'function') showInstallerForm(userInfo.email);
+                            // Запускаем ТВОЮ функцию установки вместо поиска несуществующего HTML-блока
+                            if (typeof showInstallerForm === 'function') {
+                                showInstallerForm(); // Открывает форму регистрации магазина
+                            } else {
+                                throw new Error("Функция установки showInstallerForm не найдена в коде!");
+                            }
 
                         } else if (serverResult.status === "EXISTING_CLIENT") {
                             
