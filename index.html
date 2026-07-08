@@ -2821,6 +2821,9 @@ function initGoogleAuth() {
                     const googleScreen = document.getElementById('google-screen');
                     googleScreen.innerHTML = '<h2 style="color: var(--accent-yellow); margin-bottom: 15px;">Проверка доступа...</h2><p style="color: var(--text-main);">Соединение с сервером</p>';
 
+                    // Создаем глобальную переменную для хранения почты на время цепочки
+                    let currentEmail = "";
+
                     // 1. Проверяем токен в Google
                     fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
                         headers: { Authorization: 'Bearer ' + clientAccessToken }
@@ -2837,13 +2840,16 @@ function initGoogleAuth() {
                     .then(userInfo => {
                         console.log("Юзер авторизован в Google:", userInfo.email);
                         
+                        // ЗАПОМИНАЕМ ПОЧТУ для следующих шагов
+                        currentEmail = userInfo.email; 
+                        
                         // 2. Отправляем точный POST-запрос на твой шлюз
                         return fetch(GATEWAY_URL, {
                             method: 'POST',
                             headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                             body: JSON.stringify({
                                 action: 'check_status', 
-                                email: userInfo.email
+                                email: currentEmail
                             })
                         }); 
                     })
@@ -2858,31 +2864,26 @@ function initGoogleAuth() {
                     .then(serverResult => {
                         console.log("Ответ от GAS:", serverResult);
 
-                        // Перехват серверной ошибки из блока catch(err) на бэкенде
                         if (serverResult.success === false && serverResult.error) {
                             throw new Error(serverResult.error);
                         }
 
-                        // 3. МАРШРУТИЗАЦИЯ (Чистая и объединенная)
+                        // 3. МАРШРУТИЗАЦИЯ
                         if (serverResult.status === "NEW_USER" || serverResult.status === "NEW_CLIENT") {
                             
-                            // УБРАЛИ СКРЫТИЕ googleScreen, так как форма рисуется прямо в нем!
-                            
                             if (typeof showInstallerForm === 'function') {
-                                // ПЕРЕДАЕМ ПОЧТУ КЛИЕНТА в функцию
-                                showInstallerForm(userInfo.email); 
+                                // ПЕРЕДАЕМ ЗАПОМНЕННУЮ ПОЧТУ
+                                showInstallerForm(currentEmail); 
                             } else {
                                 throw new Error("Функция установки showInstallerForm не найдена в коде!");
                             }
 
                         } else if (serverResult.status === "EXISTING_CLIENT") {
                             
-                            // Если сервер передал api_key, сохраняем его в память
                             if (serverResult.api_key) {
                                 localStorage.setItem('CLIENT_API_KEY', serverResult.api_key);
                             }
                             
-                            // Старый клиент: показываем цифровой ПИН-ПАД
                             googleScreen.style.display = 'none';
                             document.getElementById('pin-screen').style.display = 'flex'; 
 
