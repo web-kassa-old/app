@@ -2812,7 +2812,7 @@
     }
 
     tokenClient = google.accounts.oauth2.initTokenClient({
-        client_id: '1071015264018-s100se0ek42af15rm9vhq260b3lr7qer.apps.googleusercontent.com', 
+        client_id: GOOGLE_CLIENT_ID, // <-- Берем из config.js 
         scope: 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/userinfo.email',
         callback: (tokenResponse) => {
             if (tokenResponse && tokenResponse.access_token) {
