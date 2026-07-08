@@ -1,10 +1,10 @@
 // Файл глобальных настроек (config.js)
 
-const APP_VERSION = "5.5.03"; // Меняйте версию только здесь
+const APP_VERSION = "5.5.04"; // Меняйте версию только здесь
 
 // 1. Ссылки на роутер и шлюз (единые для всех арендаторов)
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyOp6fzexVQwUHVNmL50hF62pz20TW9nNoTL1SKyBEVGb095SVh_h6kNdyOIaMdroyW/exec"; 
-const GATEWAY_URL = "https://script.google.com/macros/s/AKfycbw2C9Pf7IM063RUK7niLCKxlmobGvW4s78FoX-vXRLHe_n-nScJajt4DuljfoJoNVN1/exec";
+const GATEWAY_URL = APPS_SCRIPT_URL; // <-- Теперь они одинаковые!
 
 // 2. Ключ авторизации Google
 const GOOGLE_CLIENT_ID = "1071015264018-s100se0ek42af15rm9vhq260b3lr7qer.apps.googleusercontent.com";
