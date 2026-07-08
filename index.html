@@ -3,7 +3,6 @@
 <head>
     <link rel="manifest" href="manifest.json">
 
-    <!-- КРИТИЧЕСКИЕ ТЕГИ ДЛЯ ИКОНКИ IOS И СТАНДАРТНЫХ БРАУЗЕРОВ -->
     <link rel="icon" type="image/png" href="icon.png">
     <link rel="apple-touch-icon" href="icon.png">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -412,6 +411,7 @@
             ВОЙТИ ЧЕРЕЗ GOOGLE
         </button>
     </div>
+    <div id="version-google" style="position: absolute; bottom: 20px; font-size: 11px; color: var(--text-muted); letter-spacing: 1px;">v: ---</div>
 </div>
 
     <div id="pin-screen" style="display: none;">
@@ -433,6 +433,7 @@
             <div class="num-btn" onclick="addPin('0')">0</div>
             <div class="num-btn btn-clear" onclick="delPin()">⌫</div>
         </div>
+        <div id="version-pin" style="position: absolute; bottom: 20px; font-size: 11px; color: var(--text-muted); letter-spacing: 1px;">v: ---</div>
     </div>
 
     <div class="header-area">
@@ -686,7 +687,7 @@
                 status_offline: " (OFFLINE)",
                 status_net_err: " (ОШИБКА СЕТИ - КЭШ)",
                 photo_err: "⚠️ ФОТО НЕДОСТУПНО<br><br>Google отклонил запрос или файл удален",
-                inc_status_db: "Связь с базой данных... ⏳",
+                inc_status_db: "Связь с базы данных... ⏳",
                 inc_status_write: "Запись товаров в таблицу... 📝",
                 inc_status_drive: "Создаем архив на Google Drive... 📂",
                 inc_status_almost: "Завершаем обработку... Осталось чуть-чуть ⏳",
@@ -1091,7 +1092,6 @@
         }
 
         async function load() {
-            // Читаем, кто сейчас работает, чтобы запросить правильные суммы
             const savedUid = localStorage.getItem('user_uid') || (currentUser ? currentUser.uid : '');
             const savedRole = localStorage.getItem('user_role') || '';
             // Делаем персональный кэш, чтобы продавцы не видели суммы друг друга при перезагрузке
@@ -1115,6 +1115,10 @@
             } catch (e) {}
 
             if (!navigator.onLine) return; 
+            
+            // Запрещаем сетевой запрос к серверу, пока кассир не прошел ПИН-код
+            if (!currentUser) return;
+
             try {
                 // Передаем серверу данные авторизованного пользователя
                 const fetchUrl = `${APPS_SCRIPT_URL}?action=getInitialData&api_key=${CLIENT_API_KEY}&t=${Date.now()}&uid=${savedUid}&role=${savedRole}`;
@@ -1542,7 +1546,7 @@
 
         let isSyncing = false; 
         async function syncQueue() {
-            if (isSyncing || !navigator.onLine) return; 
+            if (isSyncing || !navigator.onLine || !currentUser) return; 
             let queue = JSON.parse(localStorage.getItem('txQueue') || '[]');
             if (queue.length === 0) return; 
             isSyncing = true;
@@ -1857,10 +1861,22 @@
         function closeReport() { document.getElementById('report-modal').style.display = 'none'; }
 
         function displayAppVersion() {
-    // Касса сама возьмет версию из config.js
-    const v = typeof APP_VERSION !== 'undefined' ? APP_VERSION : "5.5.0";
-    document.getElementById('app-version').innerText = "v: " + v;
-}
+            // Берем версию из config.js
+            const v = typeof APP_VERSION !== 'undefined' ? APP_VERSION : "5.5.1";
+            const versionText = "v: " + v;
+            
+            // 1. В шапке внутри самой кассы
+            const appVer = document.getElementById('app-version');
+            if (appVer) appVer.innerText = versionText;
+            
+            // 2. На стартовом экране Google
+            const googleVer = document.getElementById('version-google');
+            if (googleVer) googleVer.innerText = versionText;
+            
+            // 3. На экране ввода ПИН-кода
+            const pinVer = document.getElementById('version-pin');
+            if (pinVer) pinVer.innerText = versionText;
+        }
 
         // === ПРИНУДИТЕЛЬНОЕ УДАЛЕНИЕ SERVICE WORKER ===
         if ('serviceWorker' in navigator) {
@@ -1877,7 +1893,7 @@
                     }
                 });
             }
-            document.getElementById('app-version').innerText = "v: 5.5.0";
+            document.getElementById('app-version').innerText = "v: 5.5.1";
         }
 
         window.addEventListener('load', () => {
@@ -2810,73 +2826,6 @@
                 .then(userInfo => {
                     const userEmail = userInfo.email;
                     
-                    // Обращение к серверу через константу из config.js
-                    fetch(GATEWAY_URL, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                        body: JSON.stringify({
-                            action: 'check_status',
-                            email: userEmail
-                        })
-                    })
-                    .then(res => res.json())
-                    .then(serverResult => {
-                        if (serverResult.status === 'EXISTING_CLIENT') {
-                            // Синхронизировано с твоим ключом из config.js
-                            localStorage.setItem('CLIENT_API_KEY', serverResult.api_key);
-                            
-                            googleScreen.style.display = 'none';
-                            document.getElementById('pin-screen').style.display = 'flex';
-                        } else if (serverResult.status === 'NEW_CLIENT') {
-                            showInstallerForm(userEmail);
-                        } else if (serverResult.status === 'BLOCKED') {
-                            googleScreen.innerHTML = '<h2 style="color: var(--accent-red);">Доступ приостановлен</h2><p style="color: var(--text-main);">Обратитесь в поддержку.</p>';
-                        }
-                    })
-                    .catch(error => {
-                        googleScreen.innerHTML = '<h2 style="color: var(--accent-red);">Ошибка сервера</h2><p style="color: var(--text-main);">' + error.message + '</p>';
-                    });
-                })
-                .catch(error => {
-                    googleScreen.innerHTML = '<h2 style="color: var(--accent-red);">Ошибка авторизации</h2><p style="color: var(--text-main);">Не удалось получить данные аккаунта.</p>';
-                });
-            }
-        },
-    });
-}
-
-// ===================================================================
-// БЛОК АВТОРИЗАЦИИ И УСТАНОВЩИКА ДЛЯ PWA (ВНЕШНИЙ ХОСТИНГ)
-// ===================================================================
-
-function initGoogleAuth() {
-    if (isBadInAppBrowser()) {
-        document.getElementById('google-screen').innerHTML = `
-            <div style="text-align: center; padding: 30px; background: var(--bg-panel); border-radius: 8px; border: 2px dashed var(--accent-red); max-width: 360px; width: 90%;">
-                <div style="font-size: 40px; margin-bottom: 15px;">🚫</div>
-                <h2 style="color: var(--accent-red); margin-bottom: 15px; font-size: 18px;">Встроенный браузер</h2>
-                <p style="color: var(--text-main); font-size: 14px; margin-bottom: 20px;">Встроенный браузер Telegram блокирует авторизацию Google.</p>
-                <p style="color: var(--accent-yellow); font-size: 14px; font-weight: bold; line-height: 1.5;">Нажмите на меню и выберите:<br><span style="color: #fff; background: var(--bg-hover); padding: 5px 10px; border-radius: 4px; display: inline-block; margin-top: 10px;">«Открыть в браузере»</span></p>
-            </div>
-        `;
-        return;
-    }
-
-    tokenClient = google.accounts.oauth2.initTokenClient({
-        client_id: '1071015264018-s100se0ek42af15rm9vhq260b3lr7qer.apps.googleusercontent.com', 
-        scope: 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/userinfo.email',
-        callback: (tokenResponse) => {
-            if (tokenResponse && tokenResponse.access_token) {
-                const googleScreen = document.getElementById('google-screen');
-                googleScreen.innerHTML = '<h2 style="color: var(--accent-yellow); margin-bottom: 15px;">Проверка доступа...</h2><p style="color: var(--text-main);">Соединение с сервером</p>';
-
-                fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-                    headers: { Authorization: 'Bearer ' + tokenResponse.access_token }
-                })
-                .then(response => response.json())
-                .then(userInfo => {
-                    const userEmail = userInfo.email;
-                    
                     // Обращение к серверу через fetch
                     fetch(GATEWAY_URL, {
                         method: 'POST',
@@ -3031,7 +2980,11 @@ function submitSetup(email) {
                 <div style="text-align: center; max-width: 400px;">
                     <div style="font-size: 50px; margin-bottom: 15px;">✅</div>
                     <h2 style="color: var(--accent-green); margin-bottom: 10px;">Система готова!</h2>
-                    <p style="color: var(--text-main); margin-bottom: 25px;">Базы успешно скопированы на ваш Google Диск.</p>
+                    <p style="color: var(--text-main); margin-bottom: 15px;">Базы успешно скопированы на ваш Google Диск.</p>
+                    <div style="background: var(--bg-card); border: 1px dashed var(--accent-yellow); padding: 15px; border-radius: 8px; margin-bottom: 25px;">
+                        <span style="color: var(--text-muted); font-size: 12px; display: block; margin-bottom: 5px;" data-i18n="setup_pin_msg">ПИН-код администратора:</span>
+                        <span style="color: var(--accent-yellow); font-size: 24px; font-weight: bold; letter-spacing: 2px;">1111</span>
+                    </div>
                     <button onclick="document.getElementById('google-screen').style.display='none'; document.getElementById('pin-screen').style.display='flex';" style="padding: 15px 30px; background-color: var(--accent-green); color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; width: 100%;">
                         Начать работу
                     </button>
