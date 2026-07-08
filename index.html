@@ -2790,8 +2790,9 @@
 
 <script>
     let tokenClient;
+    let clientAccessToken = ''; // НОВАЯ ПЕРЕМЕННАЯ: сохраняем токен клиента для Установщика
 
-    // 1. Детектор встроенных браузеров (Telegram, Instagram и т.д.)
+    // 1. Детектор встроенных браузеров
     function isBadInAppBrowser() {
         const ua = navigator.userAgent || navigator.vendor || window.opera;
         return (ua.indexOf('Telegram') > -1 || ua.indexOf('Instagram') > -1 || ua.indexOf('FBAN') > -1 || ua.indexOf('FBAV') > -1);
@@ -2799,29 +2800,28 @@
 
     // Функция ждет, пока Google полностью скачается
     function initGoogleAuth() {
-    if (isBadInAppBrowser()) {
-        document.getElementById('google-screen').innerHTML = `
-            <div style="text-align: center; padding: 30px; background: var(--bg-panel); border-radius: 8px; border: 2px dashed var(--accent-red); max-width: 360px; width: 90%;">
-                <div style="font-size: 40px; margin-bottom: 15px;">🚫</div>
-                <h2 style="color: var(--accent-red); margin-bottom: 15px; font-size: 18px;">Встроенный браузер</h2>
-                <p style="color: var(--text-main); font-size: 14px; margin-bottom: 20px;">Встроенный браузер Telegram блокирует авторизацию Google.</p>
-                <p style="color: var(--accent-yellow); font-size: 14px; font-weight: bold; line-height: 1.5;">Нажмите на меню и выберите:<br><span style="color: #fff; background: var(--bg-hover); padding: 5px 10px; border-radius: 4px; display: inline-block; margin-top: 10px;">«Открыть в браузере»</span></p>
-            </div>
-        `;
-        return;
-    }
+        if (isBadInAppBrowser()) {
+            // ... (твой код заглушки для телеграма оставляем без изменений)
+            document.getElementById('google-screen').innerHTML = `...`;
+            return;
+        }
 
-    tokenClient = google.accounts.oauth2.initTokenClient({
-        client_id: GOOGLE_CLIENT_ID, // <-- Берем из config.js 
-        scope: 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/userinfo.email',
-        callback: (tokenResponse) => {
-            if (tokenResponse && tokenResponse.access_token) {
-                const googleScreen = document.getElementById('google-screen');
-                googleScreen.innerHTML = '<h2 style="color: var(--accent-yellow); margin-bottom: 15px;">Проверка доступа...</h2><p style="color: var(--text-main);">Соединение с сервером</p>';
+        tokenClient = google.accounts.oauth2.initTokenClient({
+            client_id: GOOGLE_CLIENT_ID, 
+            // 🛑 ДОБАВИЛИ ПРАВА НА GOOGLE DRIVE (https://www.googleapis.com/auth/drive)
+            scope: 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/drive',
+            callback: (tokenResponse) => {
+                if (tokenResponse && tokenResponse.access_token) {
+                    
+                    // 🛑 ЗАПОМИНАЕМ ТОКЕН В ГЛОБАЛЬНУЮ ПЕРЕМЕННУЮ
+                    clientAccessToken = tokenResponse.access_token;
+                    
+                    const googleScreen = document.getElementById('google-screen');
+                    googleScreen.innerHTML = '<h2 style="color: var(--accent-yellow); margin-bottom: 15px;">Проверка доступа...</h2><p style="color: var(--text-main);">Соединение с сервером</p>';
 
-                fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-                    headers: { Authorization: 'Bearer ' + tokenResponse.access_token }
-                })
+                    fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+                        headers: { Authorization: 'Bearer ' + clientAccessToken } // <-- используем сохраненный токен
+                    })
                 .then(response => response.json())
                 .then(userInfo => {
                     const userEmail = userInfo.email;
