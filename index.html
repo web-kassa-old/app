@@ -2821,45 +2821,73 @@
                     const googleScreen = document.getElementById('google-screen');
                     googleScreen.innerHTML = '<h2 style="color: var(--accent-yellow); margin-bottom: 15px;">Проверка доступа...</h2><p style="color: var(--text-main);">Соединение с сервером</p>';
 
-                    // ... внутри initGoogleAuth после получения токена ...
+// ... внутри initGoogleAuth после успешного получения токена от Google ...
 
+// 1. Проверяем токен в Google (как и было)
 fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
     headers: { Authorization: 'Bearer ' + clientAccessToken }
 })
 .then(async (res) => {
-    const text = await res.text(); // Получаем ответ как текст
-    if (!res.ok) throw new Error(`Ошибка сервера ${res.status}: ${text}`);
+    const text = await res.text();
+    if (!res.ok) throw new Error(`Ошибка Google Auth ${res.status}: ${text}`);
     try {
-        return JSON.parse(text); // Пытаемся превратить в JSON
+        return JSON.parse(text);
     } catch {
-        throw new Error(`Сервер вернул не JSON, а это:\n${text}`); // Если пришел HTML — увидим его в консоли
+        throw new Error(`Google вернул не JSON:\n${text}`);
     }
 })
 .then(userInfo => {
-    // Если всё ок, идем дальше к твоему серверу
-    console.log("Юзер авторизован:", userInfo.email);
-    // Твой код вызова твоего GAS (checkClientStatus и т.д.)
-    return fetch(GATEWAY_URL + "?action=checkClientStatus&email=" + userInfo.email); 
+    console.log("Юзер авторизован в Google:", userInfo.email);
+    
+    // 2. ИСПРАВЛЕНО: отправляем точный POST-запрос на твой шлюз, как требует code.gs
+    return fetch(GATEWAY_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+            action: 'check_status', // именно это условие прописано в doPost(e)
+            email: userInfo.email
+        })
+    }); 
 })
 .then(async (res) => {
     const text = await res.text();
     try {
         return JSON.parse(text);
     } catch {
-        throw new Error("Ошибка от твоего GAS-сервера:\n" + text);
+        throw new Error("Сервер GAS вернул не JSON:\n" + text);
     }
 })
 .then(serverResult => {
-    // ВАША ЛОГИКА РАБОТЫ (EXISTING_CLIENT / NEW_CLIENT)
     console.log("Ответ от GAS:", serverResult);
-    // ... остальной твой код ...
+
+    // Если бэкенд перехватил ошибку в catch(err) и прислал её нам
+    if (serverResult.success === false && serverResult.error) {
+        throw new Error(serverResult.error);
+    }
+
+    // 3. НОВАЯ ЛОГИКА: Маршрутизация нового и старого клиента
+    if (serverResult.status === "NEW_USER") {
+        // Скрываем экран авторизации и открываем установщик базы
+        document.getElementById('google-screen').style.display = 'none';
+        document.getElementById('setup-screen').style.display = 'block'; 
+    } else if (serverResult.status === "EXISTING_CLIENT") {
+        // Если клиент уже есть — запускаем кассу в обычном режиме
+        document.getElementById('google-screen').style.display = 'none';
+        if (typeof startApp === 'function') startApp(); // или твоя функция запуска терминала
+    } else {
+        throw new Error("Неизвестный статус от сервера: " + JSON.stringify(serverResult));
+    }
 })
+// 4. ОСТАВЛЯЕМ: Тот самый бронированный вывод ошибок на экран от твоего зама
 .catch(err => {
     console.error("КРИТИЧЕСКАЯ ОШИБКА:", err);
     document.getElementById('google-screen').innerHTML = `
-        <div style="color: red; padding: 20px;">
-            <h2>Ошибка при загрузке:</h2>
-            <pre style="white-space: pre-wrap; font-size: 12px;">${err.message}</pre>
+        <div style="color: #ff6b6b; padding: 20px; text-align: left; background: #1a1a1a; border-radius: 8px; border: 1px solid #333;">
+            <h2 style="margin-top: 0;">Ошибка при загрузке:</h2>
+            <pre style="white-space: pre-wrap; font-size: 13px; background: #000; padding: 10px; border-radius: 4px; color: #ffb3b3;">${err.message}</pre>
+            <button onclick="window.location.reload(true)" style="margin-top: 15px; padding: 10px 20px; background: #ff6b6b; color: #fff; border: none; border-radius: 4px; cursor: pointer;">
+                Повторить попытку
+            </button>
         </div>
     `;
 })
