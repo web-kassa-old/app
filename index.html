@@ -716,7 +716,15 @@
                 setup_plan_pro: "Полная версия",
                 setup_btn_start: "Развернуть базу данных",
                 setup_footer: "Система автоматически создаст структуру папок на вашем Google Диске.",
-                setup_pin_msg: "ПИН-код администратора:"
+                setup_pin_msg: "ПИН-код администратора:",
+                setup_process_folder: "Создание главной папки...",
+                setup_process_struct: "Создание структуры...",
+                setup_process_copy: "Копирование баз данных...",
+                setup_process_perms: "Настройка прав доступа...",
+                setup_process_reg: "Регистрация в системе...",
+                setup_success_title: "Система готова!",
+                setup_success_desc: "Базы успешно скопированы на ваш Google Диск.",
+                setup_btn_start_work: "Начать работу"
             },
             kz: {
                 btn_sale: "САТУ", btn_return: "ҚАЙТАРУ", search_placeholder: "ІЗДЕУ...",
@@ -815,7 +823,15 @@
                 setup_plan_pro: "Толық нұсқа",
                 setup_btn_start: "Дерекқорды орнату",
                 setup_footer: "Жүйе сіздің Google Drive-та папкалар құрылымын автоматты түрде жасайды.",
-                setup_pin_msg: "Әкімшінің ПИН-коды:"
+                setup_pin_msg: "Әкімшінің ПИН-коды:",
+                setup_process_folder: "Негізгі папканы құру...",
+                setup_process_struct: "Құрылымды жасау...",
+                setup_process_copy: "Дерекқорларды көшіру...",
+                setup_process_perms: "Рұқсаттарды баптау...",
+                setup_process_reg: "Жүйеге тіркеу...",
+                setup_success_title: "Жүйе дайын!",
+                setup_success_desc: "Дерекқорлар сіздің Google Drive-қа сәтті көшірілді.",
+                setup_btn_start_work: "Жұмысты бастау"
             }
         };
 
@@ -3021,137 +3037,141 @@ function toggleSetupLang() {
 }
 
 async function submitSetup(email) {
-    const storeName = document.getElementById('setup-store-name').value.trim() || 'Мой Магазин';
-    const planType = document.getElementById('setup-plan-type').value;
-    const btn = document.getElementById('btn-start-setup');
-    
-    btn.disabled = true;
-    btn.style.opacity = '0.7';
-
-    // Защита: проверяем, получил ли клиент права
-    if (!clientAccessToken) {
-        showSetupError("Ошибка доступа к Диску. Попробуйте обновить страницу и войти заново.");
-        return;
-    }
-
-    // === УМНОЕ ИЗВЛЕЧЕНИЕ ID ИЗ ССЫЛОК ===
-    const extractId = (url) => {
-        if (!url) return null;
-        const match = url.match(/\/d\/([a-zA-Z0-9-_]+)/);
-        return match ? match[1] : url.trim(); // Если случайно вставили просто ID, вернем его
-    };
-
-    const tradeId = extractId(typeof TEMPLATE_TRADE_URL !== 'undefined' ? TEMPLATE_TRADE_URL : '');
-    const configId = extractId(typeof TEMPLATE_CONFIG_URL !== 'undefined' ? TEMPLATE_CONFIG_URL : '');
-
-    if (!tradeId || !configId) {
-        showSetupError("Системная ошибка: Неверный формат ссылок на шаблоны в конфигурации.");
-        return;
-    }
-    // =====================================
-
-    try {
-        btn.innerHTML = '⚙️ <span style="font-size: 14px;">Создание главной папки...</span>';
+        const storeName = document.getElementById('setup-store-name').value.trim() || 'Мой Магазин';
+        const planType = document.getElementById('setup-plan-type').value;
+        const btn = document.getElementById('btn-start-setup');
         
-        // 1. Создаем корневую папку на диске клиента
-        const rootRes = await fetch('https://www.googleapis.com/drive/v3/files', {
-            method: 'POST',
-            headers: { 'Authorization': 'Bearer ' + clientAccessToken, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: `POS_System_Data - ${storeName}`, mimeType: 'application/vnd.google-apps.folder' })
-        });
-        const rootFolder = await rootRes.json();
-        if (rootFolder.error) throw new Error("Не удалось создать папку: " + rootFolder.error.message);
-        const rootId = rootFolder.id;
+        btn.disabled = true;
+        btn.style.opacity = '0.7';
 
-        btn.innerHTML = '⚙️ <span style="font-size: 14px;">Создание структуры...</span>';
-        
-        // 2. Создаем служебные подпапки внутри главной папки и ЗАПОМИНАЕМ ИХ ID
-        const subfolders = ['POS_Backups', 'POS_Images', 'POS_Invoices', 'POS_Secret_Backups'];
-        const subfolderResponses = await Promise.all(subfolders.map(name =>
-            fetch('https://www.googleapis.com/drive/v3/files', {
-                method: 'POST',
-                headers: { 'Authorization': 'Bearer ' + clientAccessToken, 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name: name, mimeType: 'application/vnd.google-apps.folder', parents: [rootId] })
-            }).then(res => res.json())
-        ));
-
-        // Собираем ID созданных папок в удобный объект
-        let folderIds = {};
-        subfolderResponses.forEach(f => {
-            if (f.name && f.id) folderIds[f.name] = f.id;
-        });
-
-        btn.innerHTML = '⚙️ <span style="font-size: 14px;">Копирование баз данных...</span>';
-        
-        // 3. Копируем твои Золотые Шаблоны
-        const copyTradeRes = await fetch(`https://www.googleapis.com/drive/v3/files/${tradeId}/copy`, {
-            method: 'POST',
-            headers: { 'Authorization': 'Bearer ' + clientAccessToken, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: `[POS] ${storeName} - Trade Control`, parents: [rootId] })
-        });
-        const newTrade = await copyTradeRes.json();
-
-        const copyConfigRes = await fetch(`https://www.googleapis.com/drive/v3/files/${configId}/copy`, {
-            method: 'POST',
-            headers: { 'Authorization': 'Bearer ' + clientAccessToken, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: `[POS] ${storeName} - Config`, parents: [rootId] })
-        });
-        const newConfig = await copyConfigRes.json();
-
-        if (newTrade.error || newConfig.error) throw new Error("Не удалось скопировать шаблоны. Убедись, что к ним открыт доступ «Для всех со ссылкой».");
-
-        btn.innerHTML = '⚙️ <span style="font-size: 14px;">Настройка прав доступа...</span>';
-        
-        // 4. Клиент выдает твоему серверу права Редактора на эту папку
-        await fetch(`https://www.googleapis.com/drive/v3/files/${rootId}/permissions`, {
-            method: 'POST',
-            headers: { 'Authorization': 'Bearer ' + clientAccessToken, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ role: 'writer', type: 'user', emailAddress: ADMIN_EMAIL })
-        });
-
-        btn.innerHTML = '⚙️ <span style="font-size: 14px;">Регистрация в системе...</span>';
-        
-        // 5. Отправляем ID новых файлов И ПАПОК на твой сервер для регистрации
-        const regRes = await fetch(GATEWAY_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify({
-                action: 'createTenant',
-                email: email,
-                storeName: storeName,
-                plan: planType,
-                lang: currentLang,
-                tradeId: newTrade.id,   
-                configId: newConfig.id, 
-                folders: folderIds      // <-- ИСПРАВЛЕНИЕ: Передаем папки на сервер!
-            })
-        });
-        const result = await regRes.json();
-
-        if (result.success) {
-            localStorage.setItem('CLIENT_API_KEY', result.api_key);
-            document.getElementById('google-screen').innerHTML = `
-                <div style="text-align: center; max-width: 400px;">
-                    <div style="font-size: 50px; margin-bottom: 15px;">✅</div>
-                    <h2 style="color: var(--accent-green); margin-bottom: 10px;">Система готова!</h2>
-                    <p style="color: var(--text-main); margin-bottom: 15px;">Базы успешно скопированы на ваш Google Диск.</p>
-                    <div style="background: var(--bg-card); border: 1px dashed var(--accent-yellow); padding: 15px; border-radius: 8px; margin-bottom: 25px;">
-                        <span style="color: var(--text-muted); font-size: 12px; display: block; margin-bottom: 5px;" data-i18n="setup_pin_msg">ПИН-код администратора:</span>
-                        <span style="color: var(--accent-yellow); font-size: 24px; font-weight: bold; letter-spacing: 2px;">1111</span>
-                    </div>
-                    <button onclick="window.location.reload(true);" style="padding: 15px 30px; background-color: var(--accent-green); color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; width: 100%;">
-                        Начать работу
-                    </button>
-                </div>
-            `;
-        } else {
-            showSetupError(result.error || "Неизвестная ошибка сервера при регистрации.");
+        // Защита: проверяем, получил ли клиент права
+        if (!clientAccessToken) {
+            showSetupError("Ошибка доступа к Диску. Попробуйте обновить страницу и войти заново.");
+            return;
         }
 
-    } catch (error) {
-        showSetupError(error.message);
+        // === УМНОЕ ИЗВЛЕЧЕНИЕ ID ИЗ ССЫЛОК ===
+        const extractId = (url) => {
+            if (!url) return null;
+            const match = url.match(/\/d\/([a-zA-Z0-9-_]+)/);
+            return match ? match[1] : url.trim();
+        };
+
+        const tradeId = extractId(typeof TEMPLATE_TRADE_URL !== 'undefined' ? TEMPLATE_TRADE_URL : '');
+        const configId = extractId(typeof TEMPLATE_CONFIG_URL !== 'undefined' ? TEMPLATE_CONFIG_URL : '');
+
+        if (!tradeId || !configId) {
+            showSetupError("Системная ошибка: Неверный формат ссылок на шаблоны в конфигурации.");
+            return;
+        }
+
+        try {
+            btn.innerHTML = `⚙️ <span style="font-size: 14px;">${translations[currentLang].setup_process_folder}</span>`;
+            
+            // 1. Создаем корневую папку на диске клиента
+            const rootRes = await fetch('https://www.googleapis.com/drive/v3/files', {
+                method: 'POST',
+                headers: { 'Authorization': 'Bearer ' + clientAccessToken, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: `POS_System_Data - ${storeName}`, mimeType: 'application/vnd.google-apps.folder' })
+            });
+            const rootFolder = await rootRes.json();
+            if (rootFolder.error) throw new Error("Не удалось создать папку: " + rootFolder.error.message);
+            const rootId = rootFolder.id;
+
+            btn.innerHTML = `⚙️ <span style="font-size: 14px;">${translations[currentLang].setup_process_struct}</span>`;
+            
+            // 2. Создаем служебные подпапки И СОХРАНЯЕМ ИХ ID (Восстановлено!)
+            const subfolders = ['POS_Backups', 'POS_Images', 'POS_Invoices', 'POS_Secret_Backups'];
+            const subfolderResponses = await Promise.all(subfolders.map(name =>
+                fetch('https://www.googleapis.com/drive/v3/files', {
+                    method: 'POST',
+                    headers: { 'Authorization': 'Bearer ' + clientAccessToken, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: name, mimeType: 'application/vnd.google-apps.folder', parents: [rootId] })
+                }).then(res => res.json())
+            ));
+
+            let folderIds = {};
+            subfolderResponses.forEach(f => {
+                if (f.error) throw new Error("Ошибка при создании подпапок: " + f.error.message);
+                if (f.name && f.id) folderIds[f.name] = f.id;
+            });
+
+            btn.innerHTML = `⚙️ <span style="font-size: 14px;">${translations[currentLang].setup_process_copy}</span>`;
+            
+            // 3. Копируем Золотые Шаблоны
+            const copyTradeRes = await fetch(`https://www.googleapis.com/drive/v3/files/${tradeId}/copy`, {
+                method: 'POST',
+                headers: { 'Authorization': 'Bearer ' + clientAccessToken, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: `[POS] ${storeName} - Trade Control`, parents: [rootId] })
+            });
+            const newTrade = await copyTradeRes.json();
+
+            const copyConfigRes = await fetch(`https://www.googleapis.com/drive/v3/files/${configId}/copy`, {
+                method: 'POST',
+                headers: { 'Authorization': 'Bearer ' + clientAccessToken, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: `[POS] ${storeName} - Config`, parents: [rootId] })
+            });
+            const newConfig = await copyConfigRes.json();
+
+            if (newTrade.error || newConfig.error) throw new Error("Не удалось скопировать шаблоны. Убедись, что к ним открыт доступ «Для всех со ссылкой».");
+
+            btn.innerHTML = `⚙️ <span style="font-size: 14px;">${translations[currentLang].setup_process_perms}</span>`;
+            
+            // 4. Настраиваем права для сервера
+            const permRes = await fetch(`https://www.googleapis.com/drive/v3/files/${rootId}/permissions`, {
+                method: 'POST',
+                headers: { 'Authorization': 'Bearer ' + clientAccessToken, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ role: 'writer', type: 'user', emailAddress: ADMIN_EMAIL })
+            });
+            const permData = await permRes.json();
+            if (permData.error) throw new Error(`Сбой выдачи прав серверу (${ADMIN_EMAIL}): ` + permData.error.message);
+
+            btn.innerHTML = `⚙️ <span style="font-size: 14px;">${translations[currentLang].setup_process_reg}</span>`;
+            
+            // 5. Отправляем на сервер (ТЕПЕРЬ ПАПКИ ТОЧНО ПЕРЕДАЮТСЯ!)
+            const regRes = await fetch(GATEWAY_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify({
+                    action: 'createTenant',
+                    email: email,
+                    storeName: storeName,
+                    plan: planType,
+                    lang: currentLang,
+                    tradeId: newTrade.id,   
+                    configId: newConfig.id,
+                    folders: folderIds  // <-- ВОТ ЭТО БЫЛО УТЕРЯНО
+                })
+            });
+            
+            if (!regRes.ok) throw new Error(`Сервер вернул статус ${regRes.status}`);
+            
+            const result = await regRes.json();
+
+            if (result.success) {
+                localStorage.setItem('CLIENT_API_KEY', result.api_key);
+                document.getElementById('google-screen').innerHTML = `
+                    <div style="text-align: center; max-width: 400px;">
+                        <div style="font-size: 50px; margin-bottom: 15px;">✅</div>
+                        <h2 style="color: var(--accent-green); margin-bottom: 10px;">${translations[currentLang].setup_success_title}</h2>
+                        <p style="color: var(--text-main); margin-bottom: 15px;">${translations[currentLang].setup_success_desc}</p>
+                        <div style="background: var(--bg-card); border: 1px dashed var(--accent-yellow); padding: 15px; border-radius: 8px; margin-bottom: 25px;">
+                            <span style="color: var(--text-muted); font-size: 12px; display: block; margin-bottom: 5px;">${translations[currentLang].setup_pin_msg}</span>
+                            <span style="color: var(--accent-yellow); font-size: 24px; font-weight: bold; letter-spacing: 2px;">1111</span>
+                        </div>
+                        <button onclick="window.location.reload(true);" style="padding: 15px 30px; background-color: var(--accent-green); color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; width: 100%;">
+                            ${translations[currentLang].setup_btn_start_work}
+                        </button>
+                    </div>
+                `;
+            } else {
+                showSetupError(result.error || "Неизвестная ошибка сервера при регистрации.");
+            }
+
+        } catch (error) {
+            showSetupError(error.message);
+        }
     }
-}
 
 function showSetupError(errorMessage) {
     const btn = document.getElementById('btn-start-setup');
