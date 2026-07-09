@@ -3044,13 +3044,11 @@ async function submitSetup(email) {
         btn.disabled = true;
         btn.style.opacity = '0.7';
 
-        // Защита: проверяем, получил ли клиент права
         if (!clientAccessToken) {
             showSetupError("Ошибка доступа к Диску. Попробуйте обновить страницу и войти заново.");
             return;
         }
 
-        // === УМНОЕ ИЗВЛЕЧЕНИЕ ID ИЗ ССЫЛОК ===
         const extractId = (url) => {
             if (!url) return null;
             const match = url.match(/\/d\/([a-zA-Z0-9-_]+)/);
@@ -3068,33 +3066,37 @@ async function submitSetup(email) {
         try {
             btn.innerHTML = `⚙️ <span style="font-size: 14px;">${translations[currentLang].setup_process_folder}</span>`;
             
-            // 1. Создаем корневую папку на диске клиента
+            // 1. Создаем корневую папку
             const rootRes = await fetch('https://www.googleapis.com/drive/v3/files', {
                 method: 'POST',
                 headers: { 'Authorization': 'Bearer ' + clientAccessToken, 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name: `POS_System_Data - ${storeName}`, mimeType: 'application/vnd.google-apps.folder' })
             });
+            if (!rootRes.ok) throw new Error("Сбой Google Drive API при создании главной папки.");
             const rootFolder = await rootRes.json();
-            if (rootFolder.error) throw new Error("Не удалось создать папку: " + rootFolder.error.message);
             const rootId = rootFolder.id;
 
             btn.innerHTML = `⚙️ <span style="font-size: 14px;">${translations[currentLang].setup_process_struct}</span>`;
             
-            // 2. Создаем служебные подпапки И СОХРАНЯЕМ ИХ ID (Восстановлено!)
+            // 2. Создаем служебные подпапки СТРОГО ПО ОЧЕРЕДИ (Защита от блокировки Google)
+            let folderIds = {};
             const subfolders = ['POS_Backups', 'POS_Images', 'POS_Invoices', 'POS_Secret_Backups'];
-            const subfolderResponses = await Promise.all(subfolders.map(name =>
-                fetch('https://www.googleapis.com/drive/v3/files', {
+            
+            for (const name of subfolders) {
+                const res = await fetch('https://www.googleapis.com/drive/v3/files', {
                     method: 'POST',
                     headers: { 'Authorization': 'Bearer ' + clientAccessToken, 'Content-Type': 'application/json' },
                     body: JSON.stringify({ name: name, mimeType: 'application/vnd.google-apps.folder', parents: [rootId] })
-                }).then(res => res.json())
-            ));
-
-            let folderIds = {};
-            subfolderResponses.forEach(f => {
-                if (f.error) throw new Error("Ошибка при создании подпапок: " + f.error.message);
-                if (f.name && f.id) folderIds[f.name] = f.id;
-            });
+                });
+                
+                if (!res.ok) {
+                    const errTxt = await res.text();
+                    throw new Error(`Ошибка при создании папки ${name}: ` + errTxt);
+                }
+                
+                const f = await res.json();
+                folderIds[name] = f.id;
+            }
 
             btn.innerHTML = `⚙️ <span style="font-size: 14px;">${translations[currentLang].setup_process_copy}</span>`;
             
@@ -3104,6 +3106,7 @@ async function submitSetup(email) {
                 headers: { 'Authorization': 'Bearer ' + clientAccessToken, 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name: `[POS] ${storeName} - Trade Control`, parents: [rootId] })
             });
+            if (!copyTradeRes.ok) throw new Error("Сбой при копировании базы данных Trade Control.");
             const newTrade = await copyTradeRes.json();
 
             const copyConfigRes = await fetch(`https://www.googleapis.com/drive/v3/files/${configId}/copy`, {
@@ -3111,24 +3114,22 @@ async function submitSetup(email) {
                 headers: { 'Authorization': 'Bearer ' + clientAccessToken, 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name: `[POS] ${storeName} - Config`, parents: [rootId] })
             });
+            if (!copyConfigRes.ok) throw new Error("Сбой при копировании базы данных Config.");
             const newConfig = await copyConfigRes.json();
-
-            if (newTrade.error || newConfig.error) throw new Error("Не удалось скопировать шаблоны. Убедись, что к ним открыт доступ «Для всех со ссылкой».");
 
             btn.innerHTML = `⚙️ <span style="font-size: 14px;">${translations[currentLang].setup_process_perms}</span>`;
             
-            // 4. Настраиваем права для сервера
+            // 4. Настраиваем права
             const permRes = await fetch(`https://www.googleapis.com/drive/v3/files/${rootId}/permissions`, {
                 method: 'POST',
                 headers: { 'Authorization': 'Bearer ' + clientAccessToken, 'Content-Type': 'application/json' },
                 body: JSON.stringify({ role: 'writer', type: 'user', emailAddress: ADMIN_EMAIL })
             });
-            const permData = await permRes.json();
-            if (permData.error) throw new Error(`Сбой выдачи прав серверу (${ADMIN_EMAIL}): ` + permData.error.message);
+            if (!permRes.ok) throw new Error(`Сбой выдачи прав серверу (${ADMIN_EMAIL})`);
 
             btn.innerHTML = `⚙️ <span style="font-size: 14px;">${translations[currentLang].setup_process_reg}</span>`;
             
-            // 5. Отправляем на сервер (ТЕПЕРЬ ПАПКИ ТОЧНО ПЕРЕДАЮТСЯ!)
+            // 5. Отправляем все данные на сервер
             const regRes = await fetch(GATEWAY_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -3140,12 +3141,11 @@ async function submitSetup(email) {
                     lang: currentLang,
                     tradeId: newTrade.id,   
                     configId: newConfig.id,
-                    folders: folderIds  // <-- ВОТ ЭТО БЫЛО УТЕРЯНО
+                    folders: folderIds 
                 })
             });
             
             if (!regRes.ok) throw new Error(`Сервер вернул статус ${regRes.status}`);
-            
             const result = await regRes.json();
 
             if (result.success) {
