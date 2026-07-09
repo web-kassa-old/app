@@ -432,7 +432,15 @@
             <div class="num-btn" onclick="addPin('7')">7</div>
             <div class="num-btn" onclick="addPin('8')">8</div>
             <div class="num-btn" onclick="addPin('9')">9</div>
-            <div class="num-btn btn-clear" onclick="clearPin()">C</div>
+            <div id="btn-clear-pin" class="num-btn btn-clear"
+                onmousedown="startResetHold(this, event)"
+                onmouseup="cancelResetHold(this, event)"
+                onmouseleave="cancelResetHold(this, event)"
+                ontouchstart="startResetHold(this, event)"
+                ontouchend="cancelResetHold(this, event)"
+                ontouchcancel="cancelResetHold(this, event)">
+                C
+            </div>
             <div class="num-btn" onclick="addPin('0')">0</div>
             <div class="num-btn btn-clear" onclick="delPin()">⌫</div>
         </div>
@@ -2749,6 +2757,76 @@
             
             btn.disabled = false; btn.style.opacity = '1';
         }
+
+        // =======================================================
+// УДЕРЖАНИЕ КНОПКИ "С" (Сброс кэша / Очистка ввода)
+// =======================================================
+let pinHoldTimer = null;
+let pinHoldStart = null;
+const HOLD_DURATION = 2000; // 2 секунды
+
+function startResetHold(btn, e) {
+    if (e && e.type === 'touchstart') {
+        e.preventDefault(); 
+    }
+    
+    pinHoldStart = Date.now();
+    
+    // Плавная заливка твоей кнопки (div) красным цветом
+    btn.style.transition = `background-color ${HOLD_DURATION}ms linear, color ${HOLD_DURATION}ms linear`;
+    btn.style.backgroundColor = 'var(--accent-red)';
+    btn.style.color = '#ffffff';
+
+    pinHoldTimer = setTimeout(() => {
+        // === ПРОШЛО 2 СЕКУНДЫ: АВАРИЙНЫЙ СБРОС ===
+        
+        if (navigator.vibrate) {
+            navigator.vibrate([100, 50, 100, 50, 200]); 
+        }
+
+        document.body.style.transition = 'background-color 0.1s ease';
+        document.body.style.backgroundColor = 'var(--accent-red)';
+        
+        document.body.innerHTML = `
+            <div style="height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center; color: white;">
+                <div style="font-size: 60px; margin-bottom: 20px;">🔄</div>
+                <h2 style="font-family: sans-serif;">Сброс данных...</h2>
+            </div>
+        `;
+        
+        localStorage.clear();
+        sessionStorage.clear();
+        
+        setTimeout(() => {
+            window.location.reload(true);
+        }, 500); 
+
+    }, HOLD_DURATION);
+}
+
+function cancelResetHold(btn, e) {
+    if (e && (e.type === 'touchend' || e.type === 'touchcancel')) {
+        e.preventDefault(); 
+    }
+    
+    if (!pinHoldStart) return; 
+
+    clearTimeout(pinHoldTimer); 
+    let holdTime = Date.now() - pinHoldStart;
+    pinHoldStart = null; 
+    
+    // Если отпустили быстро (короткий тап) — вызываем ТВОЮ родную функцию
+    if (holdTime < HOLD_DURATION) {
+        if (typeof clearPin === 'function') {
+            clearPin(); 
+        }
+    }
+    
+    // Мгновенно возвращаем твой div в исходное состояние
+    btn.style.transition = 'background-color 0.2s ease, color 0.2s ease';
+    btn.style.backgroundColor = '';
+    btn.style.color = '';
+}
     </script>
 
     <div id="income-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: var(--bg-overlay); z-index: 10000; justify-content: center; align-items: center; backdrop-filter: blur(3px);">
