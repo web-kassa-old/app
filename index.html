@@ -1087,10 +1087,13 @@ async function handleAutoLogin(val) {
 
             try {
                 // Достаем актуальный API-ключ
-                const activeApiKey = localStorage.getItem('CLIENT_API_KEY') || CLIENT_API_KEY;
+                let activeApiKey = localStorage.getItem('CLIENT_API_KEY') || CLIENT_API_KEY;
                 
-                // === НОВЫЙ ЖУЧОК ДЛЯ ПРОВЕРКИ КЛЮЧА ===
-                alert("КЛЮЧ БАЗЫ: " + activeApiKey);
+                // Авто-лечение: если застрял старый мертвый ключ, сносим его
+                if (activeApiKey === 'test_store_001') {
+                    localStorage.removeItem('CLIENT_API_KEY');
+                    activeApiKey = CLIENT_API_KEY; // Принудительно берем свежий из config.js
+                }
 
                 const response = await fetch(APPS_SCRIPT_URL, {
                     method: 'POST',
