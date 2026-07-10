@@ -302,6 +302,13 @@
         .hb-item { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); margin-bottom: 4px; }
         .hb-type-r { text-decoration: line-through; opacity: 0.6; }
 
+        /* --- ОКНО МАССОВОЙ НАЦЕНКИ --- */
+        .markup-box { width: 100%; max-width: 350px; background: var(--bg-modal); border: 1px solid var(--border-focus); padding: 20px; border-radius: 8px; color: var(--text-main); box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
+        .m-toggle { display: flex; background: var(--bg-hover); border-radius: 6px; padding: 4px; margin-bottom: 20px; border: 1px solid var(--border-light); }
+        .m-toggle label { flex: 1; text-align: center; padding: 10px; font-size: 14px; font-weight: bold; color: var(--text-muted); cursor: pointer; border-radius: 4px; transition: 0.2s; }
+        .m-toggle input[type="radio"] { display: none; }
+        .m-toggle input[type="radio"]:checked + label { background: var(--bg-panel); color: var(--accent-yellow); box-shadow: 0 2px 5px rgba(0,0,0,0.2); border: 1px solid var(--border-focus); }
+
         .settings-box { width: 100%; max-width: 350px; background: var(--bg-modal); border: 1px solid var(--border-focus); padding: 20px; border-radius: 8px; color: var(--text-main); box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
         .s-group { margin-bottom: 15px; border-bottom: 1px solid var(--border-main); padding-bottom: 15px; }
         .s-title { font-size: 11px; color: var(--text-muted); margin-bottom: 10px; text-transform: uppercase; font-weight: bold; }
@@ -585,6 +592,28 @@
             </div>
 
             <button class="cancel-btn" style="width: 100%; margin-top: 10px;" onclick="closeSettings()" data-i18n="btn_close">ЗАКРЫТЬ</button>
+        </div>
+    </div>
+
+    <div id="category-markup-modal" class="modal-overlay">
+        <div class="markup-box">
+            <div class="r-title" style="margin-bottom: 5px;" data-i18n="markup_title">НАЦЕНКА</div>
+            <div id="markup-category-name" style="text-align: center; color: var(--accent-green); font-size: 12px; font-weight: bold; margin-bottom: 20px; text-transform: uppercase;">КАТЕГОРИЯ</div>
+            
+            <div class="m-toggle">
+                <input type="radio" id="catTypePercent" name="catMarkupType" value="percent" checked>
+                <label for="catTypePercent">% Процент</label>
+                
+                <input type="radio" id="catTypeFix" name="catMarkupType" value="fix">
+                <label for="catTypeFix">₸ Фикс. сумма</label>
+            </div>
+
+            <input type="text" inputmode="decimal" id="catMarkupValue" placeholder="Введите значение..." style="width: 100%; box-sizing: border-box; padding: 15px; background: var(--bg-card); border: 1px solid var(--border-focus); color: var(--text-main); border-radius: 6px; font-size: 18px; margin-bottom: 20px; outline: none; text-align: center; font-weight: bold;">
+            
+            <button onclick="applyCategoryMarkup()" style="width: 100%; padding: 15px; font-size: 14px; background-color: var(--accent-green); color: var(--text-dark); border: none; border-radius: 6px; cursor: pointer; font-weight: bold; text-transform: uppercase; margin-bottom: 10px;">
+                Применить
+            </button>
+            <button class="cancel-btn" style="width: 100%;" onclick="closeCategoryMarkup()" data-i18n="btn_cancel">ОТМЕНА</button>
         </div>
     </div>
 
@@ -2827,6 +2856,27 @@ function cancelResetHold(btn, e) {
     btn.style.backgroundColor = '';
     btn.style.color = '';
 }
+
+    // --- ЛОГИКА МАССОВОЙ НАЦЕНКИ ---
+        let targetMarkupCategory = null;
+
+        function openCategoryMarkup(catName) {
+            targetMarkupCategory = catName;
+            document.getElementById('markup-category-name').innerText = catName === 'all' ? translations[currentLang].cat_all : catName;
+            document.getElementById('catMarkupValue').value = '';
+            document.getElementById('category-markup-modal').style.display = 'flex';
+        }
+
+        function closeCategoryMarkup() {
+            document.getElementById('category-markup-modal').style.display = 'none';
+            targetMarkupCategory = null;
+        }
+
+        function applyCategoryMarkup() {
+            alert("Функция пересчета готова к внедрению!");
+            closeCategoryMarkup();
+        }
+
     </script>
 
     <div id="income-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: var(--bg-overlay); z-index: 10000; justify-content: center; align-items: center; backdrop-filter: blur(3px);">
