@@ -2089,36 +2089,54 @@
             if (isNaN(value) || value <= 0) return alert(translations[currentLang].markup_err_val);
 
             let changedCount = 0;
+            let updatesForBackend = []; // Массив для отправки на сервер
             
-            // 1. Ищем товары и считаем новую цену
             db.forEach(item => {
-                // Если категория совпадает (или если нажали на кнопку "ВСЕ", но на кнопку "Все" я пока не вешал удержание)
                 if (item.category === targetMarkupCategory) {
                     let cost = parseFloat(item.cost) || 0;
                     
                     if (cost > 0) { 
                         let newPrice = isPercent ? cost + (cost * (value / 100)) : cost + value;
-                        
-                        // 2. АВТОМАТИЧЕСКОЕ ОКРУГЛЕНИЕ ДО 100 (Например: 4430 ₸ -> 4500 ₸)
-                        newPrice = Math.ceil(newPrice / 100) * 100;
+                        newPrice = Math.ceil(newPrice / 100) * 100; // Округление до 100
                         
                         item.price = newPrice;
                         changedCount++;
+                        
+                        // Сохраняем ID и новую цену в массив
+                        updatesForBackend.push({ id: item.id, price: newPrice });
                     }
                 }
             });
 
             if (changedCount > 0) {
-                // 3. Сохраняем в кэш и перерисовываем каталог (чтобы цены обновились на экране)
                 localStorage.setItem('db_cache', JSON.stringify(db));
                 render(); 
                 closeCategoryMarkup();
-                alert(translations[currentLang].markup_success.replace('{0}', changedCount));
                 
-                // ❗ ВАЖНО ДЛЯ БЭКЕНДА:
-                // Здесь нужно будет дописать отправку новых цен на сервер, 
-                // чтобы они записались в таблицу Items.
-                // savePricesToBackend(targetMarkupCategory, value, isPercent);
+                // --- ОТПРАВКА НА СЕРВЕР ---
+                showLoader(); // Включаем крутилку загрузки
+                
+                fetch(SCRIPT_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        api_key: localStorage.getItem('api_key'),
+                        action: 'update_bulk_prices',
+                        updates: updatesForBackend
+                    })
+                })
+                .then(res => res.json())
+                .then(res => {
+                    hideLoader();
+                    if (res.success) {
+                        alert(translations[currentLang].markup_success.replace('{0}', changedCount));
+                    } else {
+                        alert("Ошибка сохранения в базу: " + res.error);
+                    }
+                })
+                .catch(err => {
+                    hideLoader();
+                    alert("Ошибка сети при сохранении цен.");
+                });
                 
             } else {
                 alert(translations[currentLang].markup_no_cost);
