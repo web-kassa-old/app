@@ -2073,73 +2073,63 @@
         }
 
         function applyCategoryMarkup() {
-            const isPercent = document.getElementById('catTypePercent').checked;
-            const rawValue = document.getElementById('catMarkupValue').value;
-            const value = parseFloat(rawValue.replace(',', '.'));
-            
-            if (isNaN(value) || value <= 0) return alert(translations[currentLang].markup_err_val);
+    const isPercent = document.getElementById('catTypePercent').checked;
+    const rawValue = document.getElementById('catMarkupValue').value;
+    const value = parseFloat(rawValue.replace(',', '.'));
+    
+    if (isNaN(value) || value <= 0) return alert(translations[currentLang].markup_err_val);
 
-            let changedCount = 0;
-            let updatesForBackend = []; // Массив для отправки на сервер
+    let changedCount = 0;
+    let updatesForBackend = []; 
+    
+    db.forEach(item => {
+        if (item.category === targetMarkupCategory) {
+            let cost = parseFloat(item.cost) || 0;
             
-            db.forEach(item => {
-                if (item.category === targetMarkupCategory) {
-                    let cost = parseFloat(item.cost) || 0;
-                    
-                    if (cost > 0) { 
-                        let newPrice = isPercent ? cost + (cost * (value / 100)) : cost + value;
-                        newPrice = Math.ceil(newPrice / 100) * 100; // Округление до 100
-                        
-                        item.price = newPrice;
-                        changedCount++;
-                        
-                        // Строго используем точный ключ id из твоей архитектуры
-                        updatesForBackend.push({ id: item.id, price: newPrice });
-                    }
-                }
-            });
-
-            if (changedCount > 0) {
-                localStorage.setItem('db_cache', JSON.stringify(db));
-                render(); 
-                closeCategoryMarkup();
+            if (cost > 0) { 
+                let newPrice = isPercent ? cost + (cost * (value / 100)) : cost + value;
+                newPrice = Math.ceil(newPrice / 100) * 100; // Округление до 100
                 
-                // --- ОТПРАВКА НА СЕРВЕР ---
-                    console.log("Отправка данных на бэкенд:", updatesForBackend);
-                    
-                    fetch(APPS_SCRIPT_URL, {
-                        method: 'POST',
-                        redirect: 'follow', // <-- Разрешаем Google делать редиректы
-                        headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // <-- Маскируем под простой текст (обход CORS)
-                        body: JSON.stringify({
-                            api_key: CLIENT_API_KEY, 
-                            action: 'update_bulk_prices',
-                            updates: updatesForBackend
-                        })
-                    })
-                    .then(res => res.text())
-                    .then(text => {
-                        console.log("Сырой ответ сервера:", text);
-                        try {
-                            let res = JSON.parse(text);
-                            if (res.success) {
-                                alert(`✅ Успех! На сервере обновлено строк: ${res.updated_rows}`);
-                            } else {
-                                alert("❌ Ошибка бэкенда: " + res.error);
-                            }
-                        } catch(e) {
-                            alert("❌ Ответ сервера не JSON. Ответ: " + text.substring(0, 100));
-                        }
-                    })
-                    .catch(err => {
-                        console.error("Ошибка сети:", err);
-                        alert("❌ Ошибка сети при отправке: " + err.message);
-                    });
+                item.price = newPrice;
+                changedCount++;
                 
-            } else {
-                alert(translations[currentLang].markup_no_cost);
+                let realId = item.id || item.item_id || item.barcode || item[0];
+                updatesForBackend.push({ id: realId, price: newPrice });
             }
         }
+    });
+
+    if (changedCount > 0) {
+        localStorage.setItem('db_cache', JSON.stringify(db));
+        render(); 
+        closeCategoryMarkup();
+        
+        // --- ОТПРАВКА НА СЕРВЕР (ЧИСТЫЙ FETCH) ---
+        fetch(APPS_SCRIPT_URL, {
+            method: 'POST',
+            body: JSON.stringify({
+                api_key: CLIENT_API_KEY, 
+                action: 'update_bulk_prices',
+                updates: updatesForBackend
+            })
+        })
+        .then(res => res.json()) // Теперь можно сразу читать JSON
+        .then(res => {
+            if (res.success) {
+                alert(`✅ Успех! На сервере обновлено строк: ${res.updated_rows}`);
+            } else {
+                alert("❌ Ошибка бэкенда: " + res.error);
+            }
+        })
+        .catch(err => {
+            console.error("Ошибка сети:", err);
+            alert("❌ Ошибка сети при отправке: " + err.message);
+        });
+        
+    } else {
+        alert(translations[currentLang].markup_no_cost);
+    }
+}
 
         function openItemMenu(id) {
             selectedItemId = id; tempBase64 = null; 
