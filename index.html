@@ -1040,7 +1040,7 @@
             document.getElementById('pin-field').value = currentPinInput;
         }
 
-        async function handleAutoLogin(val) {
+async function handleAutoLogin(val) {
             if (blockUntil > Date.now()) {
                 clearPin();
                 return; 
@@ -1088,9 +1088,9 @@
             try {
                 // Достаем актуальный API-ключ
                 const activeApiKey = localStorage.getItem('CLIENT_API_KEY') || CLIENT_API_KEY;
-
-                const activeApiKey = localStorage.getItem('CLIENT_API_KEY') || CLIENT_API_KEY;
-alert("КЛЮЧ БАЗЫ: " + activeApiKey); // <--- ДОБАВИТЬ ЭТО
+                
+                // === НОВЫЙ ЖУЧОК ДЛЯ ПРОВЕРКИ КЛЮЧА ===
+                alert("КЛЮЧ БАЗЫ: " + activeApiKey);
 
                 const response = await fetch(APPS_SCRIPT_URL, {
                     method: 'POST',
@@ -1134,9 +1134,6 @@ alert("КЛЮЧ БАЗЫ: " + activeApiKey); // <--- ДОБАВИТЬ ЭТО
                 }
 
             } catch (error) {
-                // === НАШ ЖУЧОК ===
-                alert("ОТЛАДКА ТЕЛЕФОНА: " + error.message);
-                
                 console.error("Ошибка авторизации:", error);
                 
                 let isWrongPin = error.message === "WRONG_PIN";
@@ -1171,7 +1168,6 @@ alert("КЛЮЧ БАЗЫ: " + activeApiKey); // <--- ДОБАВИТЬ ЭТО
                 }, 1200);
             }
         }
-
         function login(user) {
             currentUser = user;
             localStorage.setItem('user_role', user.role);
