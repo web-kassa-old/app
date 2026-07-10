@@ -2113,29 +2113,32 @@
                 render(); 
                 closeCategoryMarkup();
                 
-                // --- ОТПРАВКА НА СЕРВЕР ---
-                showLoader(); // Включаем крутилку загрузки
+                // --- ОТПРАВКА НА СЕРВЕР (С ДИАГНОСТИКОЙ) ---
+                alert("Отправляем на сервер " + updatesForBackend.length + " товаров...");
                 
                 fetch(SCRIPT_URL, {
                     method: 'POST',
                     body: JSON.stringify({
-                        api_key: localStorage.getItem('api_key'),
+                        api_key: localStorage.getItem('api_key'), // или как у тебя называется токен
                         action: 'update_bulk_prices',
                         updates: updatesForBackend
                     })
                 })
-                .then(res => res.json())
-                .then(res => {
-                    hideLoader();
-                    if (res.success) {
-                        alert(translations[currentLang].markup_success.replace('{0}', changedCount));
-                    } else {
-                        alert("Ошибка сохранения в базу: " + res.error);
+                .then(res => res.text()) // Сначала читаем как текст, чтобы поймать HTML-ошибки Google
+                .then(text => {
+                    try {
+                        let res = JSON.parse(text);
+                        if (res.success) {
+                            alert(`✅ Успех! На сервере обновлено ячеек: ${res.updated_rows}`);
+                        } else {
+                            alert("❌ Ошибка базы данных: " + res.error);
+                        }
+                    } catch(e) {
+                        alert("❌ Сервер вернул не JSON. Скорее всего, забыли сделать Новое Развертывание! Ответ сервера: " + text.substring(0, 50));
                     }
                 })
                 .catch(err => {
-                    hideLoader();
-                    alert("Ошибка сети при сохранении цен.");
+                    alert("❌ Полный обрыв связи: " + err.message);
                 });
                 
             } else {
