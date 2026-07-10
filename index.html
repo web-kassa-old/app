@@ -2117,11 +2117,10 @@
                 console.log("Отправка данных на бэкенд:", updatesForBackend);
                 alert("Отправляем на сервер " + updatesForBackend.length + " товаров...");
                 
-                // Используем твою глобальную константу из config.js
                 fetch(APPS_SCRIPT_URL, {
                     method: 'POST',
                     body: JSON.stringify({
-                        api_key: localStorage.getItem('api_key') || "", 
+                        api_key: CLIENT_API_KEY, // <-- ИСПОЛЬЗУЕМ ТВОЮ РОДНУЮ КОНСТАНТУ
                         action: 'update_bulk_prices',
                         updates: updatesForBackend
                     })
