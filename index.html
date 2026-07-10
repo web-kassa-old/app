@@ -608,7 +608,7 @@
                 <label for="catTypeFix" data-i18n="markup_type_fix">₸ Сумма</label>
             </div>
 
-            <input type="text" inputmode="decimal" id="catMarkupValue" data-i18n-placeholder="markup_placeholder" placeholder="Значение..." style="width: 100%; box-sizing: border-box; padding: 15px; background: var(--bg-card); border: 1px solid var(--border-focus); color: var(--text-main); border-radius: 6px; font-size: 18px; margin-bottom: 20px; outline: none; text-align: center; font-weight: bold;">
+            <input type="text" inputmode="decimal" id="catMarkupValue" data-i18n-placeholder="markup_placeholder" placeholder="Значение..." onkeydown="if(event.key === 'Enter') applyCategoryMarkup()" style="width: 100%; box-sizing: border-box; padding: 15px; background: var(--bg-card); border: 1px solid var(--border-focus); color: var(--text-main); border-radius: 6px; font-size: 18px; margin-bottom: 20px; outline: none; text-align: center; font-weight: bold;">
             
             <button onclick="applyCategoryMarkup()" style="width: 100%; padding: 15px; font-size: 14px; background-color: var(--accent-green); color: var(--text-dark); border: none; border-radius: 6px; cursor: pointer; font-weight: bold; text-transform: uppercase; margin-bottom: 10px;" data-i18n="markup_apply">
                 ПРИМЕНИТЬ
@@ -2980,14 +2980,17 @@ function cancelResetHold(btn, e) {
                 .then(res => res.json())
                 .then(res => {
                     if (res.success) {
-                        alert(`✅ Успех! На сервере обновлено строк: ${res.updated_rows}`);
+                        const msg = currentLang === 'kz'
+                            ? `✅ Сәтті! Серверде жолдар жаңартылды: ${res.updated_rows}`
+                            : `✅ Успех! На сервере обновлено строк: ${res.updated_rows}`;
+                        alert(msg);
                     } else {
-                        alert("❌ Ошибка бэкенда: " + res.error);
+                        alert(translations[currentLang].err_server + ": " + res.error);
                     }
                 })
                 .catch(err => {
                     console.error("Ошибка сети:", err);
-                    alert("Сервер еще не знает эту команду. Переходим к Шагу 3!");
+                    alert(translations[currentLang].err_network);
                 });
                 
             } else {
