@@ -1086,7 +1086,7 @@
             err.style.visibility = 'visible';
 
             try {
-                // ИСПРАВЛЕНИЕ 1: Достаем актуальный API-ключ, полученный при входе через Google
+                // Достаем актуальный API-ключ
                 const activeApiKey = localStorage.getItem('CLIENT_API_KEY') || CLIENT_API_KEY;
 
                 const response = await fetch(APPS_SCRIPT_URL, {
@@ -1131,8 +1131,7 @@
                 }
 
             } catch (error) {
-
-                // === СТАВИМ ЖУЧОК ПРЯМО СЮДА ===
+                // === НАШ ЖУЧОК ===
                 alert("ОТЛАДКА ТЕЛЕФОНА: " + error.message);
                 
                 console.error("Ошибка авторизации:", error);
@@ -1141,17 +1140,8 @@
                 
                 if (isWrongPin) {
                     failedAttempts++;
-                    // ... (дальше идет остальной код блокировки)
-                    
-                console.error("Ошибка авторизации:", error);
-                
-                let isWrongPin = error.message === "WRONG_PIN";
-                
-                if (isWrongPin) {
-                    failedAttempts++;
                     localStorage.setItem('pos_fails', failedAttempts);
                     
-                    // ИСПРАВЛЕНИЕ 2: Блокировка включается строго внутри условия неправильного ПИН-кода
                     if (failedAttempts >= 3) {
                         blockUntil = Date.now() + 5 * 60 * 1000;
                         localStorage.setItem('pos_block', blockUntil);
