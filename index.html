@@ -2115,8 +2115,10 @@
                 
                 // --- ОТПРАВКА НА СЕРВЕР ---
                 console.log("Отправка данных на бэкенд:", updatesForBackend);
+                alert("Отправляем на сервер " + updatesForBackend.length + " товаров...");
                 
-                fetch(SCRIPT_URL, {
+                // Используем твою глобальную константу из config.js
+                fetch(APPS_SCRIPT_URL, {
                     method: 'POST',
                     body: JSON.stringify({
                         api_key: localStorage.getItem('api_key') || "", 
