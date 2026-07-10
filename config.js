@@ -1,6 +1,6 @@
 // Файл глобальных настроек (config.js)
 
-const APP_VERSION = "5.5.42"; // Меняйте версию только здесь
+const APP_VERSION = "5.5.43"; // Меняйте версию только здесь
 
 // 1. Ссылки на роутер и шлюз (единые для всех арендаторов)
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyOp6fzexVQwUHVNmL50hF62pz20TW9nNoTL1SKyBEVGb095SVh_h6kNdyOIaMdroyW/exec"; 
@@ -28,10 +28,13 @@ if (urlApiKey) {
     window.history.replaceState({ path: cleanUrl }, '', cleanUrl);
 }
 
-// 5. Инициализация константы для работы приложения
-const CLIENT_API_KEY = localStorage.getItem('CLIENT_API_KEY') || "TEST_STORE_001";
+// 5. Инициализация константы
+// Убираем жесткий fallback на "TEST_STORE_001", чтобы не "отравлять" базу
+const CLIENT_API_KEY = localStorage.getItem('CLIENT_API_KEY') || null;
 
-// Проверка на отсутствие ключа
-if (!CLIENT_API_KEY || CLIENT_API_KEY === "TEST_STORE_001") {
-    console.warn("Внимание: Используется тестовый или пустой ключ арендатора. Обратитесь к администратору.");
+// Если ключа нет, мы не предупреждаем, а просто ждем авторизации
+if (!CLIENT_API_KEY) {
+    console.log("Ключ арендатора не найден. Ожидание авторизации...");
+} else if (CLIENT_API_KEY === "TEST_STORE_001") {
+    console.warn("Внимание: В памяти найден устаревший тестовый ключ. Рекомендуется сброс.");
 }
