@@ -588,42 +588,6 @@
         </div>
     </div>
 
-    <div id="category-markup-modal" class="modal-overlay" onclick="closeCategoryMarkup()">
-        <div class="settings-box" onclick="event.stopPropagation()" style="max-width: 320px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                <div class="r-title" data-i18n="markup_title" style="margin: 0; color: var(--text-muted); font-size: 12px; text-transform: uppercase;">Наценка:</div>
-                <div id="markup-cat-name" style="color: var(--accent-yellow); font-weight: 900; font-size: 16px; text-transform: uppercase;">Категория</div>
-            </div>
-            
-            <div style="display: flex; background: var(--bg-main); border: 1px solid var(--border-light); border-radius: 8px; padding: 4px; margin-bottom: 15px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);">
-                <input type="radio" id="catTypePercent" name="catMarkupType" value="percent" checked style="display:none;" onchange="updateCatPlaceholder()">
-                <label for="catTypePercent" style="flex: 1; text-align: center; padding: 10px; cursor: pointer; border-radius: 6px; font-weight: bold; font-size: 15px; transition: 0.2s;">%</label>
-                
-                <input type="radio" id="catTypeFixed" name="catMarkupType" value="fixed" style="display:none;" onchange="updateCatPlaceholder()">
-                <label for="catTypeFixed" style="flex: 1; text-align: center; padding: 10px; cursor: pointer; border-radius: 6px; font-weight: bold; font-size: 15px; transition: 0.2s;">₸</label>
-            </div>
-
-            <style>
-                /* ИСПРАВЛЕНИЕ 2: Жесткая цветная рамка для активной кнопки (работает и в светлой, и в темной теме) */
-                input[name="catMarkupType"] + label { color: var(--text-muted); border: 2px solid transparent; }
-                input[name="catMarkupType"]:checked + label { 
-                    background: var(--bg-card); 
-                    color: var(--accent-blue); 
-                    border: 2px solid var(--accent-blue);
-                    padding: 8px; /* Уменьшаем padding на 2px из-за рамки, чтобы интерфейс не дергался */
-                    box-shadow: 0 2px 6px rgba(0,0,0,0.2); 
-                }
-
-            </style>
-
-            <input type="text" inputmode="decimal" id="catMarkupValue" placeholder="Наценка (напр. 40)" style="width: 100%; box-sizing: border-box; padding: 15px; background: var(--bg-card); border: 1px solid var(--border-focus); color: var(--text-main); border-radius: 6px; font-size: 18px; margin-bottom: 20px; outline: none; text-align: center; font-weight: bold;">
-
-            <button onclick="applyCategoryMarkup()" style="width: 100%; padding: 16px; background: var(--accent-green); color: var(--text-dark); border: none; border-radius: 6px; font-weight: 900; font-size: 14px; cursor: pointer;">
-                🚀 <span data-i18n="markup_btn_apply">ПРИМЕНИТЬ К КАТЕГОРИИ</span>
-            </button>
-        </div>
-    </div>
-
     <div id="item-menu-modal" class="modal-overlay" onclick="handleCancelModal()">
         <div class="settings-box" onclick="event.stopPropagation()">
             <div id="menu-item-name" class="r-title" style="font-size: 14px; margin-bottom: 20px;">Название товара</div>
@@ -768,14 +732,7 @@
                 setup_process_reg: "Регистрация в системе...",
                 setup_success_title: "Система готова!",
                 setup_success_desc: "Базы успешно скопированы на ваш Google Диск.",
-                setup_btn_start_work: "Начать работу",
-                markup_btn_apply: "ПРИМЕНИТЬ К КАТЕГОРИИ",
-                markup_placeholder_pct: "Наценка, % (напр. 40)",
-                markup_placeholder_fix: "Наценка, ₸ (напр. 2000)",
-                markup_err_val: "Введите корректное значение!",
-                markup_success: "✅ Цены обновлены у {0} товаров!",
-                markup_no_cost: "У товаров в этой категории не указана цена закупа.",
-                markup_title: "Наценка:"
+                setup_btn_start_work: "Начать работу"
             },
             kz: {
                 btn_sale: "САТУ", btn_return: "ҚАЙТАРУ", search_placeholder: "ІЗДЕУ...",
@@ -882,14 +839,7 @@
                 setup_process_reg: "Жүйеге тіркеу...",
                 setup_success_title: "Жүйе дайын!",
                 setup_success_desc: "Дерекқорлар сіздің Google Drive-қа сәтті көшірілді.",
-                setup_btn_start_work: "Жұмысты бастау",
-                markup_btn_apply: "САНАТҚА ҚОЛДАНУ",
-                markup_placeholder_pct: "Үстеме, % (мыс. 40)",
-                markup_placeholder_fix: "Үстеме, ₸ (мыс. 2000)",
-                markup_err_val: "Дұрыс мән енгізіңіз!",
-                markup_success: "✅ {0} тауардың бағасы жаңартылды!",
-                markup_no_cost: "Бұл санаттағы тауарлардың сатып алу бағасы көрсетілмеген.",
-                markup_title: "Үстеме:"
+                setup_btn_start_work: "Жұмысты бастау"
             }
         };
 
@@ -935,15 +885,7 @@
             let html = `<div class="cat-btn ${currentCategory === 'all' ? 'active' : ''}" onclick="setCategory('all')" data-i18n="cat_all">${translations[currentLang].cat_all}</div>`;
 
             categories.forEach(c => {
-                html += `<div class="cat-btn ${currentCategory === c ? 'active' : ''}" 
-                    oncontextmenu="event.preventDefault();"
-                    onmousedown="startCatHold('${c}', event)"
-                    onmouseup="cancelCatHold(event)"
-                    onmouseleave="cancelCatHold(event)"
-                    ontouchstart="startCatHold('${c}', event)"
-                    ontouchend="cancelCatHold(event)"
-                    ontouchcancel="cancelCatHold(event)"
-                    onclick="if(!isCatHolding) setCategory('${c}')">${c}</div>`;
+                html += `<div class="cat-btn ${currentCategory === c ? 'active' : ''}" onclick="setCategory('${c}')">${c}</div>`;
             });
 
             bar.innerHTML = html;
@@ -2032,105 +1974,6 @@
         });
 
         let selectedItemId = null, tempBase64 = null; 
-        
-        // =====================================================
-        // ЛОГИКА ДОЛГОГО НАЖАТИЯ И НАЦЕНКИ КАТЕГОРИЙ
-        // =====================================================
-        let catHoldTimer = null;
-        let targetMarkupCategory = null;
-        let isCatHolding = false;
-
-        function startCatHold(catName, e) {
-            isCatHolding = false;
-            // Проверка роли: Если не менеджер — блокируем функционал!
-            if (localStorage.getItem('user_role') !== 'manager') return;
-            
-            catHoldTimer = setTimeout(() => {
-                isCatHolding = true;
-                targetMarkupCategory = catName;
-                document.getElementById('markup-cat-name').innerText = catName;
-                document.getElementById('category-markup-modal').style.display = 'flex';
-                document.getElementById('catMarkupValue').value = ''; // очищаем прошлое значение
-                
-                if (navigator.vibrate) navigator.vibrate([50, 50, 50]); // Тройной вибро-отклик
-            }, 1000); // 1 секунда удержания
-        }
-
-        function cancelCatHold(e) {
-            if (catHoldTimer) clearTimeout(catHoldTimer);
-            // Флаг isCatHolding сбросится через 50мс, чтобы не сработал обычный клик
-            setTimeout(() => { isCatHolding = false; }, 50); 
-        }
-
-        function closeCategoryMarkup() {
-            document.getElementById('category-markup-modal').style.display = 'none';
-        }
-
-        function updateCatPlaceholder() {
-            const isPercent = document.getElementById('catTypePercent').checked;
-            const input = document.getElementById('catMarkupValue');
-            input.placeholder = isPercent ? translations[currentLang].markup_placeholder_pct : translations[currentLang].markup_placeholder_fix;
-        }
-
-        function applyCategoryMarkup() {
-    const isPercent = document.getElementById('catTypePercent').checked;
-    const rawValue = document.getElementById('catMarkupValue').value;
-    const value = parseFloat(rawValue.replace(',', '.'));
-    
-    if (isNaN(value) || value <= 0) return alert(translations[currentLang].markup_err_val);
-
-    let changedCount = 0;
-    let updatesForBackend = []; 
-    
-    db.forEach(item => {
-        if (item.category === targetMarkupCategory) {
-            let cost = parseFloat(item.cost) || 0;
-            
-            if (cost > 0) { 
-                let newPrice = isPercent ? cost + (cost * (value / 100)) : cost + value;
-                newPrice = Math.ceil(newPrice / 100) * 100; // Округление до 100
-                
-                item.price = newPrice;
-                changedCount++;
-                
-                let realId = item.id || item.item_id || item.barcode || item[0];
-                updatesForBackend.push({ id: realId, price: newPrice });
-            }
-        }
-    });
-
-    if (changedCount > 0) {
-        localStorage.setItem('db_cache', JSON.stringify(db));
-        render(); 
-        closeCategoryMarkup();
-        
-        // --- ОТПРАВКА НА СЕРВЕР (ЧИСТЫЙ FETCH) ---
-        fetch(APPS_SCRIPT_URL, {
-            method: 'POST',
-            body: JSON.stringify({
-                api_key: CLIENT_API_KEY, 
-                action: 'update_bulk_prices',
-                updates: updatesForBackend
-            })
-        })
-        .then(res => res.json()) // Теперь можно сразу читать JSON
-        .then(res => {
-            if (res.success) {
-                alert(`✅ Успех! На сервере обновлено строк: ${res.updated_rows}`);
-            } else {
-                alert("❌ Ошибка бэкенда: " + res.error);
-            }
-        })
-        .catch(err => {
-            console.error("Ошибка сети:", err);
-            alert("❌ Ошибка сети при отправке: " + err.message);
-        });
-        
-    } else {
-        alert(translations[currentLang].markup_no_cost);
-    }
-}
-
         function openItemMenu(id) {
             selectedItemId = id; tempBase64 = null; 
             const item = db.find(x => x.id === id);
