@@ -2105,35 +2105,36 @@
                 closeCategoryMarkup();
                 
                 // --- ОТПРАВКА НА СЕРВЕР ---
-                console.log("Отправка данных на бэкенд:", updatesForBackend);
-                alert("Отправляем на сервер " + updatesForBackend.length + " товаров...");
-                
-                fetch(APPS_SCRIPT_URL, {
-                    method: 'POST',
-                    body: JSON.stringify({
-                        api_key: CLIENT_API_KEY, // <-- ИСПОЛЬЗУЕМ ТВОЮ РОДНУЮ КОНСТАНТУ
-                        action: 'update_bulk_prices',
-                        updates: updatesForBackend
+                    console.log("Отправка данных на бэкенд:", updatesForBackend);
+                    
+                    fetch(APPS_SCRIPT_URL, {
+                        method: 'POST',
+                        redirect: 'follow', // <-- Разрешаем Google делать редиректы
+                        headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // <-- Маскируем под простой текст (обход CORS)
+                        body: JSON.stringify({
+                            api_key: CLIENT_API_KEY, 
+                            action: 'update_bulk_prices',
+                            updates: updatesForBackend
+                        })
                     })
-                })
-                .then(res => res.text())
-                .then(text => {
-                    console.log("Сырой ответ сервера:", text);
-                    try {
-                        let res = JSON.parse(text);
-                        if (res.success) {
-                            alert(`✅ Успех! На сервере обновлено строк: ${res.updated_rows}`);
-                        } else {
-                            alert("❌ Ошибка бэкенда: " + res.error);
+                    .then(res => res.text())
+                    .then(text => {
+                        console.log("Сырой ответ сервера:", text);
+                        try {
+                            let res = JSON.parse(text);
+                            if (res.success) {
+                                alert(`✅ Успех! На сервере обновлено строк: ${res.updated_rows}`);
+                            } else {
+                                alert("❌ Ошибка бэкенда: " + res.error);
+                            }
+                        } catch(e) {
+                            alert("❌ Ответ сервера не JSON. Ответ: " + text.substring(0, 100));
                         }
-                    } catch(e) {
-                        alert("❌ Ответ сервера не JSON. Ответ: " + text.substring(0, 100));
-                    }
-                })
-                .catch(err => {
-                    console.error("Ошибка сети:", err);
-                    alert("❌ Ошибка сети при отправке: " + err.message);
-                });
+                    })
+                    .catch(err => {
+                        console.error("Ошибка сети:", err);
+                        alert("❌ Ошибка сети при отправке: " + err.message);
+                    });
                 
             } else {
                 alert(translations[currentLang].markup_no_cost);
