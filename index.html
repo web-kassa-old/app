@@ -1131,6 +1131,18 @@
                 }
 
             } catch (error) {
+
+                // === СТАВИМ ЖУЧОК ПРЯМО СЮДА ===
+                alert("ОТЛАДКА ТЕЛЕФОНА: " + error.message);
+                
+                console.error("Ошибка авторизации:", error);
+                
+                let isWrongPin = error.message === "WRONG_PIN";
+                
+                if (isWrongPin) {
+                    failedAttempts++;
+                    // ... (дальше идет остальной код блокировки)
+                    
                 console.error("Ошибка авторизации:", error);
                 
                 let isWrongPin = error.message === "WRONG_PIN";
