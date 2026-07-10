@@ -917,6 +917,9 @@
                 html += `<div class="cat-btn ${currentCategory === c ? 'active' : ''}" onclick="setCategory('${c}')">${c}</div>`;
             });
 
+            // --- НОВАЯ КНОПКА МАССОВОЙ НАЦЕНКИ ---
+            html += `<div class="cat-btn" style="margin-left: 15px; background: var(--bg-hover); color: var(--accent-yellow); border: 1px dashed var(--accent-yellow);" onclick="openCategoryMarkup(currentCategory)">🏷️ НАЦЕНКА</div>`;
+
             bar.innerHTML = html;
         }
 
