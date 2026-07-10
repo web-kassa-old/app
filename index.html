@@ -2102,7 +2102,7 @@
                         item.price = newPrice;
                         changedCount++;
                         
-                        // Сохраняем ID и новую цену в массив
+                        // Строго используем точный ключ id из твоей архитектуры
                         updatesForBackend.push({ id: item.id, price: newPrice });
                     }
                 }
