@@ -2113,32 +2113,34 @@
                 render(); 
                 closeCategoryMarkup();
                 
-                // --- ОТПРАВКА НА СЕРВЕР (С ДИАГНОСТИКОЙ) ---
-                alert("Отправляем на сервер " + updatesForBackend.length + " товаров...");
+                // --- ОТПРАВКА НА СЕРВЕР ---
+                console.log("Отправка данных на бэкенд:", updatesForBackend);
                 
                 fetch(SCRIPT_URL, {
                     method: 'POST',
                     body: JSON.stringify({
-                        api_key: localStorage.getItem('api_key'), // или как у тебя называется токен
+                        api_key: localStorage.getItem('api_key') || "", 
                         action: 'update_bulk_prices',
                         updates: updatesForBackend
                     })
                 })
-                .then(res => res.text()) // Сначала читаем как текст, чтобы поймать HTML-ошибки Google
+                .then(res => res.text())
                 .then(text => {
+                    console.log("Сырой ответ сервера:", text);
                     try {
                         let res = JSON.parse(text);
                         if (res.success) {
-                            alert(`✅ Успех! На сервере обновлено ячеек: ${res.updated_rows}`);
+                            alert(`✅ Успех! На сервере обновлено строк: ${res.updated_rows}`);
                         } else {
-                            alert("❌ Ошибка базы данных: " + res.error);
+                            alert("❌ Ошибка бэкенда: " + res.error);
                         }
                     } catch(e) {
-                        alert("❌ Сервер вернул не JSON. Скорее всего, забыли сделать Новое Развертывание! Ответ сервера: " + text.substring(0, 50));
+                        alert("❌ Ответ сервера не JSON. Ответ: " + text.substring(0, 100));
                     }
                 })
                 .catch(err => {
-                    alert("❌ Полный обрыв связи: " + err.message);
+                    console.error("Ошибка сети:", err);
+                    alert("❌ Ошибка сети при отправке: " + err.message);
                 });
                 
             } else {
