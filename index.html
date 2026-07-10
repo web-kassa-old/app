@@ -597,21 +597,21 @@
 
     <div id="category-markup-modal" class="modal-overlay">
         <div class="markup-box">
-            <div class="r-title" style="margin-bottom: 5px;" data-i18n="markup_title">НАЦЕНКА</div>
+            <div class="r-title" style="margin-bottom: 5px;" data-i18n="markup_title">НАЦЕНКА КАТЕГОРИИ</div>
             <div id="markup-category-name" style="text-align: center; color: var(--accent-green); font-size: 12px; font-weight: bold; margin-bottom: 20px; text-transform: uppercase;">КАТЕГОРИЯ</div>
             
             <div class="m-toggle">
                 <input type="radio" id="catTypePercent" name="catMarkupType" value="percent" checked>
-                <label for="catTypePercent">% Процент</label>
+                <label for="catTypePercent" data-i18n="markup_type_perc">% Процент</label>
                 
                 <input type="radio" id="catTypeFix" name="catMarkupType" value="fix">
-                <label for="catTypeFix">₸ Фикс. сумма</label>
+                <label for="catTypeFix" data-i18n="markup_type_fix">₸ Сумма</label>
             </div>
 
-            <input type="text" inputmode="decimal" id="catMarkupValue" placeholder="Введите значение..." style="width: 100%; box-sizing: border-box; padding: 15px; background: var(--bg-card); border: 1px solid var(--border-focus); color: var(--text-main); border-radius: 6px; font-size: 18px; margin-bottom: 20px; outline: none; text-align: center; font-weight: bold;">
+            <input type="text" inputmode="decimal" id="catMarkupValue" data-i18n-placeholder="markup_placeholder" placeholder="Значение..." style="width: 100%; box-sizing: border-box; padding: 15px; background: var(--bg-card); border: 1px solid var(--border-focus); color: var(--text-main); border-radius: 6px; font-size: 18px; margin-bottom: 20px; outline: none; text-align: center; font-weight: bold;">
             
-            <button onclick="applyCategoryMarkup()" style="width: 100%; padding: 15px; font-size: 14px; background-color: var(--accent-green); color: var(--text-dark); border: none; border-radius: 6px; cursor: pointer; font-weight: bold; text-transform: uppercase; margin-bottom: 10px;">
-                Применить
+            <button onclick="applyCategoryMarkup()" style="width: 100%; padding: 15px; font-size: 14px; background-color: var(--accent-green); color: var(--text-dark); border: none; border-radius: 6px; cursor: pointer; font-weight: bold; text-transform: uppercase; margin-bottom: 10px;" data-i18n="markup_apply">
+                ПРИМЕНИТЬ
             </button>
             <button class="cancel-btn" style="width: 100%;" onclick="closeCategoryMarkup()" data-i18n="btn_cancel">ОТМЕНА</button>
         </div>
@@ -761,7 +761,14 @@
                 setup_process_reg: "Регистрация в системе...",
                 setup_success_title: "Система готова!",
                 setup_success_desc: "Базы успешно скопированы на ваш Google Диск.",
-                setup_btn_start_work: "Начать работу"
+                setup_btn_start_work: "Начать работу",
+                markup_title: "НАЦЕНКА КАТЕГОРИИ",
+                markup_type_perc: "% Процент",
+                markup_type_fix: "₸ Сумма",
+                markup_placeholder: "Значение...",
+                markup_apply: "ПРИМЕНИТЬ",
+                markup_err_val: "Введите корректное значение",
+                markup_no_cost: "В этой категории нет товаров с закупочной ценой"
             },
             kz: {
                 btn_sale: "САТУ", btn_return: "ҚАЙТАРУ", search_placeholder: "ІЗДЕУ...",
@@ -868,7 +875,14 @@
                 setup_process_reg: "Жүйеге тіркеу...",
                 setup_success_title: "Жүйе дайын!",
                 setup_success_desc: "Дерекқорлар сіздің Google Drive-қа сәтті көшірілді.",
-                setup_btn_start_work: "Жұмысты бастау"
+                setup_btn_start_work: "Жұмысты бастау",
+                markup_title: "КАТЕГОРИЯ ҮСТЕМЕСІ",
+                markup_type_perc: "% Пайыз",
+                markup_type_fix: "₸ Сома",
+                markup_placeholder: "Мәні...",
+                markup_apply: "ҚОЛДАНУ",
+                markup_err_val: "Дұрыс мәнді енгізіңіз",
+                markup_no_cost: "Бұл санатта сатып алу бағасы бар тауарлар жоқ"
             }
         };
 
@@ -911,14 +925,28 @@
             const bar = document.getElementById('categoryBar');
             if (!bar) return;
 
-            let html = `<div class="cat-btn ${currentCategory === 'all' ? 'active' : ''}" onclick="setCategory('all')" data-i18n="cat_all">${translations[currentLang].cat_all}</div>`;
+            let html = `<div class="cat-btn ${currentCategory === 'all' ? 'active' : ''}" 
+                onmousedown="startCatHold('all', event)" 
+                onmouseup="cancelCatHold()" 
+                onmouseleave="cancelCatHold()" 
+                ontouchstart="startCatHold('all', event)" 
+                ontouchend="cancelCatHold()" 
+                ontouchmove="cancelCatHold()"
+                ontouchcancel="cancelCatHold()" 
+                onclick="handleCatClick('all')" 
+                data-i18n="cat_all">${translations[currentLang].cat_all}</div>`;
 
             categories.forEach(c => {
-                html += `<div class="cat-btn ${currentCategory === c ? 'active' : ''}" onclick="setCategory('${c}')">${c}</div>`;
+                html += `<div class="cat-btn ${currentCategory === c ? 'active' : ''}" 
+                onmousedown="startCatHold('${c}', event)" 
+                onmouseup="cancelCatHold()" 
+                onmouseleave="cancelCatHold()" 
+                ontouchstart="startCatHold('${c}', event)" 
+                ontouchend="cancelCatHold()" 
+                ontouchmove="cancelCatHold()"
+                ontouchcancel="cancelCatHold()" 
+                onclick="handleCatClick('${c}')">${c}</div>`;
             });
-
-            // --- НОВАЯ КНОПКА МАССОВОЙ НАЦЕНКИ ---
-            html += `<div class="cat-btn" style="margin-left: 15px; background: var(--bg-hover); color: var(--accent-yellow); border: 1px dashed var(--accent-yellow);" onclick="openCategoryMarkup(currentCategory)">🏷️ НАЦЕНКА</div>`;
 
             bar.innerHTML = html;
         }
@@ -2862,12 +2890,41 @@ function cancelResetHold(btn, e) {
 
     // --- ЛОГИКА МАССОВОЙ НАЦЕНКИ ---
         let targetMarkupCategory = null;
+        let catHoldTimer = null;
+        let isCatHold = false;
+
+        function startCatHold(catName, e) {
+            if (!currentUser || currentUser.role !== 'manager') return; 
+
+            isCatHold = false;
+            catHoldTimer = setTimeout(() => {
+                isCatHold = true;
+                if (navigator.vibrate) navigator.vibrate([50, 50, 50]); 
+                openCategoryMarkup(catName);
+            }, 1000); 
+        }
+
+        function cancelCatHold() {
+            if (catHoldTimer) {
+                clearTimeout(catHoldTimer);
+                catHoldTimer = null;
+            }
+        }
+
+        function handleCatClick(catName) {
+            if (isCatHold) {
+                isCatHold = false; 
+                return; 
+            }
+            setCategory(catName); 
+        }
 
         function openCategoryMarkup(catName) {
             targetMarkupCategory = catName;
             document.getElementById('markup-category-name').innerText = catName === 'all' ? translations[currentLang].cat_all : catName;
             document.getElementById('catMarkupValue').value = '';
             document.getElementById('category-markup-modal').style.display = 'flex';
+            setTimeout(() => { document.getElementById('catMarkupValue').focus(); }, 100);
         }
 
         function closeCategoryMarkup() {
@@ -2876,7 +2933,7 @@ function cancelResetHold(btn, e) {
         }
 
         function applyCategoryMarkup() {
-            alert("Функция пересчета готова к внедрению!");
+            alert("Здесь будет логика пересчета цен!");
             closeCategoryMarkup();
         }
 
