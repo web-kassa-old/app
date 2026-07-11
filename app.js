@@ -430,13 +430,7 @@ async function handleAutoLogin(val) {
 
             try {
                 // Достаем актуальный API-ключ
-                let activeApiKey = localStorage.getItem('CLIENT_API_KEY') || CLIENT_API_KEY;
-                
-                // Авто-лечение: если застрял старый мертвый ключ, сносим его
-                if (activeApiKey === 'test_store_001') {
-                    localStorage.removeItem('CLIENT_API_KEY');
-                    activeApiKey = CLIENT_API_KEY; // Принудительно берем свежий из config.js
-                }
+                let activeApiKey = localStorage.getItem('CLIENT_API_KEY') || (typeof CLIENT_API_KEY !== 'undefined' ? CLIENT_API_KEY : "");
 
                 const response = await fetch(APPS_SCRIPT_URL, {
                     method: 'POST',
@@ -476,12 +470,27 @@ async function handleAutoLogin(val) {
                     }, 400);
 
                 } else {
-                    throw new Error("WRONG_PIN");
+                    // === НОВАЯ ЗАЩИТА ОТ БИТЫХ КЛЮЧЕЙ ===
+                    if (res.error && (res.error.includes("api_key") || res.error.includes("База клиента не найдена") || res.error.includes("INVALID"))) {
+                        throw new Error("BAD_API_KEY"); // Сервер ругается на ключ арендатора
+                    }
+                    throw new Error("WRONG_PIN"); // Реально неверный пин-код
                 }
 
             } catch (error) {
                 console.error("Ошибка авторизации:", error);
                 
+                // === АВТОМАТИЧЕСКИЙ СБРОС И ВОЗВРАТ НА GOOGLE ЭКРАН ===
+                if (error.message === "BAD_API_KEY") {
+                    localStorage.removeItem('CLIENT_API_KEY');
+                    if (typeof CLIENT_API_KEY !== 'undefined') CLIENT_API_KEY = "";
+                    document.getElementById('pin-screen').style.display = 'none';
+                    document.getElementById('google-screen').style.display = 'flex';
+                    alert("Сессия устарела или ключ недействителен. Пожалуйста, войдите через Google заново.");
+                    clearPin();
+                    return;
+                }
+
                 let isWrongPin = error.message === "WRONG_PIN";
                 
                 if (isWrongPin) {
