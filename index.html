@@ -2937,7 +2937,6 @@ function cancelResetHold(btn, e) {
             document.getElementById('markup-category-name').innerText = catName === 'all' ? translations[currentLang].cat_all : catName;
             document.getElementById('catMarkupValue').value = '';
             document.getElementById('category-markup-modal').style.display = 'flex';
-            setTimeout(() => { document.getElementById('catMarkupValue').focus(); }, 100);
         }
 
         function closeCategoryMarkup() {
