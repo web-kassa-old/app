@@ -1353,8 +1353,16 @@ async function handleAutoLogin(val) {
             checkBlockTimer(); 
             applyLanguage(currentLang); 
             updateQueueCounter();
+            // === ИСТИННЫЙ SAAS: ПРОВЕРКА КЛЮЧА ===
+        if (CLIENT_API_KEY) {
+            // Если ключ уже есть в памяти телефона, пропускаем Google и сразу показываем ПИН-код
+            document.getElementById('google-screen').style.display = 'none';
+            document.getElementById('pin-screen').style.display = 'flex';
+        } else {
+            // Если ключа нет, требуем вход через Google
             document.getElementById('google-screen').style.display = 'flex';
             document.getElementById('pin-screen').style.display = 'none';
+        }
             setTimeout(displayAppVersion, 500); 
             load();
 
@@ -2437,7 +2445,10 @@ function initGoogleAuth() {
                         } else if (serverResult.status === "EXISTING_CLIENT") {
                             
                             if (serverResult.api_key) {
+                                // Сохраняем в физическую память телефона
                                 localStorage.setItem('CLIENT_API_KEY', serverResult.api_key);
+                                // Мгновенно обновляем рабочую переменную кассы!
+                                CLIENT_API_KEY = serverResult.api_key; 
                             }
                             
                             googleScreen.style.display = 'none';

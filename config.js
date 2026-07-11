@@ -1,6 +1,6 @@
 // Файл глобальных настроек (config.js)
 
-const APP_VERSION = "5.5.50"; // Меняйте версию только здесь
+const APP_VERSION = "5.5.45"; // Меняйте версию только здесь
 
 // 1. Ссылки на роутер и шлюз (единые для всех арендаторов)
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyOp6fzexVQwUHVNmL50hF62pz20TW9nNoTL1SKyBEVGb095SVh_h6kNdyOIaMdroyW/exec"; 
@@ -15,28 +15,5 @@ const TEMPLATE_TRADE_URL = "https://docs.google.com/spreadsheets/d/1FVBka2zyM50h
 const TEMPLATE_CONFIG_URL = "https://docs.google.com/spreadsheets/d/18J1wePHlRtqcmOA86fHxGwb38s70sJEmZafL2mvUR1I/edit?gid=1992649776#gid=1992649776";
 const ADMIN_EMAIL = "muratanel7@gmail.com"; 
 
-// // 4. Динамический перехват уникального ключа клиента (Tenant ID)
-// const urlParams = new URLSearchParams(window.location.search);
-// const urlApiKey = urlParams.get('api_key');
-
-// if (urlApiKey) {
-//     // Сохраняем ключ в локальное хранилище
-//     localStorage.setItem('CLIENT_API_KEY', urlApiKey);
-    
-//     // ВАЖНО: Убрана очистка адресной строки!
-//     // Теперь iOS при сохранении "На экран Домой" запомнит ссылку вместе с ключом арендатора.
-// }
-
-// // 5. Инициализация константы
-// // Убираем жесткий fallback на "TEST_STORE_001", чтобы не "отравлять" базу
-// const CLIENT_API_KEY = localStorage.getItem('CLIENT_API_KEY') || null;
-
-// // Если ключа нет, мы не предупреждаем, а просто ждем авторизации
-// if (!CLIENT_API_KEY) {
-//     console.log("Ключ арендатора не найден. Ожидание авторизации...");
-// } else if (CLIENT_API_KEY === "TEST_STORE_001") {
-//     console.warn("Внимание: В памяти найден устаревший тестовый ключ. Рекомендуется сброс.");
-// }
-// === ВРЕМЕННЫЙ ТЕСТ ДЛЯ ПРОБИВА КЭША ТЕЛЕФОНОВ ===
-// Впиши сюда реальный рабочий ключ базы данных вместо текста "ТВОЙ_АКТУАЛЬНЫЙ_КЛЮЧ"
-const CLIENT_API_KEY = "TC-06A19596";
+// Динамически берем ключ из памяти телефона (он сохраняется туда после логина через Google)
+let CLIENT_API_KEY = localStorage.getItem('CLIENT_API_KEY') || "";
