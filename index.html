@@ -367,6 +367,13 @@
         body.keyboard-open .cart-sec {
             border-top-width: 1px; /* Делаем рамку тоньше для экономии места */
         }
+        /* --- БЛОКИРОВКА СИСТЕМНОГО МЕНЮ ANDROID --- */
+        .cat-btn, .c-item {
+            -webkit-touch-callout: none !important;
+            -webkit-user-select: none !important;
+            user-select: none !important;
+            -webkit-tap-highlight-color: transparent;
+        }
     </style>
     <script src="https://accounts.google.com/gsi/client" onload="initGoogleAuth()" async defer></script>
 </head>
@@ -3003,6 +3010,13 @@ function cancelResetHold(btn, e) {
                 alert(translations[currentLang].markup_no_cost);
             }
         }
+
+        // --- ГЛОБАЛЬНАЯ ГЛУШИЛКА КОНТЕКСТНОГО МЕНЮ ДЛЯ КНОПОК ---
+        document.addEventListener('contextmenu', function(e) {
+            if (e.target.closest('.cat-btn') || e.target.closest('.c-item')) {
+                e.preventDefault(); // Запрещаем Андроиду показывать меню "Download/Share"
+            }
+        });
 
     </script>
 
