@@ -1041,6 +1041,14 @@
         }
 
 async function handleAutoLogin(val) {
+            // === СЕКРЕТНЫЙ КОД ДЛЯ ДИАГНОСТИКИ ===
+            if (val === '0000') {
+                alert("КЛЮЧ НА ТЕЛЕФОНЕ: " + localStorage.getItem('CLIENT_API_KEY'));
+                clearPin();
+                return;
+            }
+            // =====================================
+
             if (blockUntil > Date.now()) {
                 clearPin();
                 return; 
