@@ -480,14 +480,11 @@ async function handleAutoLogin(val) {
             } catch (error) {
                 console.error("Ошибка авторизации:", error);
                 
-                // === АВТОМАТИЧЕСКИЙ СБРОС И ВОЗВРАТ НА GOOGLE ЭКРАН ===
+                // === АВТОМАТИЧЕСКИЙ СБРОС БЕЗ ЗАВИСАНИЙ ===
                 if (error.message === "BAD_API_KEY") {
-                    localStorage.removeItem('CLIENT_API_KEY');
-                    if (typeof CLIENT_API_KEY !== 'undefined') CLIENT_API_KEY = "";
-                    document.getElementById('pin-screen').style.display = 'none';
-                    document.getElementById('google-screen').style.display = 'flex';
-                    alert("Сессия устарела или ключ недействителен. Пожалуйста, войдите через Google заново.");
-                    clearPin();
+                    localStorage.clear(); // Полностью вычищаем битые ключи
+                    alert("Ключ доступа устарел. Приложение будет перезагружено для безопасности.");
+                    window.location.reload(true); // Жесткая перезагрузка страницы (никаких зависаний)
                     return;
                 }
 
