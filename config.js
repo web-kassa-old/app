@@ -1,6 +1,6 @@
 // Файл глобальных настроек (config.js)
 
-const APP_VERSION = "5.5.44"; // Меняйте версию только здесь
+const APP_VERSION = "5.5.45"; // Меняйте версию только здесь
 
 // 1. Ссылки на роутер и шлюз (единые для всех арендаторов)
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyOp6fzexVQwUHVNmL50hF62pz20TW9nNoTL1SKyBEVGb095SVh_h6kNdyOIaMdroyW/exec"; 
@@ -23,9 +23,8 @@ if (urlApiKey) {
     // Сохраняем ключ в локальное хранилище
     localStorage.setItem('CLIENT_API_KEY', urlApiKey);
     
-    // Очищаем адресную строку браузера
-    const cleanUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
-    window.history.replaceState({ path: cleanUrl }, '', cleanUrl);
+    // ВАЖНО: Убрана очистка адресной строки!
+    // Теперь iOS при сохранении "На экран Домой" запомнит ссылку вместе с ключом арендатора.
 }
 
 // 5. Инициализация константы
