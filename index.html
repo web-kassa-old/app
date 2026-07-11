@@ -2947,64 +2947,58 @@ function cancelResetHold(btn, e) {
         function applyCategoryMarkup() {
             const isPercent = document.getElementById('catTypePercent').checked;
             const rawValue = document.getElementById('catMarkupValue').value;
-            // Умный парсинг: если с телефона ввели запятую, меняем ее на точку
+            // Умный парсинг: если ввели запятую, меняем ее на точку
             const value = parseFloat(rawValue.replace(',', '.'));
             
             if (isNaN(value) || value <= 0) return alert(translations[currentLang].markup_err_val);
 
             let changedCount = 0;
-            let updatesForBackend = []; 
             
+            // 1. ОПТИМИСТИЧНЫЙ ИНТЕРФЕЙС: Мгновенно пересчитываем цены локально
             db.forEach(item => {
-                // Применяем либо ко всем товарам, либо только к выбранной категории
                 if (targetMarkupCategory === 'all' || item.category === targetMarkupCategory) {
                     let cost = parseFloat(item.cost) || 0;
                     
-                    // Наценку делаем ТОЛЬКО если у товара есть закупочная цена
                     if (cost > 0) { 
                         let newPrice = isPercent ? cost + (cost * (value / 100)) : cost + value;
-                        newPrice = Math.ceil(newPrice / 100) * 100; // Округление в большую сторону до 100 тенге
+                        newPrice = Math.ceil(newPrice / 100) * 100; // Округление до 100 тенге
                         
                         item.price = newPrice;
                         changedCount++;
-                        
-                        let realId = item.id || item.item_id || item.barcode || item[0];
-                        updatesForBackend.push({ id: realId, price: newPrice });
                     }
                 }
             });
 
             if (changedCount > 0) {
-                // 1. Мгновенно обновляем интерфейс и кэш
+                // Мгновенно перерисовываем каталог, сохраняем кэш и закрываем окно!
                 localStorage.setItem('db_cache', JSON.stringify(db));
                 render(); 
                 closeCategoryMarkup();
                 
-                // 2. Отправляем чистый запрос на сервер
-                fetch(APPS_SCRIPT_URL, {
-                    method: 'POST',
-                    body: JSON.stringify({
-                        api_key: CLIENT_API_KEY, 
-                        action: 'update_bulk_prices',
-                        updates: updatesForBackend
-                    })
-                })
-                .then(res => res.json())
-                .then(res => {
-                    if (res.success) {
-                        const msg = currentLang === 'kz'
-                            ? `✅ Сәтті! Серверде жолдар жаңартылды: ${res.updated_rows}`
-                            : `✅ Успех! На сервере обновлено строк: ${res.updated_rows}`;
-                        alert(msg);
-                    } else {
-                        alert(translations[currentLang].err_server + ": " + res.error);
-                    }
-                })
-                .catch(err => {
-                    console.error("Ошибка сети:", err);
-                    alert(translations[currentLang].err_network);
-                });
+                // 2. ФОНОВАЯ ОЧЕРЕДЬ: Создаем "команду" вместо тяжелого массива
+                let queue = JSON.parse(localStorage.getItem('txQueue') || '[]');
                 
+                const now = new Date();
+                const localTime = now.toLocaleDateString('ru-RU') + ' ' + now.toLocaleTimeString('ru-RU');
+                const cmdId = 'BM-' + Math.random().toString(36).substring(7).toUpperCase();
+
+                const commandTx = {
+                    action: 'bulk_markup_command', // Тот самый ключ для бэкенда
+                    tx_id: cmdId,
+                    created_at: localTime,
+                    category: targetMarkupCategory,
+                    markup_type: isPercent ? 'percent' : 'fix',
+                    value: value
+                };
+
+                // Кладем команду в очередь и зажигаем красный бейдж
+                queue.push(commandTx);
+                localStorage.setItem('txQueue', JSON.stringify(queue));
+                updateQueueCounter();
+                
+                // Легкая вибрация, подтверждающая успех (для мобилок)
+                if (navigator.vibrate) navigator.vibrate([30, 50, 30]);
+
             } else {
                 alert(translations[currentLang].markup_no_cost);
             }
