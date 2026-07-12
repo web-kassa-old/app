@@ -1083,14 +1083,14 @@ async function handleAutoLogin(val) {
     setReportMethod('all', document.getElementById('card-all'), 'active-all');
 }
 
-        // --- ЛОГИКА ПОИСКА ПО ОТЧЕТУ ---
+// --- ЛОГИКА ПОИСКА ПО ОТЧЕТУ ---
 function clearReportSearch() {
     const searchInput = document.getElementById('rep-search');
     if(searchInput) searchInput.value = '';
     const clearBtn = document.getElementById('rep-clear-search');
     if(clearBtn) clearBtn.style.display = 'none';
     filterReport(); 
-    if(searchInput) searchInput.focus();
+    // УБРАНО: searchInput.focus(); -> Чтобы клавиатура на мобилках не прыгала
 }
 
 function filterReport() {
@@ -1101,7 +1101,6 @@ function filterReport() {
     if(clearBtn) clearBtn.style.display = q.length > 0 ? 'block' : 'none';
     
     document.querySelectorAll('#rep-list .acc-item').forEach(el => {
-        // Ищем по скрытому атрибуту data-name, куда мы запишем название товара/чека
         const name = (el.getAttribute('data-name') || '').toLowerCase();
         el.style.display = name.includes(q) ? 'block' : 'none';
     });
@@ -1124,7 +1123,6 @@ async function renderReport() {
     let reportDataToRender = [];
     const cacheKey = `report_${start}_${end}_${currentUser ? currentUser.uid : 'all'}`;
 
-    // 1. ЗАГРУЗКА ДАННЫХ (Сеть + Локальный кэш)
     if (!navigator.onLine) {
         const cachedReport = localStorage.getItem(cacheKey);
         if (cachedReport) reportDataToRender = JSON.parse(cachedReport);
@@ -1144,7 +1142,6 @@ async function renderReport() {
         }
     }
 
-    // 2. ДОБАВЛЕНИЕ ОФЛАЙН-ОЧЕРЕДИ
     let queue = JSON.parse(localStorage.getItem('txQueue') || '[]');
     if (queue.length > 0) {
         queue.forEach(qTx => {
@@ -1161,28 +1158,48 @@ async function renderReport() {
         });
     }
 
-    // Словари для интерфейса
     const methodNames = { 'cash': translations[currentLang].pay_cash, 'qr_kaspi': 'QR', 'installment': 'Red', 'pos_terminal': translations[currentLang].pay_card, 'transfer': translations[currentLang].pay_trans };
     const methodColors = { 'cash': 'var(--pay-cash)', 'qr_kaspi': 'var(--pay-qr)', 'installment': 'var(--pay-red)', 'pos_terminal': 'var(--pay-card)', 'transfer': 'var(--pay-trans)' };
     const uiStr = { sale: translations[currentLang].report_sales, ret: translations[currentLang].report_returns, avg: translations[currentLang].report_avg || 'ср:' };
 
     // ==========================================
-    // ШАГ 1: КАЛЬКУЛЯТОР КАРТОЧЕК (ЧИСТЫЕ ДЕНЬГИ)
+    // ШАГ 1: ЖЕЛЕЗОБЕТОННАЯ МАТЕМАТИКА (КАРТОЧКИ И ПОДВАЛ)
     // ==========================================
     let cardSums = { cash: 0, qr_kaspi: 0, pos_terminal: 0, installment: 0, transfer: 0 };
     let totalAllNet = 0;
+    
+    // Итоги для подвала (Считаются независимо от тумблеров 2x2!)
+    let footSalesQty = 0, footSalesSum = 0, footRetQty = 0, footRetSum = 0;
 
     reportDataToRender.forEach(tx => {
         let isRet = (tx.type === 'return' || tx.type === 'refund');
-        let sign = isRet ? -1 : 1;
         let m = tx.methodCode || 'cash';
-        let txSum = tx.cart.reduce((s, c) => s + (c.qty * c.price), 0);
         
+        let txSum = 0, txQty = 0;
+        tx.cart.forEach(c => {
+            let q = Math.abs(c.qty);
+            let s = q * Math.abs(c.price);
+            txQty += q;
+            txSum += s;
+        });
+
+        // 1. Пополняем суммы карточек наверху
+        let sign = isRet ? -1 : 1;
         if (cardSums[m] !== undefined) cardSums[m] += (txSum * sign);
         totalAllNet += (txSum * sign);
+
+        // 2. Пополняем суммы подвала (Только для выбранной вкладки)
+        if (reportState.method === 'all' || reportState.method === m) {
+            if (isRet) {
+                footRetQty += txQty;
+                footRetSum += txSum;
+            } else {
+                footSalesQty += txQty;
+                footSalesSum += txSum;
+            }
+        }
     });
 
-    // Обновляем цифры в карточках наверху
     document.getElementById('rep-sum-all').innerText = totalAllNet.toLocaleString() + ' ₸';
     document.getElementById('rep-sum-cash').innerText = cardSums.cash.toLocaleString() + ' ₸';
     document.getElementById('rep-sum-qr').innerText = cardSums.qr_kaspi.toLocaleString() + ' ₸';
@@ -1190,7 +1207,6 @@ async function renderReport() {
     document.getElementById('rep-sum-red').innerText = cardSums.installment.toLocaleString() + ' ₸';
     document.getElementById('rep-sum-trans').innerText = cardSums.transfer.toLocaleString() + ' ₸';
 
-    // Если нет данных - выходим
     if (!reportDataToRender || reportDataToRender.length === 0) {
         repList.innerHTML = `<div style="text-align:center; color:var(--text-muted); margin-top:30px; font-size: 13px;">${translations[currentLang].msg_no_data}</div>`;
         totalsBox.innerHTML = '';
@@ -1201,10 +1217,8 @@ async function renderReport() {
     // ШАГ 2: НАРЕЗКА СПИСКА
     // ==========================================
     let htmlString = '';
-    let footSalesQty = 0, footSalesSum = 0, footRetQty = 0, footRetSum = 0;
 
     if (reportState.method === 'all') {
-        // --- РЕЖИМ "ВСЕ" (КЛАССИКА С ЧИСТЫМ ИТОГОМ ПО ТОВАРАМ) ---
         let agg = {};
         reportDataToRender.forEach(tx => {
             let isRet = (tx.type === 'return' || tx.type === 'refund');
@@ -1216,8 +1230,13 @@ async function renderReport() {
                 if (!agg[key].sellers[tx.seller]) agg[key].sellers[tx.seller] = { sQty:0, sSum:0, rQty:0, rSum:0 };
                 
                 let q = Math.abs(c.qty); let s = q * Math.abs(c.price);
-                if (isRet) { agg[key].rQty += q; agg[key].rSum += s; agg[key].sellers[tx.seller].rQty += q; agg[key].sellers[tx.seller].rSum += s; footRetQty += q; footRetSum += s; }
-                else { agg[key].sQty += q; agg[key].sSum += s; agg[key].sellers[tx.seller].sQty += q; agg[key].sellers[tx.seller].sSum += s; footSalesQty += q; footSalesSum += s; }
+                if (isRet) { 
+                    agg[key].rQty += q; agg[key].rSum += s; 
+                    agg[key].sellers[tx.seller].rQty += q; agg[key].sellers[tx.seller].rSum += s; 
+                } else { 
+                    agg[key].sQty += q; agg[key].sSum += s; 
+                    agg[key].sellers[tx.seller].sQty += q; agg[key].sellers[tx.seller].sSum += s; 
+                }
             });
         });
 
@@ -1248,7 +1267,6 @@ async function renderReport() {
         });
 
     } else {
-        // --- МАТРИЧНЫЙ РЕЖИМ (КОНКРЕТНЫЙ МЕТОД) ---
         let viewTx = reportDataToRender.filter(tx => (tx.methodCode || 'cash') === reportState.method);
         let isSaleMode = reportState.type === 'sale';
         
@@ -1259,7 +1277,6 @@ async function renderReport() {
         let signPrefix = isSaleMode ? '' : '-';
 
         if (reportState.view === 'items') {
-            // МАТРИЦА: ПО ТОВАРАМ
             let agg = {};
             viewTx.forEach(tx => {
                 tx.cart.forEach(c => {
@@ -1269,14 +1286,11 @@ async function renderReport() {
                     let q = Math.abs(c.qty); let s = q * Math.abs(c.price);
                     agg[c.name].qty += q; agg[c.name].sum += s;
                     agg[c.name].sellers[tx.seller].qty += q; agg[c.name].sellers[tx.seller].sum += s;
-                    
-                    if(isSaleMode) { footSalesQty+=q; footSalesSum+=s; } else { footRetQty+=q; footRetSum+=s; }
                 });
             });
 
             let sorted = Object.values(agg).sort((a,b) => b.sum - a.sum);
             sorted.forEach(item => {
-                // Ищем реальное имя через ключи объекта (хак, чтобы не хранить имя внутри)
                 let itemName = Object.keys(agg).find(k => agg[k] === item);
                 
                 let detHtml = '';
@@ -1298,7 +1312,6 @@ async function renderReport() {
             });
 
         } else {
-            // МАТРИЦА: ПО ДАТАМ (ЧЕКАМ)
             viewTx.forEach(tx => {
                 let txSum = 0; let txQty = 0;
                 let detHtml = '';
@@ -1307,7 +1320,6 @@ async function renderReport() {
                     txSum += s; txQty += q;
                     detHtml += `<div class="acc-detail-row"><span>${c.name}</span><span style="color:${sumColor}">${q} x ${Math.abs(c.price).toLocaleString()}</span></div>`;
                 });
-                if(isSaleMode) { footSalesQty+=txQty; footSalesSum+=txSum; } else { footRetQty+=txQty; footRetSum+=txSum; }
 
                 htmlString += `
                     <div class="acc-item" data-name="${tx.date} ${tx.time}" style="border-left: 3px solid ${mColor};" onclick="this.classList.toggle('open')">
@@ -1329,7 +1341,7 @@ async function renderReport() {
     repList.innerHTML = htmlString;
 
     // ==========================================
-    // ШАГ 3: ОБНОВЛЕНИЕ ПОДВАЛА (ИТОГИ ТЕКУЩЕГО ЭКРАНА)
+    // ШАГ 3: ОБНОВЛЕНИЕ ПОДВАЛА
     // ==========================================
     totalsBox.innerHTML = `
         <div class="tot-row">
@@ -1352,7 +1364,6 @@ async function renderReport() {
             </div>
         </div>`;
         
-    // Применяем фильтр поиска, если там уже что-то введено
     filterReport();
 }
 
