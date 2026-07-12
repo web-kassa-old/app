@@ -189,28 +189,80 @@
         </div>
     </div>
 
-    <div id="report-modal" class="modal-overlay">
-        <div class="receipt-box" style="max-height: 85vh; display: flex; flex-direction: column; width: 100%; max-width: 400px; padding: 15px; border-color: var(--border-focus);">
-            <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 10px; border-bottom: 1px solid var(--border-light); padding-bottom: 10px;">
-                <div id="rep-header-title" style="font-size: 14px; font-weight: bold; color: var(--text-main); text-align: center;">ОТЧЕТ</div>
-                <div id="date-range-controls" style="display: none; flex-direction: column; gap: 10px; width: 100%; margin-top: 10px;">
-                    <div style="display: flex; align-items: center; justify-content: center; gap: 5px;">
-                        <input type="date" id="rep-date-start" style="background: var(--border-main); color: var(--text-main); border: 1px solid var(--border-focus); padding: 5px; border-radius: 4px; font-size: 11px; width: 115px;" onchange="renderReport()">
-                        <span style="color: var(--text-muted);">—</span>
-                        <input type="date" id="rep-date-end" style="background: var(--border-main); color: var(--text-main); border: 1px solid var(--border-focus); padding: 5px; border-radius: 4px; font-size: 11px; width: 115px;" onchange="renderReport()">
-                    </div>
-                    <div class="rep-search-container" id="rep-search-wrap" style="display: none;">
-                        <input type="text" id="rep-search" data-i18n-placeholder="search_placeholder" placeholder="ПОИСК..." oninput="filterReport()" style="-webkit-appearance: none; background: var(--bg-hover); color: var(--text-main); border: 1px solid var(--border-focus); padding: 8px 35px 8px 10px; border-radius: 4px; font-size: 12px; outline: none; width: 100%; box-sizing: border-box; font-weight: var(--font-weight-main);">
-                        <span id="rep-clear-search" onclick="clearReportSearch()">✕</span>
-                    </div>
-                </div>
+    <div id="report-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: var(--bg-body); z-index: 9999; flex-direction: column;">
+        
+        <div style="padding: 10px 15px; text-align: center; border-bottom: 1px solid var(--border-main);">
+            <h2 id="rep-header-title" style="margin: 0; font-size: 14px; color: var(--text-main); letter-spacing: 1px; text-transform: uppercase;">ОТЧЕТ ЗА ПЕРИОД</h2>
+        </div>
+
+        <div style="padding: 8px 10px; border-bottom: 1px solid var(--border-main);">
+            <div id="date-range-controls" style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                <div class="date-wrap"><input type="date" id="rep-date-start" onchange="renderReport()"></div>
+                <div style="color:var(--text-muted)">—</div>
+                <div class="date-wrap"><input type="date" id="rep-date-end" onchange="renderReport()"></div>
             </div>
-            <div id="rep-list" style="flex-grow: 1; overflow-y: auto; padding-right: 5px;"></div>
-            <div id="rep-totals" style="margin-top: 15px; border-top: 2px solid var(--border-focus); padding-top: 10px;"></div>
-            <div class="modal-btns" style="margin-top: 15px;">
-                <button class="cancel-btn" style="width: 100%;" onclick="closeReport()" data-i18n="btn_close_report">ЗАКРЫТЬ ОТЧЕТ</button>
+            <div style="position: relative;">
+                <input type="text" id="rep-search" placeholder="ПОИСК..." oninput="filterReport()" 
+                    style="width: 100%; padding: 6px 8px; background: var(--bg-panel); border: 1px solid var(--border-main); color: var(--text-main); border-radius: 4px; font-size: 13px; outline: none; box-sizing: border-box;">
+                <div id="rep-clear-search" onclick="clearReportSearch()" style="display:none; position:absolute; right:8px; top:5px; color:var(--accent-red); font-weight:bold; cursor:pointer;">✕</div>
             </div>
         </div>
+
+        <div class="methods-scroll">
+            <div class="method-card active-all" id="card-all" onclick="setReportMethod('all', this, 'active-all')">
+                <div class="m-title" data-i18n="cat_all">ВСЕ</div>
+                <div class="m-sum" id="rep-sum-all">0 ₸</div>
+            </div>
+            <div class="method-card" id="card-cash" onclick="setReportMethod('cash', this, 'active-cash')">
+                <div class="m-title" style="color: var(--pay-cash)" data-i18n="pay_cash_full">НАЛИЧНЫЕ</div>
+                <div class="m-sum" id="rep-sum-cash">0 ₸</div>
+            </div>
+            <div class="method-card" id="card-qr" onclick="setReportMethod('qr_kaspi', this, 'active-qr')">
+                <div class="m-title" style="color: var(--pay-qr)">KASPI QR</div>
+                <div class="m-sum" id="rep-sum-qr">0 ₸</div>
+            </div>
+            <div class="method-card" id="card-card" onclick="setReportMethod('pos_terminal', this, 'active-card')">
+                <div class="m-title" style="color: var(--pay-card)" data-i18n="pay_card_full">ТЕРМИНАЛ</div>
+                <div class="m-sum" id="rep-sum-card">0 ₸</div>
+            </div>
+            <div class="method-card" id="card-red" onclick="setReportMethod('installment', this, 'active-red')">
+                <div class="m-title" style="color: var(--pay-red)" data-i18n="pay_red_full">KASPI RED</div>
+                <div class="m-sum" id="rep-sum-red">0 ₸</div>
+            </div>
+            <div class="method-card" id="card-trans" onclick="setReportMethod('transfer', this, 'active-trans')">
+                <div class="m-title" style="color: var(--pay-trans)" data-i18n="pay_trans_full">ПЕРЕВОД</div>
+                <div class="m-sum" id="rep-sum-trans">0 ₸</div>
+            </div>
+        </div>
+
+        <div class="toggles-row" id="rep-toggles-row" style="display: none;">
+            <div class="t-group">
+                <div class="t-btn s-sale active" id="t-sale" onclick="setReportType('sale')">ПРОДАЖИ</div>
+                <div class="t-btn s-return" id="t-return" onclick="setReportType('return')">ВОЗВРАТЫ</div>
+            </div>
+            <div class="t-divider">|</div>
+            <div class="t-group">
+                <div class="t-btn s-item active" id="t-item" onclick="setReportView('items')">ТОВАРЫ</div>
+                <div class="t-btn s-date" id="t-date" onclick="setReportView('dates')">ЧЕКИ</div>
+            </div>
+        </div>
+
+        <div style="flex: 1; overflow-y: auto; padding: 8px 10px;">
+            <div class="list-header-v3">
+                <div style="flex:1" data-i18n="report_name">Наименование</div>
+                <div style="width:35px; text-align:center;" data-i18n="report_qty">Кол.</div>
+                <div style="width:85px; text-align:right;" data-i18n="report_sum">Сумма</div>
+            </div>
+            <div id="rep-list">
+                </div>
+        </div>
+
+        <div class="footer-fixed">
+            <div id="rep-totals">
+                </div>
+            <button class="btn-close-rep" onclick="closeReport()" data-i18n="btn_close_report">ЗАКРЫТЬ ОТЧЕТ</button>
+        </div>
+
     </div>
 
     <div id="settings-modal" class="modal-overlay">
@@ -379,6 +431,6 @@
         </div>
     </div>
 
-<script src="app.js?v=6.0.5"></script>
+<script src="app.js?v=6.0.0"></script>
 </body>
 </html>

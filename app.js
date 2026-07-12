@@ -243,6 +243,9 @@
         let staffList = [], currentUser = null;
         let currentPinInput = '';
 
+        // Состояние дашборда отчетов
+        let reportState = { method: 'all', type: 'sale', view: 'items' };
+
         let failedAttempts = parseInt(localStorage.getItem('pos_fails')) || 0;
         let blockUntil = parseInt(localStorage.getItem('pos_block')) || 0;
         
@@ -1055,269 +1058,336 @@ async function handleAutoLogin(val) {
         }
 
         function openReport() {
-            document.getElementById('report-modal').style.display = 'flex';
-            const role = localStorage.getItem('user_role');
-            const controls = document.getElementById('date-range-controls');
-            const titleEl = document.getElementById('rep-header-title');
-            
-            const now = new Date();
-            const offset = now.getTimezoneOffset() * 60000;
-            const localISO = (new Date(now - offset)).toISOString().split('T')[0];
-            
-            document.getElementById('rep-date-start').value = localISO;
-            document.getElementById('rep-date-end').value = localISO;
+    document.getElementById('report-modal').style.display = 'flex';
+    const role = localStorage.getItem('user_role');
+    const controls = document.getElementById('date-range-controls');
+    const titleEl = document.getElementById('rep-header-title');
+    
+    const now = new Date();
+    const offset = now.getTimezoneOffset() * 60000;
+    const localISO = (new Date(now - offset)).toISOString().split('T')[0];
+    
+    document.getElementById('rep-date-start').value = localISO;
+    document.getElementById('rep-date-end').value = localISO;
 
-            if (role === 'manager') {
-                controls.style.display = 'flex';
-                titleEl.innerText = currentLang === 'kz' ? "КЕЗЕҢДІК ЕСЕП" : "ОТЧЕТ ЗА ПЕРИОД";
-            } else {
-                controls.style.display = 'none';
-                titleEl.innerText = (currentLang === 'kz' ? "БҮГІНГІ ЕСЕП: " : "ОТЧЕТ ЗА СЕГОДНЯ: ") + now.toLocaleDateString('ru-RU');
+    if (role === 'manager') {
+        if (controls) controls.style.display = 'flex';
+        titleEl.innerText = currentLang === 'kz' ? "КЕЗЕҢДІК ЕСЕП" : "ОТЧЕТ ЗА ПЕРИОД";
+    } else {
+        if (controls) controls.style.display = 'none';
+        titleEl.innerText = (currentLang === 'kz' ? "БҮГІНГІ ЕСЕП: " : "ОТЧЕТ ЗА СЕГОДНЯ: ") + now.toLocaleDateString('ru-RU');
+    }
+    
+    // Сбрасываем фильтры при открытии на карточку "ВСЕ"
+    // (renderReport запустится автоматически внутри этой функции)
+    setReportMethod('all', document.getElementById('card-all'), 'active-all');
+}
+
+        // --- ЛОГИКА ПОИСКА ПО ОТЧЕТУ ---
+function clearReportSearch() {
+    const searchInput = document.getElementById('rep-search');
+    if(searchInput) searchInput.value = '';
+    const clearBtn = document.getElementById('rep-clear-search');
+    if(clearBtn) clearBtn.style.display = 'none';
+    filterReport(); 
+    if(searchInput) searchInput.focus();
+}
+
+function filterReport() {
+    const searchInput = document.getElementById('rep-search');
+    if(!searchInput) return;
+    const q = searchInput.value.toLowerCase().trim();
+    const clearBtn = document.getElementById('rep-clear-search');
+    if(clearBtn) clearBtn.style.display = q.length > 0 ? 'block' : 'none';
+    
+    document.querySelectorAll('#rep-list .acc-item').forEach(el => {
+        // Ищем по скрытому атрибуту data-name, куда мы запишем название товара/чека
+        const name = (el.getAttribute('data-name') || '').toLowerCase();
+        el.style.display = name.includes(q) ? 'block' : 'none';
+    });
+}
+
+// --- ГЛАВНЫЙ ДВИЖОК ДАШБОРДА (МАТРИЦА 2x2) ---
+async function renderReport() {
+    const start = document.getElementById('rep-date-start').value;
+    const end = document.getElementById('rep-date-end').value;
+    const repList = document.getElementById('rep-list');
+    const totalsBox = document.getElementById('rep-totals');
+    const searchInput = document.getElementById('rep-search');
+    
+    const fmt = (d) => d.split('-').reverse().join('.');
+    const serverStart = fmt(start);
+    const serverEnd = fmt(end);
+
+    repList.innerHTML = `<div style="text-align:center; color:var(--accent-yellow); margin-top:30px; font-weight: bold; font-size: 14px;">⏳ ${translations[currentLang].msg_loading}</div>`;
+
+    let reportDataToRender = [];
+    const cacheKey = `report_${start}_${end}_${currentUser ? currentUser.uid : 'all'}`;
+
+    // 1. ЗАГРУЗКА ДАННЫХ (Сеть + Локальный кэш)
+    if (!navigator.onLine) {
+        const cachedReport = localStorage.getItem(cacheKey);
+        if (cachedReport) reportDataToRender = JSON.parse(cachedReport);
+    } else {
+        try {
+            let url = `${APPS_SCRIPT_URL}?action=report&date=${serverStart}&endDate=${serverEnd}&api_key=${CLIENT_API_KEY}&t=${Date.now()}`;
+            if (currentUser && currentUser.role !== 'manager') url += `&seller_id=${currentUser.uid}`;
+            const response = await fetch(url, { redirect: 'follow' });
+            const data = await response.json();
+            if (!data.error) {
+                reportDataToRender = data.report || [];
+                localStorage.setItem(cacheKey, JSON.stringify(reportDataToRender));
             }
-            renderReport();
+        } catch (error) {
+            const cachedReport = localStorage.getItem(cacheKey);
+            if (cachedReport) reportDataToRender = JSON.parse(cachedReport);
         }
+    }
 
-        function clearReportSearch() {
-            document.getElementById('rep-search').value = '';
-            document.getElementById('rep-clear-search').style.display = 'none';
-            filterReport(); document.getElementById('rep-search').focus();
-        }
+    // 2. ДОБАВЛЕНИЕ ОФЛАЙН-ОЧЕРЕДИ
+    let queue = JSON.parse(localStorage.getItem('txQueue') || '[]');
+    if (queue.length > 0) {
+        queue.forEach(qTx => {
+            if (currentUser && currentUser.role !== 'manager' && qTx.seller_id !== currentUser.uid) return;
+            let qDate = qTx.created_at.split(' ')[0];
+            let qTime = qTx.created_at.split(' ')[1].substring(0,5);
+            if (qDate >= serverStart && qDate <= serverEnd) {
+                let qTotal = qTx.cart.reduce((sum, c) => sum + (c.qty * c.price), 0);
+                reportDataToRender.push({
+                    type: qTx.tx_type, total: qTotal, cart: qTx.cart.map(c => ({ name: c.item_name, qty: c.qty, price: c.price })),
+                    methodCode: qTx.payment_method, time: qTime + " ⏳", date: qDate, seller: qTx.seller_id
+                });
+            }
+        });
+    }
 
-        function filterReport() {
-            const q = document.getElementById('rep-search').value.toLowerCase().trim();
-            document.getElementById('rep-clear-search').style.display = q.length > 0 ? 'block' : 'none';
-            document.querySelectorAll('#rep-list .item-wrapper').forEach(el => {
-                el.style.display = el.getAttribute('data-name').includes(q) ? 'block' : 'none';
+    // Словари для интерфейса
+    const methodNames = { 'cash': translations[currentLang].pay_cash, 'qr_kaspi': 'QR', 'installment': 'Red', 'pos_terminal': translations[currentLang].pay_card, 'transfer': translations[currentLang].pay_trans };
+    const methodColors = { 'cash': 'var(--pay-cash)', 'qr_kaspi': 'var(--pay-qr)', 'installment': 'var(--pay-red)', 'pos_terminal': 'var(--pay-card)', 'transfer': 'var(--pay-trans)' };
+    const uiStr = { sale: translations[currentLang].report_sales, ret: translations[currentLang].report_returns, avg: translations[currentLang].report_avg || 'ср:' };
+
+    // ==========================================
+    // ШАГ 1: КАЛЬКУЛЯТОР КАРТОЧЕК (ЧИСТЫЕ ДЕНЬГИ)
+    // ==========================================
+    let cardSums = { cash: 0, qr_kaspi: 0, pos_terminal: 0, installment: 0, transfer: 0 };
+    let totalAllNet = 0;
+
+    reportDataToRender.forEach(tx => {
+        let isRet = (tx.type === 'return' || tx.type === 'refund');
+        let sign = isRet ? -1 : 1;
+        let m = tx.methodCode || 'cash';
+        let txSum = tx.cart.reduce((s, c) => s + (c.qty * c.price), 0);
+        
+        if (cardSums[m] !== undefined) cardSums[m] += (txSum * sign);
+        totalAllNet += (txSum * sign);
+    });
+
+    // Обновляем цифры в карточках наверху
+    document.getElementById('rep-sum-all').innerText = totalAllNet.toLocaleString() + ' ₸';
+    document.getElementById('rep-sum-cash').innerText = cardSums.cash.toLocaleString() + ' ₸';
+    document.getElementById('rep-sum-qr').innerText = cardSums.qr_kaspi.toLocaleString() + ' ₸';
+    document.getElementById('rep-sum-card').innerText = cardSums.pos_terminal.toLocaleString() + ' ₸';
+    document.getElementById('rep-sum-red').innerText = cardSums.installment.toLocaleString() + ' ₸';
+    document.getElementById('rep-sum-trans').innerText = cardSums.transfer.toLocaleString() + ' ₸';
+
+    // Если нет данных - выходим
+    if (!reportDataToRender || reportDataToRender.length === 0) {
+        repList.innerHTML = `<div style="text-align:center; color:var(--text-muted); margin-top:30px; font-size: 13px;">${translations[currentLang].msg_no_data}</div>`;
+        totalsBox.innerHTML = '';
+        return;
+    }
+
+    // ==========================================
+    // ШАГ 2: НАРЕЗКА СПИСКА
+    // ==========================================
+    let htmlString = '';
+    let footSalesQty = 0, footSalesSum = 0, footRetQty = 0, footRetSum = 0;
+
+    if (reportState.method === 'all') {
+        // --- РЕЖИМ "ВСЕ" (КЛАССИКА С ЧИСТЫМ ИТОГОМ ПО ТОВАРАМ) ---
+        let agg = {};
+        reportDataToRender.forEach(tx => {
+            let isRet = (tx.type === 'return' || tx.type === 'refund');
+            let m = tx.methodCode || 'cash';
+            
+            tx.cart.forEach(c => {
+                let key = `${c.name}_${m}`;
+                if (!agg[key]) agg[key] = { name: c.name, method: m, sQty:0, sSum:0, rQty:0, rSum:0, sellers: {} };
+                if (!agg[key].sellers[tx.seller]) agg[key].sellers[tx.seller] = { sQty:0, sSum:0, rQty:0, rSum:0 };
+                
+                let q = Math.abs(c.qty); let s = q * Math.abs(c.price);
+                if (isRet) { agg[key].rQty += q; agg[key].rSum += s; agg[key].sellers[tx.seller].rQty += q; agg[key].sellers[tx.seller].rSum += s; footRetQty += q; footRetSum += s; }
+                else { agg[key].sQty += q; agg[key].sSum += s; agg[key].sellers[tx.seller].sQty += q; agg[key].sellers[tx.seller].sSum += s; footSalesQty += q; footSalesSum += s; }
+            });
+        });
+
+        let sorted = Object.values(agg).sort((a,b) => (b.sSum - b.rSum) - (a.sSum - a.rSum));
+
+        sorted.forEach(item => {
+            let netQty = item.sQty - item.rQty;
+            let netSum = item.sSum - item.rSum;
+            let mColor = methodColors[item.method] || 'var(--text-muted)';
+            let sumColor = netSum < 0 ? 'var(--accent-red)' : 'var(--accent-green)';
+            
+            let detHtml = '';
+            for (let seller in item.sellers) {
+                let s = item.sellers[seller];
+                if (s.sQty > 0) detHtml += `<div class="acc-detail-row"><span>${uiStr.sale} (${s.sQty}) 👤 ${seller} | ${uiStr.avg} ${Math.round(s.sSum/s.sQty).toLocaleString()} ₸</span><span style="color:var(--accent-green)">${s.sSum.toLocaleString()}</span></div>`;
+                if (s.rQty > 0) detHtml += `<div class="acc-detail-row"><span>${uiStr.ret} (${s.rQty}) 👤 ${seller} | ${uiStr.avg} ${Math.round(s.rSum/s.rQty).toLocaleString()} ₸</span><span style="color:var(--accent-red)">-${s.rSum.toLocaleString()}</span></div>`;
+            }
+
+            htmlString += `
+                <div class="acc-item" data-name="${item.name.toLowerCase()}" style="border-left: 3px solid ${mColor};" onclick="this.classList.toggle('open')">
+                    <div class="acc-header">
+                        <div class="acc-title-col">${item.name} <span class="acc-method-tag" style="color:${mColor}">[${methodNames[item.method]}]</span></div>
+                        <div class="acc-qty-col">${netQty}</div>
+                        <div class="acc-sum-col" style="color:${sumColor}">${netSum.toLocaleString()} <span class="arr">▼</span></div>
+                    </div>
+                    <div class="acc-body">${detHtml}</div>
+                </div>`;
+        });
+
+    } else {
+        // --- МАТРИЧНЫЙ РЕЖИМ (КОНКРЕТНЫЙ МЕТОД) ---
+        let viewTx = reportDataToRender.filter(tx => (tx.methodCode || 'cash') === reportState.method);
+        let isSaleMode = reportState.type === 'sale';
+        
+        viewTx = viewTx.filter(tx => isSaleMode ? (tx.type !== 'return' && tx.type !== 'refund') : (tx.type === 'return' || tx.type === 'refund'));
+        
+        let mColor = methodColors[reportState.method];
+        let sumColor = isSaleMode ? 'var(--accent-green)' : 'var(--accent-red)';
+        let signPrefix = isSaleMode ? '' : '-';
+
+        if (reportState.view === 'items') {
+            // МАТРИЦА: ПО ТОВАРАМ
+            let agg = {};
+            viewTx.forEach(tx => {
+                tx.cart.forEach(c => {
+                    if (!agg[c.name]) agg[c.name] = { qty:0, sum:0, sellers:{} };
+                    if (!agg[c.name].sellers[tx.seller]) agg[c.name].sellers[tx.seller] = { qty:0, sum:0 };
+                    
+                    let q = Math.abs(c.qty); let s = q * Math.abs(c.price);
+                    agg[c.name].qty += q; agg[c.name].sum += s;
+                    agg[c.name].sellers[tx.seller].qty += q; agg[c.name].sellers[tx.seller].sum += s;
+                    
+                    if(isSaleMode) { footSalesQty+=q; footSalesSum+=s; } else { footRetQty+=q; footRetSum+=s; }
+                });
+            });
+
+            let sorted = Object.values(agg).sort((a,b) => b.sum - a.sum);
+            sorted.forEach(item => {
+                // Ищем реальное имя через ключи объекта (хак, чтобы не хранить имя внутри)
+                let itemName = Object.keys(agg).find(k => agg[k] === item);
+                
+                let detHtml = '';
+                for (let seller in item.sellers) {
+                    let s = item.sellers[seller];
+                    let lbl = isSaleMode ? uiStr.sale : uiStr.ret;
+                    detHtml += `<div class="acc-detail-row"><span>${lbl} (${s.qty}) 👤 ${seller} | ${uiStr.avg} ${Math.round(s.sum/s.qty).toLocaleString()} ₸</span><span style="color:${sumColor}">${signPrefix}${s.sum.toLocaleString()}</span></div>`;
+                }
+
+                htmlString += `
+                    <div class="acc-item" data-name="${itemName.toLowerCase()}" style="border-left: 3px solid ${mColor};" onclick="this.classList.toggle('open')">
+                        <div class="acc-header">
+                            <div class="acc-title-col">${itemName}</div>
+                            <div class="acc-qty-col">${item.qty}</div>
+                            <div class="acc-sum-col" style="color:${sumColor}">${signPrefix}${item.sum.toLocaleString()} <span class="arr">▼</span></div>
+                        </div>
+                        <div class="acc-body">${detHtml}</div>
+                    </div>`;
+            });
+
+        } else {
+            // МАТРИЦА: ПО ДАТАМ (ЧЕКАМ)
+            viewTx.forEach(tx => {
+                let txSum = 0; let txQty = 0;
+                let detHtml = '';
+                tx.cart.forEach(c => {
+                    let q = Math.abs(c.qty); let s = q * Math.abs(c.price);
+                    txSum += s; txQty += q;
+                    detHtml += `<div class="acc-detail-row"><span>${c.name}</span><span style="color:${sumColor}">${q} x ${Math.abs(c.price).toLocaleString()}</span></div>`;
+                });
+                if(isSaleMode) { footSalesQty+=txQty; footSalesSum+=txSum; } else { footRetQty+=txQty; footRetSum+=txSum; }
+
+                htmlString += `
+                    <div class="acc-item" data-name="${tx.date} ${tx.time}" style="border-left: 3px solid ${mColor};" onclick="this.classList.toggle('open')">
+                        <div class="acc-header">
+                            <div class="acc-title-col">${tx.date} ${tx.time} <span style="font-size:10px; font-weight:normal; color:var(--text-muted); display:block;">👤 ${tx.seller}</span></div>
+                            <div class="acc-qty-col">${txQty}</div>
+                            <div class="acc-sum-col" style="color:${sumColor}">${signPrefix}${txSum.toLocaleString()} <span class="arr">▼</span></div>
+                        </div>
+                        <div class="acc-body">${detHtml}</div>
+                    </div>`;
             });
         }
+    }
 
-        async function renderReport() {
-            const start = document.getElementById('rep-date-start').value;
-            const end = document.getElementById('rep-date-end').value;
-            const repList = document.getElementById('rep-list');
-            const totalsBox = document.getElementById('rep-totals');
-            const searchInput = document.getElementById('rep-search');
-            
-            const fmt = (d) => d.split('-').reverse().join('.');
-            const serverStart = fmt(start);
-            const serverEnd = fmt(end);
+    if (htmlString === '') {
+        htmlString = `<div style="text-align:center; color:var(--text-muted); margin-top:30px; font-size:13px;">ОПЕРАЦИЙ НЕ НАЙДЕНО</div>`;
+    }
 
-            repList.innerHTML = `<div style="text-align:center; color:var(--accent-yellow); margin-top:30px; font-weight: bold;">⏳ ${translations[currentLang].msg_loading}</div>`;
+    repList.innerHTML = htmlString;
 
-            let reportDataToRender = [];
-            const cacheKey = `report_${start}_${end}_${currentUser ? currentUser.uid : 'all'}`;
-
-            if (!navigator.onLine) {
-                const cachedReport = localStorage.getItem(cacheKey);
-                if (cachedReport) {
-                    reportDataToRender = JSON.parse(cachedReport);
-                    if (!document.getElementById('rep-header-title').innerText.includes(translations[currentLang].status_offline)) {
-                        document.getElementById('rep-header-title').innerText += translations[currentLang].status_offline;
-                    }
-                } else {
-                    if (!document.getElementById('rep-header-title').innerText.includes(translations[currentLang].status_offline)) {
-                        document.getElementById('rep-header-title').innerText += translations[currentLang].status_offline;
-                    }
-                }
-            } else {
-                try {
-                    let apiKey = localStorage.getItem('api_key') || 'TEST_STORE'; 
-                    let url = `${APPS_SCRIPT_URL}?action=report&date=${serverStart}&endDate=${serverEnd}&api_key=${CLIENT_API_KEY}&t=${Date.now()}`;
-                    if (currentUser && currentUser.role !== 'manager') url += `&seller_id=${currentUser.uid}`;
-
-                    const response = await fetch(url, { redirect: 'follow' });
-                    const data = await response.json();
-                    if (data.error) throw new Error(data.error);
-                    
-                    reportDataToRender = data.report || [];
-                    localStorage.setItem(cacheKey, JSON.stringify(reportDataToRender));
-                } catch (error) {
-                    const cachedReport = localStorage.getItem(cacheKey);
-                    if (cachedReport) {
-                        reportDataToRender = JSON.parse(cachedReport);
-                        if (!document.getElementById('rep-header-title').innerText.includes(translations[currentLang].status_net_err)) {
-                            document.getElementById('rep-header-title').innerText += translations[currentLang].status_net_err;
-                        }
-                    }
-                }
-            }
-
-            let queue = JSON.parse(localStorage.getItem('txQueue') || '[]');
-            if (queue.length > 0) {
-                queue.forEach(qTx => {
-                    if (currentUser && currentUser.role !== 'manager' && qTx.seller_id !== currentUser.uid) return;
-                    let qDate = qTx.created_at.split(' ')[0];
-                    let qTime = qTx.created_at.split(' ')[1].substring(0,5);
-                    if (qDate >= serverStart && qDate <= serverEnd) {
-                        let qTotal = qTx.cart.reduce((sum, c) => sum + (c.qty * c.price), 0);
-                        reportDataToRender.push({
-                            type: qTx.tx_type,
-                            total: qTotal,
-                            cart: qTx.cart.map(c => ({ name: c.item_name, qty: c.qty, price: c.price })),
-                            methodCode: qTx.payment_method,
-                            time: qTime + " ⏳",
-                            date: qDate,
-                            seller: qTx.seller_id
-                        });
-                    }
-                });
-            }
-
-            if (!reportDataToRender || reportDataToRender.length === 0) {
-                repList.innerHTML = `<div style="text-align:center; color:var(--text-muted); margin-top:30px;">${translations[currentLang].msg_no_data}</div>`;
-                totalsBox.innerHTML = '';
-                searchInput.parentElement.style.display = 'none';
-                return;
-            }
-
-            const colors = { 'cash': 'var(--accent-green)', 'qr_kaspi': 'var(--accent-red)', 'installment': '#8e44ad', 'pos_terminal': '#2980b9', 'transfer': '#f39c12' };
-            const names = { 'cash': translations[currentLang].pay_cash, 'qr_kaspi': 'Kaspi QR', 'installment': 'Kaspi Red', 'pos_terminal': translations[currentLang].pay_card, 'transfer': translations[currentLang].pay_trans };
-            let t = { sale: 0, return: 0 };
-            
-            if (true) {
-                searchInput.parentElement.style.display = 'block'; 
-                searchInput.value = ''; searchInput.placeholder = translations[currentLang].search_placeholder;
-
-                let aggregated = {};
-                let tSalesQty = 0, tSalesSum = 0, tReturnsQty = 0, tReturnsSum = 0;
-                
-                // Добавили fallback для перевода "ср:", если его нет в словаре
-                const ui = { 
-                    name: translations[currentLang].report_name, 
-                    qty: translations[currentLang].report_qty, 
-                    sum: translations[currentLang].report_sum, 
-                    sales: translations[currentLang].report_sales, 
-                    returns: translations[currentLang].report_returns, 
-                    net: translations[currentLang].report_total_net,
-                    avg: translations[currentLang].report_avg || 'ср:'
-                };
-
-                reportDataToRender.forEach(h => {
-                    let isRet = (h.type === 'return' || h.type === 'refund'); 
-                    let sellerId = h.seller || 'Анон'; 
-                    let pMethod = h.methodCode || 'cash'; 
-
-                    h.cart.forEach(c => {
-                        // ИСПРАВЛЕНИЕ 1: Группируем ТОЛЬКО по Имени и Методу оплаты
-                        let groupKey = `${c.name}_${pMethod}`;
-                        
-                        let absQty = Math.abs(c.qty);
-                        let absSum = absQty * Math.abs(c.price);
-
-                        if (!aggregated[groupKey]) {
-                            aggregated[groupKey] = { 
-                                name: c.name, 
-                                method: pMethod,
-                                salesQty: 0, salesSum: 0,
-                                returnsQty: 0, returnsSum: 0,
-                                sellers: {} 
-                            };
-                        }
-                        
-                        if (!aggregated[groupKey].sellers[sellerId]) {
-                            aggregated[groupKey].sellers[sellerId] = { salesQty: 0, salesSum: 0, returnsQty: 0, returnsSum: 0 };
-                        }
-                        
-                        // ИСПРАВЛЕНИЕ 2: Разносим суммы внутри одного ключа товара
-                        if (isRet) {
-                            aggregated[groupKey].returnsQty += absQty;
-                            aggregated[groupKey].returnsSum += absSum;
-                            aggregated[groupKey].sellers[sellerId].returnsQty += absQty;
-                            aggregated[groupKey].sellers[sellerId].returnsSum += absSum;
-                            
-                            tReturnsQty += absQty; 
-                            tReturnsSum += absSum;
-                        } else {
-                            aggregated[groupKey].salesQty += absQty;
-                            aggregated[groupKey].salesSum += absSum;
-                            aggregated[groupKey].sellers[sellerId].salesQty += absQty;
-                            aggregated[groupKey].sellers[sellerId].salesSum += absSum;
-                            
-                            tSalesQty += absQty; 
-                            tSalesSum += absSum;
-                        }
-                    });
-                });
-
-                // Сортировка по чистой выручке (по убыванию)
-                let sortedItems = Object.values(aggregated).sort((a, b) => {
-                    let netA = a.salesSum - a.returnsSum;
-                    let netB = b.salesSum - b.returnsSum;
-                    return netB - netA;
-                });
-
-                let htmlString = `<div class="rep-table-header"><div>${ui.name}</div><div style="text-align: right;">${ui.qty}</div><div style="text-align: right;">${ui.sum}</div></div>`;
-                
-                sortedItems.forEach(item => {
-                    // Считаем чистый итог для главной строки
-                    let netQty = item.salesQty - item.returnsQty;
-                    let netSum = item.salesSum - item.returnsSum;
-                    
-                    let detailsHtml = '';
-                    let methodColor = colors[item.method] || 'var(--text-muted)';
-                    let methodName = names[item.method] || item.method;
-
-                    for (let seller in item.sellers) {
-                        let s = item.sellers[seller];
-                        
-                        // ИСПРАВЛЕНИЕ 3: Выводим Продажи со средней ценой
-                        if (s.salesQty > 0) {
-                            let avgSale = Math.round(s.salesSum / s.salesQty);
-                            detailsHtml += `
-                                <div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 4px;">
-                                    <span style="color: var(--text-muted);">${ui.sales} (${s.salesQty}) 👤 ${seller} <small>| ${ui.avg} ${avgSale.toLocaleString()} ₸</small></span>
-                                    <span style="color: var(--accent-green);">${s.salesSum.toLocaleString()}</span>
-                                </div>`;
-                        }
-                        
-                        // ИСПРАВЛЕНИЕ 4: Выводим Возвраты со средней ценой
-                        if (s.returnsQty > 0) {
-                            let avgReturn = Math.round(s.returnsSum / s.returnsQty);
-                            detailsHtml += `
-                                <div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 4px;">
-                                    <span style="color: var(--text-muted);">${ui.returns} (${s.returnsQty}) 👤 ${seller} <small>| ${ui.avg} ${avgReturn.toLocaleString()} ₸</small></span>
-                                    <span style="color: var(--accent-red);">-${s.returnsSum.toLocaleString()}</span>
-                                </div>`;
-                        }
-                    }
-
-                    let mainSumColor = netSum < 0 ? 'var(--accent-red)' : 'var(--accent-green)';
-                    
-                    // ИСПРАВЛЕНИЕ 5: Возвращаем серую стрелку раскрытия "▼"
-                    htmlString += `
-                        <div class="item-wrapper ${item.method}" data-name="${item.name.toLowerCase()}">
-                            <div class="item-card" onclick="this.parentElement.classList.toggle('active')" style="border-left: 3px solid ${methodColor}; padding-left: 8px; cursor: pointer;">
-                                <div class="swipeable-text" style="font-size: 12px; color: var(--text-main);">
-                                    ${item.name} <span style="font-size: 9px; color: ${methodColor}; margin-left: 4px;">[${methodName}]</span>
-                                </div>
-                                <div style="text-align: right; color: var(--text-muted); font-size: 12px;">${netQty}</div>
-                                <div style="text-align: right; font-weight: 700; font-size: 13px; color: ${mainSumColor}; display: flex; align-items: center; justify-content: flex-end; gap: 4px;">
-                                    ${netSum.toLocaleString()} <span class="dropdown-icon" style="font-size:10px; color:var(--text-muted);">▼</span>
-                                </div>
-                            </div>
-                            <div class="item-details"><div style="padding: 6px 8px;">${detailsHtml}</div></div>
-                        </div>`;
-                });
-
-                repList.innerHTML = htmlString;
-                
-                totalsBox.innerHTML = `
-                    <div style="display: grid; grid-template-columns: 1fr 45px minmax(90px, auto); gap: 8px; font-size: 12px; color: var(--text-muted); margin-bottom: 4px;">
-                        <div>${ui.sales}:</div><div style="text-align: right;">${tSalesQty}</div><div style="text-align: right;">${tSalesSum.toLocaleString()}</div>
-                    </div>
-                    <div style="display: grid; grid-template-columns: 1fr 45px minmax(90px, auto); gap: 8px; font-size: 12px; color: var(--accent-red); margin-bottom: 4px;">
-                        <div>${ui.returns}:</div><div style="text-align: right;">${tReturnsQty > 0 ? '-' + tReturnsQty : '0'}</div><div style="text-align: right;">${tReturnsSum > 0 ? '-' + tReturnsSum.toLocaleString() : '0'}</div>
-                    </div>
-                    <div style="display: grid; grid-template-columns: 1fr 45px minmax(90px, auto); gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border-focus); align-items: center;">
-                        <div style="font-size: 13px; font-weight: 700; color: var(--text-main);">${ui.net}</div>
-                        <div style="text-align: right; font-size: 12px; font-weight: bold; color: var(--text-muted);">${tSalesQty - tReturnsQty}</div>
-                        <div style="text-align: right; font-size: 15px; font-weight: 900; color: var(--text-main); white-space: nowrap;">${(tSalesSum - tReturnsSum).toLocaleString()} ₸</div>
-                    </div>`;
-            }
-            total();
-        }
+    // ==========================================
+    // ШАГ 3: ОБНОВЛЕНИЕ ПОДВАЛА (ИТОГИ ТЕКУЩЕГО ЭКРАНА)
+    // ==========================================
+    totalsBox.innerHTML = `
+        <div class="tot-row">
+            <span>${uiStr.sale}:</span>
+            <div style="display:flex; width: 130px; justify-content: space-between;">
+                <span>${footSalesQty}</span><span>${footSalesSum.toLocaleString()}</span>
+            </div>
+        </div>
+        <div class="tot-row" style="color: var(--accent-red);">
+            <span>${uiStr.ret}:</span>
+            <div style="display:flex; width: 130px; justify-content: space-between;">
+                <span>${footRetQty > 0 ? '-'+footRetQty : '0'}</span><span>${footRetSum > 0 ? '-'+footRetSum.toLocaleString() : '0'}</span>
+            </div>
+        </div>
+        <div class="tot-main">
+            <span>${translations[currentLang].report_total_net}</span>
+            <div style="display:flex; width: 130px; justify-content: space-between; align-items:center;">
+                <span style="font-size: 12px; color: var(--text-muted); font-weight: normal;">${footSalesQty - footRetQty}</span>
+                <span>${(footSalesSum - footRetSum).toLocaleString()} ₸</span>
+            </div>
+        </div>`;
+        
+    // Применяем фильтр поиска, если там уже что-то введено
+    filterReport();
+}
 
         function closeReport() { document.getElementById('report-modal').style.display = 'none'; }
+
+        // --- УПРАВЛЕНИЕ ТУМБЛЕРАМИ ДАШБОРДА ---
+
+function setReportMethod(method, element, activeClass) {
+    reportState.method = method;
+    // Сбрасываем стили всех карточек
+    document.querySelectorAll('.method-card').forEach(c => c.className = 'method-card');
+    if (element) element.classList.add(activeClass);
+    
+    // Показываем или прячем матрицу 2x2
+    const toggles = document.getElementById('rep-toggles-row');
+    if (toggles) toggles.style.display = method === 'all' ? 'none' : 'flex';
+    
+    // Очищаем поиск при смене вкладки
+    clearReportSearch();
+    renderReport(); // Мгновенно перерисовываем
+}
+
+function setReportType(type) {
+    reportState.type = type;
+    document.getElementById('t-sale').classList.toggle('active', type === 'sale');
+    document.getElementById('t-return').classList.toggle('active', type === 'return');
+    renderReport();
+}
+
+function setReportView(view) {
+    reportState.view = view;
+    document.getElementById('t-item').classList.toggle('active', view === 'items');
+    document.getElementById('t-date').classList.toggle('active', view === 'dates');
+    renderReport();
+}
 
         function displayAppVersion() {
             // Берем версию из config.js

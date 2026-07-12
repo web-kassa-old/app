@@ -352,3 +352,59 @@
             user-select: none !important;
             -webkit-tap-highlight-color: transparent;
         }
+        /* =========================================
+   ДАШБОРД ОТЧЕТОВ V3 (МАТРИЦА 2x2)
+   ========================================= */
+:root {
+    --pay-cash: #2ecc71;
+    --pay-card: #3498db;
+    --pay-red: #9b59b6;
+    --pay-qr: #e74c3c;
+    --pay-trans: #f39c12;
+}
+
+.methods-scroll { display: flex; gap: 6px; padding: 8px 10px; overflow-x: auto; scrollbar-width: none; border-bottom: 1px solid var(--border-main); }
+.methods-scroll::-webkit-scrollbar { display: none; }
+.method-card { min-width: 85px; background: var(--bg-panel); border: 1px solid var(--border-main); border-radius: 4px; padding: 6px 8px; cursor: pointer; transition: 0.2s; flex-shrink: 0; text-align: center; }
+.method-card .m-title { font-size: 10px; color: var(--text-muted); font-weight: bold; margin-bottom: 2px; text-transform: uppercase; }
+.method-card .m-sum { font-size: 13px; font-weight: bold; color: var(--text-main); }
+
+.method-card.active-all { border-color: var(--text-main); background: var(--bg-hover); }
+.method-card.active-cash { border-color: var(--pay-cash); background: rgba(46, 204, 113, 0.1); }
+.method-card.active-qr { border-color: var(--pay-qr); background: rgba(231, 76, 60, 0.1); }
+.method-card.active-card { border-color: var(--pay-card); background: rgba(52, 152, 219, 0.1); }
+.method-card.active-red { border-color: var(--pay-red); background: rgba(155, 89, 182, 0.1); }
+.method-card.active-trans { border-color: var(--pay-trans); background: rgba(243, 156, 18, 0.1); }
+
+.toggles-row { display: flex; gap: 6px; padding: 6px 10px; background: var(--bg-body); border-bottom: 1px solid var(--border-main); align-items: center; transition: 0.2s; }
+.t-group { display: flex; flex: 1; background: var(--bg-panel); border-radius: 4px; border: 1px solid var(--border-main); overflow: hidden; }
+.t-btn { flex: 1; text-align: center; padding: 6px 0; font-size: 11px; font-weight: bold; color: var(--text-muted); cursor: pointer; user-select: none; }
+.t-btn.active.s-sale { background: rgba(46, 204, 113, 0.15); color: var(--accent-green); }
+.t-btn.active.s-return { background: rgba(231, 76, 60, 0.15); color: var(--accent-red); }
+.t-btn.active.s-item, .t-btn.active.s-date { background: var(--bg-hover); color: var(--text-main); }
+.t-divider { color: var(--border-main); font-size: 12px; }
+
+/* Дизайн списка аккордеона */
+.list-header-v3 { display: flex; font-size: 9px; color: var(--text-muted); font-weight: bold; margin-bottom: 6px; text-transform: uppercase; padding: 0 4px; }
+.acc-item { background: var(--bg-panel); border: 1px solid var(--border-main); border-radius: 4px; margin-bottom: 4px; overflow: hidden; }
+.acc-header { display: flex; justify-content: space-between; align-items: center; padding: 8px; cursor: pointer; user-select: none; }
+.acc-title-col { flex: 1; font-size: 12px; font-weight: bold; color: var(--text-main); line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.acc-method-tag { font-size: 9px; font-weight: normal; margin-left: 4px; }
+.acc-qty-col { width: 35px; text-align: center; font-size: 12px; color: var(--text-muted); }
+.acc-sum-col { width: 85px; text-align: right; font-size: 13px; font-weight: bold; display: flex; align-items: center; justify-content: flex-end; gap: 4px; }
+.arr { display: inline-block; font-size: 9px; color: var(--text-muted); transition: transform 0.2s ease; }
+.acc-item.open .arr { transform: rotate(180deg); }
+.acc-body { display: none; background: var(--bg-hover); border-top: 1px dashed var(--border-main); padding: 6px 8px; }
+.acc-item.open .acc-body { display: block; }
+.acc-detail-row { display: flex; justify-content: space-between; font-size: 10px; margin-bottom: 4px; color: var(--text-muted); }
+
+/* Подвал и итоги */
+.footer-fixed { background: var(--bg-body); border-top: 1px solid var(--border-main); padding: 10px 15px; z-index: 10; box-shadow: 0 -5px 15px rgba(0,0,0,0.5); }
+.tot-row { display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 4px; color: var(--text-muted); }
+.tot-main { display: flex; justify-content: space-between; font-size: 15px; font-weight: bold; margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--border-main); color: var(--text-main); }
+.btn-close-rep { width: 100%; padding: 12px; margin-top: 10px; background: var(--bg-hover); border: 1px solid var(--border-main); color: var(--text-main); font-size: 13px; font-weight: bold; border-radius: 4px; cursor: pointer; text-transform: uppercase; }
+
+/* Календари */
+.date-wrap { flex: 1; position: relative; background: var(--bg-hover); border: 1px solid var(--border-main); border-radius: 4px; overflow: hidden; }
+.date-wrap input { width: 100%; padding: 6px 8px; background: transparent; border: none; color: var(--text-main); font-family: var(--font); font-size: 13px; outline: none; }
+.date-wrap input::-webkit-calendar-picker-indicator { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
