@@ -111,7 +111,9 @@
                 markup_placeholder: "Значение...",
                 markup_apply: "ПРИМЕНИТЬ",
                 markup_err_val: "Введите корректное значение",
-                markup_no_cost: "В этой категории нет товаров с закупочной ценой"
+                markup_no_cost: "В этой категории нет товаров с закупочной ценой",
+                report_sales: "ПРОДАЖИ", report_returns: "ВОЗВРАТЫ", report_total_net: "Итого (чис.):",
+                report_items: "ТОВАРЫ", report_receipts: "ЧЕКИ"
             },
             kz: {
                 btn_sale: "САТУ", btn_return: "ҚАЙТАРУ", search_placeholder: "ІЗДЕУ...",
@@ -225,7 +227,9 @@
                 markup_placeholder: "Мәні...",
                 markup_apply: "ҚОЛДАНУ",
                 markup_err_val: "Дұрыс мәнді енгізіңіз",
-                markup_no_cost: "Бұл санатта сатып алу бағасы бар тауарлар жоқ"
+                markup_no_cost: "Бұл санатта сатып алу бағасы бар тауарлар жоқ",
+                report_sales: "САТЫЛЫМДАР", report_returns: "ҚАЙТАРЫМДАР", report_total_net: "Таза табыс:",
+                report_items: "ТАУАРЛАР", report_receipts: "ЧЕКТЕР"
             }
         };
 

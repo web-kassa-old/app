@@ -206,7 +206,7 @@
             <div style="position: relative;">
                 <input type="text" id="rep-search" placeholder="ПОИСК..." oninput="filterReport()" 
                     style="width: 100%; padding: 6px 8px; background: var(--bg-panel); border: 1px solid var(--border-main); color: var(--text-main); border-radius: 4px; font-size: 13px; outline: none; box-sizing: border-box;">
-                <div id="rep-clear-search" onclick="clearReportSearch()" style="display:none; position:absolute; right:8px; top:5px; color:var(--accent-red); font-weight:bold; cursor:pointer;">✕</div>
+                <div id="rep-clear-search" onclick="clearReportSearch()" style="display:none; position:absolute; right:10px; top:50%; transform:translateY(-50%); color:var(--accent-red); font-weight:bold; cursor:pointer; font-size:16px; line-height:1;">✕</div>
             </div>
         </div>
 
@@ -239,13 +239,13 @@
 
         <div class="toggles-row" id="rep-toggles-row" style="display: none;">
             <div class="t-group">
-                <div class="t-btn s-sale active" id="t-sale" onclick="setReportType('sale')">ПРОДАЖИ</div>
-                <div class="t-btn s-return" id="t-return" onclick="setReportType('return')">ВОЗВРАТЫ</div>
+                <div class="t-btn s-sale active" id="t-sale" onclick="setReportType('sale')" data-i18n="report_sales">ПРОДАЖИ</div>
+                <div class="t-btn s-return" id="t-return" onclick="setReportType('return')" data-i18n="report_returns">ВОЗВРАТЫ</div>
             </div>
             <div class="t-divider">|</div>
             <div class="t-group">
-                <div class="t-btn s-item active" id="t-item" onclick="setReportView('items')">ТОВАРЫ</div>
-                <div class="t-btn s-date" id="t-date" onclick="setReportView('dates')">ЧЕКИ</div>
+                <div class="t-btn s-item active" id="t-item" onclick="setReportView('items')" data-i18n="report_items">ТОВАРЫ</div>
+                <div class="t-btn s-date" id="t-date" onclick="setReportView('dates')" data-i18n="report_receipts">ЧЕКИ</div>
             </div>
         </div>
 
