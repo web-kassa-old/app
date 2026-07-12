@@ -191,8 +191,10 @@
 
     <div id="report-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: var(--bg-body); z-index: 9999; flex-direction: column;">
         
-        <div style="padding: 10px 15px; text-align: center; border-bottom: 1px solid var(--border-main);">
+        <div style="padding: 12px 15px; text-align: center; border-bottom: 1px solid var(--border-main); position: relative; display: flex; align-items: center; justify-content: center;">
             <h2 id="rep-header-title" style="margin: 0; font-size: 14px; color: var(--text-main); letter-spacing: 1px; text-transform: uppercase;">ОТЧЕТ ЗА ПЕРИОД</h2>
+            
+            <div onclick="closeReport()" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); font-size: 18px; color: var(--text-muted); cursor: pointer; padding: 5px; line-height: 1;">✕</div>
         </div>
 
         <div style="padding: 8px 10px; border-bottom: 1px solid var(--border-main);">
