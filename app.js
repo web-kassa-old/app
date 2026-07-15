@@ -1055,23 +1055,28 @@ async function handleAutoLogin(val) {
         }
 
         function openHelpDocument() {
-    // Получаем текущий язык. 
-    // Замени 'currentLanguage' на ту переменную, которая у тебя хранит текущий язык интерфейса (например, currentLang или appLang).
-    const lang = window.currentLanguage || 'ru'; 
+    // По умолчанию ставим русский
+    let currentLang = 'ru';
     
-    // HELP_LINKS берется из нашего обновленного config.js
+    // Проверяем, есть ли у кнопки KZ класс 'active' (выбрана ли она сейчас)
+    const kzButton = document.getElementById('lang-kz');
+    if (kzButton && kzButton.classList.contains('active')) {
+        currentLang = 'kz';
+    }
+    
+    // Берем ссылку из config.js
     if (typeof HELP_LINKS !== 'undefined') {
-        const link = HELP_LINKS[lang] || HELP_LINKS['ru'];
+        const link = HELP_LINKS[currentLang] || HELP_LINKS['ru'];
         
         if (link) {
-            window.open(link, '_blank'); // Строго новая вкладка
+            window.open(link, '_blank'); // Открываем в новой вкладке
         } else {
-            console.warn("Ссылки на руководство не заполнены в config.js");
+            console.warn("Ссылки на руководство не найдены в config.js");
         }
     } else {
-        console.error("Объект HELP_LINKS не найден. Проверьте config.js");
+        console.error("Объект HELP_LINKS не найден в файле конфигурации");
     }
-}
+    }
 
         function openSettings() { document.getElementById('settings-modal').style.display = 'flex'; }
         function closeSettings() { document.getElementById('settings-modal').style.display = 'none'; }
