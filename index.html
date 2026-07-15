@@ -270,6 +270,7 @@
     <div id="settings-modal" class="modal-overlay">
         <div class="settings-box">
             <div class="r-title" style="margin-bottom: 20px;" data-i18n="settings_title">НАСТРОЙКИ</div>
+            
             <div class="s-group">
                 <div class="s-title" data-i18n="settings_lang">Язык интерфейса</div>
                 <div class="lang-row">
@@ -277,12 +278,14 @@
                     <button id="lang-kz" class="lang-btn" onclick="applyLanguage('kz')">KZ</button>
                 </div>
             </div>
+            
             <div class="s-group">
                 <div class="s-title" data-i18n="settings_sync">Синхронизация</div>
                 <button class="s-btn" onclick="manualSync()">
                     <span data-i18n="btn_sync">Отправить чеки</span><span id="sync-status">📡</span>
                 </button>
             </div>
+            
             <div class="s-group">
                 <div class="s-title" data-i18n="settings_system">Система</div>
                 <button class="s-btn" onclick="forceAppUpdate()">
@@ -290,10 +293,17 @@
                 </button>
             </div>
             
-            <div class="s-group" style="border: none; padding-bottom: 0;">
+            <div class="s-group">
                 <div class="s-title" data-i18n="settings_theme">Оформление</div>
                 <button class="s-btn" onclick="toggleTheme()">
                     <span data-i18n="theme_toggle">СМЕНА ТЕМЫ</span><span>🌓</span>
+                </button>
+            </div>
+
+            <div class="s-group" style="border: none; padding-bottom: 0;">
+                <div class="s-title" data-i18n="settings_help">Справка</div>
+                <button class="s-btn" onclick="openHelpDocument()">
+                    <span data-i18n="btn_help">Руководство пользователя</span><span>❓</span>
                 </button>
             </div>
 
