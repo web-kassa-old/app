@@ -113,7 +113,9 @@
                 markup_err_val: "Введите корректное значение",
                 markup_no_cost: "В этой категории нет товаров с закупочной ценой",
                 report_sales: "ПРОДАЖИ", report_returns: "ВОЗВРАТЫ", report_total_net: "Итого (чис.):",
-                report_items: "ТОВАРЫ", report_receipts: "ЧЕКИ"
+                report_items: "ТОВАРЫ", report_receipts: "ЧЕКИ",
+                settings_help: "Справка",
+                btn_help: "Руководство пользователя"
             },
             kz: {
                 btn_sale: "САТУ", btn_return: "ҚАЙТАРУ", search_placeholder: "ІЗДЕУ...",
@@ -229,7 +231,9 @@
                 markup_err_val: "Дұрыс мәнді енгізіңіз",
                 markup_no_cost: "Бұл санатта сатып алу бағасы бар тауарлар жоқ",
                 report_sales: "САТЫЛЫМДАР", report_returns: "ҚАЙТАРЫМДАР", report_total_net: "Таза табыс:",
-                report_items: "ТАУАРЛАР", report_receipts: "ЧЕКТЕР"
+                report_items: "ТАУАРЛАР", report_receipts: "ЧЕКТЕР",
+                settings_help: "Анықтама",
+                btn_help: "Пайдаланушы нұсқаулығы"
             }
         };
 
@@ -1049,6 +1053,25 @@ async function handleAutoLogin(val) {
             document.getElementById('sync-status').innerText = '📡';
             alert(hasError ? translations[currentLang].msg_sync_error : translations[currentLang].msg_sync_success);
         }
+
+        function openHelpDocument() {
+    // Получаем текущий язык. 
+    // Замени 'currentLanguage' на ту переменную, которая у тебя хранит текущий язык интерфейса (например, currentLang или appLang).
+    const lang = window.currentLanguage || 'ru'; 
+    
+    // HELP_LINKS берется из нашего обновленного config.js
+    if (typeof HELP_LINKS !== 'undefined') {
+        const link = HELP_LINKS[lang] || HELP_LINKS['ru'];
+        
+        if (link) {
+            window.open(link, '_blank'); // Строго новая вкладка
+        } else {
+            console.warn("Ссылки на руководство не заполнены в config.js");
+        }
+    } else {
+        console.error("Объект HELP_LINKS не найден. Проверьте config.js");
+    }
+}
 
         function openSettings() { document.getElementById('settings-modal').style.display = 'flex'; }
         function closeSettings() { document.getElementById('settings-modal').style.display = 'none'; }
