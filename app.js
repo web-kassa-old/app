@@ -1378,13 +1378,14 @@ async function renderReport() {
 
 function setReportMethod(method, element, activeClass) {
     reportState.method = method;
+    
     // Сбрасываем стили всех карточек
     document.querySelectorAll('.method-card').forEach(c => c.className = 'method-card');
     if (element) element.classList.add(activeClass);
     
-    // Показываем или прячем матрицу 2x2
+    // Теперь матрица 2x2 будет видна ВСЕГДА
     const toggles = document.getElementById('rep-toggles-row');
-    if (toggles) toggles.style.display = method === 'all' ? 'none' : 'flex';
+    if (toggles) toggles.style.display = 'flex';
     
     // Очищаем поиск при смене вкладки
     clearReportSearch();
