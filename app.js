@@ -46,7 +46,7 @@
                 inc_err_sheet_no_table: "[Лист {0}]: нет таблицы с цифрами", cat_all: "Все",
                 server_dup: "Накладная с номером {0} уже была проведена ранее.",
                 server_no_db: "База не привязана. Нажмите POS Setup -> Привязать базу.",
-                theme_toggle: "Смена Темы (ДЕНЬ/НОЧЬ)", settings_theme: "ОФОРМЛЕНИЕ",
+                theme_toggle: "СМЕНА ТЕМЫ (ДЕНЬ/НОЧЬ)", settings_theme: "ОФОРМЛЕНИЕ",
                 pay_cash_full: "НАЛИЧНЫЕ",
                 pay_qr_full: "QR",
                 pay_red_full: "РАССРОЧКА",
@@ -164,7 +164,7 @@
                 inc_err_sheet_no_table: "[{0} парағы]: цифрлары бар кесте жоқ", cat_all: "Барлығы",
                 server_dup: "{0} нөмірлі жүкқұжат бұрын қабылданған.",
                 server_no_db: "Дерекқор байланыспаған. POS Setup -> Привязать базу түймесін басыңыз.",
-                theme_toggle: "Тақырыпты ауыстыру (КҮН/ТҮН)", settings_theme: "КӨРІНІС",
+                theme_toggle: "ТАҚЫРЫПТЫ АУЫСТЫРУ (КҮН/ТҮН)", settings_theme: "КӨРІНІС",
                 pay_cash_full: "ҚОЛМА ҚОЛ",
                 pay_qr_full: "QR",
                 pay_red_full: "БӨЛІП ТӨЛЕУ",
@@ -1246,124 +1246,97 @@ async function renderReport() {
     }
 
     // ==========================================
-    // ШАГ 2: НАРЕЗКА СПИСКА
+    // ШАГ 2: НАРЕЗКА СПИСКА (УНИВЕРСАЛЬНАЯ ЛОГИКА 2x2)
     // ==========================================
     let htmlString = '';
 
-    if (reportState.method === 'all') {
+    // 1. Фильтр по способу оплаты (Кнопка "ВСЕ" пропускает всё)
+    let viewTx = reportDataToRender;
+    if (reportState.method !== 'all') {
+        viewTx = viewTx.filter(tx => (tx.methodCode || 'cash') === reportState.method);
+    }
+
+    // 2. Фильтр по типу (Продажи / Возвраты) - ПЕРВЫЙ ТУМБЛЕР 2x2
+    let isSaleMode = reportState.type === 'sale';
+    viewTx = viewTx.filter(tx => isSaleMode ? (tx.type !== 'return' && tx.type !== 'refund') : (tx.type === 'return' || tx.type === 'refund'));
+
+    let sumColor = isSaleMode ? 'var(--accent-green)' : 'var(--accent-red)';
+    let signPrefix = isSaleMode ? '' : '-';
+
+    // 3. Разделение на Товары / Чеки - ВТОРОЙ ТУМБЛЕР 2x2
+    if (reportState.view === 'items') {
         let agg = {};
-        reportDataToRender.forEach(tx => {
-            let isRet = (tx.type === 'return' || tx.type === 'refund');
+        
+        viewTx.forEach(tx => {
             let m = tx.methodCode || 'cash';
-            
             tx.cart.forEach(c => {
-                let key = `${c.name}_${m}`;
-                if (!agg[key]) agg[key] = { name: c.name, method: m, sQty:0, sSum:0, rQty:0, rSum:0, sellers: {} };
-                if (!agg[key].sellers[tx.seller]) agg[key].sellers[tx.seller] = { sQty:0, sSum:0, rQty:0, rSum:0 };
+                // В режиме "ВСЕ" разделяем один и тот же товар на разные строки по способу оплаты (Товар [Нал], Товар [Карт])
+                let key = reportState.method === 'all' ? `${c.name}_${m}` : c.name;
                 
-                let q = Math.abs(c.qty); let s = q * Math.abs(c.price);
-                if (isRet) { 
-                    agg[key].rQty += q; agg[key].rSum += s; 
-                    agg[key].sellers[tx.seller].rQty += q; agg[key].sellers[tx.seller].rSum += s; 
-                } else { 
-                    agg[key].sQty += q; agg[key].sSum += s; 
-                    agg[key].sellers[tx.seller].sQty += q; agg[key].sellers[tx.seller].sSum += s; 
-                }
+                if (!agg[key]) agg[key] = { name: c.name, method: m, qty:0, sum:0, sellers:{} };
+                if (!agg[key].sellers[tx.seller]) agg[key].sellers[tx.seller] = { qty:0, sum:0 };
+                
+                let q = Math.abs(c.qty); 
+                let s = q * Math.abs(c.price);
+                
+                agg[key].qty += q; 
+                agg[key].sum += s;
+                agg[key].sellers[tx.seller].qty += q; 
+                agg[key].sellers[tx.seller].sum += s;
             });
         });
 
-        let sorted = Object.values(agg).sort((a,b) => (b.sSum - b.rSum) - (a.sSum - a.rSum));
-
+        let sorted = Object.values(agg).sort((a,b) => b.sum - a.sum);
+        
         sorted.forEach(item => {
-            let netQty = item.sQty - item.rQty;
-            let netSum = item.sSum - item.rSum;
             let mColor = methodColors[item.method] || 'var(--text-muted)';
-            let sumColor = netSum < 0 ? 'var(--accent-red)' : 'var(--accent-green)';
+            // Тег оплаты показываем только если нажата кнопка "ВСЕ"
+            let methodTag = reportState.method === 'all' ? ` <span class="acc-method-tag" style="color:${mColor}; font-size:10px;">[${methodNames[item.method]}]</span>` : '';
             
             let detHtml = '';
             for (let seller in item.sellers) {
                 let s = item.sellers[seller];
-                if (s.sQty > 0) detHtml += `<div class="acc-detail-row"><span>${uiStr.sale} (${s.sQty}) 👤 ${seller} | ${uiStr.avg} ${Math.round(s.sSum/s.sQty).toLocaleString()} ₸</span><span style="color:var(--accent-green)">${s.sSum.toLocaleString()}</span></div>`;
-                if (s.rQty > 0) detHtml += `<div class="acc-detail-row"><span>${uiStr.ret} (${s.rQty}) 👤 ${seller} | ${uiStr.avg} ${Math.round(s.rSum/s.rQty).toLocaleString()} ₸</span><span style="color:var(--accent-red)">-${s.rSum.toLocaleString()}</span></div>`;
+                let lbl = isSaleMode ? uiStr.sale : uiStr.ret;
+                detHtml += `<div class="acc-detail-row"><span>${lbl} (${s.qty}) 👤 ${seller} | ${uiStr.avg} ${Math.round(s.sum/s.qty).toLocaleString()} ₸</span><span style="color:${sumColor}">${signPrefix}${s.sum.toLocaleString()}</span></div>`;
             }
 
             htmlString += `
                 <div class="acc-item" data-name="${item.name.toLowerCase()}" style="border-left: 3px solid ${mColor};" onclick="this.classList.toggle('open')">
                     <div class="acc-header">
-                        <div class="acc-title-col">${item.name} <span class="acc-method-tag" style="color:${mColor}">[${methodNames[item.method]}]</span></div>
-                        <div class="acc-qty-col">${netQty}</div>
-                        <div class="acc-sum-col" style="color:${sumColor}">${netSum.toLocaleString()} <span class="arr">▼</span></div>
+                        <div class="acc-title-col">${item.name}${methodTag}</div>
+                        <div class="acc-qty-col">${item.qty}</div>
+                        <div class="acc-sum-col" style="color:${sumColor}">${signPrefix}${item.sum.toLocaleString()} <span class="arr">▼</span></div>
                     </div>
                     <div class="acc-body">${detHtml}</div>
                 </div>`;
         });
 
     } else {
-        let viewTx = reportDataToRender.filter(tx => (tx.methodCode || 'cash') === reportState.method);
-        let isSaleMode = reportState.type === 'sale';
-        
-        viewTx = viewTx.filter(tx => isSaleMode ? (tx.type !== 'return' && tx.type !== 'refund') : (tx.type === 'return' || tx.type === 'refund'));
-        
-        let mColor = methodColors[reportState.method];
-        let sumColor = isSaleMode ? 'var(--accent-green)' : 'var(--accent-red)';
-        let signPrefix = isSaleMode ? '' : '-';
+        // Режим "ЧЕКИ"
+        viewTx.forEach(tx => {
+            let txSum = 0; let txQty = 0;
+            let m = tx.methodCode || 'cash';
+            let mColor = methodColors[m] || 'var(--text-muted)';
+            // Тег оплаты для чека показываем только если нажата кнопка "ВСЕ"
+            let methodTag = reportState.method === 'all' ? ` <span style="color:${mColor}; font-size:10px;">[${methodNames[m]}]</span>` : '';
 
-        if (reportState.view === 'items') {
-            let agg = {};
-            viewTx.forEach(tx => {
-                tx.cart.forEach(c => {
-                    if (!agg[c.name]) agg[c.name] = { qty:0, sum:0, sellers:{} };
-                    if (!agg[c.name].sellers[tx.seller]) agg[c.name].sellers[tx.seller] = { qty:0, sum:0 };
-                    
-                    let q = Math.abs(c.qty); let s = q * Math.abs(c.price);
-                    agg[c.name].qty += q; agg[c.name].sum += s;
-                    agg[c.name].sellers[tx.seller].qty += q; agg[c.name].sellers[tx.seller].sum += s;
-                });
+            let detHtml = '';
+            tx.cart.forEach(c => {
+                let q = Math.abs(c.qty); let s = q * Math.abs(c.price);
+                txSum += s; txQty += q;
+                detHtml += `<div class="acc-detail-row"><span>${c.name}</span><span style="color:${sumColor}">${q} x ${Math.abs(c.price).toLocaleString()}</span></div>`;
             });
 
-            let sorted = Object.values(agg).sort((a,b) => b.sum - a.sum);
-            sorted.forEach(item => {
-                let itemName = Object.keys(agg).find(k => agg[k] === item);
-                
-                let detHtml = '';
-                for (let seller in item.sellers) {
-                    let s = item.sellers[seller];
-                    let lbl = isSaleMode ? uiStr.sale : uiStr.ret;
-                    detHtml += `<div class="acc-detail-row"><span>${lbl} (${s.qty}) 👤 ${seller} | ${uiStr.avg} ${Math.round(s.sum/s.qty).toLocaleString()} ₸</span><span style="color:${sumColor}">${signPrefix}${s.sum.toLocaleString()}</span></div>`;
-                }
-
-                htmlString += `
-                    <div class="acc-item" data-name="${itemName.toLowerCase()}" style="border-left: 3px solid ${mColor};" onclick="this.classList.toggle('open')">
-                        <div class="acc-header">
-                            <div class="acc-title-col">${itemName}</div>
-                            <div class="acc-qty-col">${item.qty}</div>
-                            <div class="acc-sum-col" style="color:${sumColor}">${signPrefix}${item.sum.toLocaleString()} <span class="arr">▼</span></div>
-                        </div>
-                        <div class="acc-body">${detHtml}</div>
-                    </div>`;
-            });
-
-        } else {
-            viewTx.forEach(tx => {
-                let txSum = 0; let txQty = 0;
-                let detHtml = '';
-                tx.cart.forEach(c => {
-                    let q = Math.abs(c.qty); let s = q * Math.abs(c.price);
-                    txSum += s; txQty += q;
-                    detHtml += `<div class="acc-detail-row"><span>${c.name}</span><span style="color:${sumColor}">${q} x ${Math.abs(c.price).toLocaleString()}</span></div>`;
-                });
-
-                htmlString += `
-                    <div class="acc-item" data-name="${tx.date} ${tx.time}" style="border-left: 3px solid ${mColor};" onclick="this.classList.toggle('open')">
-                        <div class="acc-header">
-                            <div class="acc-title-col">${tx.date} ${tx.time} <span style="font-size:10px; font-weight:normal; color:var(--text-muted); display:block;">👤 ${tx.seller}</span></div>
-                            <div class="acc-qty-col">${txQty}</div>
-                            <div class="acc-sum-col" style="color:${sumColor}">${signPrefix}${txSum.toLocaleString()} <span class="arr">▼</span></div>
-                        </div>
-                        <div class="acc-body">${detHtml}</div>
-                    </div>`;
-            });
-        }
+            htmlString += `
+                <div class="acc-item" data-name="${tx.date} ${tx.time}" style="border-left: 3px solid ${mColor};" onclick="this.classList.toggle('open')">
+                    <div class="acc-header">
+                        <div class="acc-title-col">${tx.date} ${tx.time}${methodTag} <span style="font-size:10px; font-weight:normal; color:var(--text-muted); display:block;">👤 ${tx.seller}</span></div>
+                        <div class="acc-qty-col">${txQty}</div>
+                        <div class="acc-sum-col" style="color:${sumColor}">${signPrefix}${txSum.toLocaleString()} <span class="arr">▼</span></div>
+                    </div>
+                    <div class="acc-body">${detHtml}</div>
+                </div>`;
+        });
     }
 
     if (htmlString === '') {
