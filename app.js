@@ -409,40 +409,56 @@ window.saveQuickEdit = function(id) {
     // 1. Захватываем сырые данные из интерфейса
     const rawPrice = document.getElementById('qe-price').value;
     const rawMinStock = document.getElementById('qe-minstock').value;
-    const newName = document.getElementById('qe-name').value.trim();
-    const newBarcode = document.getElementById('qe-barcode').value.trim();
+    const newName = document.getElementById('qe-name').value;
+    const newBarcode = document.getElementById('qe-barcode').value;
     const catValue = document.getElementById('qe-category').value;
 
-    // 2. Очищаем числа от пробелов
-    const newPrice = parseFloat(String(rawPrice).replace(/\s/g, '').replace(',', '.')) || 0;
-    const newMinStock = parseFloat(String(rawMinStock).replace(/\s/g, '').replace(',', '.')) || 0;
+    // 2. Агрессивная очистка чисел (удаляем всё, кроме цифр, точек и запятых)
+    const cleanPrice = String(rawPrice).replace(/[^\d.,]/g, '').replace(',', '.');
+    const newPrice = parseFloat(cleanPrice) || 0;
+    
+    const cleanMinStock = String(rawMinStock).replace(/[^\d.,]/g, '').replace(',', '.');
+    const newMinStock = parseFloat(cleanMinStock) || 0;
 
-    // 3. Обновляем локальную базу
-    if (newName) item.name = newName;
+    // 3. Обновляем локальную базу (используем правильные ключи)
+    if (newName && newName.trim() !== '') {
+        item.item_name = newName.trim(); // Было item.name, исправлено на item.item_name
+    }
+    
     item.price = newPrice;
     item.min_stock = newMinStock;
-    item.barcode = newBarcode;
-    if (catValue !== 'new') item.category = catValue;
+    
+    if (newBarcode) {
+        item.barcode = newBarcode.trim();
+    }
+
+    // Если выбрали "Не выбрано", записываем конкретное слово вместо пустоты
+    if (catValue === '0' || catValue === 'Не выбрано' || catValue === '') {
+        item.category = "Без категории"; // <--- Теперь в таблицу пойдет этот текст
+    } else if (catValue !== 'new') {
+        item.category = catValue;
+    }
 
     // Закрываем окно и перерисовываем каталог
-    document.getElementById('quickEditModal').remove();
+    const modal = document.getElementById('quickEditModal');
+    if (modal) modal.remove();
     if (typeof render === 'function') render();
 
-    // 4. Формируем payload с добавленным ключом api_key
+    // 4. Формируем payload с правильным ключом и исправленным item_name
     const payload = {
       action: "update_single_item", 
-      api_key: CLIENT_API_KEY,  // <--- ПЕРЕДАЕМ ВАШ КЛЮЧ АВТОРИЗАЦИИ
+      api_key: CLIENT_API_KEY,
       itemId: String(item.id), 
       data: {
-        item_name: item.name,
+        item_name: item.item_name, 
         category: item.category,
         barcode: item.barcode,
-        min_stock: newMinStock,
-        price: newPrice 
+        min_stock: item.min_stock,
+        price: item.price 
       }
     };
 
-    // 5. Отправка на сервер через fetch
+    // 5. Отправка на сервер
     fetch(GATEWAY_URL, {
         method: 'POST',
         body: JSON.stringify(payload),
@@ -458,8 +474,8 @@ window.saveQuickEdit = function(id) {
         } else if (response && response.success === false) {
             alert('Бэкенд вернул success: false. Проверьте code.gs');
         } else {
-            // Успешно обновили
-            alert('Товар успешно обновлен в таблице!');
+            // Тихий успех (можно раскомментировать alert ниже, если нужно уведомление)
+            // alert('Товар успешно обновлен!');
         }
     })
     .catch(err => {
