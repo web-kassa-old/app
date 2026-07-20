@@ -428,9 +428,10 @@ window.saveQuickEdit = function(id) {
     document.getElementById('quickEditModal').remove();
     if (typeof render === 'function') render();
 
-    // 4. Формируем payload. ВАЖНО: используем action, чтобы сработал наш if в doPost!
+    // 4. Формируем payload с добавленным ключом api_key
     const payload = {
       action: "update_single_item", 
+      api_key: CLIENT_API_KEY,  // <--- ПЕРЕДАЕМ ВАШ КЛЮЧ АВТОРИЗАЦИИ
       itemId: String(item.id), 
       data: {
         item_name: item.name,
@@ -441,8 +442,7 @@ window.saveQuickEdit = function(id) {
       }
     };
 
-    // 5. Отправка на сервер через fetch (работает отовсюду)
-    // Внимание: если ваш URL Google скрипта хранится не в SCRIPT_URL, измените название переменной ниже
+    // 5. Отправка на сервер через fetch
     fetch(GATEWAY_URL, {
         method: 'POST',
         body: JSON.stringify(payload),
@@ -458,7 +458,8 @@ window.saveQuickEdit = function(id) {
         } else if (response && response.success === false) {
             alert('Бэкенд вернул success: false. Проверьте code.gs');
         } else {
-            alert('Таблица успешно обновлена!');
+            // Успешно обновили
+            alert('Товар успешно обновлен в таблице!');
         }
     })
     .catch(err => {
