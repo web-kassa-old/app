@@ -443,6 +443,37 @@
         </div>
     </div>
 
+    <!-- ========================================= -->
+<!-- ОКНО БЫСТРОГО РЕДАКТИРОВАНИЯ (QUICK EDIT) -->
+<!-- ========================================= -->
+<div id="modal-quick-edit" class="modal-overlay" style="display: none;" onclick="closeQuickEdit()">
+    <div class="settings-box" onclick="event.stopPropagation()">
+        <div class="r-title" style="margin-bottom: 20px;">РЕДАКТИРОВАНИЕ</div>
+        
+        <input type="hidden" id="qe-item-id">
+        
+        <div class="field-group" style="margin-bottom: 15px;">
+            <label style="font-size: 12px; color: var(--text-muted);">Наименование</label>
+            <input type="text" id="qe-name" style="width: 100%; padding: 12px; margin-top: 5px; background: var(--bg-card); border: 1px solid var(--border-main); color: var(--text-main); border-radius: 4px; box-sizing: border-box;">
+        </div>
+
+        <div class="grid-row" style="display: flex; gap: 10px; margin-bottom: 20px;">
+            <div class="field-group" style="flex: 1;">
+                <label style="font-size: 12px; color: var(--text-muted);">Цена</label>
+                <input type="number" id="qe-price" style="width: 100%; padding: 12px; margin-top: 5px; background: var(--bg-card); border: 1px solid var(--border-main); color: var(--text-main); border-radius: 4px; box-sizing: border-box;">
+            </div>
+            <div class="field-group" style="flex: 1;">
+                <label style="font-size: 12px; color: var(--text-muted);">Остаток</label>
+                <input type="number" id="qe-stock" style="width: 100%; padding: 12px; margin-top: 5px; background: var(--bg-card); border: 1px solid var(--border-main); color: var(--text-main); border-radius: 4px; box-sizing: border-box;">
+                <span id="qe-stock-hint" class="stock-hint"></span>
+            </div>
+        </div>
+
+        <button class="btn-save-native" onclick="saveQuickEdit()">СОХРАНИТЬ</button>
+        <button class="cancel-btn" style="width: 100%; margin-top: 10px;" onclick="closeQuickEdit()">ОТМЕНА</button>
+    </div>
+</div>
+
 <script src="app.js?v=6.0.0"></script>
 </body>
 </html>

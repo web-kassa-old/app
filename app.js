@@ -250,6 +250,8 @@
         let db = [], cart = [], mode = 'sale', pendingMethod = null;
         let staffList = [], currentUser = null;
         let currentPinInput = '';
+        let itemHoldTimer = null;
+        let isItemLongPress = false;
 
         // Состояние дашборда отчетов
         let reportState = { method: 'all', type: 'sale', view: 'items' };
@@ -629,6 +631,37 @@ async function handleAutoLogin(val) {
             try { await load(); } finally { setTimeout(() => { btn.classList.remove('sync-spin'); }, 600); }
         }
 
+        function startItemHold(id, event) {
+    isItemLongPress = false;
+    // Запускаем таймер на 1 секунду
+    itemHoldTimer = setTimeout(() => {
+        isItemLongPress = true;
+        openQuickEditModal(id);
+    }, 1000); 
+}
+
+function cancelItemHold() {
+    if (itemHoldTimer) {
+        clearTimeout(itemHoldTimer);
+        itemHoldTimer = null;
+    }
+}
+
+function handleItemClick(id, event) {
+    // Если это было долгое нажатие, отменяем обычную продажу/добавление
+    if (isItemLongPress) {
+        event.preventDefault();
+        return;
+    }
+    add(id);
+}
+
+// Заглушка, чтобы код не выдавал ошибку при тесте
+function openQuickEditModal(id) {
+    console.log("Открываем быстрое редактирование для товара:", id);
+    // На следующем шаге здесь будет логика заполнения окна
+}
+
         function render() {
             const catalog = document.getElementById('catalog');
             if (!db || db.length === 0) return catalog.innerHTML = '<div style="color:var(--text-muted); padding:20px; text-align:center;">' + translations[currentLang].loading_items + '</div>';
@@ -639,7 +672,15 @@ async function handleAutoLogin(val) {
                 
                 const roundedPrice = Math.round(Number(i.price) || 0);
                 
-                return `<div class="c-item" onclick="add('${i.id}')" data-cat="${i.category || ''}">
+                return `<div class="c-item" 
+                    onmousedown="startItemHold('${i.id}', event)" 
+                    onmouseup="cancelItemHold()" 
+                    onmouseleave="cancelItemHold()" 
+                    ontouchstart="startItemHold('${i.id}', event)" 
+                    ontouchend="cancelItemHold()" 
+                    ontouchmove="cancelItemHold()" 
+                    onclick="handleItemClick('${i.id}', event)" 
+                    data-cat="${i.category || ''}">
                     <div class="i-name" style="display:flex; align-items:center; flex: 1; min-width: 0;">
                         ${photoBadge} 
                         
