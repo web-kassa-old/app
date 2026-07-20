@@ -354,7 +354,7 @@ window.openQuickEditModal = function(id) {
             </style>
 
             <div style="background: #1e1e1e; padding: 20px; border-radius: 8px; width: 90%; max-width: 350px; color: #fff; box-shadow: 0 10px 30px rgba(0,0,0,0.5); border: 1px solid #333;">
-                <h3 style="margin-top: 0; margin-bottom: 20px; font-size: 16px; text-align: center; text-transform: uppercase; border-bottom: 1px solid #333; padding-bottom: 10px; letter-spacing: 1px;">Быстрое редактирование</h3>
+                <h3 style="margin-top: 0; margin-bottom: 20px; font-size: 16px; text-align: center; text-transform: uppercase; border-bottom: 1px solid #333; padding-bottom: 10px; letter-spacing: 1px;">РАСПРЕДЕЛЕНИЕ ТОВАРА</h3>
                 
                 <div style="margin-bottom: 15px;">
                     <label>Наименование</label>
@@ -404,20 +404,46 @@ window.openQuickEditModal = function(id) {
 
 window.saveQuickEdit = function(id) {
     const item = db.find(i => String(i.id) === String(id));
-    if (item) {
-        item.price = Number(document.getElementById('qe-price').value);
-        item.name = document.getElementById('qe-name').value;
-        item.barcode = document.getElementById('qe-barcode').value;
-        item.min_stock = Number(document.getElementById('qe-minstock').value);
-        
-        const catValue = document.getElementById('qe-category').value;
-        if (catValue !== 'new') {
-            item.category = catValue;
-        }
-    }
-    
+    if (!item) return;
+
+    // 1. Захватываем данные строго из интерфейса модального окна
+    const newName = document.getElementById('qe-name').value.trim();
+    const newPrice = Number(document.getElementById('qe-price').value) || 0;
+    const newMinStock = Number(document.getElementById('qe-minstock').value) || 0;
+    const newBarcode = document.getElementById('qe-barcode').value.trim();
+    const catValue = document.getElementById('qe-category').value;
+
+    // 2. Обновляем локальную базу мгновенно (Optimistic UI)
+    if (newName) item.name = newName;
+    item.price = newPrice;
+    item.min_stock = newMinStock;
+    item.barcode = newBarcode;
+    if (catValue !== 'new') item.category = catValue;
+
+    // Закрываем окно и перерисовываем каталог элементов на экране
     document.getElementById('quickEditModal').remove();
     if (typeof render === 'function') render();
+
+    // 3. Формируем payload по точной схеме бэкенда
+    const payload = {
+      command: "direct_update",
+      itemId: item.id,
+      data: {
+        item_name: item.name,
+        category: item.category,
+        barcode: item.barcode,
+        min_stock: newMinStock,
+        price: newPrice // Данные цены из UI активно пишем сюда для колонки G
+      }
+    };
+
+    // 4. Отправляем в Google Таблицу через новый шлюз
+    if (typeof google !== 'undefined' && google.script) {
+        google.script.run
+          .withSuccessHandler(() => console.log('Успешно сохранено в Таблицу!'))
+          .withFailureHandler(err => alert('Ошибка бэкенда: ' + err))
+          .updateBulkPrices(payload);
+    }
 };
 // === (Конец П1) ===
 
