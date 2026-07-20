@@ -448,7 +448,7 @@ window.saveQuickEdit = function(id) {
 
     // 4. Формируем payload точно по спецификации бэкенда (command: "direct_update")
     const payload = {
-      command: "direct_update",
+      action: "direct_update",
       api_key: CLIENT_API_KEY,
       itemId: String(item.id), 
       data: {
