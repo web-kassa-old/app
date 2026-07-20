@@ -413,11 +413,11 @@ window.saveQuickEdit = function(id) {
     const newBarcode = document.getElementById('qe-barcode').value.trim();
     const catValue = document.getElementById('qe-category').value;
 
-    // 2. Очищаем числа от пробелов ("632 300" -> 632300) и запятых
+    // 2. Очищаем числа от пробелов
     const newPrice = parseFloat(String(rawPrice).replace(/\s/g, '').replace(',', '.')) || 0;
     const newMinStock = parseFloat(String(rawMinStock).replace(/\s/g, '').replace(',', '.')) || 0;
 
-    // 3. Обновляем локальную базу (Optimistic UI)
+    // 3. Обновляем локальную базу
     if (newName) item.name = newName;
     item.price = newPrice;
     item.min_stock = newMinStock;
@@ -428,9 +428,9 @@ window.saveQuickEdit = function(id) {
     document.getElementById('quickEditModal').remove();
     if (typeof render === 'function') render();
 
-    // 4. Формируем payload. Принудительно делаем itemId строкой
+    // 4. Формируем payload. ВАЖНО: используем action, чтобы сработал наш if в doPost!
     const payload = {
-      command: "direct_update",
+      action: "update_single_item", 
       itemId: String(item.id), 
       data: {
         item_name: item.name,
@@ -441,28 +441,29 @@ window.saveQuickEdit = function(id) {
       }
     };
 
-    // 5. Отправка на сервер напрямую в целевую функцию
-    if (typeof google !== 'undefined' && google.script) {
-        google.script.run
-          .withSuccessHandler((response) => {
-              console.log('Ответ от updateSingleItem:', response);
-              
-              if (response && response.error) {
-                  alert('Бэкенд отказал в записи: ' + response.error);
-              } else if (response && response.success === false) {
-                  alert('Бэкенд вернул success: false. Проверьте code.gs');
-              } else {
-                  // Успешная запись
-                  alert('Таблица успешно обновлена!');
-              }
-          })
-          .withFailureHandler(err => {
-              alert('Критическая ошибка вызова сервера: ' + err);
-          })
-          .updateSingleItem(payload); // <--- КОНКРЕТНОЕ ИЗМЕНЕНИЕ: вызываем точечное обновление
-    } else {
-        alert('API Google Apps Script недоступно. Вы тестируете локально?');
-    }
+    // 5. Отправка на сервер через fetch (работает отовсюду)
+    // Внимание: если ваш URL Google скрипта хранится не в SCRIPT_URL, измените название переменной ниже
+    fetch(GATEWAY_URL, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+        headers: {
+            'Content-Type': 'text/plain;charset=utf-8' 
+        }
+    })
+    .then(res => res.json())
+    .then(response => {
+        console.log('Ответ от сервера:', response);
+        if (response && response.error) {
+            alert('Бэкенд отказал в записи: ' + response.error);
+        } else if (response && response.success === false) {
+            alert('Бэкенд вернул success: false. Проверьте code.gs');
+        } else {
+            alert('Таблица успешно обновлена!');
+        }
+    })
+    .catch(err => {
+        alert('Критическая ошибка вызова сервера: ' + err.message);
+    });
 };
 // === (Конец П1) ===
 
