@@ -406,59 +406,61 @@ window.saveQuickEdit = function(id) {
     const item = db.find(i => String(i.id) === String(id));
     if (!item) return;
 
-    // 1. Захватываем сырые данные из интерфейса
-    const rawPrice = document.getElementById('qe-price').value;
-    const rawMinStock = document.getElementById('qe-minstock').value;
-    const newName = document.getElementById('qe-name').value;
-    const newBarcode = document.getElementById('qe-barcode').value;
-    const catValue = document.getElementById('qe-category').value;
+    // 1. Точный захват полей по стандартным ID модального окна быстрой правки
+    const nameInput = document.getElementById('qe-name');
+    const priceInput = document.getElementById('qe-price');
+    const minStockInput = document.getElementById('qe-minstock');
+    const barcodeInput = document.getElementById('qe-barcode');
+    const catInput = document.getElementById('qe-category');
 
-    // 2. Агрессивная очистка чисел (удаляем всё, кроме цифр, точек и запятых)
-    const cleanPrice = String(rawPrice).replace(/[^\d.,]/g, '').replace(',', '.');
+    const newName = nameInput ? nameInput.value.trim() : "";
+    const rawPrice = priceInput ? priceInput.value : "0";
+    const rawMinStock = minStockInput ? minStockInput.value : "0";
+    const newBarcode = barcodeInput ? barcodeInput.value.trim() : "";
+    const catValue = catInput ? catInput.value : "";
+
+    // 2. Безопасная очистка чисел (обязательная замена запятой на точку для parseFloat)
+    const cleanPrice = String(rawPrice).replace(/\s/g, '').replace(',', '.');
     const newPrice = parseFloat(cleanPrice) || 0;
     
-    const cleanMinStock = String(rawMinStock).replace(/[^\d.,]/g, '').replace(',', '.');
+    const cleanMinStock = String(rawMinStock).replace(/\s/g, '').replace(',', '.');
     const newMinStock = parseFloat(cleanMinStock) || 0;
 
-    // 3. Обновляем локальную базу (используем правильные ключи)
-    if (newName && newName.trim() !== '') {
-        item.item_name = newName.trim(); // Было item.name, исправлено на item.item_name
+    // 3. Обновляем локальную базу (Optimistic UI) с правильным ключом item_name
+    if (newName) {
+        item.item_name = newName;
+        item.name = newName; // дублируем на случай внутренних проверок клиента
     }
-    
     item.price = newPrice;
     item.min_stock = newMinStock;
-    
-    if (newBarcode) {
-        item.barcode = newBarcode.trim();
-    }
+    item.barcode = newBarcode;
 
-    // Если выбрали "Не выбрано", записываем конкретное слово вместо пустоты
     if (catValue === '0' || catValue === 'Не выбрано' || catValue === '') {
-        item.category = "Без категории"; // <--- Теперь в таблицу пойдет этот текст
+        item.category = "Без категории"; 
     } else if (catValue !== 'new') {
         item.category = catValue;
     }
 
-    // Закрываем окно и перерисовываем каталог
+    // Закрываем модальное окно и перерисовываем интерфейс
     const modal = document.getElementById('quickEditModal');
     if (modal) modal.remove();
     if (typeof render === 'function') render();
 
-    // 4. Формируем payload с правильным ключом и исправленным item_name
+    // 4. Формируем payload точно по спецификации бэкенда (command: "direct_update")
     const payload = {
-      action: "update_single_item", 
+      command: "direct_update",
       api_key: CLIENT_API_KEY,
       itemId: String(item.id), 
       data: {
-        item_name: item.item_name, 
+        item_name: item.item_name || item.name, 
         category: item.category,
         barcode: item.barcode,
-        min_stock: item.min_stock,
-        price: item.price 
+        min_stock: newMinStock,
+        price: newPrice 
       }
     };
 
-    // 5. Отправка на сервер
+    // 5. Отправка на сервер через единый шлюз
     fetch(GATEWAY_URL, {
         method: 'POST',
         body: JSON.stringify(payload),
@@ -474,14 +476,14 @@ window.saveQuickEdit = function(id) {
         } else if (response && response.success === false) {
             alert('Бэкенд вернул success: false. Проверьте code.gs');
         } else {
-            // Тихий успех (можно раскомментировать alert ниже, если нужно уведомление)
-            // alert('Товар успешно обновлен!');
+            console.log('Товар успешно обновлен в таблице!');
         }
     })
     .catch(err => {
         alert('Критическая ошибка вызова сервера: ' + err.message);
     });
 };
+
 // === (Конец П1) ===
 
         // Криптографическое хеширование ПИН-кода на стороне кассы
