@@ -262,6 +262,40 @@
         let invoiceSynonyms = {};
         let currentCategory = 'all';
 
+        // === ВСТАВЛЯЕТЕ КОД СЮДА (Начало П1) ===
+window.itemHoldTimer = null;
+window.isItemLongPress = false;
+
+window.startItemHold = function(id, event) {
+    window.isItemLongPress = false;
+    window.itemHoldTimer = setTimeout(() => {
+        window.isItemLongPress = true;
+        openQuickEditModal(id);
+    }, 800);
+};
+
+window.cancelItemHold = function() {
+    if (window.itemHoldTimer) {
+        clearTimeout(window.itemHoldTimer);
+        window.itemHoldTimer = null;
+    }
+};
+
+window.handleItemClick = function(id, event) {
+    if (window.isItemLongPress) {
+        event.preventDefault();
+        return false;
+    }
+    if (typeof add === 'function') {
+        add(id);
+    }
+};
+
+window.openQuickEditModal = function(id) {
+    alert("Сработало! Открываем окно для товара: " + id);
+};
+// === (Конец П1) ===
+
         // Криптографическое хеширование ПИН-кода на стороне кассы
         async function getSecurePin(rawPin) {
             const encoder = new TextEncoder();
@@ -673,13 +707,14 @@ function openQuickEditModal(id) {
                 const roundedPrice = Math.round(Number(i.price) || 0);
                 
                 return `<div class="c-item" 
-                    onmousedown="startItemHold('${i.id}', event)" 
-                    onmouseup="cancelItemHold()" 
-                    onmouseleave="cancelItemHold()" 
-                    ontouchstart="startItemHold('${i.id}', event)" 
-                    ontouchend="cancelItemHold()" 
-                    ontouchmove="cancelItemHold()" 
-                    onclick="handleItemClick('${i.id}', event)" 
+                    onmousedown="window.startItemHold('${i.id}', event)" 
+                    onmouseup="window.cancelItemHold()" 
+                    onmouseleave="window.cancelItemHold()" 
+                    ontouchstart="window.startItemHold('${i.id}', event)" 
+                    ontouchend="window.cancelItemHold()" 
+                    ontouchcancel="window.cancelItemHold()" 
+                    oncontextmenu="event.preventDefault(); return false;"
+                    onclick="window.handleItemClick('${i.id}', event)" 
                     data-cat="${i.category || ''}">
                     <div class="i-name" style="display:flex; align-items:center; flex: 1; min-width: 0;">
                         ${photoBadge} 
