@@ -406,43 +406,63 @@ window.saveQuickEdit = function(id) {
     const item = db.find(i => String(i.id) === String(id));
     if (!item) return;
 
-    // 1. Захватываем данные строго из интерфейса модального окна
+    // 1. Захватываем сырые данные из интерфейса
+    const rawPrice = document.getElementById('qe-price').value;
+    const rawMinStock = document.getElementById('qe-minstock').value;
     const newName = document.getElementById('qe-name').value.trim();
-    const newPrice = Number(document.getElementById('qe-price').value) || 0;
-    const newMinStock = Number(document.getElementById('qe-minstock').value) || 0;
     const newBarcode = document.getElementById('qe-barcode').value.trim();
     const catValue = document.getElementById('qe-category').value;
 
-    // 2. Обновляем локальную базу мгновенно (Optimistic UI)
+    // 2. Очищаем числа от пробелов ("632 300" -> 632300) и запятых
+    const newPrice = parseFloat(String(rawPrice).replace(/\s/g, '').replace(',', '.')) || 0;
+    const newMinStock = parseFloat(String(rawMinStock).replace(/\s/g, '').replace(',', '.')) || 0;
+
+    // 3. Обновляем локальную базу (Optimistic UI)
     if (newName) item.name = newName;
     item.price = newPrice;
     item.min_stock = newMinStock;
     item.barcode = newBarcode;
     if (catValue !== 'new') item.category = catValue;
 
-    // Закрываем окно и перерисовываем каталог элементов на экране
+    // Закрываем окно и перерисовываем каталог
     document.getElementById('quickEditModal').remove();
     if (typeof render === 'function') render();
 
-    // 3. Формируем payload по точной схеме бэкенда
+    // 4. Формируем payload. Принудительно делаем itemId строкой
     const payload = {
       command: "direct_update",
-      itemId: item.id,
+      itemId: String(item.id), 
       data: {
         item_name: item.name,
         category: item.category,
         barcode: item.barcode,
         min_stock: newMinStock,
-        price: newPrice // Данные цены из UI активно пишем сюда для колонки G
+        price: newPrice 
       }
     };
 
-    // 4. Отправляем в Google Таблицу через новый шлюз
+    // 5. Отправка на сервер с перехватом тихих ошибок
     if (typeof google !== 'undefined' && google.script) {
         google.script.run
-          .withSuccessHandler(() => console.log('Успешно сохранено в Таблицу!'))
-          .withFailureHandler(err => alert('Ошибка бэкенда: ' + err))
+          .withSuccessHandler((response) => {
+              // Если бэкенд возвращает статус-объекты, мы их увидим
+              console.log('Ответ от updateBulkPrices:', response);
+              
+              if (response && response.error) {
+                  alert('Бэкенд отказал в записи: ' + response.error);
+              } else if (response && response.success === false) {
+                  alert('Бэкенд вернул success: false. Проверьте code.gs');
+              } else {
+                  // Успешная запись (это уведомление можно будет потом убрать)
+                  alert('Таблица успешно обновлена!');
+              }
+          })
+          .withFailureHandler(err => {
+              alert('Критическая ошибка вызова сервера: ' + err);
+          })
           .updateBulkPrices(payload);
+    } else {
+        alert('API Google Apps Script недоступно. Вы тестируете локально?');
     }
 };
 // === (Конец П1) ===
