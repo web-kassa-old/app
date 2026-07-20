@@ -292,15 +292,14 @@ window.handleItemClick = function(id, event) {
 };
 
 window.openQuickEditModal = function(id) {
-    // 1. Находим товар в базе
     const item = db.find(i => String(i.id) === String(id));
     if (!item) return;
 
-    // 2. Если окно уже открыто - удаляем старое (защита от дублей)
+    // Удаляем старое окно, если есть
     const existingModal = document.getElementById('quickEditModal');
     if (existingModal) existingModal.remove();
 
-    // 3. Собираем уникальные категории из текущей базы
+    // Собираем категории
     const uniqueCats = [...new Set(db.map(i => i.category).filter(Boolean))];
     let catOptions = `<option value="0" ${!item.category || item.category === '0' ? 'selected' : ''}>Не выбрано</option>`;
     
@@ -312,75 +311,111 @@ window.openQuickEditModal = function(id) {
     });
     catOptions += `<option value="new">+ Новая категория</option>`;
 
-    // 4. Формируем верстку модального окна
-    // Используем inline-стили для центрирования и смещения вверх (защита от клавиатуры)
+    // Определяем мин. остаток (по умолчанию 1) и фактический остаток
+    const minStockVal = item.min_stock !== undefined ? item.min_stock : 1;
+    const currentStock = Number(item.stock) || 0;
+
     const modalHtml = `
-        <div id="quickEditModal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 9999; display: flex; justify-content: center; align-items: flex-start; padding-top: 5vh;">
-            <div style="background: var(--bg-main, #fff); padding: 15px; border-radius: 12px; width: 90%; max-width: 400px; color: var(--text-main, #000); box-shadow: 0 4px 15px rgba(0,0,0,0.2);">
-                <h3 style="margin-top: 0; margin-bottom: 15px; font-size: 16px;">Быстрое редактирование</h3>
+        <div id="quickEditModal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 9999; display: flex; justify-content: center; align-items: flex-start; padding-top: 5vh; font-family: 'Roboto', sans-serif;">
+            
+            <style>
+                /* Скрываем стрелки у числовых полей */
+                .no-spinners::-webkit-outer-spin-button,
+                .no-spinners::-webkit-inner-spin-button {
+                    -webkit-appearance: none;
+                    margin: 0;
+                }
+                .no-spinners {
+                    -moz-appearance: textfield;
+                }
                 
-                <div style="margin-bottom: 10px;">
-                    <label style="font-size: 12px; color: var(--text-muted, #666);">Наименование:</label>
-                    <input type="text" id="qe-name" value="${item.name || ''}" style="width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 6px;">
+                /* Базовые стили элементов окна */
+                #quickEditModal input, #quickEditModal select {
+                    background: #000;
+                    color: #fff;
+                    border: 1px solid #333;
+                    border-radius: 4px;
+                    padding: 10px;
+                    font-size: 16px;
+                    box-sizing: border-box;
+                    outline: none;
+                }
+                #quickEditModal input:focus, #quickEditModal select:focus {
+                    border-color: #555;
+                }
+                #quickEditModal label {
+                    font-size: 11px;
+                    color: #888;
+                    text-transform: uppercase;
+                    margin-bottom: 5px;
+                    display: block;
+                    letter-spacing: 0.5px;
+                }
+            </style>
+
+            <div style="background: #1e1e1e; padding: 20px; border-radius: 8px; width: 90%; max-width: 350px; color: #fff; box-shadow: 0 10px 30px rgba(0,0,0,0.5); border: 1px solid #333;">
+                <h3 style="margin-top: 0; margin-bottom: 20px; font-size: 16px; text-align: center; text-transform: uppercase; border-bottom: 1px solid #333; padding-bottom: 10px; letter-spacing: 1px;">Быстрое редактирование</h3>
+                
+                <div style="margin-bottom: 15px;">
+                    <label>Наименование</label>
+                    <input type="text" id="qe-name" value="${item.name || ''}" style="width: 100%;">
                 </div>
                 
-                <div style="margin-bottom: 10px;">
-                    <label style="font-size: 12px; color: var(--text-muted, #666);">Категория:</label>
-                    <select id="qe-category" style="width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 6px;" onchange="if(this.value==='new') { alert('Тут будет логика создания категории'); }">
+                <div style="margin-bottom: 15px;">
+                    <label>Категория</label>
+                    <select id="qe-category" style="width: 100%;" onchange="if(this.value==='new') { alert('Тут будет вызов модалки создания категории'); }">
                         ${catOptions}
                     </select>
                 </div>
 
-                <div style="margin-bottom: 10px;">
-                    <label style="font-size: 12px; color: var(--text-muted, #666);">Штрихкод:</label>
-                    <div style="display: flex; gap: 5px;">
-                        <input type="text" id="qe-barcode" value="${item.barcode || ''}" style="flex: 1; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 6px;">
-                        <button type="button" style="padding: 8px 12px; border: none; background: #eee; border-radius: 6px;">📷</button>
+                <div style="margin-bottom: 15px;">
+                    <label>Штрихкод</label>
+                    <div style="display: flex;">
+                        <input type="text" id="qe-barcode" value="${item.barcode || ''}" placeholder="Отсканируйте..." style="flex: 1; border-top-right-radius: 0; border-bottom-right-radius: 0; border-right: none;">
+                        <button type="button" style="padding: 0 15px; border: 1px solid #333; background: #2a2a2a; border-top-right-radius: 4px; border-bottom-right-radius: 4px; color: #888; font-size: 18px; cursor: pointer;">📷</button>
                     </div>
                 </div>
 
-                <div style="margin-bottom: 10px;">
-                    <label style="font-size: 12px; color: var(--text-muted, #666);">Цена реализации:</label>
-                    <!-- inputmode="numeric" для правильной клавиатуры и select() для быстрого ввода -->
-                    <input type="number" inputmode="numeric" id="qe-price" value="${item.price || 0}" onclick="this.select()" style="width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 6px;">
+                <div style="display: flex; gap: 15px; margin-bottom: 5px;">
+                    <div style="flex: 1;">
+                        <label>Цена (₸)</label>
+                        <input type="number" inputmode="numeric" class="no-spinners" id="qe-price" value="${item.price || 0}" onclick="this.select()" style="width: 100%;">
+                    </div>
+                    <div style="flex: 1;">
+                        <label>Мин. остаток</label>
+                        <input type="number" inputmode="numeric" class="no-spinners" id="qe-minstock" value="${minStockVal}" onclick="this.select()" style="width: 100%;">
+                    </div>
+                </div>
+                
+                <div style="text-align: right; margin-bottom: 20px;">
+                    <span style="color: #00bcd4; font-size: 12px;">Факт: ${currentStock}</span>
                 </div>
 
-                <div style="margin-bottom: 20px;">
-                    <label style="font-size: 12px; color: var(--text-muted, #666);">Мин. остаток (Факт: <span style="font-weight:bold">${Number(item.stock) || 0}</span>):</label>
-                    <input type="number" inputmode="numeric" id="qe-minstock" value="${item.minStock || 0}" style="width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 6px;">
-                </div>
-
-                <div style="display: flex; justify-content: flex-end; gap: 10px;">
-                    <button type="button" onclick="document.getElementById('quickEditModal').remove()" style="padding: 10px 15px; border: none; background: #eee; border-radius: 8px;">Отмена</button>
-                    <button type="button" onclick="window.saveQuickEdit('${item.id}')" style="padding: 10px 15px; border: none; background: #007bff; color: white; border-radius: 8px;">Сохранить</button>
+                <div style="display: flex; gap: 10px;">
+                    <button type="button" onclick="window.saveQuickEdit('${item.id}')" style="flex: 2; padding: 12px; border: none; background: #1b5e20; color: white; border-radius: 4px; font-weight: bold; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; cursor: pointer;">Сохранить</button>
+                    <button type="button" onclick="document.getElementById('quickEditModal').remove()" style="flex: 1; padding: 12px; border: none; background: #b71c1c; color: white; border-radius: 4px; font-weight: bold; font-size: 16px; cursor: pointer;">✖</button>
                 </div>
             </div>
         </div>
     `;
     
-    // 5. Вставляем окно в конец body
     document.body.insertAdjacentHTML('beforeend', modalHtml);
 };
 
-// Функция сохранения данных
 window.saveQuickEdit = function(id) {
     const item = db.find(i => String(i.id) === String(id));
     if (item) {
-        // Захватываем цену напрямую из инпута, чтобы записать ее в БД и избежать пустых ячеек
         item.price = Number(document.getElementById('qe-price').value);
-        
         item.name = document.getElementById('qe-name').value;
         item.barcode = document.getElementById('qe-barcode').value;
-        item.minStock = Number(document.getElementById('qe-minstock').value);
+        item.min_stock = Number(document.getElementById('qe-minstock').value);
         
         const catValue = document.getElementById('qe-category').value;
-        // Если не "новая", то сохраняем категорию
         if (catValue !== 'new') {
             item.category = catValue;
         }
     }
     
-    // Закрываем окно и перерисовываем каталог
     document.getElementById('quickEditModal').remove();
     if (typeof render === 'function') render();
 };
