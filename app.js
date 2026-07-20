@@ -441,26 +441,25 @@ window.saveQuickEdit = function(id) {
       }
     };
 
-    // 5. Отправка на сервер с перехватом тихих ошибок
+    // 5. Отправка на сервер напрямую в целевую функцию
     if (typeof google !== 'undefined' && google.script) {
         google.script.run
           .withSuccessHandler((response) => {
-              // Если бэкенд возвращает статус-объекты, мы их увидим
-              console.log('Ответ от updateBulkPrices:', response);
+              console.log('Ответ от updateSingleItem:', response);
               
               if (response && response.error) {
                   alert('Бэкенд отказал в записи: ' + response.error);
               } else if (response && response.success === false) {
                   alert('Бэкенд вернул success: false. Проверьте code.gs');
               } else {
-                  // Успешная запись (это уведомление можно будет потом убрать)
+                  // Успешная запись
                   alert('Таблица успешно обновлена!');
               }
           })
           .withFailureHandler(err => {
               alert('Критическая ошибка вызова сервера: ' + err);
           })
-          .updateBulkPrices(payload);
+          .updateSingleItem(payload); // <--- КОНКРЕТНОЕ ИЗМЕНЕНИЕ: вызываем точечное обновление
     } else {
         alert('API Google Apps Script недоступно. Вы тестируете локально?');
     }
