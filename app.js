@@ -473,7 +473,9 @@ window.startQuaggaScanner = function() {
         },
         numOfWorkers: navigator.hardwareConcurrency ? navigator.hardwareConcurrency : 2,
         decoder: {
-            readers: ["ean_reader", "ean_8_reader", "upc_reader", "code_128_reader"] 
+            // Оставляем только ean_reader (обычные товары) и ean_8. 
+            // Убираем code_128, который чаще всего выдает случайные ошибки на тенях
+            readers: ["ean_reader", "ean_8_reader"] 
         },
         locate: true
     }, function(err) {
@@ -517,20 +519,14 @@ window.handleQuaggaDetection = function(result) {
         lastScannedCode = code;
     }
 
-    if (quaggaScanCount >= 2) {
+    if (quaggaScanCount >= 3) {
         const barcodeInput = document.getElementById('qe-barcode');
         if (barcodeInput) {
             barcodeInput.value = code;
-            
-            // Выключаем камеру
             window.stopQuaggaScanner();
             
-            // Сразу переводим фокус на цену
-            const priceInput = document.getElementById('qe-price');
-            if (priceInput) {
-                priceInput.focus();
-                priceInput.select();
-            }
+            // Просто сбрасываем фокус, не пытаясь программно открыть "Цену"
+            barcodeInput.blur();
         }
     }
 };
@@ -3355,3 +3351,11 @@ function showSetupError(errorMessage) {
             tokenClient.requestAccessToken();
         }
     }
+
+    // Сброс фокуса при сканировании штрихкода внутри модального окна
+document.addEventListener('keydown', function(e) {
+    if (e.target && e.target.id === 'qe-barcode' && e.key === 'Enter') {
+        e.preventDefault(); 
+        e.target.blur(); // Убираем курсор из поля, чтобы разблокировать экранную клавиатуру
+    }
+});
