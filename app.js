@@ -404,7 +404,7 @@ window.openQuickEditModal = function(id) {
     document.body.insertAdjacentHTML('beforeend', modalHtml);
 };
 
-let html5QrCode; // Глобальная переменная для управления камерой
+let html5QrCode; // Глобальная переменная для управления сканером
 
 window.startBarcodeScanner = function() {
     const scannerDiv = document.getElementById('scanner-container');
@@ -412,47 +412,60 @@ window.startBarcodeScanner = function() {
     
     if (!scannerDiv || !barcodeInput) return;
 
-    // Если камера уже открыта, закрываем ее при повторном клике
+    // Если камера уже открыта, закрываем её
     if (scannerDiv.style.display === 'block') {
-        if (html5QrCode) {
-            html5QrCode.stop().then(() => {
-                scannerDiv.style.display = 'none';
-            }).catch(err => console.error(err));
-        }
+        window.stopScanner();
         return;
     }
 
-    // Показываем контейнер камеры
     scannerDiv.style.display = 'block';
 
-    // Создаем экземпляр сканера, если его еще нет
     if (!html5QrCode) {
         html5QrCode = new Html5Qrcode("scanner-container");
     }
 
-    // Настройки сканирования (фокус на узкий прямоугольник для штрихкодов)
-    const config = { fps: 10, qrbox: { width: 250, height: 100 } };
+    // 🎯 КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: Ограничиваем сканер ТОЛЬКО точными торговыми форматами
+    const config = {
+        fps: 15,
+        qrbox: { width: 280, height: 120 }, // Увеличенная рамка под линейный код
+        formatsToSupport: [
+            Html5QrcodeSupportedFormats.EAN_13,    // Стандартные товары (как у вас)
+            Html5QrcodeSupportedFormats.EAN_8,     // Маленькие упаковки
+            Html5QrcodeSupportedFormats.UPC_A,     // Импортные товары
+            Html5QrcodeSupportedFormats.UPC_E,
+            Html5QrcodeSupportedFormats.CODE_128,  // Складские коды
+            Html5QrcodeSupportedFormats.QR_CODE    // QR-коды
+        ]
+    };
 
     html5QrCode.start(
-        { facingMode: "environment" }, // Задняя камера телефона
+        { facingMode: "environment" },
         config,
         (decodedText) => {
-            // КОД УСПЕШНО СЧИТАН
+            // Записываем точный считанный код
             barcodeInput.value = decodedText;
-            
-            // Выключаем камеру и прячем окно
-            html5QrCode.stop().then(() => {
-                scannerDiv.style.display = 'none';
-            }).catch(err => console.error(err));
+            window.stopScanner();
         },
         (errorMessage) => {
-            // Игнорируем ошибки пустого кадра, пока код не попадет в фокус
+            // Игнорируем промежуточные кадры
         }
     ).catch(err => {
         alert("Ошибка доступа к камере. Проверьте разрешения в браузере.");
         console.error(err);
-        scannerDiv.style.display = 'none';
+        window.stopScanner();
     });
+};
+
+// Функция аккуратного закрытия камеры
+window.stopScanner = function() {
+    const scannerDiv = document.getElementById('scanner-container');
+    if (html5QrCode && html5QrCode.isScanning) {
+        html5QrCode.stop().then(() => {
+            if (scannerDiv) scannerDiv.style.display = 'none';
+        }).catch(err => console.error(err));
+    } else if (scannerDiv) {
+        scannerDiv.style.display = 'none';
+    }
 };
 
 window.saveQuickEdit = function(id) {
