@@ -422,7 +422,7 @@ window.openQuickEditModal = function(id) {
     document.body.insertAdjacentHTML('beforeend', modalHtml);
 };
 
-// 1. Нормализация фото для iOS (Canvas + сжатие до 1000px)
+// Обработка фото с принудительной контрастностью для iOS
 window.processBarcodeFile = async function(event) {
     const file = event.target.files[0];
     if (!file) return;
@@ -435,26 +435,29 @@ window.processBarcodeFile = async function(event) {
     barcodeInput.placeholder = '⏳ Обработка...';
 
     try {
-        // Создаем сжатую и развернутую копию кадра
-        const resizedBitmap = await getNormalizedBitmap(file);
         let decodedCode = null;
 
-        // Попытка 1: Нативный сканер браузера
+        // 1. Создаем высококонтрастную черно-белую копию снимка
+        const processedBlob = await createHighContrastImage(file);
+        const tempFile = new File([processedBlob], "scan.jpg", { type: "image/jpeg" });
+
+        // 2. Нативный сканер браузера (если поддерживается)
         if ('BarcodeDetector' in window) {
             try {
                 const detector = new BarcodeDetector({
                     formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'qr_code']
                 });
-                const barcodes = await detector.detect(resizedBitmap);
+                const bitmap = await createImageBitmap(tempFile);
+                const barcodes = await detector.detect(bitmap);
                 if (barcodes.length > 0) {
                     decodedCode = barcodes[0].rawValue;
                 }
             } catch (e) {
-                console.log("BarcodeDetector iOS error:", e);
+                console.log("BarcodeDetector pass:", e);
             }
         }
 
-        // Попытка 2: Резервный сканер html5-qrcode
+        // 3. Резервный сканер html5-qrcode
         if (!decodedCode) {
             let tempDiv = document.getElementById('qe-temp-scanner');
             if (!tempDiv) {
@@ -466,9 +469,10 @@ window.processBarcodeFile = async function(event) {
 
             const html5QrCode = new Html5Qrcode("qe-temp-scanner");
             try {
-                decodedCode = await html5QrCode.scanFile(file, true);
+                decodedCode = await html5QrCode.scanFile(tempFile, false);
             } catch (err) {
-                console.log("Fallback scan failed", err);
+                // Если с обработанным не вышло, даем оригинальный файл как последний шанс
+                decodedCode = await html5QrCode.scanFile(file, true);
             } finally {
                 html5QrCode.clear();
             }
@@ -476,69 +480,61 @@ window.processBarcodeFile = async function(event) {
 
         if (decodedCode) {
             barcodeInput.value = decodedCode;
-            // Переводим фокус на цену после сканирования
+            // Переводим фокус на поле Цена
             const priceInput = document.getElementById('qe-price');
-            if (priceInput) priceInput.focus();
+            if (priceInput) {
+                priceInput.focus();
+                priceInput.select();
+            }
         } else {
-            alert("Штрихкод не найден. Сфотографируйте штрихкод крупнее.");
+            alert("Штрихкод не найден. Сфотографируйте штрихкод чуть ближе.");
         }
     } catch (err) {
         console.error(err);
-        alert("Ошибка чтения файла: " + err.message);
+        alert("Ошибка обработки: " + err.message);
     } finally {
         barcodeInput.placeholder = originalPlaceholder;
         event.target.value = '';
     }
 };
 
-// Функция сжатия и нормализации размера изображения для iOS Safari
-function getNormalizedBitmap(file) {
-    return new Promise((resolve, reject) => {
+// Функция бинаризации: превращает фото в чёткий чёрно-белый рисунок
+function createHighContrastImage(file) {
+    return new Promise((resolve) => {
         const img = new Image();
         img.onload = () => {
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
+
+            // Оптимальный размер для распознавания 1D кодов
+            const TARGET_WIDTH = 800;
+            const height = Math.round((img.height * TARGET_WIDTH) / img.width);
             
-            const MAX_SIZE = 1000;
-            let width = img.width;
-            let height = img.height;
-
-            if (width > height) {
-                if (width > MAX_SIZE) {
-                    height *= MAX_SIZE / width;
-                    width = MAX_SIZE;
-                }
-            } else {
-                if (height > MAX_SIZE) {
-                    width *= MAX_SIZE / height;
-                    height = MAX_SIZE;
-                }
-            }
-
-            canvas.width = width;
+            canvas.width = TARGET_WIDTH;
             canvas.height = height;
-            ctx.drawImage(img, 0, 0, width, height);
 
-            createImageBitmap(canvas).then(resolve).catch(reject);
+            // Отрисовываем кадр
+            ctx.drawImage(img, 0, 0, TARGET_WIDTH, height);
+
+            // Получаем пиксели и делаем их строго чёрно-белыми (Threshold Filter)
+            const imgData = ctx.getImageData(0, 0, TARGET_WIDTH, height);
+            const d = imgData.data;
+            for (let i = 0; i < d.length; i += 4) {
+                // Вычисляем яркость
+                const avg = (d[i] + d[i + 1] + d[i + 2]) / 3;
+                // Порог: все что темнее 120 становится чистым черным, остальное — белым
+                const color = avg < 120 ? 0 : 255;
+                d[i] = color;     // Red
+                d[i + 1] = color; // Green
+                d[i + 2] = color; // Blue
+            }
+            ctx.putImageData(imgData, 0, 0);
+
+            canvas.toBlob((blob) => resolve(blob), 'image/jpeg', 0.9);
         };
-        img.onerror = reject;
         img.src = URL.createObjectURL(file);
     });
 }
-
-// 2. Обработка ввода с Bluetooth-сканера (нажатие Enter)
-document.addEventListener('keydown', function(e) {
-    // Если фокус находится в поле штрихкода и нажат Enter (сигнал конца сканирования от BT-сканера)
-    if (e.target && e.target.id === 'qe-barcode' && e.key === 'Enter') {
-        e.preventDefault(); // Предотвращаем отправку формы
-        
-        const priceInput = document.getElementById('qe-price');
-        if (priceInput) {
-            priceInput.focus();
-            priceInput.select(); // Сразу выделяем цену для удобного ввода
-        }
-    }
-});
 
 // Вспомогательная функция: сжимает гигантское фото до 1200px и подготавливает для распознавания
 function processImageForScan(file) {
