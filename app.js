@@ -404,7 +404,7 @@ window.openQuickEditModal = function(id) {
     document.body.insertAdjacentHTML('beforeend', modalHtml);
 };
 
-let html5QrCode; // Глобальная переменная для управления сканером
+let html5QrCode; // Глобальный объект сканера
 
 window.startBarcodeScanner = function() {
     const scannerDiv = document.getElementById('scanner-container');
@@ -412,48 +412,133 @@ window.startBarcodeScanner = function() {
     
     if (!scannerDiv || !barcodeInput) return;
 
-    // Если камера уже открыта, закрываем её
+    // Если окно уже открыто — повторный клик закрывает его
     if (scannerDiv.style.display === 'block') {
         window.stopScanner();
         return;
     }
 
+    // 1. Показываем компактную верстку с кнопкой снимка
     scannerDiv.style.display = 'block';
+    scannerDiv.innerHTML = `
+        <style>
+            #qe-reader-view video {
+                width: 100% !important;
+                height: 130px !important;
+                object-fit: cover !important;
+                border-radius: 4px;
+            }
+        </style>
+        <div id="qe-reader-view" style="width: 100%; height: 130px; overflow: hidden; background: #000; border-radius: 4px;"></div>
+        <div style="display: flex; gap: 8px; margin-top: 8px;">
+            <button type="button" onclick="window.captureAndDecode()" style="flex: 2; padding: 10px; background: #1b5e20; color: #fff; border: none; border-radius: 4px; font-weight: bold; font-size: 13px; cursor: pointer; text-transform: uppercase;">
+                📸 Сделать снимок
+            </button>
+            <button type="button" onclick="window.stopScanner()" style="flex: 1; padding: 10px; background: #333; color: #ccc; border: 1px solid #444; border-radius: 4px; font-size: 13px; cursor: pointer;">
+                ✖
+            </button>
+        </div>
+    `;
 
     if (!html5QrCode) {
-        html5QrCode = new Html5Qrcode("scanner-container");
+        html5QrCode = new Html5Qrcode("qe-reader-view");
     }
 
-    // 🎯 КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: Ограничиваем сканер ТОЛЬКО точными торговыми форматами
-    const config = {
-        fps: 15,
-        qrbox: { width: 280, height: 120 }, // Увеличенная рамка под линейный код
-        formatsToSupport: [
-            Html5QrcodeSupportedFormats.EAN_13,    // Стандартные товары (как у вас)
-            Html5QrcodeSupportedFormats.EAN_8,     // Маленькие упаковки
-            Html5QrcodeSupportedFormats.UPC_A,     // Импортные товары
-            Html5QrcodeSupportedFormats.UPC_E,
-            Html5QrcodeSupportedFormats.CODE_128,  // Складские коды
-            Html5QrcodeSupportedFormats.QR_CODE    // QR-коды
-        ]
-    };
+    const config = { fps: 10, qrbox: { width: 220, height: 70 } };
 
+    // Запускаем видеопоток для предпросмотра
     html5QrCode.start(
         { facingMode: "environment" },
         config,
         (decodedText) => {
-            // Записываем точный считанный код
+            // Если камера случайно сама быстро распознала — подставляем сразу
             barcodeInput.value = decodedText;
             window.stopScanner();
         },
-        (errorMessage) => {
-            // Игнорируем промежуточные кадры
-        }
+        () => {} // Игнорируем фоновые ошибки
     ).catch(err => {
-        alert("Ошибка доступа к камере. Проверьте разрешения в браузере.");
-        console.error(err);
+        alert("Ошибка доступа к камере. Проверьте разрешения.");
         window.stopScanner();
     });
+};
+
+// 🎯 ФУНКЦИЯ МОМЕНТАЛЬНОГО СНИМКА И РАСПОЗНАВАНИЯ
+window.captureAndDecode = async function() {
+    const videoEl = document.querySelector('#qe-reader-view video');
+    const barcodeInput = document.getElementById('qe-barcode');
+    
+    if (!videoEl) {
+        alert("Камера еще не готова.");
+        return;
+    }
+
+    // 1. Захватываем текущий кадр с видео на виртуальный холст
+    const canvas = document.createElement('canvas');
+    canvas.width = videoEl.videoWidth || 640;
+    canvas.height = videoEl.videoHeight || 480;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
+
+    // 2. Обрабатываем снимок
+    canvas.toBlob(async (blob) => {
+        if (!blob) return;
+
+        try {
+            let code = null;
+
+            // ШАГ А: Пробуем молниеносный нативный движок браузера (Chrome / Safari iOS 17+)
+            if ('BarcodeDetector' in window) {
+                try {
+                    const detector = new BarcodeDetector({
+                        formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'qr_code']
+                    });
+                    const bitmap = await createImageBitmap(blob);
+                    const barcodes = await detector.detect(bitmap);
+                    if (barcodes.length > 0) {
+                        code = barcodes[0].rawValue;
+                    }
+                } catch (e) {
+                    console.log("Fallback to JS decoder", e);
+                }
+            }
+
+            // ШАГ Б: Резервное распознавание со снимка через библиотеку
+            if (!code && html5QrCode) {
+                const file = new File([blob], "snapshot.png", { type: "image/png" });
+                code = await html5QrCode.scanFile(file, false);
+            }
+
+            if (code) {
+                barcodeInput.value = code;
+                window.stopScanner();
+            } else {
+                alert("Штрихкод на снимке не распознан. Поправьте фокус и нажмите еще раз.");
+            }
+        } catch (err) {
+            alert("Не удалось считать код со снимка. Попробуйте еще раз.");
+        }
+    }, "image/png");
+};
+
+// Функция закрытия сканера
+window.stopScanner = function() {
+    const scannerDiv = document.getElementById('scanner-container');
+    if (html5QrCode && html5QrCode.isScanning) {
+        html5QrCode.stop().then(() => {
+            if (scannerDiv) {
+                scannerDiv.style.display = 'none';
+                scannerDiv.innerHTML = '';
+            }
+        }).catch(() => {
+            if (scannerDiv) {
+                scannerDiv.style.display = 'none';
+                scannerDiv.innerHTML = '';
+            }
+        });
+    } else if (scannerDiv) {
+        scannerDiv.style.display = 'none';
+        scannerDiv.innerHTML = '';
+    }
 };
 
 // Функция аккуратного закрытия камеры
