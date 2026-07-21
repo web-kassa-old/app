@@ -369,13 +369,32 @@ window.openQuickEditModal = function(id) {
                 </div>
 
                 <div style="margin-bottom: 15px;">
-                    <label>Штрихкод</label>
-                    <div style="display: flex;">
-                        <input type="text" id="qe-barcode" value="${item.barcode || ''}" placeholder="Отсканируйте или введите..." style="flex: 1; border-top-right-radius: 0; border-bottom-right-radius: 0; border-right: none;">
-                        <button type="button" onclick="startBarcodeScanner()" style="padding: 0 15px; border: 1px solid #333; background: #2a2a2a; border-top-right-radius: 4px; border-bottom-right-radius: 4px; color: #888; font-size: 18px; cursor: pointer;">📷</button>
-                    </div>
-                    // <!-- Здесь больше нет никакого div для видео-сканера -->
-                </div>
+    <label style="display: block; font-size: 11px; color: #888; margin-bottom: 5px;">ШТРИХКОД</label>
+    <div style="display: flex;">
+        <!-- Инпут с вызовом цифровой клавиатуры и автоматическим выделением всего текста при нажатии -->
+        <input type="text" 
+               id="qe-barcode" 
+               value="${item.barcode || ''}" 
+               placeholder="Отсканируйте или введите..." 
+               inputmode="numeric" 
+               pattern="[0-9]*" 
+               onfocus="this.select()" 
+               style="flex: 1; border-top-right-radius: 0; border-bottom-right-radius: 0; border-right: none;">
+        
+        <!-- Кнопка-метка: при клике браузер НАПРЯМУЮ открывает камеру без посредничества JS (никогда не блокируется) -->
+        <label for="qe-camera-file" style="padding: 0 15px; border: 1px solid #333; background: #2a2a2a; border-top-right-radius: 4px; border-bottom-right-radius: 4px; color: #fff; font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center;">
+            📷
+        </label>
+        
+        <!-- Скрытый инпут вызова системной камеры -->
+        <input type="file" 
+               id="qe-camera-file" 
+               accept="image/*" 
+               capture="environment" 
+               onchange="window.processBarcodeFile(event)" 
+               style="display: none;">
+    </div>
+</div>
 
                 <div style="display: flex; gap: 15px; margin-bottom: 5px;">
                     <div style="flex: 1;">
@@ -417,7 +436,7 @@ window.processBarcodeFile = async function(event) {
     try {
         let decodedCode = null;
 
-        // 1. Попытка №1: Нативный системный сканер браузера (работает идеальнее всего)
+        // 1. Нативный сканер операционной системы (быстрый и точный)
         if ('BarcodeDetector' in window) {
             try {
                 const detector = new BarcodeDetector({
@@ -433,7 +452,7 @@ window.processBarcodeFile = async function(event) {
             }
         }
 
-        // 2. Попытка №2: Если нативного нет или не сработало, оптимизируем фото через Canvas
+        // 2. Резервный сканер через сжатие и обработку
         if (!decodedCode) {
             const processedBlob = await processImageForScan(file);
             const html5QrCode = new Html5Qrcode("qe-temp-scanner");
@@ -442,7 +461,6 @@ window.processBarcodeFile = async function(event) {
             try {
                 decodedCode = await html5QrCode.scanFile(tempFile, false);
             } catch (err) {
-                // Если с оптимизацией не вышло, пробуем оригинальный файл как последний шанс
                 decodedCode = await html5QrCode.scanFile(file, true);
             } finally {
                 html5QrCode.clear();
@@ -451,14 +469,18 @@ window.processBarcodeFile = async function(event) {
 
         if (decodedCode) {
             barcodeInput.value = decodedCode;
+            barcodeInput.focus();
+            barcodeInput.select(); // Выделяем код для мгновенного контроля/редактирования
         } else {
-            alert("Штрихкод не распознан. Попробуйте сфотографировать штрихкод крупнее, чтобы он занимал большую часть кадра.");
+            alert("Штрихкод не распознан. Наведите камеру так, чтобы штрихкод был прямо по центру и крупно.");
         }
     } catch (err) {
         console.error(err);
         alert("Ошибка при обработке фото.");
     } finally {
         barcodeInput.placeholder = originalPlaceholder;
+        // Очищаем значение файла, чтобы можно было сфотографировать повторно
+        event.target.value = '';
     }
 };
 
