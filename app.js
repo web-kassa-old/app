@@ -371,11 +371,10 @@ window.openQuickEditModal = function(id) {
                 <div style="margin-bottom: 15px;">
                     <label>Штрихкод</label>
                     <div style="display: flex;">
-                        <input type="text" id="qe-barcode" value="${item.barcode || ''}" placeholder="Отсканируйте..." style="flex: 1; border-top-right-radius: 0; border-bottom-right-radius: 0; border-right: none;">
+                        <input type="text" id="qe-barcode" value="${item.barcode || ''}" placeholder="Отсканируйте или введите..." style="flex: 1; border-top-right-radius: 0; border-bottom-right-radius: 0; border-right: none;">
                         <button type="button" onclick="startBarcodeScanner()" style="padding: 0 15px; border: 1px solid #333; background: #2a2a2a; border-top-right-radius: 4px; border-bottom-right-radius: 4px; color: #888; font-size: 18px; cursor: pointer;">📷</button>
                     </div>
-                    <!-- БЛОК ДЛЯ КАМЕРЫ (скрыт по умолчанию) -->
-                    <div id="scanner-container" style="display: none; width: 100%; border-radius: 4px; overflow: hidden; margin-top: 10px; border: 1px solid #333;"></div>
+                    // <!-- Здесь больше нет никакого div для видео-сканера -->
                 </div>
 
                 <div style="display: flex; gap: 15px; margin-bottom: 5px;">
@@ -404,62 +403,56 @@ window.openQuickEditModal = function(id) {
     document.body.insertAdjacentHTML('beforeend', modalHtml);
 };
 
-let html5QrCode; // Глобальный объект сканера
-
+// Нативный вызов системной камеры телефона
 window.startBarcodeScanner = function() {
-    const scannerDiv = document.getElementById('scanner-container');
-    const barcodeInput = document.getElementById('qe-barcode');
+    let fileInput = document.getElementById('qe-native-camera-input');
+    if (!fileInput) {
+        fileInput = document.createElement('input');
+        fileInput.id = 'qe-native-camera-input';
+        fileInput.type = 'file';
+        fileInput.accept = 'image/*';
+        fileInput.capture = 'environment'; // Открывает заднюю камеру
+        fileInput.style.display = 'none';
+        document.body.appendChild(fileInput);
+
+        const tempDiv = document.createElement('div');
+        tempDiv.id = 'qe-temp-scanner';
+        tempDiv.style.display = 'none';
+        document.body.appendChild(tempDiv);
+
+        fileInput.addEventListener('change', window.processBarcodeFile);
+    }
     
-    if (!scannerDiv || !barcodeInput) return;
+    fileInput.value = '';
+    fileInput.click();
+};
 
-    // Если окно уже открыто — повторный клик закрывает его
-    if (scannerDiv.style.display === 'block') {
-        window.stopScanner();
-        return;
-    }
+// Обработка фотографии и извлечение штрихкода
+window.processBarcodeFile = function(event) {
+    const file = event.target.files[0];
+    if (!file) return;
 
-    // 1. Показываем компактную верстку с кнопкой снимка
-    scannerDiv.style.display = 'block';
-    scannerDiv.innerHTML = `
-        <style>
-            #qe-reader-view video {
-                width: 100% !important;
-                height: 130px !important;
-                object-fit: cover !important;
-                border-radius: 4px;
-            }
-        </style>
-        <div id="qe-reader-view" style="width: 100%; height: 130px; overflow: hidden; background: #000; border-radius: 4px;"></div>
-        <div style="display: flex; gap: 8px; margin-top: 8px;">
-            <button type="button" onclick="window.captureAndDecode()" style="flex: 2; padding: 10px; background: #1b5e20; color: #fff; border: none; border-radius: 4px; font-weight: bold; font-size: 13px; cursor: pointer; text-transform: uppercase;">
-                📸 Сделать снимок
-            </button>
-            <button type="button" onclick="window.stopScanner()" style="flex: 1; padding: 10px; background: #333; color: #ccc; border: 1px solid #444; border-radius: 4px; font-size: 13px; cursor: pointer;">
-                ✖
-            </button>
-        </div>
-    `;
+    const barcodeInput = document.getElementById('qe-barcode');
+    if (!barcodeInput) return;
 
-    if (!html5QrCode) {
-        html5QrCode = new Html5Qrcode("qe-reader-view");
-    }
+    const originalPlaceholder = barcodeInput.placeholder;
+    barcodeInput.value = '';
+    barcodeInput.placeholder = '⏳ Считывание...';
 
-    const config = { fps: 10, qrbox: { width: 220, height: 70 } };
+    // Создаем сканер локально только для обработки файла
+    const html5QrCode = new Html5Qrcode("qe-temp-scanner");
 
-    // Запускаем видеопоток для предпросмотра
-    html5QrCode.start(
-        { facingMode: "environment" },
-        config,
-        (decodedText) => {
-            // Если камера случайно сама быстро распознала — подставляем сразу
+    html5QrCode.scanFile(file, true)
+        .then(decodedText => {
             barcodeInput.value = decodedText;
-            window.stopScanner();
-        },
-        () => {} // Игнорируем фоновые ошибки
-    ).catch(err => {
-        alert("Ошибка доступа к камере. Проверьте разрешения.");
-        window.stopScanner();
-    });
+            barcodeInput.placeholder = originalPlaceholder;
+            html5QrCode.clear(); // Очищаем память
+        })
+        .catch(err => {
+            barcodeInput.placeholder = originalPlaceholder;
+            alert("Штрихкод не распознан. Сфотографируйте штрихкод чуть ближе и ровнее.");
+            html5QrCode.clear(); // Очищаем память
+        });
 };
 
 // 🎯 ФУНКЦИЯ МОМЕНТАЛЬНОГО СНИМКА И РАСПОЗНАВАНИЯ
