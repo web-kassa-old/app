@@ -431,55 +431,68 @@ window.processBarcodeFile = async function(event) {
 
     const originalPlaceholder = barcodeInput.placeholder;
     barcodeInput.value = '';
-    barcodeInput.placeholder = '⏳ Сканирование...';
+    barcodeInput.placeholder = '⏳ Обработка iOS...';
 
     try {
         let decodedCode = null;
 
-        // 1. Нативный сканер операционной системы (быстрый и точный)
+        // ШАГ 1: Превращаем файл в настоящую картинку (Apple Safari требует именно это)
+        const image = await new Promise((resolve, reject) => {
+            const img = new Image();
+            img.onload = () => resolve(img);
+            img.onerror = (e) => reject(new Error("Не удалось загрузить изображение"));
+            img.src = URL.createObjectURL(file);
+        });
+
+        // ШАГ 2: Нативный сканер iOS 17/18 (теперь мы передаем ему правильный формат)
         if ('BarcodeDetector' in window) {
             try {
-                const detector = new BarcodeDetector({
-                    formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'qr_code']
-                });
-                const bitmap = await createImageBitmap(file);
-                const barcodes = await detector.detect(bitmap);
+                const detector = new BarcodeDetector();
+                const barcodes = await detector.detect(image);
                 if (barcodes.length > 0) {
                     decodedCode = barcodes[0].rawValue;
                 }
             } catch (e) {
-                console.log("BarcodeDetector fallback:", e);
+                console.log("Нативный детектор пропустил:", e);
             }
         }
 
-        // 2. Резервный сканер через сжатие и обработку
+        // ШАГ 3: Резервный сканер для других форматов
         if (!decodedCode) {
-            const processedBlob = await processImageForScan(file);
-            const html5QrCode = new Html5Qrcode("qe-temp-scanner");
-            const tempFile = new File([processedBlob], "scan.jpg", { type: "image/jpeg" });
+            let tempDiv = document.getElementById('qe-temp-scanner');
+            if (!tempDiv) {
+                tempDiv = document.createElement('div');
+                tempDiv.id = 'qe-temp-scanner';
+                // Важно: не display:none, а прячем прозрачностью, чтобы не было ошибки размера 0x0
+                tempDiv.style.cssText = 'position:absolute; top:-9999px; left:-9999px; width:300px; height:300px; visibility:hidden;';
+                document.body.appendChild(tempDiv);
+            }
 
+            const html5QrCode = new Html5Qrcode("qe-temp-scanner");
             try {
-                decodedCode = await html5QrCode.scanFile(tempFile, false);
-            } catch (err) {
                 decodedCode = await html5QrCode.scanFile(file, true);
+            } catch (err) {
+                console.log("Резервный сканер не нашел код:", err);
             } finally {
                 html5QrCode.clear();
             }
         }
 
+        // РЕЗУЛЬТАТ
         if (decodedCode) {
             barcodeInput.value = decodedCode;
             barcodeInput.focus();
-            barcodeInput.select(); // Выделяем код для мгновенного контроля/редактирования
+            barcodeInput.select();
         } else {
-            alert("Штрихкод не распознан. Наведите камеру так, чтобы штрихкод был прямо по центру и крупно.");
+            alert("Штрихкод на снимке не найден. Сфотографируйте горизонтально, чтобы полоски были четкими.");
         }
     } catch (err) {
         console.error(err);
-        alert("Ошибка при обработке фото.");
+        // Выводим системный текст ошибки, если iOS снова что-то заблокирует
+        alert("Системная ошибка: " + err.message);
     } finally {
         barcodeInput.placeholder = originalPlaceholder;
-        // Очищаем значение файла, чтобы можно было сфотографировать повторно
+        // Очищаем инпут для новых снимков
         event.target.value = '';
     }
 };
