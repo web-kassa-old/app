@@ -369,32 +369,39 @@ window.openQuickEditModal = function(id) {
                 </div>
 
                 <div style="margin-bottom: 15px;">
-    <label style="display: block; font-size: 11px; color: #888; margin-bottom: 5px;">ШТРИХКОД</label>
-    <div style="display: flex;">
-        <!-- Инпут с вызовом цифровой клавиатуры и автоматическим выделением всего текста при нажатии -->
-        <input type="text" 
-               id="qe-barcode" 
-               value="${item.barcode || ''}" 
-               placeholder="Отсканируйте или введите..." 
-               inputmode="numeric" 
-               pattern="[0-9]*" 
-               onfocus="this.select()" 
-               style="flex: 1; border-top-right-radius: 0; border-bottom-right-radius: 0; border-right: none;">
-        
-        <!-- Кнопка-метка: при клике браузер НАПРЯМУЮ открывает камеру без посредничества JS (никогда не блокируется) -->
-        <label for="qe-camera-file" style="padding: 0 15px; border: 1px solid #333; background: #2a2a2a; border-top-right-radius: 4px; border-bottom-right-radius: 4px; color: #fff; font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center;">
-            📷
-        </label>
-        
-        <!-- Скрытый инпут вызова системной камеры -->
-        <input type="file" 
-               id="qe-camera-file" 
-               accept="image/*" 
-               capture="environment" 
-               onchange="window.processBarcodeFile(event)" 
-               style="display: none;">
-    </div>
-</div>
+                    <label style="display: block; font-size: 11px; color: #888; margin-bottom: 5px;">ШТРИХКОД</label>
+                    <div style="display: flex; margin-bottom: 8px;">
+                        <input type="text" 
+                               id="qe-barcode" 
+                               value="${item.barcode || ''}" 
+                               placeholder="Отсканируйте или введите..." 
+                               inputmode="numeric" 
+                               pattern="[0-9]*" 
+                               onfocus="this.select()" 
+                               style="flex: 1; border-top-right-radius: 0; border-bottom-right-radius: 0; border-right: none;">
+                        
+                        <button type="button" 
+                                onclick="window.startQuaggaScanner()" 
+                                style="padding: 0 15px; border: 1px solid #333; background: #2a2a2a; border-top-right-radius: 4px; border-bottom-right-radius: 4px; color: #fff; font-size: 18px; cursor: pointer;">
+                            📷
+                        </button>
+                    </div>
+                    
+                    <!-- Контейнер для сканера с прицелом (по умолчанию скрыт) -->
+                    <div id="quagga-scanner-container" style="display: none; position: relative; width: 100%; height: 180px; background: #000; border-radius: 4px; overflow: hidden; border: 1px solid #444;">
+                        <!-- Здесь Quagga создаст тег <video> -->
+                        <div id="quagga-video-target" style="width: 100%; height: 100%;"></div>
+                        
+                        <!-- Лазерный прицел (красная линия и рамка) -->
+                        <div style="position: absolute; top: 30%; bottom: 30%; left: 10%; right: 10%; border: 2px solid rgba(255, 0, 0, 0.5); box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);"></div>
+                        <div style="position: absolute; top: 50%; left: 10%; right: 10%; height: 2px; background: red; box-shadow: 0 0 4px red;"></div>
+                        
+                        <!-- Кнопка закрытия сканера -->
+                        <button type="button" onclick="window.stopQuaggaScanner()" style="position: absolute; top: 5px; right: 5px; background: rgba(0,0,0,0.7); color: #fff; border: 1px solid #555; border-radius: 4px; padding: 4px 10px; font-size: 12px; z-index: 10;">
+                            Закрыть ✖
+                        </button>
+                    </div>
+                </div>
 
                 <div style="display: flex; gap: 15px; margin-bottom: 5px;">
                     <div style="flex: 1;">
@@ -422,119 +429,130 @@ window.openQuickEditModal = function(id) {
     document.body.insertAdjacentHTML('beforeend', modalHtml);
 };
 
-// Обработка фото с принудительной контрастностью для iOS
-window.processBarcodeFile = async function(event) {
-    const file = event.target.files[0];
-    if (!file) return;
+// ==========================================
+// ЛОГИКА ВИДЕО-СКАНЕРА QUAGGA2 (ДЛЯ КАССЫ)
+// ==========================================
 
-    const barcodeInput = document.getElementById('qe-barcode');
-    if (!barcodeInput) return;
+// 1. Запуск видеопотока с лазерным прицелом
+window.startQuaggaScanner = function() {
+    const container = document.getElementById('quagga-scanner-container');
+    const target = document.getElementById('quagga-video-target');
+    
+    if (!container || !target) return;
+    
+    // Если окно уже открыто — повторный клик закрывает его
+    if (container.style.display === 'block') {
+        window.stopQuaggaScanner();
+        return;
+    }
+    
+    container.style.display = 'block';
 
-    const originalPlaceholder = barcodeInput.placeholder;
-    barcodeInput.value = '';
-    barcodeInput.placeholder = '⏳ Обработка...';
-
-    try {
-        let decodedCode = null;
-
-        // 1. Создаем высококонтрастную черно-белую копию снимка
-        const processedBlob = await createHighContrastImage(file);
-        const tempFile = new File([processedBlob], "scan.jpg", { type: "image/jpeg" });
-
-        // 2. Нативный сканер браузера (если поддерживается)
-        if ('BarcodeDetector' in window) {
-            try {
-                const detector = new BarcodeDetector({
-                    formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'qr_code']
-                });
-                const bitmap = await createImageBitmap(tempFile);
-                const barcodes = await detector.detect(bitmap);
-                if (barcodes.length > 0) {
-                    decodedCode = barcodes[0].rawValue;
-                }
-            } catch (e) {
-                console.log("BarcodeDetector pass:", e);
+    Quagga.init({
+        inputStream: {
+            name: "Live",
+            type: "LiveStream",
+            target: target,
+            constraints: {
+                width: { ideal: 640 },
+                height: { ideal: 480 },
+                facingMode: "environment", // Задняя камера
+                advanced: [{ focusMode: "continuous" }] // Автофокус
+            },
+            // Сканируем только центральную узкую полосу (где красная линия)
+            area: {
+                top: "30%",    
+                right: "10%",  
+                left: "10%",   
+                bottom: "30%"  
             }
+        },
+        locator: {
+            patchSize: "medium",
+            halfSample: true
+        },
+        numOfWorkers: navigator.hardwareConcurrency ? navigator.hardwareConcurrency : 2,
+        decoder: {
+            readers: ["ean_reader", "ean_8_reader", "upc_reader", "code_128_reader"] 
+        },
+        locate: true
+    }, function(err) {
+        if (err) {
+            console.error(err);
+            alert("Ошибка доступа к камере: " + err.message);
+            window.stopQuaggaScanner();
+            return;
         }
-
-        // 3. Резервный сканер html5-qrcode
-        if (!decodedCode) {
-            let tempDiv = document.getElementById('qe-temp-scanner');
-            if (!tempDiv) {
-                tempDiv = document.createElement('div');
-                tempDiv.id = 'qe-temp-scanner';
-                tempDiv.style.cssText = 'position:absolute; top:-9999px; left:-9999px; width:300px; height:300px; visibility:hidden;';
-                document.body.appendChild(tempDiv);
-            }
-
-            const html5QrCode = new Html5Qrcode("qe-temp-scanner");
-            try {
-                decodedCode = await html5QrCode.scanFile(tempFile, false);
-            } catch (err) {
-                // Если с обработанным не вышло, даем оригинальный файл как последний шанс
-                decodedCode = await html5QrCode.scanFile(file, true);
-            } finally {
-                html5QrCode.clear();
-            }
+        
+        // Настройка масштаба видео под мобильный Safari и Chrome
+        const videoEl = target.querySelector('video');
+        if (videoEl) {
+            videoEl.style.width = '100%';
+            videoEl.style.height = '100%';
+            videoEl.style.objectFit = 'cover';
+            videoEl.setAttribute('playsinline', 'true');
         }
+        
+        Quagga.start();
+    });
 
-        if (decodedCode) {
-            barcodeInput.value = decodedCode;
-            // Переводим фокус на поле Цена
+    Quagga.onDetected(window.handleQuaggaDetection);
+};
+
+// Переменные для защиты от случайных ложных считываний
+let quaggaScanCount = 0;
+let lastScannedCode = "";
+
+// 2. Обработка момента, когда камера увидела штрихкод
+window.handleQuaggaDetection = function(result) {
+    if (!result || !result.codeResult || !result.codeResult.code) return;
+    
+    const code = result.codeResult.code;
+
+    // Ждем 2 одинаковых подтверждения подряд для исключения ошибок
+    if (code === lastScannedCode) {
+        quaggaScanCount++;
+    } else {
+        quaggaScanCount = 1;
+        lastScannedCode = code;
+    }
+
+    if (quaggaScanCount >= 2) {
+        const barcodeInput = document.getElementById('qe-barcode');
+        if (barcodeInput) {
+            barcodeInput.value = code;
+            
+            // Выключаем камеру
+            window.stopQuaggaScanner();
+            
+            // Сразу переводим фокус на цену
             const priceInput = document.getElementById('qe-price');
             if (priceInput) {
                 priceInput.focus();
                 priceInput.select();
             }
-        } else {
-            alert("Штрихкод не найден. Сфотографируйте штрихкод чуть ближе.");
         }
-    } catch (err) {
-        console.error(err);
-        alert("Ошибка обработки: " + err.message);
-    } finally {
-        barcodeInput.placeholder = originalPlaceholder;
-        event.target.value = '';
     }
 };
 
-// Функция бинаризации: превращает фото в чёткий чёрно-белый рисунок
-function createHighContrastImage(file) {
-    return new Promise((resolve) => {
-        const img = new Image();
-        img.onload = () => {
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-
-            // Оптимальный размер для распознавания 1D кодов
-            const TARGET_WIDTH = 800;
-            const height = Math.round((img.height * TARGET_WIDTH) / img.width);
-            
-            canvas.width = TARGET_WIDTH;
-            canvas.height = height;
-
-            // Отрисовываем кадр
-            ctx.drawImage(img, 0, 0, TARGET_WIDTH, height);
-
-            // Получаем пиксели и делаем их строго чёрно-белыми (Threshold Filter)
-            const imgData = ctx.getImageData(0, 0, TARGET_WIDTH, height);
-            const d = imgData.data;
-            for (let i = 0; i < d.length; i += 4) {
-                // Вычисляем яркость
-                const avg = (d[i] + d[i + 1] + d[i + 2]) / 3;
-                // Порог: все что темнее 120 становится чистым черным, остальное — белым
-                const color = avg < 120 ? 0 : 255;
-                d[i] = color;     // Red
-                d[i + 1] = color; // Green
-                d[i + 2] = color; // Blue
-            }
-            ctx.putImageData(imgData, 0, 0);
-
-            canvas.toBlob((blob) => resolve(blob), 'image/jpeg', 0.9);
-        };
-        img.src = URL.createObjectURL(file);
-    });
-}
+// 3. Полная остановка и закрытие сканера
+window.stopQuaggaScanner = function() {
+    const container = document.getElementById('quagga-scanner-container');
+    const target = document.getElementById('quagga-video-target');
+    
+    try {
+        Quagga.stop();
+        Quagga.offDetected(window.handleQuaggaDetection);
+    } catch (e) {
+        // Сканер уже был остановлен
+    }
+    
+    if (target) target.innerHTML = '';
+    if (container) container.style.display = 'none';
+    
+    quaggaScanCount = 0;
+    lastScannedCode = "";
+};
 
 // Вспомогательная функция: сжимает гигантское фото до 1200px и подготавливает для распознавания
 function processImageForScan(file) {
