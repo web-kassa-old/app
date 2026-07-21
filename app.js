@@ -403,23 +403,82 @@ window.openQuickEditModal = function(id) {
 };
 
 window.saveQuickEdit = function(id) {
-    const modal = document.getElementById('quickEditModal');
-    if (!modal) {
-        alert("Ошибка: Модальное окно не найдено!");
+    // 1. Ищем товар в локальной базе
+    const item = db.find(i => String(i.id) === String(id));
+    if (!item) {
+        alert("Ошибка: товар не найден в локальной базе.");
         return;
     }
+
+    // 2. Считываем данные СТРОГО по подтвержденным ID из ваших скриншотов
+    const rawName = document.getElementById('qe-name').value;
+    const rawPrice = document.getElementById('qe-price').value;
     
-    // Собираем ВСЕ инпуты внутри модального окна
-    const allInputs = modal.querySelectorAll('input, select');
-    let debugInfo = "ИНФОРМАЦИЯ ИЗ ИНТЕРФЕЙСА:\n\n";
+    // Захватываем остальные поля, если они есть
+    const catEl = document.getElementById('qe-category');
+    const barcodeEl = document.getElementById('qe-barcode');
+    const minStockEl = document.getElementById('qe-minstock');
+
+    const rawCategory = catEl ? catEl.value : "";
+    const rawBarcode = barcodeEl ? barcodeEl.value : (item.barcode || "");
+    const rawMinStock = minStockEl ? minStockEl.value : "0";
+
+    // 3. Обрабатываем данные (убиваем пробелы и запятые для чисел)
+    const newName = rawName.trim();
+    const newPrice = parseFloat(String(rawPrice).replace(/\s/g, '').replace(',', '.')) || 0;
+    const newMinStock = parseFloat(String(rawMinStock).replace(/\s/g, '').replace(',', '.')) || 0;
     
-    allInputs.forEach(inp => {
-        debugInfo += `ID поля: "${inp.id}"\nТип: ${inp.tagName}\nЗначение: "${inp.value}"\n\n`;
+    let newCategory = rawCategory;
+    if (newCategory === '0' || newCategory === 'Не выбрано' || newCategory === 'new') {
+        newCategory = "Без категории"; 
+    }
+
+    // 4. Формируем payload СТРОГО с нужными ключами
+    const payload = {
+        action: "update_single_item",
+        api_key: CLIENT_API_KEY,
+        itemId: String(item.id),
+        data: {
+            item_name: newName,
+            price: newPrice,
+            category: newCategory,
+            min_stock: newMinStock,
+            barcode: rawBarcode.trim()
+        }
+    };
+
+    // 🚀 КРИТИЧЕСКАЯ ТОЧКА ПРОВЕРКИ: Смотрим в консоль перед отправкой!
+    console.log("ОТПРАВЛЯЕМ НА СЕРВЕР:", JSON.stringify(payload, null, 2));
+
+    // 5. Обновляем локальный интерфейс (мгновенный отклик)
+    item.name = newName;
+    item.item_name = newName;
+    item.price = newPrice;
+    item.category = newCategory;
+    item.min_stock = newMinStock;
+    item.barcode = rawBarcode.trim();
+
+    const modal = document.getElementById('quickEditModal');
+    if (modal) modal.remove();
+    if (typeof render === 'function') render();
+
+    // 6. Отправляем запрос на шлюз
+    fetch(GATEWAY_URL, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+    })
+    .then(res => res.json())
+    .then(response => {
+        console.log('ОТВЕТ СЕРВЕРА:', response);
+        if (response && response.error) {
+            alert('Ошибка бэкенда: ' + response.error);
+        }
+    })
+    .catch(err => {
+        console.error("ОШИБКА СЕТИ:", err);
+        alert('Критическая ошибка вызова сервера: ' + err.message);
     });
-    
-    // Выводим прямо на экран
-    alert(debugInfo);
-    console.log(debugInfo);
 };
 
 // === (Конец П1) ===
