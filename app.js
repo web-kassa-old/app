@@ -403,32 +403,7 @@ window.openQuickEditModal = function(id) {
     document.body.insertAdjacentHTML('beforeend', modalHtml);
 };
 
-// Нативный вызов системной камеры телефона
-window.startBarcodeScanner = function() {
-    let fileInput = document.getElementById('qe-native-camera-input');
-    if (!fileInput) {
-        fileInput = document.createElement('input');
-        fileInput.id = 'qe-native-camera-input';
-        fileInput.type = 'file';
-        fileInput.accept = 'image/*';
-        fileInput.capture = 'environment'; // Открывает заднюю камеру
-        fileInput.style.display = 'none';
-        document.body.appendChild(fileInput);
-
-        const tempDiv = document.createElement('div');
-        tempDiv.id = 'qe-temp-scanner';
-        tempDiv.style.display = 'none';
-        document.body.appendChild(tempDiv);
-
-        fileInput.addEventListener('change', window.processBarcodeFile);
-    }
-    
-    fileInput.value = '';
-    fileInput.click();
-};
-
-// Обработка фотографии и извлечение штрихкода
-window.processBarcodeFile = function(event) {
+window.processBarcodeFile = async function(event) {
     const file = event.target.files[0];
     if (!file) return;
 
@@ -437,23 +412,85 @@ window.processBarcodeFile = function(event) {
 
     const originalPlaceholder = barcodeInput.placeholder;
     barcodeInput.value = '';
-    barcodeInput.placeholder = '⏳ Считывание...';
+    barcodeInput.placeholder = '⏳ Сканирование...';
 
-    // Создаем сканер локально только для обработки файла
-    const html5QrCode = new Html5Qrcode("qe-temp-scanner");
+    try {
+        let decodedCode = null;
 
-    html5QrCode.scanFile(file, true)
-        .then(decodedText => {
-            barcodeInput.value = decodedText;
-            barcodeInput.placeholder = originalPlaceholder;
-            html5QrCode.clear(); // Очищаем память
-        })
-        .catch(err => {
-            barcodeInput.placeholder = originalPlaceholder;
-            alert("Штрихкод не распознан. Сфотографируйте штрихкод чуть ближе и ровнее.");
-            html5QrCode.clear(); // Очищаем память
-        });
+        // 1. Попытка №1: Нативный системный сканер браузера (работает идеальнее всего)
+        if ('BarcodeDetector' in window) {
+            try {
+                const detector = new BarcodeDetector({
+                    formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'qr_code']
+                });
+                const bitmap = await createImageBitmap(file);
+                const barcodes = await detector.detect(bitmap);
+                if (barcodes.length > 0) {
+                    decodedCode = barcodes[0].rawValue;
+                }
+            } catch (e) {
+                console.log("BarcodeDetector fallback:", e);
+            }
+        }
+
+        // 2. Попытка №2: Если нативного нет или не сработало, оптимизируем фото через Canvas
+        if (!decodedCode) {
+            const processedBlob = await processImageForScan(file);
+            const html5QrCode = new Html5Qrcode("qe-temp-scanner");
+            const tempFile = new File([processedBlob], "scan.jpg", { type: "image/jpeg" });
+
+            try {
+                decodedCode = await html5QrCode.scanFile(tempFile, false);
+            } catch (err) {
+                // Если с оптимизацией не вышло, пробуем оригинальный файл как последний шанс
+                decodedCode = await html5QrCode.scanFile(file, true);
+            } finally {
+                html5QrCode.clear();
+            }
+        }
+
+        if (decodedCode) {
+            barcodeInput.value = decodedCode;
+        } else {
+            alert("Штрихкод не распознан. Попробуйте сфотографировать штрихкод крупнее, чтобы он занимал большую часть кадра.");
+        }
+    } catch (err) {
+        console.error(err);
+        alert("Ошибка при обработке фото.");
+    } finally {
+        barcodeInput.placeholder = originalPlaceholder;
+    }
 };
+
+// Вспомогательная функция: сжимает гигантское фото до 1200px и подготавливает для распознавания
+function processImageForScan(file) {
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+
+            // Ограничиваем максимальную ширину до 1200px (идеально для алгоритмов сканирования)
+            const MAX_WIDTH = 1200;
+            let width = img.width;
+            let height = img.height;
+
+            if (width > MAX_WIDTH) {
+                height = Math.round((height * MAX_WIDTH) / width);
+                width = MAX_WIDTH;
+            }
+
+            canvas.width = width;
+            canvas.height = height;
+
+            // Рисуем сглаженное изображение
+            ctx.drawImage(img, 0, 0, width, height);
+
+            canvas.toBlob((blob) => resolve(blob), 'image/jpeg', 0.9);
+        };
+        img.src = URL.createObjectURL(file);
+    });
+}
 
 // 🎯 ФУНКЦИЯ МОМЕНТАЛЬНОГО СНИМКА И РАСПОЗНАВАНИЯ
 window.captureAndDecode = async function() {
