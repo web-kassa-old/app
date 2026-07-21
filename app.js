@@ -403,37 +403,40 @@ window.openQuickEditModal = function(id) {
 };
 
 window.saveQuickEdit = function(id) {
-    // 1. Ищем товар в локальной базе
     const item = db.find(i => String(i.id) === String(id));
-    if (!item) {
-        alert("Ошибка: товар не найден в локальной базе.");
-        return;
+    if (!item) return;
+
+    // 1. ФУНКЦИЯ-ПЕРЕХВАТЧИК: берет значение только из самого последнего открытого окна
+    const getLatestValue = (elementId) => {
+        const elements = document.querySelectorAll('#' + elementId);
+        return elements.length > 0 ? elements[elements.length - 1].value : "";
+    };
+
+    // 2. Читаем актуальные данные, игнорируя скрытые и старые окна
+    const rawName = getLatestValue('qe-name');
+    const rawPrice = getLatestValue('qe-price');
+    const rawCategory = getLatestValue('qe-category');
+    const rawBarcode = getLatestValue('qe-barcode');
+    const rawMinStock = getLatestValue('qe-minstock');
+
+    // 3. Очистка и подготовка данных
+    const newName = rawName.trim();
+    
+    // Если скрипт поймал пустое имя (а товар не был безымянным), блокируем отправку для защиты таблицы
+    if (newName === "" && item.name !== "" && item.name !== "Без названия") {
+        alert("Сработала защита: скрипт попытался сохранить пустое имя. Попробуйте еще раз.");
+        return; 
     }
 
-    // 2. Считываем данные СТРОГО по подтвержденным ID из ваших скриншотов
-    const rawName = document.getElementById('qe-name').value;
-    const rawPrice = document.getElementById('qe-price').value;
-    
-    // Захватываем остальные поля, если они есть
-    const catEl = document.getElementById('qe-category');
-    const barcodeEl = document.getElementById('qe-barcode');
-    const minStockEl = document.getElementById('qe-minstock');
-
-    const rawCategory = catEl ? catEl.value : "";
-    const rawBarcode = barcodeEl ? barcodeEl.value : (item.barcode || "");
-    const rawMinStock = minStockEl ? minStockEl.value : "0";
-
-    // 3. Обрабатываем данные (убиваем пробелы и запятые для чисел)
-    const newName = rawName.trim();
     const newPrice = parseFloat(String(rawPrice).replace(/\s/g, '').replace(',', '.')) || 0;
     const newMinStock = parseFloat(String(rawMinStock).replace(/\s/g, '').replace(',', '.')) || 0;
-    
+
     let newCategory = rawCategory;
     if (newCategory === '0' || newCategory === 'Не выбрано' || newCategory === 'new') {
         newCategory = "Без категории"; 
     }
 
-    // 4. Формируем payload СТРОГО с нужными ключами
+    // 4. Формируем правильный пакет данных для бэкенда
     const payload = {
         action: "update_single_item",
         api_key: CLIENT_API_KEY,
@@ -447,10 +450,9 @@ window.saveQuickEdit = function(id) {
         }
     };
 
-    // 🚀 КРИТИЧЕСКАЯ ТОЧКА ПРОВЕРКИ: Смотрим в консоль перед отправкой!
-    console.log("ОТПРАВЛЯЕМ НА СЕРВЕР:", JSON.stringify(payload, null, 2));
+    console.log("Улетает на сервер:", payload);
 
-    // 5. Обновляем локальный интерфейс (мгновенный отклик)
+    // 5. Мгновенно обновляем интерфейс приложения
     item.name = newName;
     item.item_name = newName;
     item.price = newPrice;
@@ -458,11 +460,11 @@ window.saveQuickEdit = function(id) {
     item.min_stock = newMinStock;
     item.barcode = rawBarcode.trim();
 
-    const modal = document.getElementById('quickEditModal');
-    if (modal) modal.remove();
+    // ЖЕСТКАЯ ОЧИСТКА: удаляем вообще все окна редактирования из кода, чтобы не плодить дубликаты
+    document.querySelectorAll('#quickEditModal').forEach(m => m.remove());
     if (typeof render === 'function') render();
 
-    // 6. Отправляем запрос на шлюз
+    // 6. Отправляем в Google Таблицу
     fetch(GATEWAY_URL, {
         method: 'POST',
         body: JSON.stringify(payload),
@@ -470,14 +472,14 @@ window.saveQuickEdit = function(id) {
     })
     .then(res => res.json())
     .then(response => {
-        console.log('ОТВЕТ СЕРВЕРА:', response);
         if (response && response.error) {
-            alert('Ошибка бэкенда: ' + response.error);
+            alert('Ошибка сервера: ' + response.error);
+        } else {
+            console.log('Успешно записано в таблицу!');
         }
     })
     .catch(err => {
-        console.error("ОШИБКА СЕТИ:", err);
-        alert('Критическая ошибка вызова сервера: ' + err.message);
+        alert('Ошибка связи с сервером: ' + err.message);
     });
 };
 
