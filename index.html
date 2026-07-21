@@ -457,6 +457,15 @@
             <input type="text" id="qe-name" style="width: 100%; padding: 12px; margin-top: 5px; background: var(--bg-card); border: 1px solid var(--border-main); color: var(--text-main); border-radius: 4px; box-sizing: border-box;">
         </div>
 
+        <!-- НОВЫЙ БЛОК: Выбор категории -->
+        <div class="field-group" style="margin-bottom: 15px;">
+            <label style="font-size: 12px; color: var(--text-muted);">Категория</label>
+            <select id="qe-category" style="width: 100%; padding: 12px; margin-top: 5px; background: var(--bg-card); border: 1px solid var(--border-main); color: var(--text-main); border-radius: 4px; box-sizing: border-box; appearance: none;">
+                <option value="" disabled selected>Не выбрано</option>
+                <!-- Сюда JS будет подтягивать ваши категории -->
+            </select>
+        </div>
+
         <div class="grid-row" style="display: flex; gap: 10px; margin-bottom: 20px;">
             <div class="field-group" style="flex: 1;">
                 <label style="font-size: 12px; color: var(--text-muted);">Цена</label>
@@ -473,6 +482,8 @@
         <button class="cancel-btn" style="width: 100%; margin-top: 10px;" onclick="closeQuickEdit()">ОТМЕНА</button>
     </div>
 </div>
+
+<script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
 
 <script src="app.js?v=6.0.0"></script>
 </body>

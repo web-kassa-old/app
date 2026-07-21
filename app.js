@@ -372,8 +372,10 @@ window.openQuickEditModal = function(id) {
                     <label>Штрихкод</label>
                     <div style="display: flex;">
                         <input type="text" id="qe-barcode" value="${item.barcode || ''}" placeholder="Отсканируйте..." style="flex: 1; border-top-right-radius: 0; border-bottom-right-radius: 0; border-right: none;">
-                        <button type="button" style="padding: 0 15px; border: 1px solid #333; background: #2a2a2a; border-top-right-radius: 4px; border-bottom-right-radius: 4px; color: #888; font-size: 18px; cursor: pointer;">📷</button>
+                        <button type="button" onclick="startBarcodeScanner()" style="padding: 0 15px; border: 1px solid #333; background: #2a2a2a; border-top-right-radius: 4px; border-bottom-right-radius: 4px; color: #888; font-size: 18px; cursor: pointer;">📷</button>
                     </div>
+                    <!-- БЛОК ДЛЯ КАМЕРЫ (скрыт по умолчанию) -->
+                    <div id="scanner-container" style="display: none; width: 100%; border-radius: 4px; overflow: hidden; margin-top: 10px; border: 1px solid #333;"></div>
                 </div>
 
                 <div style="display: flex; gap: 15px; margin-bottom: 5px;">
@@ -400,6 +402,57 @@ window.openQuickEditModal = function(id) {
     `;
     
     document.body.insertAdjacentHTML('beforeend', modalHtml);
+};
+
+let html5QrCode; // Глобальная переменная для управления камерой
+
+window.startBarcodeScanner = function() {
+    const scannerDiv = document.getElementById('scanner-container');
+    const barcodeInput = document.getElementById('qe-barcode');
+    
+    if (!scannerDiv || !barcodeInput) return;
+
+    // Если камера уже открыта, закрываем ее при повторном клике
+    if (scannerDiv.style.display === 'block') {
+        if (html5QrCode) {
+            html5QrCode.stop().then(() => {
+                scannerDiv.style.display = 'none';
+            }).catch(err => console.error(err));
+        }
+        return;
+    }
+
+    // Показываем контейнер камеры
+    scannerDiv.style.display = 'block';
+
+    // Создаем экземпляр сканера, если его еще нет
+    if (!html5QrCode) {
+        html5QrCode = new Html5Qrcode("scanner-container");
+    }
+
+    // Настройки сканирования (фокус на узкий прямоугольник для штрихкодов)
+    const config = { fps: 10, qrbox: { width: 250, height: 100 } };
+
+    html5QrCode.start(
+        { facingMode: "environment" }, // Задняя камера телефона
+        config,
+        (decodedText) => {
+            // КОД УСПЕШНО СЧИТАН
+            barcodeInput.value = decodedText;
+            
+            // Выключаем камеру и прячем окно
+            html5QrCode.stop().then(() => {
+                scannerDiv.style.display = 'none';
+            }).catch(err => console.error(err));
+        },
+        (errorMessage) => {
+            // Игнорируем ошибки пустого кадра, пока код не попадет в фокус
+        }
+    ).catch(err => {
+        alert("Ошибка доступа к камере. Проверьте разрешения в браузере.");
+        console.error(err);
+        scannerDiv.style.display = 'none';
+    });
 };
 
 window.saveQuickEdit = function(id) {
