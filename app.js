@@ -403,103 +403,23 @@ window.openQuickEditModal = function(id) {
 };
 
 window.saveQuickEdit = function(id) {
-    const item = db.find(i => String(i.id) === String(id));
-    if (!item) return;
-
-    const modal = document.getElementById('quickEditModal') || document;
-
-    // Умный поиск инпутов в DOM (проверяет стандартные ID и ищет по подстрокам)
-    const nameEl = document.getElementById('qe-name') || modal.querySelector('input[id*="name"]');
-    const priceEl = document.getElementById('qe-price') || modal.querySelector('input[id*="price"]');
-    const minStockEl = document.getElementById('qe-minstock') || modal.querySelector('input[id*="min"]');
-    const barcodeEl = document.getElementById('qe-barcode') || modal.querySelector('input[id*="barcode"]');
-    const catEl = document.getElementById('qe-category') || modal.querySelector('select');
-
-    // 1. НАЗВАНИЕ: берем из инпута или сохраняем текущее
-    let newName = item.name || item.item_name || "";
-    if (nameEl && nameEl.value.trim() !== "") {
-        newName = nameEl.value.trim();
+    const modal = document.getElementById('quickEditModal');
+    if (!modal) {
+        alert("Ошибка: Модальное окно не найдено!");
+        return;
     }
-
-    // 2. ЦЕНА: чистим от символов. Если парсинг сбойнул, оставляем ТЕКУЩУЮ цену (а не 0!)
-    let newPrice = parseFloat(item.price) || 0;
-    if (priceEl && priceEl.value !== "") {
-        const cleanPrice = String(priceEl.value).replace(/[^\d.,]/g, '').replace(',', '.');
-        const parsed = parseFloat(cleanPrice);
-        if (!isNaN(parsed)) {
-            newPrice = parsed;
-        }
-    }
-
-    // 3. МИН. ОСТАТОК
-    let newMinStock = parseFloat(item.min_stock) || 0;
-    if (minStockEl && minStockEl.value !== "") {
-        const cleanStock = String(minStockEl.value).replace(/[^\d.,]/g, '').replace(',', '.');
-        const parsed = parseFloat(cleanStock);
-        if (!isNaN(parsed)) {
-            newMinStock = parsed;
-        }
-    }
-
-    // 4. ШТРИХКОД
-    const newBarcode = barcodeEl ? barcodeEl.value.trim() : (item.barcode || "");
-
-    // 5. КАТЕГОРИЯ
-    let newCategory = item.category || "";
-    if (catEl) {
-        const catVal = catEl.value;
-        if (catVal === '0' || catVal === 'Не выбрано') {
-            newCategory = "Без категории";
-        } else if (catVal !== 'new' && catVal !== "") {
-            newCategory = catVal;
-        }
-    }
-
-    // Обновляем локальный объект (и .name для UI, и .item_name для бэкенда)
-    item.name = newName;
-    item.item_name = newName;
-    item.price = newPrice;
-    item.min_stock = newMinStock;
-    item.barcode = newBarcode;
-    item.category = newCategory;
-
-    // Закрываем модальное окно и перерисовываем каталог
-    const modalDiv = document.getElementById('quickEditModal');
-    if (modalDiv) modalDiv.remove();
-    if (typeof render === 'function') render();
-
-    // 6. Формируем payload строго под вашу функцию updateSingleItem
-    const payload = {
-      action: "update_single_item",
-      api_key: CLIENT_API_KEY,
-      itemId: String(item.id),
-      data: {
-        item_name: newName,
-        category: newCategory,
-        barcode: newBarcode,
-        min_stock: newMinStock,
-        price: newPrice
-      }
-    };
-
-    console.log("Данные для отправки:", payload);
-
-    // 7. Отправка на сервер
-    fetch(GATEWAY_URL, {
-        method: 'POST',
-        body: JSON.stringify(payload),
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' }
-    })
-    .then(res => res.json())
-    .then(response => {
-        console.log('Ответ от сервера:', response);
-        if (response && response.error) {
-            alert('Бэкенд отказал в записи: ' + response.error);
-        }
-    })
-    .catch(err => {
-        alert('Ошибка связи с сервером: ' + err.message);
+    
+    // Собираем ВСЕ инпуты внутри модального окна
+    const allInputs = modal.querySelectorAll('input, select');
+    let debugInfo = "ИНФОРМАЦИЯ ИЗ ИНТЕРФЕЙСА:\n\n";
+    
+    allInputs.forEach(inp => {
+        debugInfo += `ID поля: "${inp.id}"\nТип: ${inp.tagName}\nЗначение: "${inp.value}"\n\n`;
     });
+    
+    // Выводим прямо на экран
+    alert(debugInfo);
+    console.log(debugInfo);
 };
 
 // === (Конец П1) ===
