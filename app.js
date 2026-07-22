@@ -1148,10 +1148,84 @@ function handleItemClick(id, event) {
     add(id);
 }
 
-// Заглушка, чтобы код не выдавал ошибку при тесте
 function openQuickEditModal(id) {
     console.log("Открываем быстрое редактирование для товара:", id);
-    // На следующем шаге здесь будет логика заполнения окна
+    
+    // 1. Находим товар в базе данных
+    // (предполагается, что массив с товарами у вас называется db)
+    const item = db.find(i => String(i.id) === String(id)) || {};
+
+    // 2. Ищем или создаем контейнер для модального окна
+    let modal = document.getElementById('quickEditModal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'quickEditModal';
+        // Базовые стили для затемнения фона и центрирования
+        modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 9999; display: flex; justify-content: center; align-items: center;';
+        document.body.appendChild(modal);
+    }
+
+    // 3. Формируем HTML внутренностей окна
+    const modalHtml = `
+        <div style="background: #1e1e1e; padding: 20px; border-radius: 8px; width: 90%; max-width: 400px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); color: #fff;">
+            <h3 style="margin-top: 0; margin-bottom: 20px; border-bottom: 1px solid #333; padding-bottom: 10px;">Редактирование товара</h3>
+            
+            <!-- Наименование -->
+            <div style="margin-bottom: 15px;">
+                <label style="display: block; font-size: 11px; color: #888; margin-bottom: 5px;">НАИМЕНОВАНИЕ</label>
+                <!-- Обратите внимание: inputmode="text" -->
+                <input type="text" id="qe-title" value="${item.title || item.name || ''}" inputmode="text" style="width: 100%; padding: 10px; box-sizing: border-box; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px;">
+            </div>
+
+            <!-- Цена (обратите внимание, что цена берется из интерфейса, как мы обсуждали ранее) -->
+            <div style="margin-bottom: 15px;">
+                <label style="display: block; font-size: 11px; color: #888; margin-bottom: 5px;">ЦЕНА</label>
+                <!-- Обратите внимание: inputmode="decimal" для цифр с точкой -->
+                <input type="text" id="qe-price" value="${item.price || ''}" inputmode="decimal" style="width: 100%; padding: 10px; box-sizing: border-box; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px;">
+            </div>
+
+            <!-- Штрихкод + кнопка веб-камеры -->
+            <div style="margin-bottom: 25px;">
+                <label style="display: block; font-size: 11px; color: #888; margin-bottom: 5px;">ШТРИХКОД</label>
+                <div style="display: flex; margin-bottom: 8px;">
+                    <!-- Обратите внимание: inputmode="numeric" для сугубо цифровой клавиатуры -->
+                    <input type="text" 
+                           id="qe-barcode" 
+                           value="${item.barcode || ''}" 
+                           placeholder="Отсканируйте или введите..." 
+                           inputmode="numeric" 
+                           pattern="[0-9]*" 
+                           onfocus="this.select()" 
+                           style="flex: 1; padding: 10px; box-sizing: border-box; background: #2a2a2a; border: 1px solid #444; color: #fff; border-top-left-radius: 4px; border-bottom-left-radius: 4px; border-right: none;">
+                    
+                    <button type="button" 
+                            onclick="window.startQuaggaScanner()" 
+                            style="padding: 0 15px; border: 1px solid #444; background: #333; border-top-right-radius: 4px; border-bottom-right-radius: 4px; color: #fff; font-size: 18px; cursor: pointer;">
+                        📷
+                    </button>
+                </div>
+                
+                <!-- Контейнер для лазерного видео-сканера -->
+                <div id="quagga-scanner-container" style="display: none; position: relative; width: 100%; height: 180px; background: #000; border-radius: 4px; overflow: hidden; border: 1px solid #444;">
+                    <div id="quagga-video-target" style="width: 100%; height: 100%;"></div>
+                    <div style="position: absolute; top: 30%; bottom: 30%; left: 10%; right: 10%; border: 2px solid rgba(255, 0, 0, 0.5); box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);"></div>
+                    <div style="position: absolute; top: 50%; left: 10%; right: 10%; height: 2px; background: red; box-shadow: 0 0 4px red;"></div>
+                    <button type="button" onclick="window.stopQuaggaScanner()" style="position: absolute; top: 5px; right: 5px; background: rgba(0,0,0,0.7); color: #fff; border: 1px solid #555; border-radius: 4px; padding: 4px 10px; font-size: 12px; z-index: 10;">Закрыть ✖</button>
+                </div>
+            </div>
+
+            <!-- Кнопки Сохранить / Отмена -->
+            <div style="display: flex; justify-content: space-between;">
+                <button onclick="document.getElementById('quickEditModal').style.display = 'none'" style="padding: 10px 20px; background: #444; border: none; border-radius: 4px; color: #fff; cursor: pointer;">Отмена</button>
+                <!-- Функция saveQuickEdit должна отправлять данные в вашу таблицу -->
+                <button onclick="saveQuickEdit('${id}')" style="padding: 10px 20px; background: #007bff; border: none; border-radius: 4px; color: #fff; cursor: pointer; font-weight: bold;">Сохранить</button>
+            </div>
+        </div>
+    `;
+
+    // 4. Вставляем код в контейнер и показываем модальное окно
+    modal.innerHTML = modalHtml;
+    modal.style.display = 'flex';
 }
 
         function render() {
