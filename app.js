@@ -1180,7 +1180,6 @@ function openQuickEditModal(id) {
     console.log("Открываем быстрое редактирование для товара:", id);
     
     // 1. Находим товар в базе данных
-    // (предполагается, что массив с товарами у вас называется db)
     const item = db.find(i => String(i.id) === String(id)) || {};
 
     // 2. Ищем или создаем контейнер для модального окна
@@ -1188,49 +1187,33 @@ function openQuickEditModal(id) {
     if (!modal) {
         modal = document.createElement('div');
         modal.id = 'quickEditModal';
-        // Базовые стили для затемнения фона и центрирования
         modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 9999; display: flex; justify-content: center; align-items: center;';
         document.body.appendChild(modal);
     }
 
-    // 3. Формируем HTML внутренностей окна
+    // 3. Формируем HTML внутренностей окна (добавлен скролл на случай маленьких экранов: max-height и overflow-y)
     const modalHtml = `
-        <div style="background: #1e1e1e; padding: 20px; border-radius: 8px; width: 90%; max-width: 400px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); color: #fff;">
+        <div style="background: #1e1e1e; padding: 20px; border-radius: 8px; width: 90%; max-width: 400px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); color: #fff; max-height: 95vh; overflow-y: auto;">
             <h3 style="margin-top: 0; margin-bottom: 20px; border-bottom: 1px solid #333; padding-bottom: 10px;">Редактирование товара</h3>
             
-            <!-- Наименование -->
+            <!-- Наименование (Системная клавиатура разрешена) -->
             <div style="margin-bottom: 15px;">
                 <label style="display: block; font-size: 11px; color: #888; margin-bottom: 5px;">НАИМЕНОВАНИЕ</label>
-                <!-- Обратите внимание: inputmode="text" -->
-                <input type="text" id="qe-title" value="${item.title || item.name || ''}" inputmode="text" style="width: 100%; padding: 10px; box-sizing: border-box; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px;">
+                <input type="text" id="qe-title" value="${item.title || item.name || ''}" onclick="setQeActiveField('qe-title')" style="width: 100%; padding: 10px; box-sizing: border-box; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px;">
             </div>
 
-            <!-- Цена (обратите внимание, что цена берется из интерфейса, как мы обсуждали ранее) -->
+            <!-- Цена (Системная клавиатура ЗАБЛОКИРОВАНА атрибутом readonly) -->
             <div style="margin-bottom: 15px;">
                 <label style="display: block; font-size: 11px; color: #888; margin-bottom: 5px;">ЦЕНА</label>
-                <!-- Обратите внимание: inputmode="decimal" для цифр с точкой -->
-                <input type="text" id="qe-price" value="${item.price || ''}" inputmode="decimal" style="width: 100%; padding: 10px; box-sizing: border-box; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px;">
+                <input type="text" id="qe-price" value="${item.price || ''}" readonly onclick="setQeActiveField('qe-price')" style="width: 100%; padding: 10px; box-sizing: border-box; background: #2a2a2a; border: 2px solid #007bff; color: #fff; border-radius: 4px; font-size: 18px; font-weight: bold; text-align: center;">
             </div>
 
-            <!-- Штрихкод + кнопка веб-камеры -->
-            <div style="margin-bottom: 25px;">
+            <!-- Штрихкод (Системная клавиатура ЗАБЛОКИРОВАНА) -->
+            <div style="margin-bottom: 15px;">
                 <label style="display: block; font-size: 11px; color: #888; margin-bottom: 5px;">ШТРИХКОД</label>
                 <div style="display: flex; margin-bottom: 8px;">
-                    <!-- Обратите внимание: inputmode="numeric" для сугубо цифровой клавиатуры -->
-                    <input type="text" 
-                           id="qe-barcode" 
-                           value="${item.barcode || ''}" 
-                           placeholder="Отсканируйте или введите..." 
-                           inputmode="numeric" 
-                           pattern="[0-9]*" 
-                           onfocus="this.select()" 
-                           style="flex: 1; padding: 10px; box-sizing: border-box; background: #2a2a2a; border: 1px solid #444; color: #fff; border-top-left-radius: 4px; border-bottom-left-radius: 4px; border-right: none;">
-                    
-                    <button type="button" 
-                            onclick="window.startQuaggaScanner()" 
-                            style="padding: 0 15px; border: 1px solid #444; background: #333; border-top-right-radius: 4px; border-bottom-right-radius: 4px; color: #fff; font-size: 18px; cursor: pointer;">
-                        📷
-                    </button>
+                    <input type="text" id="qe-barcode" value="${item.barcode || ''}" readonly onclick="setQeActiveField('qe-barcode')" placeholder="Отсканируйте или введите..." style="flex: 1; padding: 10px; box-sizing: border-box; background: #2a2a2a; border: 1px solid #444; color: #fff; border-top-left-radius: 4px; border-bottom-left-radius: 4px; border-right: none; font-size: 16px;">
+                    <button type="button" onclick="window.startQuaggaScanner()" style="padding: 0 15px; border: 1px solid #444; background: #333; border-top-right-radius: 4px; border-bottom-right-radius: 4px; color: #fff; font-size: 18px; cursor: pointer;">📷</button>
                 </div>
                 
                 <!-- Контейнер для лазерного видео-сканера -->
@@ -1242,11 +1225,26 @@ function openQuickEditModal(id) {
                 </div>
             </div>
 
+            <!-- КАСТОМНАЯ КЛАВИАТУРА В СТИЛЕ ТЕМНОЙ ТЕМЫ -->
+            <div class="numpad" style="margin-bottom: 25px; grid-template-columns: repeat(3, 1fr); gap: 8px; display: grid;">
+                <div class="num-btn" style="background: #333; padding: 12px; text-align: center; border-radius: 4px; font-size: 18px; cursor: pointer;" onmousedown="qeAddDigit('1', event)" ontouchstart="qeAddDigit('1', event)">1</div>
+                <div class="num-btn" style="background: #333; padding: 12px; text-align: center; border-radius: 4px; font-size: 18px; cursor: pointer;" onmousedown="qeAddDigit('2', event)" ontouchstart="qeAddDigit('2', event)">2</div>
+                <div class="num-btn" style="background: #333; padding: 12px; text-align: center; border-radius: 4px; font-size: 18px; cursor: pointer;" onmousedown="qeAddDigit('3', event)" ontouchstart="qeAddDigit('3', event)">3</div>
+                <div class="num-btn" style="background: #333; padding: 12px; text-align: center; border-radius: 4px; font-size: 18px; cursor: pointer;" onmousedown="qeAddDigit('4', event)" ontouchstart="qeAddDigit('4', event)">4</div>
+                <div class="num-btn" style="background: #333; padding: 12px; text-align: center; border-radius: 4px; font-size: 18px; cursor: pointer;" onmousedown="qeAddDigit('5', event)" ontouchstart="qeAddDigit('5', event)">5</div>
+                <div class="num-btn" style="background: #333; padding: 12px; text-align: center; border-radius: 4px; font-size: 18px; cursor: pointer;" onmousedown="qeAddDigit('6', event)" ontouchstart="qeAddDigit('6', event)">6</div>
+                <div class="num-btn" style="background: #333; padding: 12px; text-align: center; border-radius: 4px; font-size: 18px; cursor: pointer;" onmousedown="qeAddDigit('7', event)" ontouchstart="qeAddDigit('7', event)">7</div>
+                <div class="num-btn" style="background: #333; padding: 12px; text-align: center; border-radius: 4px; font-size: 18px; cursor: pointer;" onmousedown="qeAddDigit('8', event)" ontouchstart="qeAddDigit('8', event)">8</div>
+                <div class="num-btn" style="background: #333; padding: 12px; text-align: center; border-radius: 4px; font-size: 18px; cursor: pointer;" onmousedown="qeAddDigit('9', event)" ontouchstart="qeAddDigit('9', event)">9</div>
+                <div class="num-btn btn-clear" style="background: #552222; padding: 12px; text-align: center; border-radius: 4px; font-size: 18px; cursor: pointer; color: #ff6666;" onmousedown="qeClearField(event)" ontouchstart="qeClearField(event)">C</div>
+                <div class="num-btn" style="background: #333; padding: 12px; text-align: center; border-radius: 4px; font-size: 18px; cursor: pointer;" onmousedown="qeAddDigit('0', event)" ontouchstart="qeAddDigit('0', event)">0</div>
+                <div class="num-btn btn-clear" style="background: #444; padding: 12px; text-align: center; border-radius: 4px; font-size: 18px; cursor: pointer;" onmousedown="qeDelDigit(event)" ontouchstart="qeDelDigit(event)">⌫</div>
+            </div>
+
             <!-- Кнопки Сохранить / Отмена -->
-            <div style="display: flex; justify-content: space-between;">
-                <button onclick="document.getElementById('quickEditModal').style.display = 'none'" style="padding: 10px 20px; background: #444; border: none; border-radius: 4px; color: #fff; cursor: pointer;">Отмена</button>
-                <!-- Функция saveQuickEdit должна отправлять данные в вашу таблицу -->
-                <button onclick="saveQuickEdit('${id}')" style="padding: 10px 20px; background: #007bff; border: none; border-radius: 4px; color: #fff; cursor: pointer; font-weight: bold;">Сохранить</button>
+            <div style="display: flex; justify-content: space-between; gap: 10px;">
+                <button onclick="document.getElementById('quickEditModal').style.display = 'none'" style="flex: 1; padding: 12px; background: #444; border: none; border-radius: 4px; color: #fff; cursor: pointer;">Отмена</button>
+                <button onclick="saveQuickEdit('${id}')" style="flex: 2; padding: 12px; background: #007bff; border: none; border-radius: 4px; color: #fff; cursor: pointer; font-weight: bold;">Сохранить</button>
             </div>
         </div>
     `;
@@ -1254,6 +1252,11 @@ function openQuickEditModal(id) {
     // 4. Вставляем код в контейнер и показываем модальное окно
     modal.innerHTML = modalHtml;
     modal.style.display = 'flex';
+    
+    // 5. Инициализируем фокус кастомной клавиатуры
+    if (typeof initQeNumpad === 'function') {
+        initQeNumpad();
+    }
 }
 
         function render() {
@@ -3088,75 +3091,56 @@ function cancelResetHold(btn, e) {
 // ЛОГИКА КАСТОМНОГО NUMPAD ДЛЯ QUICK EDIT
 // ==========================================
 
-let activeQeFieldId = 'qe-price'; // По умолчанию при открытии окна фокус на цене
+let activeQeFieldId = 'qe-price';
 
-// Функция переключения активного поля
 function setQeActiveField(fieldId) {
     activeQeFieldId = fieldId;
     
-    // Сбрасываем стили у всех полей
-    const fields = ['qe-name', 'qe-price', 'qe-stock'];
+    // Сбрасываем стили у всех 3-х полей
+    const fields = ['qe-title', 'qe-price', 'qe-barcode'];
     fields.forEach(id => {
         const el = document.getElementById(id);
-        if (el) {
-            el.style.border = '1px solid var(--border-main)';
-            el.style.boxShadow = 'none';
-        }
+        if (el) el.style.border = '1px solid #444';
     });
 
-    // Визуально подсвечиваем выбранное поле
+    // Подсвечиваем активное
     const activeEl = document.getElementById(activeQeFieldId);
     if (activeEl) {
-        activeEl.style.border = '2px solid var(--accent-blue)';
-        activeEl.style.boxShadow = '0 0 8px rgba(52, 152, 219, 0.4)';
+        activeEl.style.border = '2px solid #007bff';
         
-        // Если выбрали имя, предупреждаем, что Numpad тут не работает
-        if (fieldId === 'qe-name') {
-            alert('Для изменения наименования используйте системную клавиатуру (дважды нажмите кнопку на Bluetooth-сканере).');
+        // Позволяем вводить текст с системной клавиатуры ТОЛЬКО в поле "Наименование"
+        if (fieldId === 'qe-title') {
+            activeEl.removeAttribute('readonly');
+            activeEl.focus();
+        } else {
+            document.getElementById('qe-title').setAttribute('readonly', 'true');
         }
     }
 }
 
-// Добавление цифры (адаптировано из addPin)
 function qeAddDigit(digit, e) {
-    if (e) e.preventDefault(); // Блокируем скролл и зум браузера
-    
-    if (activeQeFieldId === 'qe-name') return; // Запрещаем вбивать цифры в имя
-    
+    if (e) e.preventDefault();
+    if (activeQeFieldId === 'qe-title') return;
     const input = document.getElementById(activeQeFieldId);
-    if (input) {
-        input.value += digit;
-    }
+    if (input) input.value += digit;
 }
 
-// Удаление одного символа (адаптировано из delPin)
 function qeDelDigit(e) {
     if (e) e.preventDefault();
-    
-    if (activeQeFieldId === 'qe-name') return;
-    
+    if (activeQeFieldId === 'qe-title') return;
     const input = document.getElementById(activeQeFieldId);
-    if (input && input.value.length > 0) {
-        input.value = input.value.slice(0, -1);
-    }
+    if (input && input.value.length > 0) input.value = input.value.slice(0, -1);
 }
 
-// Полная очистка поля (вместо жесткого сброса кэша)
 function qeClearField(e) {
     if (e) e.preventDefault();
-    
-    if (activeQeFieldId === 'qe-name') return;
-    
+    if (activeQeFieldId === 'qe-title') return;
     const input = document.getElementById(activeQeFieldId);
-    if (input) {
-        input.value = '';
-    }
+    if (input) input.value = '';
 }
 
-// Функция-хук, которую нужно вызывать ПРИ ОТКРЫТИИ окна QuickEdit
-// Добавьте этот вызов внутрь вашей функции openQuickEdit()
 function initQeNumpad() {
-    setQeActiveField('qe-price'); // Сбрасываем фокус на цену при каждом открытии
+    setQeActiveField('qe-price');
 }
 
     let tokenClient;
