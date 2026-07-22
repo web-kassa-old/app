@@ -430,17 +430,15 @@ window.openQuickEditModal = function(id) {
 };
 
 // ==========================================
-// ЛОГИКА ВИДЕО-СКАНЕРА QUAGGA2 (ДЛЯ КАССЫ)
+// ИСПРАВЛЕННЫЙ ВИДЕО-СКАНЕР QUAGGA2
 // ==========================================
 
-// 1. Запуск видеопотока с лазерным прицелом
 window.startQuaggaScanner = function() {
     const container = document.getElementById('quagga-scanner-container');
     const target = document.getElementById('quagga-video-target');
     
     if (!container || !target) return;
     
-    // Если окно уже открыто — повторный клик закрывает его
     if (container.style.display === 'block') {
         window.stopQuaggaScanner();
         return;
@@ -456,37 +454,34 @@ window.startQuaggaScanner = function() {
             constraints: {
                 width: { ideal: 640 },
                 height: { ideal: 480 },
-                facingMode: "environment", // Задняя камера
-                advanced: [{ focusMode: "continuous" }] // Автофокус
-            },
-            // Сканируем только центральную узкую полосу (где красная линия)
-            area: {
-                top: "30%",    
-                right: "10%",  
-                left: "10%",   
-                bottom: "30%"  
+                facingMode: "environment" // Задняя камера
             }
+            // area убрали полностью, чтобы рассинхрон с красной линией исчез
         },
         locator: {
             patchSize: "medium",
             halfSample: true
         },
-        numOfWorkers: navigator.hardwareConcurrency ? navigator.hardwareConcurrency : 2,
+        numOfWorkers: navigator.hardwareConcurrency ? Math.min(navigator.hardwareConcurrency, 4) : 2,
         decoder: {
-            // Оставляем только ean_reader (обычные товары) и ean_8. 
-            // Убираем code_128, который чаще всего выдает случайные ошибки на тенях
-            readers: ["ean_reader", "ean_8_reader"] 
+            // Возвращаем все основные кассовые форматы
+            readers: [
+                "ean_reader", 
+                "ean_8_reader", 
+                "upc_reader", 
+                "upc_e_reader", 
+                "code_128_reader"
+            ] 
         },
         locate: true
     }, function(err) {
         if (err) {
-            console.error(err);
+            console.error("Ошибка Quagga:", err);
             alert("Ошибка доступа к камере: " + err.message);
             window.stopQuaggaScanner();
             return;
         }
         
-        // Настройка масштаба видео под мобильный Safari и Chrome
         const videoEl = target.querySelector('video');
         if (videoEl) {
             videoEl.style.width = '100%';
@@ -499,6 +494,39 @@ window.startQuaggaScanner = function() {
     });
 
     Quagga.onDetected(window.handleQuaggaDetection);
+};
+
+window.handleQuaggaDetection = function(result) {
+    if (!result || !result.codeResult || !result.codeResult.code) return;
+    
+    const code = result.codeResult.code;
+
+    // Простая проверка: если код не пустой и длиннее 3 символов
+    if (code && code.length >= 3) {
+        const barcodeInput = document.getElementById('qe-barcode');
+        if (barcodeInput) {
+            barcodeInput.value = code;
+            
+            // Выключаем камеру и сбрасываем фокус
+            window.stopQuaggaScanner();
+            barcodeInput.blur();
+        }
+    }
+};
+
+window.stopQuaggaScanner = function() {
+    const container = document.getElementById('quagga-scanner-container');
+    const target = document.getElementById('quagga-video-target');
+    
+    try {
+        Quagga.stop();
+        Quagga.offDetected(window.handleQuaggaDetection);
+    } catch (e) {
+        // Игнорируем ошибки при повторной остановке
+    }
+    
+    if (target) target.innerHTML = '';
+    if (container) container.style.display = 'none';
 };
 
 // Переменные для защиты от случайных ложных считываний
