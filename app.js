@@ -3084,6 +3084,81 @@ function cancelResetHold(btn, e) {
             }
         });
 
+        // ==========================================
+// ЛОГИКА КАСТОМНОГО NUMPAD ДЛЯ QUICK EDIT
+// ==========================================
+
+let activeQeFieldId = 'qe-price'; // По умолчанию при открытии окна фокус на цене
+
+// Функция переключения активного поля
+function setQeActiveField(fieldId) {
+    activeQeFieldId = fieldId;
+    
+    // Сбрасываем стили у всех полей
+    const fields = ['qe-name', 'qe-price', 'qe-stock'];
+    fields.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.style.border = '1px solid var(--border-main)';
+            el.style.boxShadow = 'none';
+        }
+    });
+
+    // Визуально подсвечиваем выбранное поле
+    const activeEl = document.getElementById(activeQeFieldId);
+    if (activeEl) {
+        activeEl.style.border = '2px solid var(--accent-blue)';
+        activeEl.style.boxShadow = '0 0 8px rgba(52, 152, 219, 0.4)';
+        
+        // Если выбрали имя, предупреждаем, что Numpad тут не работает
+        if (fieldId === 'qe-name') {
+            alert('Для изменения наименования используйте системную клавиатуру (дважды нажмите кнопку на Bluetooth-сканере).');
+        }
+    }
+}
+
+// Добавление цифры (адаптировано из addPin)
+function qeAddDigit(digit, e) {
+    if (e) e.preventDefault(); // Блокируем скролл и зум браузера
+    
+    if (activeQeFieldId === 'qe-name') return; // Запрещаем вбивать цифры в имя
+    
+    const input = document.getElementById(activeQeFieldId);
+    if (input) {
+        input.value += digit;
+    }
+}
+
+// Удаление одного символа (адаптировано из delPin)
+function qeDelDigit(e) {
+    if (e) e.preventDefault();
+    
+    if (activeQeFieldId === 'qe-name') return;
+    
+    const input = document.getElementById(activeQeFieldId);
+    if (input && input.value.length > 0) {
+        input.value = input.value.slice(0, -1);
+    }
+}
+
+// Полная очистка поля (вместо жесткого сброса кэша)
+function qeClearField(e) {
+    if (e) e.preventDefault();
+    
+    if (activeQeFieldId === 'qe-name') return;
+    
+    const input = document.getElementById(activeQeFieldId);
+    if (input) {
+        input.value = '';
+    }
+}
+
+// Функция-хук, которую нужно вызывать ПРИ ОТКРЫТИИ окна QuickEdit
+// Добавьте этот вызов внутрь вашей функции openQuickEdit()
+function initQeNumpad() {
+    setQeActiveField('qe-price'); // Сбрасываем фокус на цену при каждом открытии
+}
+
     let tokenClient;
     let clientAccessToken = ''; // НОВАЯ ПЕРЕМЕННАЯ: сохраняем токен клиента для Установщика
 
