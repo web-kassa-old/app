@@ -448,9 +448,13 @@ window.openQuickEditModal = function(id) {
                 <h3 style="margin-top: 0; margin-bottom: 20px; font-size: 16px; text-align: center; text-transform: uppercase; border-bottom: 1px solid #333; padding-bottom: 10px; letter-spacing: 1px;">РАСПРЕДЕЛЕНИЕ ТОВАРА</h3>
                 
                 <div style="margin-bottom: 15px;">
-                    <label>Наименование</label>
-                    <input type="text" id="qe-name" value="${item.name || ''}" onclick="window.checkScannerStatus(this)" style="width: 100%;">
-                </div>
+    <label>Наименование</label>
+    <input type="text" id="qe-name" value="${item.name || ''}" style="width: 100%;">
+    <!-- Подсказка для кассира на случай перехвата клавы сканером -->
+    <div style="font-size: 10px; color: #ff9800; margin-top: 4px; letter-spacing: 0.3px;">
+        * Если клавиатура не появилась, дважды нажмите кнопку на сканере
+    </div>
+</div>
                 
                 <div style="margin-bottom: 15px;">
                     <label>Категория</label>
@@ -488,18 +492,16 @@ window.openQuickEditModal = function(id) {
                     </div>
                 </div>
 
-                <div style="display: flex; gap: 15px; margin-bottom: 15px;">
-                    <div style="flex: 1;">
-                        <label>Цена (₸)</label>
-                        <!-- Добавлен readonly и вызов активатора -->
-                        <input type="text" class="no-spinners qe-active-input" id="qe-price" value="${item.price || 0}" readonly onclick="window.setQeActive(this)" style="width: 100%;">
-                    </div>
-                    <div style="flex: 1;">
-                        <label>Мин. остаток</label>
-                        <!-- Добавлен readonly и вызов активатора -->
-                        <input type="text" class="no-spinners" id="qe-minstock" value="${minStockVal}" readonly onclick="window.setQeActive(this)" style="width: 100%;">
-                    </div>
-                </div>
+                <div style="display: flex; gap: 15px; margin-bottom: 5px;">
+    <div style="flex: 1;">
+        <label>Цена (₸)</label>
+        <input type="text" class="no-spinners" id="qe-price" value="${item.price || 0}" readonly onclick="window.setQeActive(this, event)" style="width: 100%;">
+    </div>
+    <div style="flex: 1;">
+        <label>Мин. остаток</label>
+        <input type="text" class="no-spinners" id="qe-minstock" value="${minStockVal}" readonly onclick="window.setQeActive(this, event)" style="width: 100%;">
+    </div>
+</div>
                 
                 <div style="text-align: right; margin-bottom: 15px;">
                     <span style="color: #00bcd4; font-size: 12px;">Факт: ${currentStock}</span>
@@ -1316,7 +1318,7 @@ function openQuickEditModal(id) {
             <div style="margin-bottom: 15px;">
                 <label style="display: block; font-size: 11px; color: #888; margin-bottom: 5px;">ШТРИХКОД</label>
                 <div style="display: flex; margin-bottom: 8px;">
-                    <input type="text" id="qe-barcode" value="${item.barcode || ''}" readonly onclick="setQeActiveField('qe-barcode')" placeholder="Отсканируйте или введите..." style="flex: 1; padding: 10px; box-sizing: border-box; background: #2a2a2a; border: 1px solid #444; color: #fff; border-top-left-radius: 4px; border-bottom-left-radius: 4px; border-right: none; font-size: 16px;">
+                    <input type="text" id="qe-barcode" value="${item.barcode || ''}" inputmode="none" onclick="window.setQeActive(this, event)" placeholder="Отсканируйте или введите..." style="flex: 1; padding: 10px; box-sizing: border-box; background: #2a2a2a; border: 1px solid #444; color: #fff; border-top-left-radius: 4px; border-bottom-left-radius: 4px; border-right: none; font-size: 16px;">
                     <button type="button" onclick="window.startQuaggaScanner()" style="padding: 0 15px; border: 1px solid #444; background: #333; border-top-right-radius: 4px; border-bottom-right-radius: 4px; color: #fff; font-size: 18px; cursor: pointer;">📷</button>
                 </div>
                 
