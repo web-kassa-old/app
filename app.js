@@ -115,7 +115,21 @@
                 report_sales: "ПРОДАЖИ", report_returns: "ВОЗВРАТЫ", report_total_net: "Итого (чис.):",
                 report_items: "ТОВАРЫ", report_receipts: "ЧЕКИ",
                 settings_help: "Справка",
-                btn_help: "Руководство пользователя"
+                btn_help: "Руководство пользователя",
+                qe_title: "РАСПРЕДЕЛЕНИЕ ТОВАРА",
+                qe_name: "Наименование",
+                qe_name_hint: "* Если не появляется экранная клавиатура, нажмите 2 раза кнопку на сканере",
+                qe_category: "Категория",
+                qe_no_category: "Не выбрано",
+                qe_new_category: "+ Новая категория",
+                qe_barcode: "ШТРИХКОД",
+                qe_barcode_placeholder: "Отсканируйте...",
+                qe_price: "Цена (₸)",
+                qe_current: "Тек",
+                qe_min_stock: "Мин. остаток",
+                qe_fact: "Факт",
+                qe_save: "СОХРАНИТЬ",
+                qe_close: "Закрыть ✖"
             },
             kz: {
                 btn_sale: "САТУ", btn_return: "ҚАЙТАРУ", search_placeholder: "ІЗДЕУ...",
@@ -233,7 +247,21 @@
                 report_sales: "САТЫЛЫМДАР", report_returns: "ҚАЙТАРЫМДАР", report_total_net: "Таза табыс:",
                 report_items: "ТАУАРЛАР", report_receipts: "ЧЕКТЕР",
                 settings_help: "Анықтама",
-                btn_help: "Пайдаланушы нұсқаулығы"
+                btn_help: "Пайдаланушы нұсқаулығы",
+                qe_title: "ТАУАРДЫ БӨЛУ",
+                qe_name: "Атауы",
+                qe_name_hint: "* Экрандық пернетақта көрінбесе, сканердегі батырманы 2 рет басыңыз",
+                qe_category: "Санат",
+                qe_no_category: "Таңдалмаған",
+                qe_new_category: "+ Жаңа санат",
+                qe_barcode: "ШТРИХКОД",
+                qe_barcode_placeholder: "Сканерлеңіз...",
+                qe_price: "Бағасы (₸)",
+                qe_current: "Ағымд",
+                qe_min_stock: "Мин. қалдық",
+                qe_fact: "Нақты",
+                qe_save: "САҚТАУ",
+                qe_close: "Жабу ✖"
             }
         };
 
@@ -384,9 +412,14 @@ window.openQuickEditModal = function(id) {
     const existingModal = document.getElementById('quickEditModal');
     if (existingModal) existingModal.remove();
 
+    // Безопасное получение переводов
+    const lang = window.currentLang || 'ru';
+    const dict = translations[lang] || translations['ru'];
+    const t = (key) => dict[key] || '';
+
     // Собираем категории
     const uniqueCats = [...new Set(db.map(i => i.category).filter(Boolean))];
-    let catOptions = `<option value="0" ${!item.category || item.category === '0' ? 'selected' : ''}>Не выбрано</option>`;
+    let catOptions = `<option value="0" data-i18n="qe_no_category" ${!item.category || item.category === '0' ? 'selected' : ''}>${t('qe_no_category')}</option>`;
     
     uniqueCats.forEach(cat => {
         if (cat !== '0') {
@@ -394,13 +427,11 @@ window.openQuickEditModal = function(id) {
             catOptions += `<option value="${cat}" ${selected}>${cat}</option>`;
         }
     });
-    catOptions += `<option value="new">+ Новая категория</option>`;
+    catOptions += `<option value="new" data-i18n="qe_new_category">${t('qe_new_category')}</option>`;
 
     // Определяем мин. остаток и фактический остаток
     const minStockVal = item.min_stock !== undefined ? item.min_stock : 1;
     const currentStock = Number(item.stock) || 0;
-
-    // Форматируем актуальную цену с разделением на тысячи
     const formattedPrice = Number(item.price || 0).toLocaleString('ru-RU');
 
     const modalHtml = `
@@ -412,83 +443,65 @@ window.openQuickEditModal = function(id) {
                 .no-spinners { -moz-appearance: textfield; }
                 
                 #quickEditModal input, #quickEditModal select {
-                    background: #000; color: #fff; border: 1px solid #333; border-radius: 4px;
-                    padding: 8px; font-size: 15px; box-sizing: border-box; outline: none;
+                    background: var(--bg-dim, #000); color: inherit; border: 1px solid var(--accent-dim, #333); 
+                    border-radius: 4px; padding: 8px; font-size: 15px; box-sizing: border-box; outline: none;
                 }
-                #quickEditModal input:focus, #quickEditModal select:focus { border-color: #555; }
+                #quickEditModal input:focus, #quickEditModal select:focus { border-color: var(--accent-green, #4caf50); }
                 #quickEditModal label {
-                    font-size: 10px; color: #888; text-transform: uppercase; 
+                    font-size: 10px; color: var(--accent-dim, #888); text-transform: uppercase; 
                     margin-bottom: 2px; display: block; letter-spacing: 0.5px;
                 }
 
                 .np-btn {
-                    background: #2a2a2a; color: #fff; border: 1px solid #444; border-radius: 6px;
-                    height: 45px; font-size: 20px; font-weight: bold; cursor: pointer; user-select: none;
-                    transition: background 0.1s;
+                    background: var(--bg-dim, #2a2a2a); color: inherit; border: 1px solid var(--accent-dim, #444); 
+                    border-radius: 6px; height: 45px; font-size: 20px; font-weight: bold; cursor: pointer; user-select: none;
                 }
-                .np-btn:active { background: #555; }
-                .np-btn-action { background: #424242; color: #ff9800; }
+                .np-btn-action { background: var(--bg-success-dim, #424242); color: var(--accent-green, #ff9800); }
                 
-                .qe-active-input { border-color: #4caf50 !important; box-shadow: 0 0 8px rgba(76, 175, 80, 0.4); }
+                .qe-active-input { border-color: var(--accent-green, #4caf50) !important; box-shadow: 0 0 8px rgba(76, 175, 80, 0.4); }
             </style>
 
-            <div style="background: #1e1e1e; padding: 15px; border-radius: 8px; width: 90%; max-width: 350px; color: #fff; box-shadow: 0 10px 30px rgba(0,0,0,0.8); border: 1px solid #333;">
-                <h3 style="margin-top: 0; margin-bottom: 12px; font-size: 15px; text-align: center; text-transform: uppercase; border-bottom: 1px solid #333; padding-bottom: 8px; letter-spacing: 1px;">РАСПРЕДЕЛЕНИЕ ТОВАРА</h3>
+            <div style="background: var(--bg-dim, #1e1e1e); padding: 15px; border-radius: 8px; width: 90%; max-width: 350px; color: inherit; box-shadow: 0 10px 30px rgba(0,0,0,0.8); border: 1px solid var(--accent-dim, #333);">
+                <h3 data-i18n="qe_title" style="margin-top: 0; margin-bottom: 12px; font-size: 15px; text-align: center; text-transform: uppercase; border-bottom: 1px solid var(--accent-dim, #333); padding-bottom: 8px; letter-spacing: 1px;">${t('qe_title')}</h3>
                 
                 <div style="margin-bottom: 10px;">
-                    <label>Наименование</label>
+                    <label data-i18n="qe_name">${t('qe_name')}</label>
                     <input type="text" id="qe-name" value="${item.name || ''}" style="width: 100%;">
-                    <div style="font-size: 9px; color: #ff9800; margin-top: 3px; letter-spacing: 0.3px;">* Если не появляется экранная клавиатура, нажмите 2 раза кнопку на сканере</div>
+                    <div data-i18n="qe_name_hint" style="font-size: 9px; color: var(--accent-green, #ff9800); margin-top: 3px; letter-spacing: 0.3px;">${t('qe_name_hint')}</div>
                 </div>
                 
                 <div style="margin-bottom: 10px;">
-                    <label>Категория</label>
-                    <select id="qe-category" style="width: 100%;" onchange="if(this.value==='new') { alert('Тут будет вызов модалки создания категории'); }">
+                    <label data-i18n="qe_category">${t('qe_category')}</label>
+                    <select id="qe-category" style="width: 100%;">
                         ${catOptions}
                     </select>
                 </div>
 
                 <div style="margin-bottom: 10px;">
-                    <label style="display: block; font-size: 10px; color: #888; margin-bottom: 2px;">ШТРИХКОД</label>
+                    <label data-i18n="qe_barcode" style="display: block; font-size: 10px; color: var(--accent-dim, #888); margin-bottom: 2px;">${t('qe_barcode')}</label>
                     <div style="display: flex; margin-bottom: 8px;">
-                        <input type="text" 
-                               id="qe-barcode" 
-                               value="${item.barcode || ''}" 
-                               placeholder="Отсканируйте..." 
-                               inputmode="none" 
-                               readonly
-                               onclick="window.setQeActive(this)"
-                               style="flex: 1; border-top-right-radius: 0; border-bottom-right-radius: 0; border-right: none;">
-                        
-                        <button type="button" 
-                                onclick="window.startQuaggaScanner()" 
-                                style="padding: 0 15px; border: 1px solid #333; background: #2a2a2a; border-top-right-radius: 4px; border-bottom-right-radius: 4px; color: #fff; font-size: 18px; cursor: pointer;">
-                            📷
-                        </button>
+                        <input type="text" id="qe-barcode" value="${item.barcode || ''}" placeholder="${t('qe_barcode_placeholder')}" inputmode="none" readonly onclick="window.setQeActive(this)" style="flex: 1; border-top-right-radius: 0; border-bottom-right-radius: 0; border-right: none;">
+                        <button type="button" onclick="window.startQuaggaScanner()" style="padding: 0 15px; border: 1px solid var(--accent-dim, #333); background: var(--bg-dim, #2a2a2a); border-top-right-radius: 4px; border-bottom-right-radius: 4px; color: inherit; font-size: 18px; cursor: pointer;">📷</button>
                     </div>
                     
-                    <div id="quagga-scanner-container" style="display: none; position: relative; width: 100%; height: 180px; background: #000; border-radius: 4px; overflow: hidden; border: 1px solid #444;">
+                    <div id="quagga-scanner-container" style="display: none; position: relative; width: 100%; height: 180px; background: #000; border-radius: 4px; overflow: hidden; border: 1px solid var(--accent-dim, #444);">
                         <div id="quagga-video-target" style="width: 100%; height: 100%;"></div>
-                        <div style="position: absolute; top: 30%; bottom: 30%; left: 10%; right: 10%; border: 2px solid rgba(255, 0, 0, 0.5); box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);"></div>
-                        <div style="position: absolute; top: 50%; left: 10%; right: 10%; height: 2px; background: red; box-shadow: 0 0 4px red;"></div>
-                        <button type="button" onclick="window.stopQuaggaScanner()" style="position: absolute; top: 5px; right: 5px; background: rgba(0,0,0,0.7); color: #fff; border: 1px solid #555; border-radius: 4px; padding: 4px 10px; font-size: 12px; z-index: 10;">
-                            Закрыть ✖
-                        </button>
+                        <button type="button" data-i18n="qe_close" onclick="window.stopQuaggaScanner()" style="position: absolute; top: 5px; right: 5px; background: rgba(0,0,0,0.7); color: #fff; border: 1px solid #555; border-radius: 4px; padding: 4px 10px; font-size: 12px; z-index: 10;">${t('qe_close')}</button>
                     </div>
                 </div>
 
                 <div style="display: flex; gap: 12px; margin-bottom: 15px;">
                     <div style="flex: 1;">
                         <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 2px;">
-                            <label style="margin-bottom: 0;">Цена (₸)</label>
-                            <span style="font-size: 10px; color: #00bcd4;">Тек: ${formattedPrice}</span>
+                            <label data-i18n="qe_price" style="margin-bottom: 0;">${t('qe_price')}</label>
+                            <span style="font-size: 10px; color: var(--accent-green, #00bcd4);"><span data-i18n="qe_current">${t('qe_current')}</span>: ${formattedPrice}</span>
                         </div>
                         <input type="text" class="no-spinners" id="qe-price" value="${item.price || 0}" inputmode="none" readonly onclick="window.setQeActive(this)" style="width: 100%;">
                     </div>
                     <div style="flex: 1;">
                         <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 2px;">
-                            <label style="margin-bottom: 0;">Мин. остаток</label>
-                            <span style="font-size: 10px; color: #00bcd4;">Факт: ${currentStock}</span>
+                            <label data-i18n="qe_min_stock" style="margin-bottom: 0;">${t('qe_min_stock')}</label>
+                            <span style="font-size: 10px; color: var(--accent-green, #00bcd4);"><span data-i18n="qe_fact">${t('qe_fact')}</span>: ${currentStock}</span>
                         </div>
                         <input type="text" class="no-spinners" id="qe-minstock" value="${minStockVal}" inputmode="none" readonly onclick="window.setQeActive(this)" style="width: 100%;">
                     </div>
@@ -511,8 +524,8 @@ window.openQuickEditModal = function(id) {
                 </div>
 
                 <div style="display: flex; gap: 8px;">
-                    <button type="button" onclick="window.saveQuickEdit('${item.id}')" style="flex: 2; padding: 10px; border: none; background: #1b5e20; color: white; border-radius: 4px; font-weight: bold; font-size: 14px; text-transform: uppercase; cursor: pointer;">Сохранить</button>
-                    <button type="button" onclick="document.getElementById('quickEditModal').remove()" style="flex: 1; padding: 10px; border: none; background: #b71c1c; color: white; border-radius: 4px; font-weight: bold; font-size: 16px; cursor: pointer;">✖</button>
+                    <button type="button" data-i18n="qe_save" onclick="window.saveQuickEdit('${item.id}')" style="flex: 2; padding: 10px; border: none; background: var(--accent-green, #1b5e20); color: #fff; border-radius: 4px; font-weight: bold; font-size: 14px; text-transform: uppercase; cursor: pointer;">${t('qe_save')}</button>
+                    <button type="button" onclick="document.getElementById('quickEditModal').remove()" style="flex: 1; padding: 10px; border: none; background: var(--accent-red, #b71c1c); color: #fff; border-radius: 4px; font-weight: bold; font-size: 16px; cursor: pointer;">✖</button>
                 </div>
             </div>
         </div>
