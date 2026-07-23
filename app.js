@@ -511,7 +511,15 @@ window.openQuickEditModal = function(id) {
                     </div>
                     
                     <div id="quagga-scanner-container" style="display: none; position: relative; width: 100%; height: 180px; background: #000; border-radius: 4px; overflow: hidden; border: 1px solid #444;">
+    
+                        <!-- Контейнер для потока с камеры -->
                         <div id="quagga-video-target" style="width: 100%; height: 100%;"></div>
+                        
+                        <!-- === ВИЗУАЛЬНЫЙ ПРИЦЕЛ (КРАСНАЯ ЛИНИЯ) === -->
+                        <div style="position: absolute; top: 50%; left: 10%; width: 80%; height: 2px; background: rgba(255, 0, 0, 0.7); box-shadow: 0 0 8px rgba(255, 0, 0, 1); z-index: 5; transform: translateY(-50%); pointer-events: none;"></div>
+                        <!-- ========================================= -->
+
+                        <!-- Кнопка закрытия -->
                         <button type="button" data-i18n="qe_close" onclick="window.stopQuaggaScanner()" style="position: absolute; top: 5px; right: 5px; background: rgba(0,0,0,0.7); color: #fff; border: 1px solid #555; border-radius: 4px; padding: 4px 10px; font-size: 12px; z-index: 10;">${t('qe_close')}</button>
                     </div>
                 </div>
@@ -587,11 +595,16 @@ window.startQuaggaScanner = function() {
                 height: { ideal: 480 },
                 facingMode: "environment" // Задняя камера
             }
-            // area убрали полностью, чтобы рассинхрон с красной линией исчез
         },
         locator: {
-            patchSize: "medium",
-            halfSample: true
+        patchSize: "medium",
+        halfSample: true,
+        area: { // Перенесли сюда
+            top: "40%",
+            bottom: "40%",
+            left: "0%",
+            right: "0%"
+        }
         },
         numOfWorkers: navigator.hardwareConcurrency ? Math.min(navigator.hardwareConcurrency, 4) : 2,
         decoder: {
