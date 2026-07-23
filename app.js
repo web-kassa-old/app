@@ -412,12 +412,18 @@ window.openQuickEditModal = function(id) {
     const existingModal = document.getElementById('quickEditModal');
     if (existingModal) existingModal.remove();
 
-    // Безопасное получение переводов
-    const lang = window.currentLang || 'ru';
-    const dict = translations[lang] || translations['ru'];
-    const t = (key) => dict[key] || '';
+    // 1. ОПРЕДЕЛЕНИЕ ЯЗЫКА (из localStorage или переменных)
+    const savedLang = localStorage.getItem('pos_lang');
+    const lang = savedLang || window.currentLang || (typeof currentLang !== 'undefined' ? currentLang : 'ru');
+    
+    // Получаем словарь (используем 'kz' или 'ru')
+    const dict = (typeof translations !== 'undefined' && translations[lang]) 
+        ? translations[lang] 
+        : (typeof translations !== 'undefined' && translations['ru'] ? translations['ru'] : {});
+    
+    const t = (key) => dict[key] || key;
 
-    // Собираем категории
+    // 2. ПОДГОТОВКА ДАННЫХ
     const uniqueCats = [...new Set(db.map(i => i.category).filter(Boolean))];
     let catOptions = `<option value="0" data-i18n="qe_no_category" ${!item.category || item.category === '0' ? 'selected' : ''}>${t('qe_no_category')}</option>`;
     
@@ -429,11 +435,11 @@ window.openQuickEditModal = function(id) {
     });
     catOptions += `<option value="new" data-i18n="qe_new_category">${t('qe_new_category')}</option>`;
 
-    // Определяем мин. остаток и фактический остаток
     const minStockVal = item.min_stock !== undefined ? item.min_stock : 1;
     const currentStock = Number(item.stock) || 0;
     const formattedPrice = Number(item.price || 0).toLocaleString('ru-RU');
 
+    // 3. HTML И СТИЛИ С ПОДДЕРЖКОЙ СВЕТЛОЙ ТЕМЫ
     const modalHtml = `
         <div id="quickEditModal" onclick="if(event.target.id === 'quickEditModal') window.closeQeNumpad()" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 9999; display: flex; justify-content: center; align-items: flex-start; padding-top: 3vh; font-family: 'Roboto', sans-serif;">
             
@@ -442,32 +448,52 @@ window.openQuickEditModal = function(id) {
                 .no-spinners::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
                 .no-spinners { -moz-appearance: textfield; }
                 
+                /* --- ТЁМНАЯ ТЕМА (ПО УМОЛЧАНИЮ) --- */
+                #quickEditModal .qe-container {
+                    background: #1e1e1e; color: #ffffff; border: 1px solid #333333;
+                }
                 #quickEditModal input, #quickEditModal select {
-                    background: var(--bg-dim, #000); color: inherit; border: 1px solid var(--accent-dim, #333); 
+                    background: #000000; color: #ffffff; border: 1px solid #333333;
                     border-radius: 4px; padding: 8px; font-size: 15px; box-sizing: border-box; outline: none;
                 }
-                #quickEditModal input:focus, #quickEditModal select:focus { border-color: var(--accent-green, #4caf50); }
+                #quickEditModal input:focus, #quickEditModal select:focus { border-color: #2e7d32; }
                 #quickEditModal label {
-                    font-size: 10px; color: var(--accent-dim, #888); text-transform: uppercase; 
+                    font-size: 10px; color: #888888; text-transform: uppercase; 
                     margin-bottom: 2px; display: block; letter-spacing: 0.5px;
                 }
-
                 .np-btn {
-                    background: var(--bg-dim, #2a2a2a); color: inherit; border: 1px solid var(--accent-dim, #444); 
+                    background: #2a2a2a; color: #ffffff; border: 1px solid #444444; 
                     border-radius: 6px; height: 45px; font-size: 20px; font-weight: bold; cursor: pointer; user-select: none;
                 }
-                .np-btn-action { background: var(--bg-success-dim, #424242); color: var(--accent-green, #ff9800); }
-                
-                .qe-active-input { border-color: var(--accent-green, #4caf50) !important; box-shadow: 0 0 8px rgba(76, 175, 80, 0.4); }
+                .np-btn-action { background: #333333; color: #ff9800; }
+                .qe-active-input { border-color: #2e7d32 !important; box-shadow: 0 0 8px rgba(46, 125, 50, 0.4); }
+
+                /* --- СВЕТЛАЯ ТЕМА (АВТОМАТИЧЕСКИ ПРИ .light-theme НА BODY) --- */
+                body.light-theme #quickEditModal .qe-container {
+                    background: #ffffff !important; color: #18181b !important; border-color: #e4e4e7 !important;
+                }
+                body.light-theme #quickEditModal input, 
+                body.light-theme #quickEditModal select {
+                    background: #f4f4f5 !important; color: #000000 !important; border-color: #d4d4d8 !important;
+                }
+                body.light-theme #quickEditModal label {
+                    color: #71717a !important;
+                }
+                body.light-theme #quickEditModal .np-btn {
+                    background: #e4e4e7 !important; color: #18181b !important; border-color: #d4d4d8 !important;
+                }
+                body.light-theme #quickEditModal .np-btn-action {
+                    background: #d4d4d8 !important; color: #e65100 !important;
+                }
             </style>
 
-            <div style="background: var(--bg-dim, #1e1e1e); padding: 15px; border-radius: 8px; width: 90%; max-width: 350px; color: inherit; box-shadow: 0 10px 30px rgba(0,0,0,0.8); border: 1px solid var(--accent-dim, #333);">
-                <h3 data-i18n="qe_title" style="margin-top: 0; margin-bottom: 12px; font-size: 15px; text-align: center; text-transform: uppercase; border-bottom: 1px solid var(--accent-dim, #333); padding-bottom: 8px; letter-spacing: 1px;">${t('qe_title')}</h3>
+            <div class="qe-container" style="padding: 15px; border-radius: 8px; width: 90%; max-width: 350px; box-shadow: 0 10px 30px rgba(0,0,0,0.8);">
+                <h3 data-i18n="qe_title" style="margin-top: 0; margin-bottom: 12px; font-size: 15px; text-align: center; text-transform: uppercase; border-bottom: 1px solid rgba(128,128,128,0.2); padding-bottom: 8px; letter-spacing: 1px;">${t('qe_title')}</h3>
                 
                 <div style="margin-bottom: 10px;">
                     <label data-i18n="qe_name">${t('qe_name')}</label>
                     <input type="text" id="qe-name" value="${item.name || ''}" style="width: 100%;">
-                    <div data-i18n="qe_name_hint" style="font-size: 9px; color: var(--accent-green, #ff9800); margin-top: 3px; letter-spacing: 0.3px;">${t('qe_name_hint')}</div>
+                    <div data-i18n="qe_name_hint" style="font-size: 9px; color: #2e7d32; margin-top: 3px; letter-spacing: 0.3px;">${t('qe_name_hint')}</div>
                 </div>
                 
                 <div style="margin-bottom: 10px;">
@@ -478,13 +504,13 @@ window.openQuickEditModal = function(id) {
                 </div>
 
                 <div style="margin-bottom: 10px;">
-                    <label data-i18n="qe_barcode" style="display: block; font-size: 10px; color: var(--accent-dim, #888); margin-bottom: 2px;">${t('qe_barcode')}</label>
+                    <label data-i18n="qe_barcode" style="display: block; font-size: 10px; margin-bottom: 2px;">${t('qe_barcode')}</label>
                     <div style="display: flex; margin-bottom: 8px;">
                         <input type="text" id="qe-barcode" value="${item.barcode || ''}" placeholder="${t('qe_barcode_placeholder')}" inputmode="none" readonly onclick="window.setQeActive(this)" style="flex: 1; border-top-right-radius: 0; border-bottom-right-radius: 0; border-right: none;">
-                        <button type="button" onclick="window.startQuaggaScanner()" style="padding: 0 15px; border: 1px solid var(--accent-dim, #333); background: var(--bg-dim, #2a2a2a); border-top-right-radius: 4px; border-bottom-right-radius: 4px; color: inherit; font-size: 18px; cursor: pointer;">📷</button>
+                        <button type="button" onclick="window.startQuaggaScanner()" style="padding: 0 15px; border: 1px solid rgba(128,128,128,0.3); background: rgba(128,128,128,0.1); border-top-right-radius: 4px; border-bottom-right-radius: 4px; color: inherit; font-size: 18px; cursor: pointer;">📷</button>
                     </div>
                     
-                    <div id="quagga-scanner-container" style="display: none; position: relative; width: 100%; height: 180px; background: #000; border-radius: 4px; overflow: hidden; border: 1px solid var(--accent-dim, #444);">
+                    <div id="quagga-scanner-container" style="display: none; position: relative; width: 100%; height: 180px; background: #000; border-radius: 4px; overflow: hidden; border: 1px solid #444;">
                         <div id="quagga-video-target" style="width: 100%; height: 100%;"></div>
                         <button type="button" data-i18n="qe_close" onclick="window.stopQuaggaScanner()" style="position: absolute; top: 5px; right: 5px; background: rgba(0,0,0,0.7); color: #fff; border: 1px solid #555; border-radius: 4px; padding: 4px 10px; font-size: 12px; z-index: 10;">${t('qe_close')}</button>
                     </div>
@@ -494,14 +520,14 @@ window.openQuickEditModal = function(id) {
                     <div style="flex: 1;">
                         <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 2px;">
                             <label data-i18n="qe_price" style="margin-bottom: 0;">${t('qe_price')}</label>
-                            <span style="font-size: 10px; color: var(--accent-green, #00bcd4);"><span data-i18n="qe_current">${t('qe_current')}</span>: ${formattedPrice}</span>
+                            <span style="font-size: 10px; color: #2e7d32; font-weight: bold;"><span data-i18n="qe_current">${t('qe_current')}</span>: ${formattedPrice}</span>
                         </div>
                         <input type="text" class="no-spinners" id="qe-price" value="${item.price || 0}" inputmode="none" readonly onclick="window.setQeActive(this)" style="width: 100%;">
                     </div>
                     <div style="flex: 1;">
                         <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 2px;">
                             <label data-i18n="qe_min_stock" style="margin-bottom: 0;">${t('qe_min_stock')}</label>
-                            <span style="font-size: 10px; color: var(--accent-green, #00bcd4);"><span data-i18n="qe_fact">${t('qe_fact')}</span>: ${currentStock}</span>
+                            <span style="font-size: 10px; color: #2e7d32; font-weight: bold;"><span data-i18n="qe_fact">${t('qe_fact')}</span>: ${currentStock}</span>
                         </div>
                         <input type="text" class="no-spinners" id="qe-minstock" value="${minStockVal}" inputmode="none" readonly onclick="window.setQeActive(this)" style="width: 100%;">
                     </div>
@@ -524,8 +550,8 @@ window.openQuickEditModal = function(id) {
                 </div>
 
                 <div style="display: flex; gap: 8px;">
-                    <button type="button" data-i18n="qe_save" onclick="window.saveQuickEdit('${item.id}')" style="flex: 2; padding: 10px; border: none; background: var(--accent-green, #1b5e20); color: #fff; border-radius: 4px; font-weight: bold; font-size: 14px; text-transform: uppercase; cursor: pointer;">${t('qe_save')}</button>
-                    <button type="button" onclick="document.getElementById('quickEditModal').remove()" style="flex: 1; padding: 10px; border: none; background: var(--accent-red, #b71c1c); color: #fff; border-radius: 4px; font-weight: bold; font-size: 16px; cursor: pointer;">✖</button>
+                    <button type="button" data-i18n="qe_save" onclick="window.saveQuickEdit('${item.id}')" style="flex: 2; padding: 10px; border: none; background: #2e7d32; color: #fff; border-radius: 4px; font-weight: bold; font-size: 14px; text-transform: uppercase; cursor: pointer;">${t('qe_save')}</button>
+                    <button type="button" onclick="document.getElementById('quickEditModal').remove()" style="flex: 1; padding: 10px; border: none; background: #c62828; color: #fff; border-radius: 4px; font-weight: bold; font-size: 16px; cursor: pointer;">✖</button>
                 </div>
             </div>
         </div>
