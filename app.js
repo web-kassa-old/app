@@ -377,17 +377,177 @@ window.checkScannerStatus = function(el) {
 };
 
 window.openQuickEditModal = function(id) {
-    // 1. Находим товар в вашем массиве
-    const item = inventory.find(i => i.id == id); // или items.find, в зависимости от того, как у вас называется массив
+    const item = db.find(i => String(i.id) === String(id));
     if (!item) return;
 
-    // (Здесь у вас формируются catOptions, minStockVal и currentStock — оставьте их как у вас, 
-    // главное — убедитесь, что переменная modalHtml формируется с компактным дизайном)
+    // Удаляем старое окно, если есть
+    const existingModal = document.getElementById('quickEditModal');
+    if (existingModal) existingModal.remove();
 
-    // 2. Формируем компактный HTML модального окна
+    // Собираем категории
+    const uniqueCats = [...new Set(db.map(i => i.category).filter(Boolean))];
+    let catOptions = `<option value="0" ${!item.category || item.category === '0' ? 'selected' : ''}>Не выбрано</option>`;
+    
+    uniqueCats.forEach(cat => {
+        if (cat !== '0') {
+            let selected = (item.category === cat) ? 'selected' : '';
+            catOptions += `<option value="${cat}" ${selected}>${cat}</option>`;
+        }
+    });
+    catOptions += `<option value="new">+ Новая категория</option>`;
 
-    // 3. ВАЖНО: Вот эта строка как раз и вставляет модалку на страницу! 
-    // Если ее не было, то по долглому тапу ничего не происходило:
+    // Определяем мин. остаток (по умолчанию 1) и фактический остаток
+    const minStockVal = item.min_stock !== undefined ? item.min_stock : 1;
+    const currentStock = Number(item.stock) || 0;
+
+    const modalHtml = `
+        <div id="quickEditModal" onclick="if(event.target.id === 'quickEditModal') window.closeQeNumpad()" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 9999; display: flex; justify-content: center; align-items: flex-start; padding-top: 5vh; font-family: 'Roboto', sans-serif;">
+            
+            <style>
+                /* Скрываем стрелки у числовых полей */
+                .no-spinners::-webkit-outer-spin-button,
+                .no-spinners::-webkit-inner-spin-button {
+                    -webkit-appearance: none;
+                    margin: 0;
+                }
+                .no-spinners {
+                    -moz-appearance: textfield;
+                }
+                
+                /* Базовые стили элементов окна */
+                #quickEditModal input, #quickEditModal select {
+                    background: #000;
+                    color: #fff;
+                    border: 1px solid #333;
+                    border-radius: 4px;
+                    padding: 10px;
+                    font-size: 16px;
+                    box-sizing: border-box;
+                    outline: none;
+                }
+                #quickEditModal input:focus, #quickEditModal select:focus {
+                    border-color: #555;
+                }
+                #quickEditModal label {
+                    font-size: 11px;
+                    color: #888;
+                    text-transform: uppercase;
+                    margin-bottom: 5px;
+                    display: block;
+                    letter-spacing: 0.5px;
+                }
+
+                /* Стили для Numpad */
+                .np-btn {
+                    background: #2a2a2a; 
+                    color: #fff; 
+                    border: 1px solid #444; 
+                    border-radius: 6px;
+                    padding: 15px; 
+                    font-size: 22px; 
+                    font-weight: bold; 
+                    cursor: pointer;
+                    user-select: none;
+                    transition: background 0.1s;
+                }
+                .np-btn:active { background: #555; }
+                .np-btn-action { background: #424242; color: #ff9800; }
+                
+                /* Подсветка активного поля ввода */
+                .qe-active-input {
+                    border-color: #4caf50 !important;
+                    box-shadow: 0 0 8px rgba(76, 175, 80, 0.4);
+                }
+            </style>
+
+            <div style="background: #1e1e1e; padding: 20px; border-radius: 8px; width: 90%; max-width: 350px; color: #fff; box-shadow: 0 10px 30px rgba(0,0,0,0.8); border: 1px solid #333;">
+                <h3 style="margin-top: 0; margin-bottom: 20px; font-size: 16px; text-align: center; text-transform: uppercase; border-bottom: 1px solid #333; padding-bottom: 10px; letter-spacing: 1px;">РАСПРЕДЕЛЕНИЕ ТОВАРА</h3>
+                
+                <div style="margin-bottom: 15px;">
+    <label>Наименование</label>
+    <input type="text" id="qe-name" value="${item.name || ''}" style="width: 100%;">
+    <!-- Подсказка для кассира на случай перехвата клавы сканером -->
+    <div style="font-size: 10px; color: #ff9800; margin-top: 4px; letter-spacing: 0.3px;">
+        * Если клавиатура не появилась, дважды нажмите кнопку на сканере
+    </div>
+</div>
+                
+                <div style="margin-bottom: 15px;">
+                    <label>Категория</label>
+                    <select id="qe-category" style="width: 100%;" onchange="if(this.value==='new') { alert('Тут будет вызов модалки создания категории'); }">
+                        ${catOptions}
+                    </select>
+                </div>
+
+                <div style="margin-bottom: 15px;">
+                    <label style="display: block; font-size: 11px; color: #888; margin-bottom: 5px;">ШТРИХКОД</label>
+                    <div style="display: flex; margin-bottom: 8px;">
+                        <input type="text" 
+                               id="qe-barcode" 
+                               value="${item.barcode || ''}" 
+                               placeholder="Отсканируйте..." 
+                               inputmode="numeric" 
+                               pattern="[0-9]*" 
+                               onclick="window.setQeActive(this)"
+                               style="flex: 1; border-top-right-radius: 0; border-bottom-right-radius: 0; border-right: none;">
+                        
+                        <button type="button" 
+                                onclick="window.startQuaggaScanner()" 
+                                style="padding: 0 15px; border: 1px solid #333; background: #2a2a2a; border-top-right-radius: 4px; border-bottom-right-radius: 4px; color: #fff; font-size: 18px; cursor: pointer;">
+                            📷
+                        </button>
+                    </div>
+                    
+                    <div id="quagga-scanner-container" style="display: none; position: relative; width: 100%; height: 180px; background: #000; border-radius: 4px; overflow: hidden; border: 1px solid #444;">
+                        <div id="quagga-video-target" style="width: 100%; height: 100%;"></div>
+                        <div style="position: absolute; top: 30%; bottom: 30%; left: 10%; right: 10%; border: 2px solid rgba(255, 0, 0, 0.5); box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);"></div>
+                        <div style="position: absolute; top: 50%; left: 10%; right: 10%; height: 2px; background: red; box-shadow: 0 0 4px red;"></div>
+                        <button type="button" onclick="window.stopQuaggaScanner()" style="position: absolute; top: 5px; right: 5px; background: rgba(0,0,0,0.7); color: #fff; border: 1px solid #555; border-radius: 4px; padding: 4px 10px; font-size: 12px; z-index: 10;">
+                            Закрыть ✖
+                        </button>
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: 15px; margin-bottom: 5px;">
+    <div style="flex: 1;">
+        <label>Цена (₸)</label>
+        <input type="text" class="no-spinners" id="qe-price" value="${item.price || 0}" readonly onclick="window.setQeActive(this, event)" style="width: 100%;">
+    </div>
+    <div style="flex: 1;">
+        <label>Мин. остаток</label>
+        <input type="text" class="no-spinners" id="qe-minstock" value="${minStockVal}" readonly onclick="window.setQeActive(this, event)" style="width: 100%;">
+    </div>
+</div>
+                
+                <div style="text-align: right; margin-bottom: 15px;">
+                    <span style="color: #00bcd4; font-size: 12px;">Факт: ${currentStock}</span>
+                </div>
+
+                <!-- БЛОК NUMPAD -->
+                <div id="custom-numpad" style="display: none; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 20px;">
+                    <button type="button" class="np-btn" onclick="window.qeNumpad('1', event)">1</button>
+                    <button type="button" class="np-btn" onclick="window.qeNumpad('2', event)">2</button>
+                    <button type="button" class="np-btn" onclick="window.qeNumpad('3', event)">3</button>
+                    <button type="button" class="np-btn" onclick="window.qeNumpad('4', event)">4</button>
+                    <button type="button" class="np-btn" onclick="window.qeNumpad('5', event)">5</button>
+                    <button type="button" class="np-btn" onclick="window.qeNumpad('6', event)">6</button>
+                    <button type="button" class="np-btn" onclick="window.qeNumpad('7', event)">7</button>
+                    <button type="button" class="np-btn" onclick="window.qeNumpad('8', event)">8</button>
+                    <button type="button" class="np-btn" onclick="window.qeNumpad('9', event)">9</button>
+                    <button type="button" class="np-btn np-btn-action" onclick="window.qeNumpad('C', event)">C</button>
+                    <button type="button" class="np-btn" onclick="window.qeNumpad('0', event)">0</button>
+                    <button type="button" class="np-btn np-btn-action" onclick="window.qeNumpad('DEL', event)">⌫</button>
+                </div>
+
+                <div style="display: flex; gap: 10px;">
+                    <button type="button" onclick="window.saveQuickEdit('${item.id}')" style="flex: 2; padding: 12px; border: none; background: #1b5e20; color: white; border-radius: 4px; font-weight: bold; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; cursor: pointer;">Сохранить</button>
+                    <button type="button" onclick="document.getElementById('quickEditModal').remove()" style="flex: 1; padding: 12px; border: none; background: #b71c1c; color: white; border-radius: 4px; font-weight: bold; font-size: 16px; cursor: pointer;">✖</button>
+                </div>
+            </div>
+        </div>
+                
+    `;
+    
     document.body.insertAdjacentHTML('beforeend', modalHtml);
 };
 
