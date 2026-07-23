@@ -297,20 +297,29 @@ window.handleItemClick = function(id, event) {
 window.currentQeInput = null;
 
 // 1. Активация поля и показ Numpad
+// Добавляем глобальный флаг выделения
+window.qeNeedsClear = false;
+
 window.setQeActive = function(el, event) {
-    if (event) event.stopPropagation(); // Предотвращаем срабатывание клика по фону
+    if (event) event.stopPropagation();
     
     const numpad = document.getElementById('custom-numpad');
-    if (numpad) numpad.style.display = 'grid'; // Показываем клаву
+    if (numpad) numpad.style.display = 'grid';
 
-    // Снимаем подсветку со всех полей
     document.querySelectorAll('.qe-active-input').forEach(input => {
         input.classList.remove('qe-active-input');
     });
     
-    // Подсвечиваем текущее
     window.currentQeInput = el;
     el.classList.add('qe-active-input');
+
+    // 1. Нативное выделение (чтобы сканер сразу затирал выделенный штрихкод)
+    setTimeout(() => {
+        el.setSelectionRange(0, el.value.length);
+    }, 10);
+
+    // 2. Ставим флаг для Numpad: первое нажатие сотрет старые данные
+    window.qeNeedsClear = true;
 };
 
 // 2. Скрытие Numpad при клике в пустоту
@@ -326,10 +335,17 @@ window.closeQeNumpad = function() {
 
 // 3. Обработка нажатий на цифры
 window.qeNumpad = function(val, event) {
-    if (event) event.stopPropagation(); // Чтобы клик по кнопке не закрыл клаву
+    if (event) event.stopPropagation();
     if (!window.currentQeInput) return;
     
     let currentVal = window.currentQeInput.value;
+    
+    // Если поле только что выбрали и нажали цифру — стираем старое значение
+    if (window.qeNeedsClear && val !== 'C' && val !== 'DEL') {
+        currentVal = '';
+    }
+    // Сбрасываем флаг после любого действия на клавиатуре
+    window.qeNeedsClear = false;
     
     if (currentVal === '0' && val !== 'C' && val !== 'DEL') {
         currentVal = '';
@@ -1299,58 +1315,99 @@ function openQuickEditModal(id) {
 
     // 3. Формируем HTML внутренностей окна (добавлен скролл на случай маленьких экранов: max-height и overflow-y)
     const modalHtml = `
-        <div style="background: #1e1e1e; padding: 20px; border-radius: 8px; width: 90%; max-width: 400px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); color: #fff; max-height: 95vh; overflow-y: auto;">
-            <h3 style="margin-top: 0; margin-bottom: 20px; border-bottom: 1px solid #333; padding-bottom: 10px;">Редактирование товара</h3>
+        <div id="quickEditModal" onclick="if(event.target.id === 'quickEditModal') window.closeQeNumpad()" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 9999; display: flex; justify-content: center; align-items: flex-start; padding-top: 3vh; font-family: 'Roboto', sans-serif;">
             
-            <!-- Наименование (Системная клавиатура разрешена) -->
-            <div style="margin-bottom: 15px;">
-                <label style="display: block; font-size: 11px; color: #888; margin-bottom: 5px;">НАИМЕНОВАНИЕ</label>
-                <input type="text" id="qe-title" value="${item.title || item.name || ''}" onclick="setQeActiveField('qe-title')" style="width: 100%; padding: 10px; box-sizing: border-box; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px;">
-            </div>
+            <style>
+                .no-spinners::-webkit-outer-spin-button,
+                .no-spinners::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+                .no-spinners { -moz-appearance: textfield; }
+                
+                #quickEditModal input, #quickEditModal select {
+                    background: #000; color: #fff; border: 1px solid #333; border-radius: 4px;
+                    padding: 8px; /* Ужали с 10px */
+                    font-size: 15px; box-sizing: border-box; outline: none;
+                }
+                #quickEditModal input:focus, #quickEditModal select:focus { border-color: #555; }
+                #quickEditModal label {
+                    font-size: 10px; color: #888; text-transform: uppercase; 
+                    margin-bottom: 2px; /* Ужали с 5px */
+                    display: block; letter-spacing: 0.5px;
+                }
 
-            <!-- Цена (Системная клавиатура ЗАБЛОКИРОВАНА атрибутом readonly) -->
-            <div style="margin-bottom: 15px;">
-                <label style="display: block; font-size: 11px; color: #888; margin-bottom: 5px;">ЦЕНА</label>
-                <input type="text" id="qe-price" value="${item.price || ''}" readonly onclick="setQeActiveField('qe-price')" style="width: 100%; padding: 10px; box-sizing: border-box; background: #2a2a2a; border: 2px solid #007bff; color: #fff; border-radius: 4px; font-size: 18px; font-weight: bold; text-align: center;">
-            </div>
+                .np-btn {
+                    background: #2a2a2a; color: #fff; border: 1px solid #444; border-radius: 6px;
+                    height: 45px; /* Фиксированная высота вместо жирных паддингов */
+                    font-size: 20px; font-weight: bold; cursor: pointer; user-select: none;
+                }
+                .np-btn:active { background: #555; }
+                .np-btn-action { background: #424242; color: #ff9800; }
+                
+                .qe-active-input { border-color: #4caf50 !important; box-shadow: 0 0 8px rgba(76, 175, 80, 0.4); }
+            </style>
 
-            <!-- Штрихкод (Системная клавиатура ЗАБЛОКИРОВАНА) -->
-            <div style="margin-bottom: 15px;">
-                <label style="display: block; font-size: 11px; color: #888; margin-bottom: 5px;">ШТРИХКОД</label>
-                <div style="display: flex; margin-bottom: 8px;">
-                    <input type="text" id="qe-barcode" value="${item.barcode || ''}" inputmode="none" onclick="window.setQeActive(this, event)" placeholder="Отсканируйте или введите..." style="flex: 1; padding: 10px; box-sizing: border-box; background: #2a2a2a; border: 1px solid #444; color: #fff; border-top-left-radius: 4px; border-bottom-left-radius: 4px; border-right: none; font-size: 16px;">
-                    <button type="button" onclick="window.startQuaggaScanner()" style="padding: 0 15px; border: 1px solid #444; background: #333; border-top-right-radius: 4px; border-bottom-right-radius: 4px; color: #fff; font-size: 18px; cursor: pointer;">📷</button>
+            <div style="background: #1e1e1e; padding: 15px; border-radius: 8px; width: 90%; max-width: 350px; color: #fff; box-shadow: 0 10px 30px rgba(0,0,0,0.8); border: 1px solid #333;">
+                <h3 style="margin-top: 0; margin-bottom: 12px; font-size: 15px; text-align: center; text-transform: uppercase; border-bottom: 1px solid #333; padding-bottom: 8px; letter-spacing: 1px;">РАСПРЕДЕЛЕНИЕ ТОВАРА</h3>
+                
+                <div style="margin-bottom: 10px;">
+                    <label>Наименование</label>
+                    <input type="text" id="qe-name" value="${item.name || ''}" style="width: 100%;">
+                    <div style="font-size: 9px; color: #ff9800; margin-top: 3px;">* Если клава не появилась, дважды кликните на сканере</div>
                 </div>
                 
-                <!-- Контейнер для лазерного видео-сканера -->
-                <div id="quagga-scanner-container" style="display: none; position: relative; width: 100%; height: 180px; background: #000; border-radius: 4px; overflow: hidden; border: 1px solid #444;">
-                    <div id="quagga-video-target" style="width: 100%; height: 100%;"></div>
-                    <div style="position: absolute; top: 30%; bottom: 30%; left: 10%; right: 10%; border: 2px solid rgba(255, 0, 0, 0.5); box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);"></div>
-                    <div style="position: absolute; top: 50%; left: 10%; right: 10%; height: 2px; background: red; box-shadow: 0 0 4px red;"></div>
-                    <button type="button" onclick="window.stopQuaggaScanner()" style="position: absolute; top: 5px; right: 5px; background: rgba(0,0,0,0.7); color: #fff; border: 1px solid #555; border-radius: 4px; padding: 4px 10px; font-size: 12px; z-index: 10;">Закрыть ✖</button>
+                <div style="margin-bottom: 10px;">
+                    <label>Категория</label>
+                    <select id="qe-category" style="width: 100%;" onchange="if(this.value==='new') { alert('Тут будет вызов модалки создания категории'); }">
+                        ${catOptions}
+                    </select>
                 </div>
-            </div>
 
-            <!-- КАСТОМНАЯ КЛАВИАТУРА В СТИЛЕ ТЕМНОЙ ТЕМЫ -->
-            <div class="numpad" style="margin-bottom: 25px; grid-template-columns: repeat(3, 1fr); gap: 8px; display: grid;">
-                <div class="num-btn" style="background: #333; padding: 12px; text-align: center; border-radius: 4px; font-size: 18px; cursor: pointer;" onmousedown="qeAddDigit('1', event)" ontouchstart="qeAddDigit('1', event)">1</div>
-                <div class="num-btn" style="background: #333; padding: 12px; text-align: center; border-radius: 4px; font-size: 18px; cursor: pointer;" onmousedown="qeAddDigit('2', event)" ontouchstart="qeAddDigit('2', event)">2</div>
-                <div class="num-btn" style="background: #333; padding: 12px; text-align: center; border-radius: 4px; font-size: 18px; cursor: pointer;" onmousedown="qeAddDigit('3', event)" ontouchstart="qeAddDigit('3', event)">3</div>
-                <div class="num-btn" style="background: #333; padding: 12px; text-align: center; border-radius: 4px; font-size: 18px; cursor: pointer;" onmousedown="qeAddDigit('4', event)" ontouchstart="qeAddDigit('4', event)">4</div>
-                <div class="num-btn" style="background: #333; padding: 12px; text-align: center; border-radius: 4px; font-size: 18px; cursor: pointer;" onmousedown="qeAddDigit('5', event)" ontouchstart="qeAddDigit('5', event)">5</div>
-                <div class="num-btn" style="background: #333; padding: 12px; text-align: center; border-radius: 4px; font-size: 18px; cursor: pointer;" onmousedown="qeAddDigit('6', event)" ontouchstart="qeAddDigit('6', event)">6</div>
-                <div class="num-btn" style="background: #333; padding: 12px; text-align: center; border-radius: 4px; font-size: 18px; cursor: pointer;" onmousedown="qeAddDigit('7', event)" ontouchstart="qeAddDigit('7', event)">7</div>
-                <div class="num-btn" style="background: #333; padding: 12px; text-align: center; border-radius: 4px; font-size: 18px; cursor: pointer;" onmousedown="qeAddDigit('8', event)" ontouchstart="qeAddDigit('8', event)">8</div>
-                <div class="num-btn" style="background: #333; padding: 12px; text-align: center; border-radius: 4px; font-size: 18px; cursor: pointer;" onmousedown="qeAddDigit('9', event)" ontouchstart="qeAddDigit('9', event)">9</div>
-                <div class="num-btn btn-clear" style="background: #552222; padding: 12px; text-align: center; border-radius: 4px; font-size: 18px; cursor: pointer; color: #ff6666;" onmousedown="qeClearField(event)" ontouchstart="qeClearField(event)">C</div>
-                <div class="num-btn" style="background: #333; padding: 12px; text-align: center; border-radius: 4px; font-size: 18px; cursor: pointer;" onmousedown="qeAddDigit('0', event)" ontouchstart="qeAddDigit('0', event)">0</div>
-                <div class="num-btn btn-clear" style="background: #444; padding: 12px; text-align: center; border-radius: 4px; font-size: 18px; cursor: pointer;" onmousedown="qeDelDigit(event)" ontouchstart="qeDelDigit(event)">⌫</div>
-            </div>
+                <div style="margin-bottom: 10px;">
+                    <label>ШТРИХКОД</label>
+                    <div style="display: flex;">
+                        <input type="text" id="qe-barcode" value="${item.barcode || ''}" inputmode="none" onclick="window.setQeActive(this, event)" placeholder="Отсканируйте..." style="flex: 1; border-top-right-radius: 0; border-bottom-right-radius: 0; border-right: none;">
+                        <button type="button" onclick="window.startQuaggaScanner()" style="padding: 0 15px; border: 1px solid #333; background: #2a2a2a; border-top-right-radius: 4px; border-bottom-right-radius: 4px; color: #fff; font-size: 16px; cursor: pointer;">📷</button>
+                    </div>
+                </div>
 
-            <!-- Кнопки Сохранить / Отмена -->
-            <div style="display: flex; justify-content: space-between; gap: 10px;">
-                <button onclick="document.getElementById('quickEditModal').style.display = 'none'" style="flex: 1; padding: 12px; background: #444; border: none; border-radius: 4px; color: #fff; cursor: pointer;">Отмена</button>
-                <button onclick="saveQuickEdit('${id}')" style="flex: 2; padding: 12px; background: #007bff; border: none; border-radius: 4px; color: #fff; cursor: pointer; font-weight: bold;">Сохранить</button>
+                <div style="display: flex; gap: 12px; margin-bottom: 15px;">
+                    <div style="flex: 1;">
+                        <!-- Цена и Актуальная цена в один ряд -->
+                        <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 2px;">
+                            <label style="margin-bottom: 0;">Цена (₸)</label>
+                            <span style="font-size: 10px; color: #777;">Тек: ${item.price || 0}</span>
+                        </div>
+                        <input type="text" class="no-spinners" id="qe-price" value="${item.price || 0}" readonly onclick="window.setQeActive(this, event)" style="width: 100%;">
+                    </div>
+                    <div style="flex: 1;">
+                        <!-- Мин. остаток и Факт в один ряд -->
+                        <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 2px;">
+                            <label style="margin-bottom: 0;">Мин. остаток</label>
+                            <span style="font-size: 10px; color: #00bcd4;">Факт: ${currentStock}</span>
+                        </div>
+                        <input type="text" class="no-spinners" id="qe-minstock" value="${minStockVal}" readonly onclick="window.setQeActive(this, event)" style="width: 100%;">
+                    </div>
+                </div>
+
+                <!-- БЛОК NUMPAD -->
+                <div id="custom-numpad" style="display: none; grid-template-columns: repeat(3, 1fr); gap: 5px; margin-bottom: 15px;">
+                    <button type="button" class="np-btn" onclick="window.qeNumpad('1', event)">1</button>
+                    <button type="button" class="np-btn" onclick="window.qeNumpad('2', event)">2</button>
+                    <button type="button" class="np-btn" onclick="window.qeNumpad('3', event)">3</button>
+                    <button type="button" class="np-btn" onclick="window.qeNumpad('4', event)">4</button>
+                    <button type="button" class="np-btn" onclick="window.qeNumpad('5', event)">5</button>
+                    <button type="button" class="np-btn" onclick="window.qeNumpad('6', event)">6</button>
+                    <button type="button" class="np-btn" onclick="window.qeNumpad('7', event)">7</button>
+                    <button type="button" class="np-btn" onclick="window.qeNumpad('8', event)">8</button>
+                    <button type="button" class="np-btn" onclick="window.qeNumpad('9', event)">9</button>
+                    <button type="button" class="np-btn np-btn-action" onclick="window.qeNumpad('C', event)">C</button>
+                    <button type="button" class="np-btn" onclick="window.qeNumpad('0', event)">0</button>
+                    <button type="button" class="np-btn np-btn-action" onclick="window.qeNumpad('DEL', event)">⌫</button>
+                </div>
+
+                <div style="display: flex; gap: 8px;">
+                    <button type="button" onclick="window.saveQuickEdit('${item.id}')" style="flex: 2; padding: 10px; border: none; background: #1b5e20; color: white; border-radius: 4px; font-weight: bold; font-size: 14px; text-transform: uppercase; cursor: pointer;">Сохранить</button>
+                    <button type="button" onclick="document.getElementById('quickEditModal').remove()" style="flex: 1; padding: 10px; border: none; background: #b71c1c; color: white; border-radius: 4px; font-weight: bold; font-size: 16px; cursor: pointer;">✖</button>
+                </div>
             </div>
         </div>
     `;
