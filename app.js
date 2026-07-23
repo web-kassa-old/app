@@ -291,6 +291,75 @@ window.handleItemClick = function(id, event) {
     }
 };
 
+// ==========================================
+// ГЛОБАЛЬНАЯ ЛОГИКА NUMPAD ДЛЯ QUICK EDIT
+// ==========================================
+window.currentQeInput = null;
+
+// 1. Активация поля и показ Numpad
+window.setQeActive = function(el, event) {
+    if (event) event.stopPropagation(); // Предотвращаем срабатывание клика по фону
+    
+    const numpad = document.getElementById('custom-numpad');
+    if (numpad) numpad.style.display = 'grid'; // Показываем клаву
+
+    // Снимаем подсветку со всех полей
+    document.querySelectorAll('.qe-active-input').forEach(input => {
+        input.classList.remove('qe-active-input');
+    });
+    
+    // Подсвечиваем текущее
+    window.currentQeInput = el;
+    el.classList.add('qe-active-input');
+};
+
+// 2. Скрытие Numpad при клике в пустоту
+window.closeQeNumpad = function() {
+    const numpad = document.getElementById('custom-numpad');
+    if (numpad) numpad.style.display = 'none'; // Прячем клаву
+    
+    if (window.currentQeInput) {
+        window.currentQeInput.classList.remove('qe-active-input');
+        window.currentQeInput = null;
+    }
+};
+
+// 3. Обработка нажатий на цифры
+window.qeNumpad = function(val, event) {
+    if (event) event.stopPropagation(); // Чтобы клик по кнопке не закрыл клаву
+    if (!window.currentQeInput) return;
+    
+    let currentVal = window.currentQeInput.value;
+    
+    if (currentVal === '0' && val !== 'C' && val !== 'DEL') {
+        currentVal = '';
+    }
+    
+    if (val === 'C') {
+        window.currentQeInput.value = '';
+    } else if (val === 'DEL') {
+        window.currentQeInput.value = currentVal.slice(0, -1);
+    } else {
+        window.currentQeInput.value = currentVal + val;
+    }
+};
+
+// 4. Умная проверка текстового поля
+window.checkScannerStatus = function(el) {
+    // Закрываем Numpad, если он был открыт
+    window.closeQeNumpad(); 
+    
+    // Проверяем, запущен ли сканер (предполагаем, что у вас есть переменная или элемент, указывающий на это)
+    const scannerContainer = document.getElementById('quagga-scanner-container');
+    const isScannerActive = scannerContainer && scannerContainer.style.display !== 'none';
+
+    if (isScannerActive) {
+        // Делаем поле недоступным для ввода, чтобы не вылезла системная клава
+        el.blur();
+        alert("Внимание: Активен режим сканирования.\nДважды нажмите кнопку на Bluetooth-сканере для вызова клавиатуры или закройте сканер.");
+    }
+};
+
 window.openQuickEditModal = function(id) {
     const item = db.find(i => String(i.id) === String(id));
     if (!item) return;
@@ -316,7 +385,7 @@ window.openQuickEditModal = function(id) {
     const currentStock = Number(item.stock) || 0;
 
     const modalHtml = `
-        <div id="quickEditModal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 9999; display: flex; justify-content: center; align-items: flex-start; padding-top: 5vh; font-family: 'Roboto', sans-serif;">
+        <div id="quickEditModal" onclick="if(event.target.id === 'quickEditModal') window.closeQeNumpad()" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 9999; display: flex; justify-content: center; align-items: flex-start; padding-top: 5vh; font-family: 'Roboto', sans-serif;">
             
             <style>
                 /* Скрываем стрелки у числовых полей */
@@ -380,7 +449,7 @@ window.openQuickEditModal = function(id) {
                 
                 <div style="margin-bottom: 15px;">
                     <label>Наименование</label>
-                    <input type="text" id="qe-name" value="${item.name || ''}" style="width: 100%;">
+                    <input type="text" id="qe-name" value="${item.name || ''}" onclick="window.checkScannerStatus(this)" style="width: 100%;">
                 </div>
                 
                 <div style="margin-bottom: 15px;">
@@ -437,19 +506,19 @@ window.openQuickEditModal = function(id) {
                 </div>
 
                 <!-- БЛОК NUMPAD -->
-                <div id="custom-numpad" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 20px;">
-                    <button type="button" class="np-btn" onclick="window.qeNumpad('1')">1</button>
-                    <button type="button" class="np-btn" onclick="window.qeNumpad('2')">2</button>
-                    <button type="button" class="np-btn" onclick="window.qeNumpad('3')">3</button>
-                    <button type="button" class="np-btn" onclick="window.qeNumpad('4')">4</button>
-                    <button type="button" class="np-btn" onclick="window.qeNumpad('5')">5</button>
-                    <button type="button" class="np-btn" onclick="window.qeNumpad('6')">6</button>
-                    <button type="button" class="np-btn" onclick="window.qeNumpad('7')">7</button>
-                    <button type="button" class="np-btn" onclick="window.qeNumpad('8')">8</button>
-                    <button type="button" class="np-btn" onclick="window.qeNumpad('9')">9</button>
-                    <button type="button" class="np-btn np-btn-action" onclick="window.qeNumpad('C')">C</button>
-                    <button type="button" class="np-btn" onclick="window.qeNumpad('0')">0</button>
-                    <button type="button" class="np-btn np-btn-action" onclick="window.qeNumpad('DEL')">⌫</button>
+                <div id="custom-numpad" style="display: none; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 20px;">
+                    <button type="button" class="np-btn" onclick="window.qeNumpad('1', event)">1</button>
+                    <button type="button" class="np-btn" onclick="window.qeNumpad('2', event)">2</button>
+                    <button type="button" class="np-btn" onclick="window.qeNumpad('3', event)">3</button>
+                    <button type="button" class="np-btn" onclick="window.qeNumpad('4', event)">4</button>
+                    <button type="button" class="np-btn" onclick="window.qeNumpad('5', event)">5</button>
+                    <button type="button" class="np-btn" onclick="window.qeNumpad('6', event)">6</button>
+                    <button type="button" class="np-btn" onclick="window.qeNumpad('7', event)">7</button>
+                    <button type="button" class="np-btn" onclick="window.qeNumpad('8', event)">8</button>
+                    <button type="button" class="np-btn" onclick="window.qeNumpad('9', event)">9</button>
+                    <button type="button" class="np-btn np-btn-action" onclick="window.qeNumpad('C', event)">C</button>
+                    <button type="button" class="np-btn" onclick="window.qeNumpad('0', event)">0</button>
+                    <button type="button" class="np-btn np-btn-action" onclick="window.qeNumpad('DEL', event)">⌫</button>
                 </div>
 
                 <div style="display: flex; gap: 10px;">
@@ -458,41 +527,7 @@ window.openQuickEditModal = function(id) {
                 </div>
             </div>
         </div>
-        
-        <!-- Логика переключения полей и работы Numpad -->
-        <script>
-            window.currentQeInput = document.getElementById('qe-price');
-            
-            window.setQeActive = function(el) {
-                // Снимаем подсветку со всех полей
-                document.getElementById('qe-barcode').classList.remove('qe-active-input');
-                document.getElementById('qe-price').classList.remove('qe-active-input');
-                document.getElementById('qe-minstock').classList.remove('qe-active-input');
                 
-                // Назначаем текущее поле и подсвечиваем его
-                window.currentQeInput = el;
-                el.classList.add('qe-active-input');
-            };
-
-            window.qeNumpad = function(val) {
-                if (!window.currentQeInput) return;
-                
-                let currentVal = window.currentQeInput.value;
-                
-                // Если поле содержит 0 и мы вводим цифру, заменяем 0 на новую цифру
-                if (currentVal === '0' && val !== 'C' && val !== 'DEL') {
-                    currentVal = '';
-                }
-                
-                if (val === 'C') {
-                    window.currentQeInput.value = '';
-                } else if (val === 'DEL') {
-                    window.currentQeInput.value = currentVal.slice(0, -1);
-                } else {
-                    window.currentQeInput.value = currentVal + val;
-                }
-            };
-        </script>
     `;
     
     document.body.insertAdjacentHTML('beforeend', modalHtml);
