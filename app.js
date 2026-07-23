@@ -377,39 +377,40 @@ window.checkScannerStatus = function(el) {
 };
 
 window.openQuickEditModal = function(id) {
-    const item = db.find(i => String(i.id) === String(id)); //[cite: 1]
-    if (!item) return; //[cite: 1]
+    const item = db.find(i => String(i.id) === String(id));
+    if (!item) return;
 
     // Удаляем старое окно, если есть
-    const existingModal = document.getElementById('quickEditModal'); //[cite: 1]
-    if (existingModal) existingModal.remove(); //[cite: 1]
+    const existingModal = document.getElementById('quickEditModal');
+    if (existingModal) existingModal.remove();
 
     // Собираем категории
-    const uniqueCats = [...new Set(db.map(i => i.category).filter(Boolean))]; //[cite: 1]
-    let catOptions = `<option value="0" ${!item.category || item.category === '0' ? 'selected' : ''}>Не выбрано</option>`; //[cite: 1]
+    const uniqueCats = [...new Set(db.map(i => i.category).filter(Boolean))];
+    let catOptions = `<option value="0" ${!item.category || item.category === '0' ? 'selected' : ''}>Не выбрано</option>`;
     
-    uniqueCats.forEach(cat => { //[cite: 1]
-        if (cat !== '0') { //[cite: 1]
-            let selected = (item.category === cat) ? 'selected' : ''; //[cite: 1]
-            catOptions += `<option value="${cat}" ${selected}>${cat}</option>`; //[cite: 1]
+    uniqueCats.forEach(cat => {
+        if (cat !== '0') {
+            let selected = (item.category === cat) ? 'selected' : '';
+            catOptions += `<option value="${cat}" ${selected}>${cat}</option>`;
         }
-    }); //[cite: 1]
-    catOptions += `<option value="new">+ Новая категория</option>`; //[cite: 1]
+    });
+    catOptions += `<option value="new">+ Новая категория</option>`;
 
-    // Определяем мин. остаток (по умолчанию 1) и фактический остаток
-    const minStockVal = item.min_stock !== undefined ? item.min_stock : 1; //[cite: 1]
-    const currentStock = Number(item.stock) || 0; //[cite: 1]
+    // Определяем мин. остаток и фактический остаток
+    const minStockVal = item.min_stock !== undefined ? item.min_stock : 1;
+    const currentStock = Number(item.stock) || 0;
+
+    // Форматируем актуальную цену с разделением на тысячи
+    const formattedPrice = Number(item.price || 0).toLocaleString('ru-RU');
 
     const modalHtml = `
         <div id="quickEditModal" onclick="if(event.target.id === 'quickEditModal') window.closeQeNumpad()" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 9999; display: flex; justify-content: center; align-items: flex-start; padding-top: 3vh; font-family: 'Roboto', sans-serif;">
             
             <style>
-                /* Скрываем стрелки у числовых полей */
                 .no-spinners::-webkit-outer-spin-button,
                 .no-spinners::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
                 .no-spinners { -moz-appearance: textfield; }
                 
-                /* Базовые стили элементов окна */
                 #quickEditModal input, #quickEditModal select {
                     background: #000; color: #fff; border: 1px solid #333; border-radius: 4px;
                     padding: 8px; font-size: 15px; box-sizing: border-box; outline: none;
@@ -420,7 +421,6 @@ window.openQuickEditModal = function(id) {
                     margin-bottom: 2px; display: block; letter-spacing: 0.5px;
                 }
 
-                /* Стили для Numpad */
                 .np-btn {
                     background: #2a2a2a; color: #fff; border: 1px solid #444; border-radius: 6px;
                     height: 45px; font-size: 20px; font-weight: bold; cursor: pointer; user-select: none;
@@ -429,7 +429,6 @@ window.openQuickEditModal = function(id) {
                 .np-btn:active { background: #555; }
                 .np-btn-action { background: #424242; color: #ff9800; }
                 
-                /* Подсветка активного поля ввода */
                 .qe-active-input { border-color: #4caf50 !important; box-shadow: 0 0 8px rgba(76, 175, 80, 0.4); }
             </style>
 
@@ -439,7 +438,7 @@ window.openQuickEditModal = function(id) {
                 <div style="margin-bottom: 10px;">
                     <label>Наименование</label>
                     <input type="text" id="qe-name" value="${item.name || ''}" style="width: 100%;">
-                    <div style="font-size: 9px; color: #ff9800; margin-top: 3px; letter-spacing: 0.3px;">* Если клава не появилась, дважды кликните на сканере</div>
+                    <div style="font-size: 9px; color: #ff9800; margin-top: 3px; letter-spacing: 0.3px;">* Если не появляется экранная клавиатура, нажмите 2 раза кнопку на сканере</div>
                 </div>
                 
                 <div style="margin-bottom: 10px;">
@@ -456,8 +455,8 @@ window.openQuickEditModal = function(id) {
                                id="qe-barcode" 
                                value="${item.barcode || ''}" 
                                placeholder="Отсканируйте..." 
-                               inputmode="numeric" 
-                               pattern="[0-9]*" 
+                               inputmode="none" 
+                               readonly
                                onclick="window.setQeActive(this)"
                                style="flex: 1; border-top-right-radius: 0; border-bottom-right-radius: 0; border-right: none;">
                         
@@ -468,7 +467,6 @@ window.openQuickEditModal = function(id) {
                         </button>
                     </div>
                     
-                    <!-- БЛОК СКАНЕРА СОХРАНЕН -->
                     <div id="quagga-scanner-container" style="display: none; position: relative; width: 100%; height: 180px; background: #000; border-radius: 4px; overflow: hidden; border: 1px solid #444;">
                         <div id="quagga-video-target" style="width: 100%; height: 100%;"></div>
                         <div style="position: absolute; top: 30%; bottom: 30%; left: 10%; right: 10%; border: 2px solid rgba(255, 0, 0, 0.5); box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);"></div>
@@ -483,16 +481,16 @@ window.openQuickEditModal = function(id) {
                     <div style="flex: 1;">
                         <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 2px;">
                             <label style="margin-bottom: 0;">Цена (₸)</label>
-                            <span style="font-size: 10px; color: #777;">Тек: ${item.price || 0}</span>
+                            <span style="font-size: 10px; color: #00bcd4;">Тек: ${formattedPrice}</span>
                         </div>
-                        <input type="text" class="no-spinners" id="qe-price" value="${item.price || 0}" readonly onclick="window.setQeActive(this)" style="width: 100%;">
+                        <input type="text" class="no-spinners" id="qe-price" value="${item.price || 0}" inputmode="none" readonly onclick="window.setQeActive(this)" style="width: 100%;">
                     </div>
                     <div style="flex: 1;">
                         <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 2px;">
                             <label style="margin-bottom: 0;">Мин. остаток</label>
                             <span style="font-size: 10px; color: #00bcd4;">Факт: ${currentStock}</span>
                         </div>
-                        <input type="text" class="no-spinners" id="qe-minstock" value="${minStockVal}" readonly onclick="window.setQeActive(this)" style="width: 100%;">
+                        <input type="text" class="no-spinners" id="qe-minstock" value="${minStockVal}" inputmode="none" readonly onclick="window.setQeActive(this)" style="width: 100%;">
                     </div>
                 </div>
 
@@ -520,7 +518,7 @@ window.openQuickEditModal = function(id) {
         </div>
     `;
     
-    document.body.insertAdjacentHTML('beforeend', modalHtml); //[cite: 1]
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
 };
 
 // ==========================================
