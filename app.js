@@ -498,9 +498,18 @@ window.openQuickEditModal = function(id) {
                 
                 <div style="margin-bottom: 10px;">
                     <label data-i18n="qe_category">${t('qe_category')}</label>
-                    <select id="qe-category" style="width: 100%;">
-                        ${catOptions}
-                    </select>
+                    <div style="display: flex; gap: 5px; width: 100%;">
+                        <!-- Стандартный селект -->
+                        <select id="qe-category" onchange="window.handleCategoryChange(this)" style="flex: 1; width: 100%;">
+                            ${catOptions}
+                        </select>
+                        
+                        <!-- Скрытое поле для ввода новой категории -->
+                        <input type="text" id="qe-new-category" placeholder="Введите название..." style="display: none; flex: 1;">
+                        
+                        <!-- Скрытая кнопка отмены (вернуться к селекту) -->
+                        <button type="button" id="qe-cancel-new-cat" onclick="window.cancelNewCategory()" style="display: none; background: #c62828; color: #fff; border: none; border-radius: 4px; padding: 0 12px; font-weight: bold; cursor: pointer;">✖</button>
+                    </div>
                 </div>
 
                 <div style="margin-bottom: 10px;">
@@ -566,6 +575,36 @@ window.openQuickEditModal = function(id) {
     `;
     
     document.body.insertAdjacentHTML('beforeend', modalHtml);
+};
+
+window.handleCategoryChange = function(selectElement) {
+    if (selectElement.value === 'new') {
+        const input = document.getElementById('qe-new-category');
+        const cancelBtn = document.getElementById('qe-cancel-new-cat');
+        
+        // Прячем селект, показываем инпут и кнопку сброса
+        selectElement.style.display = 'none';
+        input.style.display = 'block';
+        cancelBtn.style.display = 'block';
+        
+        // Автоматически ставим курсор, чтобы выехала текстовая клавиатура
+        input.focus(); 
+    }
+};
+
+window.cancelNewCategory = function() {
+    const select = document.getElementById('qe-category');
+    const input = document.getElementById('qe-new-category');
+    const cancelBtn = document.getElementById('qe-cancel-new-cat');
+    
+    // Прячем инпут, возвращаем селект
+    input.style.display = 'none';
+    cancelBtn.style.display = 'none';
+    select.style.display = 'block';
+    
+    // Сбрасываем значения
+    select.value = '0'; // Возвращаем на "Не выбрано"
+    input.value = '';
 };
 
 // ==========================================
@@ -872,10 +911,25 @@ window.saveQuickEdit = function(id) {
     const newPrice = parseFloat(String(rawPrice).replace(/\s/g, '').replace(',', '.')) || 0;
     const newMinStock = parseFloat(String(rawMinStock).replace(/\s/g, '').replace(',', '.')) || 0;
 
+    // === НАЧАЛО ПУНКТА 3 ===
     let newCategory = rawCategory;
-    if (newCategory === '0' || newCategory === 'Не выбрано' || newCategory === 'new') {
+    
+    // Если выбрали создание новой категории, читаем данные из скрытого поля через твой перехватчик
+    if (newCategory === 'new') {
+        newCategory = getLatestValue('qe-new-category').trim();
+        
+        // Защита от пустой строки
+        if (!newCategory) {
+            alert('Введите название новой категории!');
+            // Находим последнее открытое поле ввода и ставим туда фокус
+            const newCatInputs = document.querySelectorAll('#qe-new-category');
+            if (newCatInputs.length > 0) newCatInputs[newCatInputs.length - 1].focus();
+            return; // Останавливаем сохранение
+        }
+    } else if (newCategory === '0' || newCategory === 'Не выбрано') {
         newCategory = "Без категории"; 
     }
+    // === КОНЕЦ ПУНКТА 3 ===
 
     // 4. Формируем правильный пакет данных для бэкенда
     const payload = {
