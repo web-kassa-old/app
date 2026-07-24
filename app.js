@@ -582,13 +582,16 @@ window.handleCategoryChange = function(selectElement) {
         const input = document.getElementById('qe-new-category');
         const cancelBtn = document.getElementById('qe-cancel-new-cat');
         
-        // Прячем селект, показываем инпут и кнопку сброса
+        // 1. Прячем селект, показываем инпут и кнопку отмены
         selectElement.style.display = 'none';
         input.style.display = 'block';
         cancelBtn.style.display = 'block';
         
-        // Автоматически ставим курсор, чтобы выехала текстовая клавиатура
-        input.focus(); 
+        // 2. Делаем небольшую задержку перед фокусом
+        // Это не даст системе "смахнуть" текстовую клавиатуру при закрытии барабана
+        setTimeout(() => {
+            input.focus();
+        }, 150); 
     }
 };
 
