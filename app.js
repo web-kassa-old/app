@@ -423,23 +423,21 @@ window.openQuickEditModal = function(id) {
     
     const t = (key) => dict[key] || key;
 
-    // 2. ПОДГОТОВКА ДАННЫХ ДЛЯ КАСТОМНОГО СПИСКА
+    // 2. ПОДГОТОВКА ДАННЫХ
     const uniqueCats = [...new Set(db.map(i => i.category).filter(Boolean))];
-    
-    // Определяем, что написано на кнопке по умолчанию
-    let currentCategoryText = (!item.category || item.category === '0') ? t('qe_no_category') : item.category;
-    let currentCategoryValue = (!item.category || item.category === '0') ? '0' : item.category;
-
-    // Генерируем HTML нашего выпадающего списка
-    let customDropdownHtml = `<div onclick="window.selectCustomCategory('0', '${t('qe_no_category')}')" style="padding: 10px; cursor: pointer; border-bottom: 1px solid rgba(128,128,128,0.2);">${t('qe_no_category')}</div>`;
+    let catOptions = `<option value="0" data-i18n="qe_no_category" ${!item.category || item.category === '0' ? 'selected' : ''}>${t('qe_no_category')}</option>`;
     
     uniqueCats.forEach(cat => {
         if (cat !== '0') {
-            customDropdownHtml += `<div onclick="window.selectCustomCategory('${cat}', '${cat}')" style="padding: 10px; cursor: pointer; border-bottom: 1px solid rgba(128,128,128,0.2);">${cat}</div>`;
+            let selected = (item.category === cat) ? 'selected' : '';
+            catOptions += `<option value="${cat}" ${selected}>${cat}</option>`;
         }
     });
-    
-    customDropdownHtml += `<div onclick="window.selectCustomCategory('new', '${t('qe_new_category')}')" style="padding: 10px; cursor: pointer; color: #4caf50; font-weight: bold;">+ ${t('qe_new_category')}</div>`;
+    catOptions += `<option value="new" data-i18n="qe_new_category">${t('qe_new_category')}</option>`;
+
+    const minStockVal = item.min_stock !== undefined ? item.min_stock : 1;
+    const currentStock = Number(item.stock) || 0;
+    const formattedPrice = Number(item.price || 0).toLocaleString('ru-RU');
 
     // 3. HTML И СТИЛИ С ПОДДЕРЖКОЙ СВЕТЛОЙ ТЕМЫ
     const modalHtml = `
@@ -500,27 +498,17 @@ window.openQuickEditModal = function(id) {
                 
                 <div style="margin-bottom: 10px;">
                     <label data-i18n="qe_category">${t('qe_category')}</label>
-                    
-                    <div style="position: relative; width: 100%;">
-                        <!-- Триггер (выглядит точь-в-точь как ваш старый селект) -->
-                        <div id="qe-category-trigger" onclick="window.toggleCustomDropdown()" style="width: 100%; border-radius: 4px; padding: 8px; font-size: 15px; box-sizing: border-box; cursor: pointer; display: flex; justify-content: space-between; align-items: center; border: 1px solid #333; background: inherit;">
-                            <span id="qe-category-display">${currentCategoryText}</span>
-                            <span style="font-size: 10px; color: #888;">▼</span>
-                        </div>
-
-                        <!-- Само выпадающее меню (прячется под триггером) -->
-                        <div id="qe-category-dropdown" style="display: none; position: absolute; top: 100%; left: 0; width: 100%; border: 1px solid #333; border-radius: 4px; z-index: 100; max-height: 160px; overflow-y: auto; box-shadow: 0 8px 16px rgba(0,0,0,0.7); margin-top: 4px; background: inherit;">
-                            ${customDropdownHtml}
-                        </div>
-
-                        <!-- Поле для ввода НОВОЙ категории (изначально скрыто) -->
-                        <div id="qe-new-category-wrapper" style="display: none; width: 100%; gap: 5px;">
-                            <input type="text" id="qe-new-category" placeholder="Введите название..." style="flex: 1;">
-                            <button type="button" id="qe-cancel-new-cat" onclick="window.cancelNewCategory()" style="background: #c62828; color: #fff; border: none; border-radius: 4px; padding: 0 12px; font-weight: bold; cursor: pointer;">✖</button>
-                        </div>
+                    <div style="display: flex; gap: 5px; width: 100%;">
+                        <!-- Стандартный селект -->
+                        <select id="qe-category" onchange="window.handleCategoryChange(this)" style="flex: 1; width: 100%;">
+                            ${catOptions}
+                        </select>
                         
-                        <!-- Скрытое поле (из него ваша функция сохранения сама заберет нужные данные) -->
-                        <input type="hidden" id="qe-category" value="${currentCategoryValue}">
+                        <!-- Скрытое поле для ввода новой категории -->
+                        <input type="text" id="qe-new-category" placeholder="Введите название..." style="display: none; flex: 1;">
+                        
+                        <!-- Скрытая кнопка отмены (вернуться к селекту) -->
+                        <button type="button" id="qe-cancel-new-cat" onclick="window.cancelNewCategory()" style="display: none; background: #c62828; color: #fff; border: none; border-radius: 4px; padding: 0 12px; font-weight: bold; cursor: pointer;">✖</button>
                     </div>
                 </div>
 
@@ -589,48 +577,42 @@ window.openQuickEditModal = function(id) {
     document.body.insertAdjacentHTML('beforeend', modalHtml);
 };
 
-// Открывает/закрывает наш кастомный список
-window.toggleCustomDropdown = function() {
-    const dropdown = document.getElementById('qe-category-dropdown');
-    dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
-};
-
-// Обрабатывает клик по пункту из списка
-window.selectCustomCategory = function(value, text) {
-    const dropdown = document.getElementById('qe-category-dropdown');
-    const display = document.getElementById('qe-category-display');
-    const hiddenInput = document.getElementById('qe-category'); // Скрытое поле для сохранения
-    
-    if (value === 'new') {
-        // Прячем меню выбора
-        document.getElementById('qe-category-trigger').style.display = 'none';
-        dropdown.style.display = 'none';
+window.handleCategoryChange = function(selectElement) {
+    if (selectElement.value === 'new') {
+        const input = document.getElementById('qe-new-category');
+        const cancelBtn = document.getElementById('qe-cancel-new-cat');
         
-        // Показываем поле ввода новой категории
-        document.getElementById('qe-new-category-wrapper').style.display = 'flex';
+        // 1. Принудительно отбираем фокус у выпадающего списка. 
+        // Это дает команду iOS немедленно начать закрытие "барабана"
+        selectElement.blur();
         
-        // СТАВИМ ФОКУС: На iOS это сработает мгновенно и без сбоев, так как вызывается прямым кликом!
-        document.getElementById('qe-new-category').focus();
+        // 2. Переключаем интерфейс (визуально для пользователя)
+        selectElement.style.display = 'none';
+        input.style.display = 'block';
+        cancelBtn.style.display = 'block';
         
-        // Передаем сигнал для saveQuickEdit
-        hiddenInput.value = 'new';
-    } else {
-        // Обычный выбор существующей категории
-        display.innerText = text;
-        hiddenInput.value = value;
-        dropdown.style.display = 'none';
+        // 3. ВАЖНО: Асинхронный вызов фокуса с задержкой.
+        // Даем процессору 400 мс, чтобы системная анимация закрытия UIPicker
+        // полностью завершилась. Только после этого просим показать клавиатуру.
+        setTimeout(() => {
+            input.focus();
+        }, 400);
     }
 };
 
-// Кнопка отмены "крестик" для возврата к выбору
 window.cancelNewCategory = function() {
-    document.getElementById('qe-new-category-wrapper').style.display = 'none';
-    document.getElementById('qe-category-trigger').style.display = 'flex';
-    document.getElementById('qe-new-category').value = '';
+    const select = document.getElementById('qe-category');
+    const input = document.getElementById('qe-new-category');
+    const cancelBtn = document.getElementById('qe-cancel-new-cat');
     
-    // Сбрасываем на дефолт
-    document.getElementById('qe-category-display').innerText = 'Не выбрано';
-    document.getElementById('qe-category').value = '0';
+    // Прячем инпут, возвращаем селект
+    input.style.display = 'none';
+    cancelBtn.style.display = 'none';
+    select.style.display = 'block';
+    
+    // Сбрасываем значения
+    select.value = '0'; // Возвращаем на "Не выбрано"
+    input.value = '';
 };
 
 // ==========================================
