@@ -582,16 +582,18 @@ window.handleCategoryChange = function(selectElement) {
         const input = document.getElementById('qe-new-category');
         const cancelBtn = document.getElementById('qe-cancel-new-cat');
         
-        // 1. Прячем селект, показываем инпут и кнопку отмены
+        // 1. Принудительно отбираем фокус у выпадающего списка. 
+        // Это дает команду iOS немедленно начать закрытие "барабана"
+        selectElement.blur();
+        
+        // 2. Переключаем интерфейс
         selectElement.style.display = 'none';
         input.style.display = 'block';
         cancelBtn.style.display = 'block';
         
-        // 2. Делаем небольшую задержку перед фокусом
-        // Это не даст системе "смахнуть" текстовую клавиатуру при закрытии барабана
-        setTimeout(() => {
-            input.focus();
-        }, 150); 
+        // 3. Вызываем фокус СИНХРОННО (без setTimeout).
+        // Так как барабан уже получил команду blur, он не перебьет этот фокус.
+        input.focus(); 
     }
 };
 
