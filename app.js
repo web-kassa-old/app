@@ -442,7 +442,7 @@ window.openQuickEditModal = function(id) {
         }
     });
     
-    customDropdownHtml += `<div data-val="new" data-text="${escapeHtml(t('qe_new_category'))}" onclick="window.handleCatClick(this)" style="padding: 10px; cursor: pointer; color: #4caf50; font-weight: bold;">+ ${escapeHtml(t('qe_new_category'))}</div>`;
+    customDropdownHtml += `<div data-val="new" data-text="${escapeHtml(t('qe_new_category'))}" onclick="window.handleCatClick(this)" style="padding: 10px; cursor: pointer; color: #4caf50; font-weight: bold;">${escapeHtml(t('qe_new_category'))}</div>`;
 
     const minStockVal = item.min_stock !== undefined ? item.min_stock : 1;
     const currentStock = Number(item.stock) || 0;
@@ -505,7 +505,7 @@ window.openQuickEditModal = function(id) {
                         </div>
                         
                         <!-- Сам список, который появляется поверх интерфейса -->
-                        <div id="qe-category-dropdown" class="custom-dropdown-list" style="display: none; position: absolute; top: 100%; left: 0; width: 100%; max-height: 160px; overflow-y: auto; border-radius: 4px; z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.5); margin-top: 4px;">
+                        <div id="qe-category-dropdown" class="custom-dropdown-list" style="display: none; position: absolute; top: 100%; left: 0; width: 100%; max-height: 45vh; overflow-y: auto; border-radius: 4px; z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.5); margin-top: 4px;">
                             ${customDropdownHtml}
                         </div>
                         
