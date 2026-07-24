@@ -423,17 +423,26 @@ window.openQuickEditModal = function(id) {
     
     const t = (key) => dict[key] || key;
 
-    // 2. ПОДГОТОВКА ДАННЫХ
+    // 2. ПОДГОТОВКА ДАННЫХ (с защитой от кавычек)
     const uniqueCats = [...new Set(db.map(i => i.category).filter(Boolean))];
-    let catOptions = `<option value="0" data-i18n="qe_no_category" ${!item.category || item.category === '0' ? 'selected' : ''}>${t('qe_no_category')}</option>`;
+    
+    // Функция, которая превращает кавычки в безопасный код, чтобы не сломать HTML
+    const escapeHtml = (str) => String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+
+    let currentCatText = (!item.category || item.category === '0') ? t('qe_no_category') : item.category;
+    let currentCatValue = (!item.category || item.category === '0') ? '0' : item.category;
+
+    // Собираем пункты списка
+    let customDropdownHtml = `<div data-val="0" data-text="${escapeHtml(t('qe_no_category'))}" onclick="window.handleCatClick(this)" style="padding: 10px; cursor: pointer; border-bottom: 1px solid rgba(128,128,128,0.2);">${escapeHtml(t('qe_no_category'))}</div>`;
     
     uniqueCats.forEach(cat => {
         if (cat !== '0') {
-            let selected = (item.category === cat) ? 'selected' : '';
-            catOptions += `<option value="${cat}" ${selected}>${cat}</option>`;
+            const safeCat = escapeHtml(cat);
+            customDropdownHtml += `<div data-val="${safeCat}" data-text="${safeCat}" onclick="window.handleCatClick(this)" style="padding: 10px; cursor: pointer; border-bottom: 1px solid rgba(128,128,128,0.2);">${safeCat}</div>`;
         }
     });
-    catOptions += `<option value="new" data-i18n="qe_new_category">${t('qe_new_category')}</option>`;
+    
+    customDropdownHtml += `<div data-val="new" data-text="${escapeHtml(t('qe_new_category'))}" onclick="window.handleCatClick(this)" style="padding: 10px; cursor: pointer; color: #4caf50; font-weight: bold;">+ ${escapeHtml(t('qe_new_category'))}</div>`;
 
     const minStockVal = item.min_stock !== undefined ? item.min_stock : 1;
     const currentStock = Number(item.stock) || 0;
@@ -449,42 +458,27 @@ window.openQuickEditModal = function(id) {
                 .no-spinners { -moz-appearance: textfield; }
                 
                 /* --- ТЁМНАЯ ТЕМА (ПО УМОЛЧАНИЮ) --- */
-                #quickEditModal .qe-container {
-                    background: #1e1e1e; color: #ffffff; border: 1px solid #333333;
-                }
-                #quickEditModal input, #quickEditModal select {
-                    background: #000000; color: #ffffff; border: 1px solid #333333;
-                    border-radius: 4px; padding: 8px; font-size: 15px; box-sizing: border-box; outline: none;
-                }
+                #quickEditModal .qe-container { background: #1e1e1e; color: #ffffff; border: 1px solid #333333; }
+                #quickEditModal input, #quickEditModal select { background: #000000; color: #ffffff; border: 1px solid #333333; border-radius: 4px; padding: 8px; font-size: 15px; box-sizing: border-box; outline: none; }
                 #quickEditModal input:focus, #quickEditModal select:focus { border-color: #2e7d32; }
-                #quickEditModal label {
-                    font-size: 10px; color: #888888; text-transform: uppercase; 
-                    margin-bottom: 2px; display: block; letter-spacing: 0.5px;
-                }
-                .np-btn {
-                    background: #2a2a2a; color: #ffffff; border: 1px solid #444444; 
-                    border-radius: 6px; height: 45px; font-size: 20px; font-weight: bold; cursor: pointer; user-select: none;
-                }
+                #quickEditModal label { font-size: 10px; color: #888888; text-transform: uppercase; margin-bottom: 2px; display: block; letter-spacing: 0.5px; }
+                .np-btn { background: #2a2a2a; color: #ffffff; border: 1px solid #444444; border-radius: 6px; height: 45px; font-size: 20px; font-weight: bold; cursor: pointer; user-select: none; }
                 .np-btn-action { background: #333333; color: #ff9800; }
                 .qe-active-input { border-color: #2e7d32 !important; box-shadow: 0 0 8px rgba(46, 125, 50, 0.4); }
+                /* Стили кастомного выпадающего списка (Тёмная) */
+                .custom-dropdown-trigger { background: #000000; color: #ffffff; border: 1px solid #333333; }
+                .custom-dropdown-list { background: #1e1e1e; border: 1px solid #333333; }
 
                 /* --- СВЕТЛАЯ ТЕМА (АВТОМАТИЧЕСКИ ПРИ .light-theme НА BODY) --- */
-                body.light-theme #quickEditModal .qe-container {
-                    background: #ffffff !important; color: #18181b !important; border-color: #e4e4e7 !important;
-                }
+                body.light-theme #quickEditModal .qe-container { background: #ffffff !important; color: #18181b !important; border-color: #e4e4e7 !important; }
                 body.light-theme #quickEditModal input, 
-                body.light-theme #quickEditModal select {
-                    background: #f4f4f5 !important; color: #000000 !important; border-color: #d4d4d8 !important;
-                }
-                body.light-theme #quickEditModal label {
-                    color: #71717a !important;
-                }
-                body.light-theme #quickEditModal .np-btn {
-                    background: #e4e4e7 !important; color: #18181b !important; border-color: #d4d4d8 !important;
-                }
-                body.light-theme #quickEditModal .np-btn-action {
-                    background: #d4d4d8 !important; color: #e65100 !important;
-                }
+                body.light-theme #quickEditModal select { background: #f4f4f5 !important; color: #000000 !important; border-color: #d4d4d8 !important; }
+                body.light-theme #quickEditModal label { color: #71717a !important; }
+                body.light-theme #quickEditModal .np-btn { background: #e4e4e7 !important; color: #18181b !important; border-color: #d4d4d8 !important; }
+                body.light-theme #quickEditModal .np-btn-action { background: #d4d4d8 !important; color: #e65100 !important; }
+                /* Стили кастомного выпадающего списка (Светлая) */
+                body.light-theme #quickEditModal .custom-dropdown-trigger { background: #f4f4f5 !important; color: #000000 !important; border-color: #d4d4d8 !important; }
+                body.light-theme #quickEditModal .custom-dropdown-list { background: #ffffff !important; border-color: #d4d4d8 !important; }
             </style>
 
             <div class="qe-container" style="padding: 15px; border-radius: 8px; width: 90%; max-width: 350px; box-shadow: 0 10px 30px rgba(0,0,0,0.8);">
@@ -492,23 +486,34 @@ window.openQuickEditModal = function(id) {
                 
                 <div style="margin-bottom: 10px;">
                     <label data-i18n="qe_name">${t('qe_name')}</label>
-                    <input type="text" id="qe-name" value="${item.name || ''}" style="width: 100%;">
+                    <input type="text" id="qe-name" value="${escapeHtml(item.name || '')}" style="width: 100%;">
                     <div data-i18n="qe_name_hint" style="font-size: 9px; color: #2e7d32; margin-top: 3px; letter-spacing: 0.3px;">${t('qe_name_hint')}</div>
                 </div>
                 
                 <div style="margin-bottom: 10px;">
                     <label data-i18n="qe_category">${t('qe_category')}</label>
-                    <div style="display: flex; gap: 5px; width: 100%;">
-                        <!-- Стандартный селект -->
-                        <select id="qe-category" onchange="window.handleCategoryChange(this)" style="flex: 1; width: 100%;">
-                            ${catOptions}
-                        </select>
+                    
+                    <!-- КАСТОМНЫЙ ВЫПАДАЮЩИЙ СПИСОК -->
+                    <div style="position: relative; width: 100%;">
+                        <!-- Скрытое поле. Именно из него функция сохранения будет брать данные -->
+                        <input type="hidden" id="qe-category" value="${escapeHtml(currentCatValue)}">
+                        
+                        <!-- Видимая кнопка (триггер) -->
+                        <div id="qe-category-trigger" class="custom-dropdown-trigger" onclick="window.toggleCustomDropdown()" style="width: 100%; border-radius: 4px; padding: 8px; font-size: 15px; box-sizing: border-box; cursor: pointer; display: flex; justify-content: space-between; align-items: center;">
+                            <span id="qe-category-display" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(currentCatText)}</span>
+                            <span style="font-size: 12px;">▼</span>
+                        </div>
+                        
+                        <!-- Сам список, который появляется поверх интерфейса -->
+                        <div id="qe-category-dropdown" class="custom-dropdown-list" style="display: none; position: absolute; top: 100%; left: 0; width: 100%; max-height: 160px; overflow-y: auto; border-radius: 4px; z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.5); margin-top: 4px;">
+                            ${customDropdownHtml}
+                        </div>
                         
                         <!-- Скрытое поле для ввода новой категории -->
-                        <input type="text" id="qe-new-category" placeholder="Введите название..." style="display: none; flex: 1;">
-                        
-                        <!-- Скрытая кнопка отмены (вернуться к селекту) -->
-                        <button type="button" id="qe-cancel-new-cat" onclick="window.cancelNewCategory()" style="display: none; background: #c62828; color: #fff; border: none; border-radius: 4px; padding: 0 12px; font-weight: bold; cursor: pointer;">✖</button>
+                        <div id="qe-new-category-wrapper" style="display: none; width: 100%; gap: 5px;">
+                            <input type="text" id="qe-new-category" placeholder="Введите название..." style="flex: 1; width: 100%;">
+                            <button type="button" id="qe-cancel-new-cat" onclick="window.cancelNewCategory()" style="background: #c62828; color: #fff; border: none; border-radius: 4px; padding: 0 12px; font-weight: bold; cursor: pointer;">✖</button>
+                        </div>
                     </div>
                 </div>
 
@@ -577,42 +582,61 @@ window.openQuickEditModal = function(id) {
     document.body.insertAdjacentHTML('beforeend', modalHtml);
 };
 
-window.handleCategoryChange = function(selectElement) {
-    if (selectElement.value === 'new') {
-        const input = document.getElementById('qe-new-category');
-        const cancelBtn = document.getElementById('qe-cancel-new-cat');
+// Открывает/закрывает наш кастомный список
+window.toggleCustomDropdown = function() {
+    const dropdown = document.getElementById('qe-category-dropdown');
+    if (dropdown) dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
+};
+
+// Обработка клика по пункту меню (Safari считает это прямым тапом)
+window.handleCatClick = function(element) {
+    const value = element.getAttribute('data-val');
+    const text = element.getAttribute('data-text');
+    
+    const dropdown = document.getElementById('qe-category-dropdown');
+    const trigger = document.getElementById('qe-category-trigger');
+    const display = document.getElementById('qe-category-display');
+    const hiddenInput = document.getElementById('qe-category');
+    const newCatWrapper = document.getElementById('qe-new-category-wrapper');
+    const newCatInput = document.getElementById('qe-new-category');
+    
+    if (value === 'new') {
+        // Прячем кнопку-триггер и сам список
+        trigger.style.display = 'none';
+        if (dropdown) dropdown.style.display = 'none';
         
-        // 1. Принудительно отбираем фокус у выпадающего списка. 
-        // Это дает команду iOS немедленно начать закрытие "барабана"
-        selectElement.blur();
+        // Показываем поле ввода
+        newCatWrapper.style.display = 'flex';
+        if (hiddenInput) hiddenInput.value = 'new';
         
-        // 2. Переключаем интерфейс (визуально для пользователя)
-        selectElement.style.display = 'none';
-        input.style.display = 'block';
-        cancelBtn.style.display = 'block';
-        
-        // 3. ВАЖНО: Асинхронный вызов фокуса с задержкой.
-        // Даем процессору 400 мс, чтобы системная анимация закрытия UIPicker
-        // полностью завершилась. Только после этого просим показать клавиатуру.
-        setTimeout(() => {
-            input.focus();
-        }, 400);
+        // МГНОВЕННЫЙ ФОКУС. Клавиатура в iOS Safari выедет сразу, 
+        // так как событие вызвано прямым касанием пользователя (click).
+        if (newCatInput) newCatInput.focus();
+    } else {
+        // Просто выбрали существующую категорию
+        if (display) display.innerText = text;
+        if (hiddenInput) hiddenInput.value = value;
+        if (dropdown) dropdown.style.display = 'none';
     }
 };
 
+// Кнопка отмены "крестик" для новой категории
 window.cancelNewCategory = function() {
-    const select = document.getElementById('qe-category');
+    const wrapper = document.getElementById('qe-new-category-wrapper');
+    const trigger = document.getElementById('qe-category-trigger');
     const input = document.getElementById('qe-new-category');
-    const cancelBtn = document.getElementById('qe-cancel-new-cat');
+    const display = document.getElementById('qe-category-display');
+    const hiddenInput = document.getElementById('qe-category');
+    const defaultTextElement = document.querySelector('[data-val="0"]');
     
-    // Прячем инпут, возвращаем селект
-    input.style.display = 'none';
-    cancelBtn.style.display = 'none';
-    select.style.display = 'block';
+    if (wrapper) wrapper.style.display = 'none';
+    if (trigger) trigger.style.display = 'flex';
+    if (input) input.value = '';
+    if (hiddenInput) hiddenInput.value = '0';
     
-    // Сбрасываем значения
-    select.value = '0'; // Возвращаем на "Не выбрано"
-    input.value = '';
+    if (display && defaultTextElement) {
+        display.innerText = defaultTextElement.getAttribute('data-text');
+    }
 };
 
 // ==========================================
