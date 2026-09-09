@@ -3503,48 +3503,49 @@ function setReportView(view) {
         }
 
         // Обработка загрузки файла шаблона
-        // Обработка загрузки файла шаблона
-function handleTemplateUpload(event) {
-    const file = event.target.files[0];
-    if (!file) return;
+        function handleTemplateUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
 
-    document.getElementById('templateFileName').innerText = '📄 ' + file.name;
+            document.getElementById('templateFileName').innerText = '📄 ' + file.name;
 
-    const reader = new FileReader();
-    reader.onload = function(e) {
-        try {
-            const data = new Uint8Array(e.target.result);
-            const workbook = XLSX.read(data, { type: 'array' });
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
 
-            let targetSheet = workbook.SheetNames.find(name => name.toLowerCase() === 'attributes');
-            if (!targetSheet) {
-                targetSheet = workbook.SheetNames.length > 1 ? workbook.SheetNames[1] : workbook.SheetNames[0];
-            }
+                    let targetSheet = workbook.SheetNames.find(name => name.toLowerCase() === 'attributes');
+                    if (!targetSheet) {
+                        targetSheet = workbook.SheetNames.length > 1 ? workbook.SheetNames[1] : workbook.SheetNames[0];
+                    }
 
-            const sheet = workbook.Sheets[targetSheet];
-            const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+                    const sheet = workbook.Sheets[targetSheet];
+                    const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
 
-            // ВРЕМЕННАЯ ДИАГНОСТИКА: Смотрим, что внутри этих 3 строк
-            let debugText = "Найдено строк: " + jsonData.length + "\n\n";
-            for(let i = 0; i < jsonData.length; i++) {
-                // Берем первые 3 колонки, чтобы понять, где какие данные
-                let preview = jsonData[i].slice(0, 3).join("  |  ");
-                debugText += "Строка " + (i+1) + ": " + preview + "\n";
-            }
+                    // Проверяем, что есть хотя бы 3 строки
+                    if (jsonData.length < 3) {
+                        alert("Ошибка: Неверный формат шаблона Kaspi.");
+                        return;
+                    }
+
+                    // Берем правильные индексы на основе нашей диагностики
+                    const systemKeys = jsonData[1]; // Строка 2: merchant_sku, name, brand...
+                    const humanNames = jsonData[2]; // Строка 3: Артикул, Название товара...
+
+                    // Запускаем отрисовку интерфейса
+                    renderMapperUI(systemKeys, humanNames);
+
+                } catch (err) {
+                    alert("Ошибка чтения файла: " + err.message);
+                }
+            };
             
-            alert(debugText);
+            // Сбрасываем инпут, чтобы можно было выбрать файл заново
+            event.target.value = '';
             
-            // Пока прерываем выполнение, чтобы настроить правильные индексы
-            return; 
-
-        } catch (err) {
-            alert("Ошибка парсинга SheetJS: " + err.message);
+            reader.readAsArrayBuffer(file);
         }
-    };
-    
-    event.target.value = '';
-    reader.readAsArrayBuffer(file);
-}
 
         // Отрисовка интерфейса маппинга
         function renderMapperUI(systemKeys, humanNames) {
