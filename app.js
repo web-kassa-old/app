@@ -3502,50 +3502,118 @@ function setReportView(view) {
             }
         }
 
-        // Обработка загрузки файла шаблона
-        function handleTemplateUpload(event) {
-            const file = event.target.files[0];
-            if (!file) return;
+// Обработка загрузки файла шаблона
+function handleTemplateUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
 
-            document.getElementById('templateFileName').innerText = '📄 ' + file.name;
+    document.getElementById('templateFileName').innerText = '📄 ' + file.name;
 
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                try {
-                    const data = new Uint8Array(e.target.result);
-                    const workbook = XLSX.read(data, { type: 'array' });
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
 
-                    let targetSheet = workbook.SheetNames.find(name => name.toLowerCase() === 'attributes');
-                    if (!targetSheet) {
-                        targetSheet = workbook.SheetNames.length > 1 ? workbook.SheetNames[1] : workbook.SheetNames[0];
-                    }
+            // 1. Ищем лист attributes
+            let targetSheet = workbook.SheetNames.find(name => name.toLowerCase() === 'attributes');
+            if (!targetSheet) {
+                targetSheet = workbook.SheetNames.length > 1 ? workbook.SheetNames[1] : workbook.SheetNames[0];
+            }
 
-                    const sheet = workbook.Sheets[targetSheet];
-                    const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+            const sheet = workbook.Sheets[targetSheet];
+            const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
 
-                    // Проверяем, что есть хотя бы 3 строки
-                    if (jsonData.length < 3) {
-                        alert("Ошибка: Неверный формат шаблона Kaspi.");
-                        return;
-                    }
+            if (jsonData.length < 3) {
+                alert("Ошибка: Неверный формат шаблона Kaspi.");
+                return;
+            }
 
-                    // Берем правильные индексы на основе нашей диагностики
-                    const systemKeys = jsonData[1]; // Строка 2: merchant_sku, name, brand...
-                    const humanNames = jsonData[2]; // Строка 3: Артикул, Название товара...
+            const systemKeys = jsonData[1]; // Строка 2: merchant_sku...
+            const humanNames = jsonData[2]; // Строка 3: Артикул...
 
-                    // Запускаем отрисовку интерфейса
-                    renderMapperUI(systemKeys, humanNames);
+            // 2. Ищем лист values (для примеров)
+            let valuesSheetName = workbook.SheetNames.find(name => name.toLowerCase() === 'values');
+            let valuesData = [];
+            if (valuesSheetName) {
+                // Читаем значения как массив объектов (ключи - заголовки колонок)
+                valuesData = XLSX.utils.sheet_to_json(workbook.Sheets[valuesSheetName], { defval: "" });
+            }
 
-                } catch (err) {
-                    alert("Ошибка чтения файла: " + err.message);
-                }
-            };
-            
-            // Сбрасываем инпут, чтобы можно было выбрать файл заново
-            event.target.value = '';
-            
-            reader.readAsArrayBuffer(file);
+            // Передаем данные в рендер
+            renderMapperUI(systemKeys, humanNames, valuesData);
+
+        } catch (err) {
+            alert("Ошибка чтения файла: " + err.message);
         }
+    };
+    
+    event.target.value = '';
+    reader.readAsArrayBuffer(file);
+}
+
+// Отрисовка интерфейса маппинга
+function renderMapperUI(systemKeys, humanNames, valuesData) {
+    const mapperArea = document.getElementById('exportMapperArea');
+    mapperArea.innerHTML = ''; 
+
+    // Базовые поля + имитация будущих динамических JSON-полей
+    const internalFields = [
+        { id: '', name: '-- Не выгружать --' },
+        { id: 'id', name: 'ID товара (Артикул)' },
+        { id: 'name', name: 'Название' },
+        { id: 'price', name: 'Цена' },
+        { id: 'qty', name: 'Остаток партии' },
+        { id: 'weight', name: 'Вес, кг' },
+        { id: 'volume', name: 'Объем, м3' },
+        // --- Имитация полей из JSON накладных ---
+        { id: 'json_Бренд', name: 'Бренд (из накладной)' },
+        { id: 'json_Ширина обода (J)', name: 'Ширина обода (J) (из накладной)' },
+        { id: 'json_Цвет', name: 'Цвет (из накладной)' }
+    ];
+
+    let html = '<h4 style="margin-bottom: 10px; color: var(--text-muted); font-size: 13px;">СОПОСТАВЛЕНИЕ КОЛОНОК:</h4>';
+
+    for (let i = 0; i < humanNames.length; i++) {
+        const sysKey = systemKeys[i];
+        const humName = humanNames[i];
+
+        if (!humName && !sysKey) continue; 
+
+        // Ищем примеры значений для этой колонки из листа values
+        let examplesHtml = '';
+        if (valuesData && valuesData.length > 0 && humName) {
+            let examples = [];
+            for (let row of valuesData) {
+                if (row[humName] && !examples.includes(row[humName])) {
+                    examples.push(row[humName]);
+                }
+                if (examples.length >= 3) break; // Берем максимум 3 уникальных примера
+            }
+            if (examples.length > 0) {
+                // Отрисовываем примеры синим цветом под ключом
+                examplesHtml = `<div style="font-size: 11px; color: var(--accent-blue); margin-top: 4px; white-space: normal; line-height: 1.2;"><i>Например: ${examples.join(', ')}</i></div>`;
+            }
+        }
+
+        html += `
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; padding: 10px; background: var(--bg-panel); border: 1px solid var(--border-light); border-radius: 6px;">
+            <div style="flex: 1; padding-right: 10px; overflow: hidden;">
+                <div style="font-size: 13px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${humName || 'Без названия'}</div>
+                <div style="font-size: 11px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${sysKey || '-'}</div>
+                ${examplesHtml}
+            </div>
+            <select class="mapper-select" data-col-index="${i}" data-sys-key="${sysKey}" style="width: 140px; padding: 6px; background: var(--bg-body); color: var(--text-main); border: 1px solid var(--border-main); border-radius: 4px; font-size: 13px; outline: none;">
+                ${internalFields.map(f => `<option value="${f.id}">${f.name}</option>`).join('')}
+            </select>
+        </div>
+        `;
+    }
+
+    mapperArea.innerHTML = html;
+    mapperArea.style.display = 'flex';
+    document.getElementById('generateExportBtn').style.display = 'block'; 
+}
 
         // Отрисовка интерфейса маппинга
         function renderMapperUI(systemKeys, humanNames) {
