@@ -3536,7 +3536,6 @@ function handleTemplateUpload(event) {
             let valuesSheetName = workbook.SheetNames.find(name => name.toLowerCase() === 'values');
             let valuesData = [];
             if (valuesSheetName) {
-                // Читаем значения как массив объектов (ключи - заголовки колонок)
                 valuesData = XLSX.utils.sheet_to_json(workbook.Sheets[valuesSheetName], { defval: "" });
             }
 
@@ -3557,7 +3556,7 @@ function renderMapperUI(systemKeys, humanNames, valuesData) {
     const mapperArea = document.getElementById('exportMapperArea');
     mapperArea.innerHTML = ''; 
 
-    // Базовые поля + имитация будущих динамических JSON-полей
+    // Обновленные базовые поля + имитация будущих динамических JSON-полей
     const internalFields = [
         { id: '', name: '-- Не выгружать --' },
         { id: 'id', name: 'ID товара (Артикул)' },
@@ -3580,7 +3579,7 @@ function renderMapperUI(systemKeys, humanNames, valuesData) {
 
         if (!humName && !sysKey) continue; 
 
-        // Ищем примеры значений для этой колонки из листа values
+        // Ищем примеры значений для этой колонки
         let examplesHtml = '';
         if (valuesData && valuesData.length > 0 && humName) {
             let examples = [];
@@ -3588,10 +3587,9 @@ function renderMapperUI(systemKeys, humanNames, valuesData) {
                 if (row[humName] && !examples.includes(row[humName])) {
                     examples.push(row[humName]);
                 }
-                if (examples.length >= 3) break; // Берем максимум 3 уникальных примера
+                if (examples.length >= 3) break; 
             }
             if (examples.length > 0) {
-                // Отрисовываем примеры синим цветом под ключом
                 examplesHtml = `<div style="font-size: 11px; color: var(--accent-blue); margin-top: 4px; white-space: normal; line-height: 1.2;"><i>Например: ${examples.join(', ')}</i></div>`;
             }
         }
