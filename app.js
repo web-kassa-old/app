@@ -251,7 +251,7 @@
                 mapper_cbm: "Объем (CBM)",
                 mapper_weight: "Вес (кг)",
                 export_title: "НАСТРОЙКА ЭКСПОРТА",
-                upload_template: "📄 Загрузить пустой шаблон (.xlsx)",
+                upload_template: "📄 Загрузить пустой шаблон (.xml, .xlsx)",
                 generate_price: "СГЕНЕРИРОВАТЬ ПРАЙС"
             },
             kz: {
@@ -506,7 +506,7 @@
                 mapper_cbm: "Көлемі (CBM)",
                 mapper_weight: "Салмағы (кг)",
                 export_title: "ЭКСПОРТТЫ БАПТАУ",
-                upload_template: "📄 Бос үлгіні жүктеу (.xlsx)",
+                upload_template: "📄 Бос үлгіні жүктеу (.xml, .xlsx)",
                 generate_price: "БАҒА ПАРАҒЫН ЖАСАУ"
             }
         };
