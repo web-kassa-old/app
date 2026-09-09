@@ -3601,7 +3601,8 @@ function renderMapperUI(systemKeys, humanNames, valuesData) {
                 <div style="font-size: 11px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${sysKey || '-'}</div>
                 ${examplesHtml}
             </div>
-            <select class="mapper-select" data-col-index="${i}" data-sys-key="${sysKey}" style="width: 140px; padding: 6px; background: var(--bg-body); color: var(--text-main); border: 1px solid var(--border-main); border-radius: 4px; font-size: 13px; outline: none;">
+            <!-- Измените эту строку внутри renderMapperUI: -->
+                <select class="mapper-select" data-col-index="${i}" data-sys-key="${sysKey}" onchange="updateSelectStates()" style="width: 140px; padding: 6px; background: var(--bg-body); color: var(--text-main); border: 1px solid var(--border-main); border-radius: 4px; font-size: 13px; outline: none;">
                 ${internalFields.map(f => `<option value="${f.id}">${f.name}</option>`).join('')}
             </select>
         </div>
@@ -6563,3 +6564,21 @@ document.addEventListener("DOMContentLoaded", () => {
         clearTimeout(pressTimer);
     });
 });
+// Контроль уникальности выбора в маппере
+function updateSelectStates() {
+    const selects = document.querySelectorAll('.mapper-select');
+    // Собираем все значения, которые уже выбраны (игнорируем пустые)
+    const selectedValues = Array.from(selects).map(s => s.value).filter(v => v !== '');
+
+    selects.forEach(select => {
+        Array.from(select.options).forEach(opt => {
+            if (opt.value === '') {
+                opt.disabled = false; // Пустой пункт всегда доступен
+            } else if (selectedValues.includes(opt.value) && select.value !== opt.value) {
+                opt.disabled = true;  // Блокируем, если занято другим селектом
+            } else {
+                opt.disabled = false; // Открываем, если свободно
+            }
+        });
+    });
+}
