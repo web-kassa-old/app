@@ -114,24 +114,65 @@
         </div>
         
         <div class="search-area">
-            <div class="s-input-container">
-                <input type="text" id="sb" class="s-input" data-i18n-placeholder="search_placeholder" placeholder="ПОИСК..." oninput="handleSearchInput()">
-                <span id="clear-search" onclick="clearSearch()" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-size: 16px; cursor: pointer; display: none; padding: 5px; height: 100%; align-items: center; justify-content: center;">✕</span>
-            </div>
-            
-            <button id="btn-sync-data" class="header-action-btn header-btn-sync" title="Обновить остатки и цены (удерживайте для полной загрузки)">↻</button>
-            
-            <button class="header-action-btn header-btn-report" onclick="openReport()">📊</button>
-            
-            <button class="header-action-btn header-btn-income" onclick="toggleIncomeModule()">
-                📦 <span data-i18n="receive_btn" style="max-width: 60px; overflow: hidden; text-overflow: ellipsis;">ПРИЕМКА</span>
-            </button>
-            
-            <button id="btn-settings" class="header-action-btn header-btn-settings" onclick="openSettings()" style="background: var(--bg-panel); border-color: var(--border-light); color: var(--text-main);">
-    <span id="sync-icon">⚙️</span>
-    <span id="queue-counter" class="queue-badge" style="display: none;">1</span>
-</button>
+    <div class="s-input-container">
+        <input type="text" id="sb" class="s-input" data-i18n-placeholder="search_placeholder" placeholder="ПОИСК..." oninput="handleSearchInput()">
+        <span id="clear-search" onclick="clearSearch()" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-size: 16px; cursor: pointer; display: none; padding: 5px; height: 100%; align-items: center; justify-content: center;">✕</span>
+    </div>
+    
+    <button id="btn-sync-data" class="header-action-btn header-btn-sync" title="Обновить остатки и цены (удерживайте для полной загрузки)">↻</button>
+    
+    <button class="header-action-btn header-btn-report" onclick="openReport()">📊</button>
+    
+    <!-- Кнопка ПРИЕМКИ (Зеленая) -->
+    <button id="btn-income" class="header-action-btn" title="Приемка" onclick="toggleIncomeModule()" style="background: var(--accent-green, #27ae60); border-color: var(--accent-green, #27ae60); color: #ffffff; min-width: 42px; padding: 0; display: flex; justify-content: center; align-items: center;">
+        <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 5v14M19 12l-7 7-7-7"/>
+        </svg>
+    </button>
+
+    <!-- Кнопка ЭКСПОРТА (Синяя) -->
+    <button id="btn-export" class="header-action-btn" title="Экспорт" onclick="toggleExportModule()" style="background: var(--accent-blue, #2980b9); border-color: var(--accent-blue, #2980b9); color: #ffffff; min-width: 42px; padding: 0; display: flex; justify-content: center; align-items: center;">
+        <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 19V5M5 12l7-7 7 7"/>
+        </svg>
+    </button>
+    
+    <button id="btn-settings" class="header-action-btn header-btn-settings" onclick="openSettings()" style="background: var(--bg-panel); border-color: var(--border-light); color: var(--text-main);">
+        <span id="sync-icon">⚙️</span>
+        <span id="queue-counter" class="queue-badge" style="display: none;">1</span>
+    </button>
+</div>
+
+<!-- МОДУЛЬ ЭКСПОРТА И МАППИНГА -->
+<div id="export-modal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: var(--bg-overlay); z-index: 10000; justify-content: center; align-items: flex-start; padding-top: 4vh; backdrop-filter: blur(3px); touch-action: none;">
+    <!-- Главная карточка (Без жесткого overflow, чтобы списки могли выпадать) -->
+    <div style="background: var(--bg-modal); border: 1px solid var(--border-light); border-radius: 8px; width: 95%; max-width: 600px; padding: 20px; color: var(--text-main); max-height: 80vh; display: flex; flex-direction: column; position: relative; box-sizing: border-box; overscroll-behavior: none;">
+        
+        <!-- Кнопка закрытия -->
+        <button onclick="toggleExportModule()" style="position: absolute; right: 15px; top: 15px; background: transparent; border: none; color: #ff4d4d; font-size: 20px; cursor: pointer; font-weight: bold;">✕</button>
+        
+        <h3 style="margin-bottom: 20px; color: var(--accent-blue);">
+            <span style="font-size: 1.2em; vertical-align: middle;">📤</span> НАСТРОЙКА ЭКСПОРТА
+        </h3>
+
+        <!-- Зона загрузки пустого шаблона от маркета -->
+        <div class="file-input-wrapper" style="margin-bottom: 15px;">
+            <label for="templateFileInput" class="file-upload-label" style="padding: 12px; border: 1px dashed var(--border-main); border-radius: 4px; display: flex; align-items: center; justify-content: center; cursor: pointer; background: var(--bg-body); transition: background-color 0.2s;">
+                <span id="templateFileName" style="font-size: 14px; color: var(--text-main);">📄 Загрузить пустой шаблон (.xlsx)</span>
+            </label>
+            <!-- Скрытый инпут для файла -->
+            <input type="file" id="templateFileInput" accept=".xls, .xlsx" style="display: none;" onchange="handleTemplateUpload(event)">
         </div>
+
+        <!-- Контейнер для отрисовки маппинга (появится после загрузки файла) -->
+        <div id="exportMapperArea" style="display: none; flex-direction: column; overflow-y: auto; max-height: 50vh; padding-right: 5px; -webkit-overflow-scrolling: touch;">
+            <!-- Сюда JavaScript будет динамически вставлять селекты -->
+        </div>
+
+        <!-- Финальная кнопка -->
+        <button id="generateExportBtn" class="btn-primary blue" style="display: none; margin-top: 15px;" onclick="generateExportFile()">СГЕНЕРИРОВАТЬ ПРАЙС</button>
+    </div>
+</div>
         
         <div class="list-header">
             <div style="flex-grow: 1; display: flex; align-items: center; gap: 10px;">
