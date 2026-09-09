@@ -3483,6 +3483,19 @@ function setReportView(view) {
             }
         }
 
+        function toggleExportModule() {
+            const modal = document.getElementById('export-modal');
+            if (modal.style.display === 'none' || modal.style.display === '') {
+                modal.style.display = 'flex';
+            } else {
+                modal.style.display = 'none';
+                document.getElementById('templateFileInput').value = '';
+                document.getElementById('templateFileName').innerText = '📄 Загрузить пустой шаблон (.xlsx)';
+                document.getElementById('exportMapperArea').style.display = 'none';
+                document.getElementById('generateExportBtn').style.display = 'none';
+            }
+        }
+
         // Глобальное хранилище состояния (чтобы передать данные от Фазы 1 к Фазе 2)
         let tempInvoiceState = null;
 
