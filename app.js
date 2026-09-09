@@ -249,7 +249,10 @@
                 mapper_qty: "Кол-во",
                 mapper_price: "Цена",
                 mapper_cbm: "Объем (CBM)",
-                mapper_weight: "Вес (кг)"
+                mapper_weight: "Вес (кг)",
+                export_title: "НАСТРОЙКА ЭКСПОРТА",
+                upload_template: "📄 Загрузить пустой шаблон (.xlsx)",
+                generate_price: "СГЕНЕРИРОВАТЬ ПРАЙС"
             },
             kz: {
                 btn_sale: "САТУ", btn_return: "ҚАЙТАРУ", search_placeholder: "ІЗДЕУ...",
@@ -501,7 +504,10 @@
                 mapper_qty: "Саны",
                 mapper_price: "Бағасы",
                 mapper_cbm: "Көлемі (CBM)",
-                mapper_weight: "Салмағы (кг)"
+                mapper_weight: "Салмағы (кг)",
+                export_title: "ЭКСПОРТТЫ БАПТАУ",
+                upload_template: "📄 Бос үлгіні жүктеу (.xlsx)",
+                generate_price: "БАҒА ПАРАҒЫН ЖАСАУ"
             }
         };
 
@@ -3494,6 +3500,88 @@ function setReportView(view) {
                 document.getElementById('exportMapperArea').style.display = 'none';
                 document.getElementById('generateExportBtn').style.display = 'none';
             }
+        }
+
+        // Обработка загрузки файла шаблона
+        function handleTemplateUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            // Меняем текст на кнопке загрузки, показывая имя файла
+            document.getElementById('templateFileName').innerText = '📄 ' + file.name;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+
+                // Ищем лист с атрибутами (в Каспи он обычно называется 'attributes')
+                let sheetName = "attributes";
+                if (!workbook.SheetNames.includes(sheetName)) {
+                    sheetName = workbook.SheetNames[1]; // Резервный вариант: берем второй лист
+                }
+
+                const sheet = workbook.Sheets[sheetName];
+                // Читаем лист как массив массивов (header: 1), чтобы иметь точный доступ к номерам строк
+                const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+
+                if (jsonData.length < 4) {
+                    alert("Ошибка: Неверный формат шаблона. Ожидалась структура маркетплейса.");
+                    return;
+                }
+
+                // Извлекаем нужные строки (индексы массива начинаются с 0)
+                // Строка 3 (индекс 2) - системные ключи (merchant_sku, brand и т.д.)
+                const systemKeys = jsonData[2]; 
+                // Строка 4 (индекс 3) - человекочитаемые названия (Артикул, Бренд и т.д.)
+                const humanNames = jsonData[3]; 
+
+                renderMapperUI(systemKeys, humanNames);
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        // Отрисовка интерфейса маппинга
+        function renderMapperUI(systemKeys, humanNames) {
+            const mapperArea = document.getElementById('exportMapperArea');
+            mapperArea.innerHTML = ''; // Очищаем предыдущую отрисовку
+
+            // Базовые поля вашей БД (потом добавим ключи из JSON)
+            const internalFields = [
+                { id: '', name: '-- Не выгружать --' },
+                { id: 'sku', name: 'Штрихкод / SKU' },
+                { id: 'name', name: 'Наименование товара' },
+                { id: 'price', name: 'Цена' },
+                { id: 'qty', name: 'Остаток' }
+            ];
+
+            let html = '<h4 style="margin-bottom: 10px; color: var(--text-muted); font-size: 13px;">СОПОСТАВЛЕНИЕ КОЛОНОК:</h4>';
+
+            // Проходимся по всем колонкам шаблона
+            for (let i = 0; i < humanNames.length; i++) {
+                const sysKey = systemKeys[i];
+                const humName = humanNames[i];
+
+                // Пропускаем пустые колонки, где нет ни ключа, ни названия
+                if (!humName && !sysKey) continue; 
+
+                // Генерируем блок для каждой колонки
+                html += `
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; padding: 10px; background: var(--bg-panel); border: 1px solid var(--border-light); border-radius: 6px;">
+                    <div style="flex: 1; padding-right: 10px; overflow: hidden;">
+                        <div style="font-size: 13px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${humName || 'Без названия'}</div>
+                        <div style="font-size: 11px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${sysKey || '-'}</div>
+                    </div>
+                    <select class="mapper-select" data-col-index="${i}" data-sys-key="${sysKey}" style="width: 140px; padding: 6px; background: var(--bg-body); color: var(--text-main); border: 1px solid var(--border-main); border-radius: 4px; font-size: 13px; outline: none;">
+                        ${internalFields.map(f => `<option value="${f.id}">${f.name}</option>`).join('')}
+                    </select>
+                </div>
+                `;
+            }
+
+            mapperArea.innerHTML = html;
+            mapperArea.style.display = 'flex';
+            document.getElementById('generateExportBtn').style.display = 'block'; // Показываем кнопку генерации
         }
 
         // Глобальное хранилище состояния (чтобы передать данные от Фазы 1 к Фазе 2)

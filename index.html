@@ -21,6 +21,7 @@
     
     <link rel="stylesheet" href="style.css?v=6.0.0">
     <script src="https://accounts.google.com/gsi/client" onload="initGoogleAuth()" async defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 </head>
 <body>
 
@@ -145,32 +146,27 @@
 
 <!-- МОДУЛЬ ЭКСПОРТА И МАППИНГА -->
 <div id="export-modal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: var(--bg-overlay); z-index: 10000; justify-content: center; align-items: flex-start; padding-top: 4vh; backdrop-filter: blur(3px); touch-action: none;">
-    <!-- Главная карточка (Без жесткого overflow, чтобы списки могли выпадать) -->
+    
     <div style="background: var(--bg-modal); border: 1px solid var(--border-light); border-radius: 8px; width: 95%; max-width: 600px; padding: 20px; color: var(--text-main); max-height: 80vh; display: flex; flex-direction: column; position: relative; box-sizing: border-box; overscroll-behavior: none;">
         
-        <!-- Кнопка закрытия -->
         <button onclick="toggleExportModule()" style="position: absolute; right: 15px; top: 15px; background: transparent; border: none; color: #ff4d4d; font-size: 20px; cursor: pointer; font-weight: bold;">✕</button>
         
         <h3 style="margin-bottom: 20px; color: var(--accent-blue);">
-            <span style="font-size: 1.2em; vertical-align: middle;">📤</span> НАСТРОЙКА ЭКСПОРТА
+            <span style="font-size: 1.2em; vertical-align: middle;">📤</span> <span data-i18n="export_title">НАСТРОЙКА ЭКСПОРТА</span>
         </h3>
 
-        <!-- Зона загрузки пустого шаблона от маркета -->
         <div class="file-input-wrapper" style="margin-bottom: 15px;">
             <label for="templateFileInput" class="file-upload-label" style="padding: 12px; border: 1px dashed var(--border-main); border-radius: 4px; display: flex; align-items: center; justify-content: center; cursor: pointer; background: var(--bg-body); transition: background-color 0.2s;">
-                <span id="templateFileName" style="font-size: 14px; color: var(--text-main);">📄 Загрузить пустой шаблон (.xlsx)</span>
+                <span id="templateFileName" style="font-size: 14px; color: var(--text-main);" data-i18n="upload_template">📄 Загрузить пустой шаблон (.xlsx)</span>
             </label>
-            <!-- Скрытый инпут для файла -->
             <input type="file" id="templateFileInput" accept=".xls, .xlsx" style="display: none;" onchange="handleTemplateUpload(event)">
         </div>
 
-        <!-- Контейнер для отрисовки маппинга (появится после загрузки файла) -->
         <div id="exportMapperArea" style="display: none; flex-direction: column; overflow-y: auto; max-height: 50vh; padding-right: 5px; -webkit-overflow-scrolling: touch;">
-            <!-- Сюда JavaScript будет динамически вставлять селекты -->
+            <!-- Селекты маппинга -->
         </div>
 
-        <!-- Финальная кнопка -->
-        <button id="generateExportBtn" class="btn-primary blue" style="display: none; margin-top: 15px;" onclick="generateExportFile()">СГЕНЕРИРОВАТЬ ПРАЙС</button>
+        <button id="generateExportBtn" class="btn-primary blue" style="display: none; margin-top: 15px;" onclick="generateExportFile()" data-i18n="generate_price">СГЕНЕРИРОВАТЬ ПРАЙС</button>
     </div>
 </div>
         
