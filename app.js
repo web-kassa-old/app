@@ -3613,49 +3613,6 @@ function renderMapperUI(systemKeys, humanNames, valuesData) {
     document.getElementById('generateExportBtn').style.display = 'block'; 
 }
 
-        // Отрисовка интерфейса маппинга
-        function renderMapperUI(systemKeys, humanNames) {
-            const mapperArea = document.getElementById('exportMapperArea');
-            mapperArea.innerHTML = ''; // Очищаем предыдущую отрисовку
-
-            // Базовые поля вашей БД (потом добавим ключи из JSON)
-            const internalFields = [
-                { id: '', name: '-- Не выгружать --' },
-                { id: 'sku', name: 'Штрихкод / SKU' },
-                { id: 'name', name: 'Наименование товара' },
-                { id: 'price', name: 'Цена' },
-                { id: 'qty', name: 'Остаток' }
-            ];
-
-            let html = '<h4 style="margin-bottom: 10px; color: var(--text-muted); font-size: 13px;">СОПОСТАВЛЕНИЕ КОЛОНОК:</h4>';
-
-            // Проходимся по всем колонкам шаблона
-            for (let i = 0; i < humanNames.length; i++) {
-                const sysKey = systemKeys[i];
-                const humName = humanNames[i];
-
-                // Пропускаем пустые колонки, где нет ни ключа, ни названия
-                if (!humName && !sysKey) continue; 
-
-                // Генерируем блок для каждой колонки
-                html += `
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; padding: 10px; background: var(--bg-panel); border: 1px solid var(--border-light); border-radius: 6px;">
-                    <div style="flex: 1; padding-right: 10px; overflow: hidden;">
-                        <div style="font-size: 13px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${humName || 'Без названия'}</div>
-                        <div style="font-size: 11px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${sysKey || '-'}</div>
-                    </div>
-                    <select class="mapper-select" data-col-index="${i}" data-sys-key="${sysKey}" style="width: 140px; padding: 6px; background: var(--bg-body); color: var(--text-main); border: 1px solid var(--border-main); border-radius: 4px; font-size: 13px; outline: none;">
-                        ${internalFields.map(f => `<option value="${f.id}">${f.name}</option>`).join('')}
-                    </select>
-                </div>
-                `;
-            }
-
-            mapperArea.innerHTML = html;
-            mapperArea.style.display = 'flex';
-            document.getElementById('generateExportBtn').style.display = 'block'; // Показываем кнопку генерации
-        }
-
         // Глобальное хранилище состояния (чтобы передать данные от Фазы 1 к Фазе 2)
         let tempInvoiceState = null;
 
