@@ -3503,43 +3503,52 @@ function setReportView(view) {
         }
 
         // Обработка загрузки файла шаблона
-        function handleTemplateUpload(event) {
-            const file = event.target.files[0];
-            if (!file) return;
+function handleTemplateUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
 
-            // Меняем текст на кнопке загрузки, показывая имя файла
-            document.getElementById('templateFileName').innerText = '📄 ' + file.name;
+    document.getElementById('templateFileName').innerText = '📄 ' + file.name;
 
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                const data = new Uint8Array(e.target.result);
-                const workbook = XLSX.read(data, { type: 'array' });
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
 
-                // Ищем лист с атрибутами (в Каспи он обычно называется 'attributes')
-                let sheetName = "attributes";
-                if (!workbook.SheetNames.includes(sheetName)) {
-                    sheetName = workbook.SheetNames[1]; // Резервный вариант: берем второй лист
-                }
+            // Ищем лист "attributes" без учета регистра букв
+            let targetSheet = workbook.SheetNames.find(name => name.toLowerCase() === 'attributes');
+            
+            // Если не нашли, берем второй лист (если он есть), иначе первый
+            if (!targetSheet) {
+                targetSheet = workbook.SheetNames.length > 1 ? workbook.SheetNames[1] : workbook.SheetNames[0];
+            }
 
-                const sheet = workbook.Sheets[sheetName];
-                // Читаем лист как массив массивов (header: 1), чтобы иметь точный доступ к номерам строк
-                const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+            const sheet = workbook.Sheets[targetSheet];
+            const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
 
-                if (jsonData.length < 4) {
-                    alert("Ошибка: Неверный формат шаблона. Ожидалась структура маркетплейса.");
-                    return;
-                }
+            // ДИАГНОСТИКА: если строк меньше 4, выводим подробности на экран
+            if (jsonData.length < 4) {
+                alert("ОШИБКА ЧТЕНИЯ ШАБЛОНА\n" +
+                      "Доступные листы: " + workbook.SheetNames.join(", ") + "\n" +
+                      "Скрипт открыл лист: " + targetSheet + "\n" +
+                      "Удалось прочитать строк: " + jsonData.length);
+                return;
+            }
 
-                // Извлекаем нужные строки (индексы массива начинаются с 0)
-                // Строка 3 (индекс 2) - системные ключи (merchant_sku, brand и т.д.)
-                const systemKeys = jsonData[2]; 
-                // Строка 4 (индекс 3) - человекочитаемые названия (Артикул, Бренд и т.д.)
-                const humanNames = jsonData[3]; 
+            const systemKeys = jsonData[2]; 
+            const humanNames = jsonData[3]; 
 
-                renderMapperUI(systemKeys, humanNames);
-            };
-            reader.readAsArrayBuffer(file);
+            renderMapperUI(systemKeys, humanNames);
+        } catch (err) {
+            alert("Критическая ошибка парсинга SheetJS: " + err.message);
         }
+    };
+    
+    // Сброс инпута, чтобы можно было выбрать этот же файл еще раз
+    event.target.value = '';
+    
+    reader.readAsArrayBuffer(file);
+}
 
         // Отрисовка интерфейса маппинга
         function renderMapperUI(systemKeys, humanNames) {
