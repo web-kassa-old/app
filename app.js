@@ -3503,6 +3503,7 @@ function setReportView(view) {
         }
 
         // Обработка загрузки файла шаблона
+        // Обработка загрузки файла шаблона
 function handleTemplateUpload(event) {
     const file = event.target.files[0];
     if (!file) return;
@@ -3515,10 +3516,7 @@ function handleTemplateUpload(event) {
             const data = new Uint8Array(e.target.result);
             const workbook = XLSX.read(data, { type: 'array' });
 
-            // Ищем лист "attributes" без учета регистра букв
             let targetSheet = workbook.SheetNames.find(name => name.toLowerCase() === 'attributes');
-            
-            // Если не нашли, берем второй лист (если он есть), иначе первый
             if (!targetSheet) {
                 targetSheet = workbook.SheetNames.length > 1 ? workbook.SheetNames[1] : workbook.SheetNames[0];
             }
@@ -3526,27 +3524,25 @@ function handleTemplateUpload(event) {
             const sheet = workbook.Sheets[targetSheet];
             const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
 
-            // ДИАГНОСТИКА: если строк меньше 4, выводим подробности на экран
-            if (jsonData.length < 4) {
-                alert("ОШИБКА ЧТЕНИЯ ШАБЛОНА\n" +
-                      "Доступные листы: " + workbook.SheetNames.join(", ") + "\n" +
-                      "Скрипт открыл лист: " + targetSheet + "\n" +
-                      "Удалось прочитать строк: " + jsonData.length);
-                return;
+            // ВРЕМЕННАЯ ДИАГНОСТИКА: Смотрим, что внутри этих 3 строк
+            let debugText = "Найдено строк: " + jsonData.length + "\n\n";
+            for(let i = 0; i < jsonData.length; i++) {
+                // Берем первые 3 колонки, чтобы понять, где какие данные
+                let preview = jsonData[i].slice(0, 3).join("  |  ");
+                debugText += "Строка " + (i+1) + ": " + preview + "\n";
             }
+            
+            alert(debugText);
+            
+            // Пока прерываем выполнение, чтобы настроить правильные индексы
+            return; 
 
-            const systemKeys = jsonData[2]; 
-            const humanNames = jsonData[3]; 
-
-            renderMapperUI(systemKeys, humanNames);
         } catch (err) {
-            alert("Критическая ошибка парсинга SheetJS: " + err.message);
+            alert("Ошибка парсинга SheetJS: " + err.message);
         }
     };
     
-    // Сброс инпута, чтобы можно было выбрать этот же файл еще раз
     event.target.value = '';
-    
     reader.readAsArrayBuffer(file);
 }
 
