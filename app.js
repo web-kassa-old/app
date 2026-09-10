@@ -3576,14 +3576,14 @@ function renderMapperUI(systemKeys, humanNames, valuesData, requirements) {
         
         if (!humName && !sysKey) continue; 
 
-        // Проверяем, обязательно ли поле
-        const reqText = (requirements && requirements[i]) ? requirements[i].toLowerCase() : '';
-        const isRequired = reqText.includes('обязательное');
-        const reqAsterisk = isRequired ? '<span style="color: #ef4444; margin-left: 4px;">*</span>' : '';
-        // Если поле обязательное, делаем левую рамку карточки красной для привлечения внимания
-        const borderStyle = isRequired ? 'border-left: 4px solid #ef4444;' : 'border-left: 1px solid var(--border-light);';
+        // Строгая проверка на обязательность поля
+        const reqText = (requirements && requirements[i]) ? String(requirements[i]).toLowerCase() : '';
+        const isRequired = reqText.includes('обязательн') && !reqText.includes('необязательн');
+        
+        // Главный индикатор - левая рамка. Для необязательных делаем ее прозрачной, чтобы текст не прыгал.
+        const borderStyle = isRequired ? 'border-left: 4px solid #ef4444;' : 'border-left: 4px solid transparent;';
 
-        // Формируем примеры (без "Например", каждое с новой строки)
+        // Примеры значений
         let examplesHtml = '';
         if (valuesData && valuesData.length > 0 && humName) {
             let examples = [];
@@ -3598,11 +3598,11 @@ function renderMapperUI(systemKeys, humanNames, valuesData, requirements) {
             }
         }
 
-        // Добавлен класс mapper-row и стили для горизонтального скролла текста
+        // Добавлен gap: 10px для жесткого разделения колонок
         html += `
-        <div class="mapper-row" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; padding: 10px; background: var(--bg-panel); border: 1px solid var(--border-light); ${borderStyle} border-radius: 6px; transition: background 0.2s ease;">
-            <div style="flex: 1; padding-right: 15px; overflow-x: auto; white-space: nowrap; -webkit-overflow-scrolling: touch; padding-bottom: 4px;">
-                <div style="font-size: 13px; font-weight: bold;">${humName || 'Без названия'}${reqAsterisk}</div>
+        <div class="mapper-row" style="display: flex; gap: 10px; justify-content: space-between; align-items: center; margin-bottom: 8px; padding: 10px 10px 10px 6px; background: var(--bg-panel); border: 1px solid var(--border-light); ${borderStyle} border-radius: 6px; transition: background 0.2s ease;">
+            <div style="flex: 1; overflow-x: auto; white-space: nowrap; -webkit-overflow-scrolling: touch; padding-bottom: 4px;">
+                <div style="font-size: 13px; font-weight: bold;">${humName || 'Без названия'}</div>
                 <div style="font-size: 11px; color: var(--text-muted);">${sysKey || '-'}</div>
                 ${examplesHtml}
             </div>
