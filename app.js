@@ -3550,10 +3550,10 @@ function handleTemplateUpload(event) {
     reader.readAsArrayBuffer(file);
 }
 
-// Глобальный словарь
+// Глобальный объект для хранения словарей Каспи
 window.kaspiDicts = {};
 
-// 1. ОБНОВЛЕННЫЙ РЕНДЕР (Без глючного datalist)
+// 1. ОТРИСОВКА ИНТЕРФЕЙСА (Чистая левая колонка, все действия в селекте)
 function renderMapperUI(systemKeys, humanNames, valuesData, requirements) {
     const mapperArea = document.getElementById('exportMapperArea');
     mapperArea.innerHTML = ''; 
@@ -3597,28 +3597,26 @@ function renderMapperUI(systemKeys, humanNames, valuesData, requirements) {
         let examplesHtml = '';
         if (allUniqueValues.length > 0) {
             const examples = allUniqueValues.slice(0, 3);
-            examplesHtml = `
-            <div onclick="openDictionaryModal(${i}, '${humName}')" style="font-size: 11px; color: var(--accent-blue); margin-top: 6px; white-space: normal; line-height: 1.4; cursor: pointer; display: inline-block; padding: 6px 8px; background: rgba(59, 130, 246, 0.1); border-radius: 6px; border: 1px dashed rgba(59, 130, 246, 0.4); box-sizing: border-box;">
-                <b>🔍 Открыть справочник (${allUniqueValues.length} шт):</b><br>
-                <i>${examples.join(', ')}...</i>
-            </div>`;
-        } else {
-            examplesHtml = `
-            <div onclick="openDictionaryModal(${i}, '${humName}')" style="font-size: 11px; color: #854d0e; margin-top: 6px; cursor: pointer; display: inline-block; padding: 6px 8px; background: #fefce8; border-radius: 6px; border: 1px dashed #eab308;">
-                <b>✏️ Ввести значение вручную</b>
-            </div>`;
+            examplesHtml = `<div style="font-size: 11px; color: var(--accent-blue); margin-top: 6px; white-space: normal; line-height: 1.4;"><i>Например: ${examples.join(', ')}...</i></div>`;
         }
 
         let optionsHtml = `<optgroup label="Поля из базы данных">`;
         optionsHtml += internalFields.map(f => `<option value="${f.id}">${f.name}</option>`).join('');
         optionsHtml += `</optgroup>`;
 
-        // Статику в сам селект больше не грузим, если ее больше 50
-        if (allUniqueValues.length > 0 && allUniqueValues.length <= 50) {
-            optionsHtml += `<optgroup label="Задать для всех товаров">`;
-            optionsHtml += allUniqueValues.map(val => `<option value="static_${val}" style="background: #e0f2fe; color: #0369a1;">📌 ${val}</option>`).join('');
+        if (allUniqueValues.length > 0) {
+            optionsHtml += `<optgroup label="Справочник Каспи">`;
+            if (allUniqueValues.length <= 50) {
+                optionsHtml += allUniqueValues.map(val => `<option value="static_${val}">📌 ${val}</option>`).join('');
+            } else {
+                optionsHtml += `<option value="open_dict">🔍 Найти в справочнике (${allUniqueValues.length})...</option>`;
+            }
             optionsHtml += `</optgroup>`;
         }
+
+        optionsHtml += `<optgroup label="Свое значение">`;
+        optionsHtml += `<option value="custom_input">✏️ Ввести вручную...</option>`;
+        optionsHtml += `</optgroup>`;
 
         html += `
         <div class="mapper-row" style="display: flex; gap: 10px; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; padding: 10px 10px 10px 6px; background: var(--bg-panel); border: 1px solid var(--border-light); ${borderStyle} border-radius: 6px; transition: background 0.2s ease;">
@@ -3628,7 +3626,7 @@ function renderMapperUI(systemKeys, humanNames, valuesData, requirements) {
                 ${examplesHtml}
             </div>
             <div style="flex-shrink: 0; width: 140px;">
-                <select class="mapper-select" data-col-index="${i}" data-sys-key="${sysKey}" onchange="updateSelectStates()" style="width: 100%; padding: 6px; background: var(--bg-body); color: var(--text-main); border: 1px solid var(--border-main); border-radius: 4px; font-size: 13px; outline: none;">
+                <select class="mapper-select" data-col-index="${i}" data-sys-key="${sysKey}" data-col-name="${humName.replace(/"/g, '&quot;')}" onchange="updateSelectStates(this)" style="width: 100%; padding: 6px; background: var(--bg-body); color: var(--text-main); border: 1px solid var(--border-main); border-radius: 4px; font-size: 13px; outline: none;">
                     ${optionsHtml}
                 </select>
             </div>
@@ -3641,8 +3639,35 @@ function renderMapperUI(systemKeys, humanNames, valuesData, requirements) {
     document.getElementById('generateExportBtn').style.display = 'block'; 
 }
 
-// 2. УПРОЩЕННЫЙ КОНТРОЛЬ СТАТУСОВ
-function updateSelectStates() {
+// 2. КОНТРОЛЬ СЕЛЕКТОВ (Обрабатывает клики по "Ввести вручную" и "Справочник")
+function updateSelectStates(changedSelect = null) {
+    if (changedSelect) {
+        const colIndex = changedSelect.getAttribute('data-col-index');
+        const colName = changedSelect.getAttribute('data-col-name');
+        
+        if (changedSelect.value === 'open_dict') {
+            changedSelect.value = ''; 
+            openDictionaryModal(colIndex, colName);
+            return;
+        }
+        
+        if (changedSelect.value === 'custom_input') {
+            changedSelect.value = ''; 
+            const customVal = prompt(`Введите значение для поля "${colName}":`);
+            
+            if (customVal && customVal.trim() !== '') {
+                const valId = `static_${customVal.trim()}`;
+                let opt = document.createElement('option');
+                opt.value = valId;
+                opt.innerHTML = `✏️ ${customVal.trim()}`;
+                opt.style.background = '#fefce8';
+                opt.style.color = '#854d0e';
+                changedSelect.appendChild(opt);
+                changedSelect.value = valId;
+            }
+        }
+    }
+
     const selects = document.querySelectorAll('.mapper-select');
     const selectedValues = Array.from(selects)
         .map(s => s.value)
@@ -3653,7 +3678,7 @@ function updateSelectStates() {
         row.style.background = select.value !== '' ? 'rgba(40, 167, 69, 0.15)' : 'var(--bg-panel)'; 
 
         Array.from(select.options).forEach(opt => {
-            if (opt.value === '' || opt.value.startsWith('static_')) {
+            if (opt.value === '' || opt.value.startsWith('static_') || opt.value === 'open_dict' || opt.value === 'custom_input') {
                 opt.disabled = false; 
             } else if (selectedValues.includes(opt.value) && select.value !== opt.value) {
                 opt.disabled = true;  
@@ -3664,7 +3689,7 @@ function updateSelectStates() {
     });
 }
 
-// 3. САМО МОДАЛЬНОЕ ОКНО СПРАВОЧНИКА
+// 3. УМНЫЙ СПРАВОЧНИК КАСПИ (Окно поиска для больших списков)
 let currentModalColIndex = -1;
 
 function createDictionaryModal() {
@@ -3679,7 +3704,7 @@ function createDictionaryModal() {
                 <span onclick="closeDictionaryModal()" style="font-size:24px; cursor:pointer; color:#888; line-height:1;">&times;</span>
             </div>
             <div style="padding:15px; border-bottom:1px solid var(--border-main, #444);">
-                <input type="text" id="dictModalSearch" placeholder="Поиск или ввод вручную..." oninput="filterDictionary()" style="width:100%; padding:12px; border:1px solid var(--accent-blue, #3b82f6); background:var(--bg-panel, #2a2a2a); color:var(--text-main, #fff); border-radius:6px; font-size:15px; outline:none; box-sizing:border-box;">
+                <input type="text" id="dictModalSearch" placeholder="Поиск..." oninput="filterDictionary()" style="width:100%; padding:12px; border:1px solid var(--accent-blue, #3b82f6); background:var(--bg-panel, #2a2a2a); color:var(--text-main, #fff); border-radius:6px; font-size:15px; outline:none; box-sizing:border-box;">
             </div>
             <ul id="dictModalList" style="list-style:none; padding:0; margin:0; overflow-y:auto; flex:1; max-height:50vh;"></ul>
         </div>
@@ -3694,6 +3719,7 @@ function openDictionaryModal(colIndex, colName) {
     document.getElementById('dictModalSearch').value = '';
     document.getElementById('kaspiDictModal').style.display = 'flex';
     filterDictionary();
+    setTimeout(() => document.getElementById('dictModalSearch').focus(), 100);
 }
 
 function closeDictionaryModal() {
@@ -3711,10 +3737,7 @@ function filterDictionary() {
     if (filtered.length === 0 || dict.length === 0) {
         list.innerHTML = `
             <li style="padding:15px; text-align:center; color:#888;">
-                <div style="margin-bottom: 10px;">В справочнике такого нет.</div>
-                <button onclick="selectDictionaryValue('${query.replace(/'/g, "\\'")}', true)" style="padding:10px 15px; background:#eab308; color:#854d0e; border:none; border-radius:6px; font-weight:bold; width:100%; font-size:14px; cursor:pointer;">
-                    Всё равно использовать "${query || 'Пусто'}"
-                </button>
+                <div style="margin-bottom: 10px;">Ничего не найдено.</div>
             </li>`;
         return;
     }
@@ -3726,12 +3749,12 @@ function filterDictionary() {
         const li = document.createElement('li');
         li.style.cssText = 'padding:15px; border-bottom:1px solid var(--border-light, #333); cursor:pointer; font-size:14px;';
         li.innerHTML = highlighted;
-        li.onclick = () => selectDictionaryValue(val, false);
+        li.onclick = () => selectDictionaryValue(val);
         list.appendChild(li);
     });
 }
 
-function selectDictionaryValue(value, isCustom) {
+function selectDictionaryValue(value) {
     if (!value) return;
     const select = document.querySelector(`select[data-col-index="${currentModalColIndex}"]`);
     if (select) {
@@ -3741,9 +3764,9 @@ function selectDictionaryValue(value, isCustom) {
         if (!opt) {
             opt = document.createElement('option');
             opt.value = valId;
-            opt.innerHTML = isCustom ? `✏️ ${value}` : `📌 ${value}`;
-            opt.style.background = isCustom ? '#fefce8' : '#e0f2fe';
-            opt.style.color = isCustom ? '#854d0e' : '#0369a1';
+            opt.innerHTML = `📌 ${value}`;
+            opt.style.background = '#e0f2fe';
+            opt.style.color = '#0369a1';
             select.appendChild(opt);
         }
         select.value = valId;
