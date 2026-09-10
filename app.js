@@ -252,7 +252,16 @@
                 mapper_weight: "Вес (кг)",
                 export_title: "НАСТРОЙКА ЭКСПОРТА",
                 upload_template: "📄 Загрузить пустой шаблон (.xml, .xlsx)",
-                generate_price: "СГЕНЕРИРОВАТЬ ПРАЙС"
+                generate_price: "СГЕНЕРИРОВАТЬ ПРАЙС",
+                dict_title: "Выберите значение", 
+                dict_placeholder: "Поиск или ввод вручную...",
+                dict_total: "Всего доступно вариантов:",
+                dict_search_in: "Поиск среди:",
+                dict_not_found: "В справочнике не найдено.",
+                dict_use_custom: "Использовать",
+                dict_start_typing: "Начните вводить текст",
+                dict_and_more: "...и ещё",
+                dict_options: "вариантов."
             },
             kz: {
                 btn_sale: "САТУ", btn_return: "ҚАЙТАРУ", search_placeholder: "ІЗДЕУ...",
@@ -507,7 +516,16 @@
                 mapper_weight: "Салмағы (кг)",
                 export_title: "ЭКСПОРТТЫ БАПТАУ",
                 upload_template: "📄 Бос үлгіні жүктеу (.xml, .xlsx)",
-                generate_price: "БАҒА ПАРАҒЫН ЖАСАУ"
+                generate_price: "БАҒА ПАРАҒЫН ЖАСАУ",
+                dict_title: "Мәнді таңдаңыз", 
+                dict_placeholder: "Іздеу немесе қолмен енгізу...",
+                dict_total: "Барлық қолжетімді нұсқалар:",
+                dict_search_in: "Ішінен іздеу:",
+                dict_not_found: "Анықтамалықтан табылмады.",
+                dict_use_custom: "Қолдану",
+                dict_start_typing: "Мәтінді енгізуді бастаңыз",
+                dict_and_more: "...және тағы",
+                dict_options: "нұсқа."
             }
         };
 
@@ -3703,23 +3721,65 @@ function updateSelectStates() {
     });
 }
 
-// 3. ОКНО УМНОГО СПРАВОЧНИКА
+// 3. ОКНО УМНОГО СПРАВОЧНИКА (С автономным микро-переводчиком)
 let currentModalColIndex = -1;
+
+// Вспомогательная функция перевода "на лету"
+function t(key) {
+    let lang = 'ru'; 
+    if (typeof currentLang !== 'undefined') lang = currentLang;
+    else if (localStorage.getItem('lang')) lang = localStorage.getItem('lang');
+    else if (localStorage.getItem('language')) lang = localStorage.getItem('language');
+
+    if (typeof translations !== 'undefined' && translations[lang] && translations[lang][key]) {
+        return translations[lang][key];
+    }
+
+    const localDict = {
+        ru: {
+            dict_title: "Выберите значение", 
+            dict_placeholder: "Поиск или ввод вручную...",
+            dict_total: "Всего доступно вариантов:",
+            dict_search_in: "Поиск среди:",
+            dict_not_found: "В справочнике не найдено.",
+            dict_use_custom: "Использовать",
+            dict_start_typing: "Начните вводить текст",
+            dict_and_more: "...и ещё",
+            dict_options: "вариантов"
+        },
+        kz: {
+            dict_title: "Мәнді таңдаңыз", 
+            dict_placeholder: "Іздеу немесе қолмен енгізу...",
+            dict_total: "Барлық қолжетімді нұсқалар:",
+            dict_search_in: "Ішінен іздеу:",
+            dict_not_found: "Анықтамалықтан табылмады.",
+            dict_use_custom: "Қолдану",
+            dict_start_typing: "Мәтінді енгізуді бастаңыз",
+            dict_and_more: "...және тағы",
+            dict_options: "нұсқа"
+        }
+    };
+    return (localDict[lang] && localDict[lang][key]) ? localDict[lang][key] : localDict['ru'][key];
+}
 
 function createDictionaryModal() {
     if (document.getElementById('kaspiDictModal')) return;
+    
     const modal = document.createElement('div');
     modal.id = 'kaspiDictModal';
-    // ВНИМАНИЕ: установлен z-index: 999999, чтобы перекрыть все окна POS Noir
     modal.style.cssText = 'display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:999999; flex-direction:column; align-items:center; justify-content:center; padding:20px; box-sizing:border-box; backdrop-filter:blur(3px);';
+    
     modal.innerHTML = `
         <div id="dictModalContent" style="background:var(--bg-body, #1e1e1e); color:var(--text-main, #fff); width:100%; max-width:400px; border-radius:10px; display:flex; flex-direction:column; max-height:85vh; box-sizing:border-box;">
             <div style="padding:15px; border-bottom:1px solid var(--border-main, #444); display:flex; justify-content:space-between; align-items:center;">
-                <b id="dictModalTitle" style="font-size:15px;">Выберите значение</b>
+                <b id="dictModalTitle" style="font-size:15px;">${t('dict_title')}</b>
                 <span onclick="closeDictionaryModal()" style="font-size:24px; cursor:pointer; color:#888; line-height:1;">&times;</span>
             </div>
-            <div style="padding:15px; border-bottom:1px solid var(--border-main, #444);">
-                <input type="text" id="dictModalSearch" placeholder="Поиск или ввод вручную..." oninput="filterDictionary()" style="width:100%; padding:12px; border:1px solid var(--accent-blue, #3b82f6); background:var(--bg-panel, #2a2a2a); color:var(--text-main, #fff); border-radius:6px; font-size:15px; outline:none; box-sizing:border-box;">
+            <div style="padding:15px; padding-bottom:5px; border-bottom:1px solid var(--border-main, #444);">
+                <input type="text" id="dictModalSearch" placeholder="${t('dict_placeholder')}" oninput="filterDictionary()" style="width:100%; padding:12px; border:1px solid var(--accent-blue, #3b82f6); background:var(--bg-panel, #2a2a2a); color:var(--text-main, #fff); border-radius:6px; font-size:15px; outline:none; box-sizing:border-box;">
+                <div id="dictModalCountInfo" style="font-size:11px; color:var(--text-muted, #888); margin-top:8px; text-align:right;">
+                    <span id="dictModalCountText">${t('dict_total')}</span> <span id="dictTotalCount">0</span>
+                </div>
             </div>
             <ul id="dictModalList" style="list-style:none; padding:0; margin:0; overflow-y:auto; flex:1; max-height:50vh;"></ul>
         </div>
@@ -3738,7 +3798,6 @@ function openDictionaryModal(colIndex, colName) {
     document.getElementById('dictModalSearch').value = '';
     document.getElementById('kaspiDictModal').style.display = 'flex';
     filterDictionary();
-    // Фокус убран, чтобы клавиатура на смартфонах не моргала!
 }
 
 function closeDictionaryModal() {
@@ -3749,28 +3808,57 @@ function closeDictionaryModal() {
 function filterDictionary() {
     const query = document.getElementById('dictModalSearch').value.toLowerCase().trim();
     const list = document.getElementById('dictModalList');
+    const countText = document.getElementById('dictModalCountText');
+    const totalCount = document.getElementById('dictTotalCount');
     const dict = window.kaspiDicts[currentModalColIndex] || [];
+    
     list.innerHTML = '';
     
-    const filtered = dict.filter(val => String(val).toLowerCase().includes(query)).slice(0, 100);
+    if (countText && totalCount) {
+        countText.innerText = query === '' ? t('dict_total') : t('dict_search_in');
+        totalCount.innerText = dict.length;
+    }
     
-    // Интеграция ручного ввода прямо в окно поиска
-    if (filtered.length === 0) {
+    let allFiltered = dict;
+
+    if (query !== '') {
+        allFiltered = dict.filter(val => String(val).toLowerCase().includes(query));
+        
+        allFiltered.sort((a, b) => {
+            const strA = String(a).toLowerCase();
+            const strB = String(b).toLowerCase();
+            const getScore = (str) => {
+                if (str.startsWith(query)) return 1; 
+                if (new RegExp(`(^|\\s|_|-)${query}`).test(str)) return 2; 
+                return 3; 
+            };
+            const scoreA = getScore(strA);
+            const scoreB = getScore(strB);
+            
+            if (scoreA !== scoreB) return scoreA - scoreB;
+            return strA.localeCompare(strB);
+        });
+    }
+
+    const displayLimit = 100;
+    const filteredToDisplay = allFiltered.slice(0, displayLimit);
+    
+    if (filteredToDisplay.length === 0) {
         if (query.length > 0) {
             list.innerHTML = `
                 <li style="padding:15px; text-align:center; color:#888;">
-                    <div style="margin-bottom: 10px;">В справочнике не найдено.</div>
+                    <div style="margin-bottom: 10px;">${t('dict_not_found')}</div>
                     <button onclick="selectDictionaryValue('${query.replace(/'/g, "\\'")}', true)" style="padding:10px 15px; background:#eab308; color:#854d0e; border:none; border-radius:6px; font-weight:bold; width:100%; font-size:14px; cursor:pointer;">
-                        ✏️ Использовать "${query}"
+                        ✏️ ${t('dict_use_custom')} "${query}"
                     </button>
                 </li>`;
         } else {
-            list.innerHTML = `<li style="padding:15px; text-align:center; color:#888;">Начните вводить текст</li>`;
+            list.innerHTML = `<li style="padding:15px; text-align:center; color:#888;">${t('dict_start_typing')}</li>`;
         }
         return;
     }
 
-    filtered.forEach(val => {
+    filteredToDisplay.forEach(val => {
         const regex = new RegExp(`(${query})`, "gi");
         const highlighted = query ? String(val).replace(regex, "<mark style='background:#fef08a; color:#854d0e;'>$1</mark>") : val;
         
@@ -3780,6 +3868,14 @@ function filterDictionary() {
         li.onclick = () => selectDictionaryValue(val, false);
         list.appendChild(li);
     });
+
+    if (allFiltered.length > displayLimit) {
+        const extraCount = allFiltered.length - displayLimit;
+        const li = document.createElement('li');
+        li.style.cssText = 'padding:15px; text-align:center; color:var(--text-muted, #888); font-size:13px; font-style:italic; background:rgba(0,0,0,0.2);';
+        li.innerHTML = `${t('dict_and_more')} ${extraCount} ${t('dict_options')}.`;
+        list.appendChild(li);
+    }
 }
 
 function selectDictionaryValue(value, isCustom) {
