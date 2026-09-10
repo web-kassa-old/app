@@ -261,7 +261,31 @@
                 dict_use_custom: "Использовать",
                 dict_start_typing: "Начните вводить текст",
                 dict_and_more: "...и ещё",
-                dict_options: "вариантов."
+                dict_options: "вариантов.",
+                dict_title: "Выберите значение", 
+                dict_placeholder: "Поиск или ввод вручную...",
+                dict_total: "Всего доступно вариантов:",
+                dict_search_in: "Поиск среди:",
+                dict_not_found: "В справочнике не найдено.",
+                dict_use_custom: "Использовать",
+                dict_start_typing: "Начните вводить текст",
+                dict_and_more: "...и ещё",
+                dict_options: "вариантов.",
+                map_title: "СОПОСТАВЛЕНИЕ КОЛОНОК:",
+                grp_db: "Поля из базы данных",
+                grp_kaspi: "Справочник Каспи",
+                grp_custom: "Свое значение",
+                opt_skip: "-- Не выгружать --",
+                opt_search: "Найти в справочнике",
+                opt_manual: "Ввести вручную...",
+                f_barcode: "Штрихкод / SKU",
+                f_name: "Название",
+                f_price: "Цена",
+                f_qty: "Остаток партии",
+                f_weight: "Вес, кг",
+                f_volume: "Объем, м3",
+                prompt_enter: "Введите значение для поля",
+                download_template: "Загрузить пустой шаблон (.xml, .xlsx)"
             },
             kz: {
                 btn_sale: "САТУ", btn_return: "ҚАЙТАРУ", search_placeholder: "ІЗДЕУ...",
@@ -525,7 +549,31 @@
                 dict_use_custom: "Қолдану",
                 dict_start_typing: "Мәтінді енгізуді бастаңыз",
                 dict_and_more: "...және тағы",
-                dict_options: "нұсқа."
+                dict_options: "нұсқа.",
+                dict_title: "Мәнді таңдаңыз", 
+                dict_placeholder: "Іздеу немесе қолмен енгізу...",
+                dict_total: "Барлық қолжетімді нұсқалар:",
+                dict_search_in: "Ішінен іздеу:",
+                dict_not_found: "Анықтамалықтан табылмады.",
+                dict_use_custom: "Қолдану",
+                dict_start_typing: "Мәтінді енгізуді бастаңыз",
+                dict_and_more: "...және тағы",
+                dict_options: "нұсқа.",
+                map_title: "БАҒАНДАРДЫ САЛЫСТЫРУ:",
+                grp_db: "Дерекқор өрістері",
+                grp_kaspi: "Каспи анықтамалығы",
+                grp_custom: "Өз мәні",
+                opt_skip: "-- Жүктемеу --",
+                opt_search: "Анықтамалықтан іздеу",
+                opt_manual: "Қолмен енгізу...",
+                f_barcode: "Штрихкод / SKU",
+                f_name: "Атауы",
+                f_price: "Бағасы",
+                f_qty: "Партия қалдығы",
+                f_weight: "Салмағы, кг",
+                f_volume: "Көлемі, м3",
+                prompt_enter: "Өріс үшін мәнді енгізіңіз",
+                download_template: "Бос үлгіні жүктеу (.xml, .xlsx)"
             }
         };
 
@@ -3639,25 +3687,42 @@ function handleTemplateUpload(event) {
 // Глобальный объект для хранения словарей Каспи
 window.kaspiDicts = {};
 
-// 1. ОТРИСОВКА ИНТЕРФЕЙСА
+// --- КРОШЕЧНЫЙ ПОМОЩНИК ПЕРЕВОДА (Без локальных словарей!) ---
+// Читает данные только из вашей глобальной базы.
+function t(key, defaultText) {
+    // Берем текущий язык из переменной, которую ставит наш Шпион, или из памяти
+    let lang = window.appCurrentLang || localStorage.getItem('lang') || localStorage.getItem('language') || 'ru';
+    
+    // Если глобальный словарь существует и в нем есть перевод — отдаем его
+    if (typeof translations !== 'undefined' && translations[lang] && translations[lang][key]) {
+        return translations[lang][key];
+    }
+    
+    // Если перевода нет (или словарь еще грузится) — отдаем русский оригинал
+    return defaultText;
+}
+
+// 1. ОТРИСОВКА ИНТЕРФЕЙСА (Берет переводы из глобальной базы)
 function renderMapperUI(systemKeys, humanNames, valuesData, requirements) {
     const mapperArea = document.getElementById('exportMapperArea');
     mapperArea.innerHTML = ''; 
 
+    // Запрашиваем переводы, передавая русский текст как запасной вариант
     const internalFields = [
-        { id: '', name: '-- Не выгружать --' },
-        { id: 'barcode', name: 'Штрихкод / SKU' },
-        { id: 'name', name: 'Название' },
-        { id: 'price', name: 'Цена' },
-        { id: 'qty', name: 'Остаток партии' },
-        { id: 'weight', name: 'Вес, кг' },
-        { id: 'volume', name: 'Объем, м3' },
+        { id: '', name: t('opt_skip', '-- Не выгружать --') },
+        { id: 'barcode', name: t('f_barcode', 'Штрихкод / SKU') },
+        { id: 'name', name: t('f_name', 'Название') },
+        { id: 'price', name: t('f_price', 'Цена') },
+        { id: 'qty', name: t('f_qty', 'Остаток партии') },
+        { id: 'weight', name: t('f_weight', 'Вес, кг') },
+        { id: 'volume', name: t('f_volume', 'Объем, м3') },
+        // Эти ключи из JSON не переводим!
         { id: 'json_Бренд', name: 'Бренд (из накладной)' },
         { id: 'json_Ширина обода (J)', name: 'Ширина обода (J)' },
         { id: 'json_Цвет', name: 'Цвет (из накладной)' }
     ];
 
-    let html = '<h4 style="margin-bottom: 10px; color: var(--text-muted); font-size: 13px;">СОПОСТАВЛЕНИЕ КОЛОНОК:</h4>';
+    let html = `<h4 style="margin-bottom: 10px; color: var(--text-muted); font-size: 13px;" data-i18n="map_title">${t('map_title', 'СОПОСТАВЛЕНИЕ КОЛОНОК:')}</h4>`;
 
     for (let i = 0; i < humanNames.length; i++) {
         const sysKey = systemKeys[i];
@@ -3665,7 +3730,6 @@ function renderMapperUI(systemKeys, humanNames, valuesData, requirements) {
         
         if (!humName && !sysKey) continue; 
 
-        // Защита от ошибок, если у колонки вдруг нет названия
         const safeHumName = humName || 'Без названия';
         const cleanColNameForData = safeHumName.replace(/"/g, '&quot;');
 
@@ -3684,7 +3748,6 @@ function renderMapperUI(systemKeys, humanNames, valuesData, requirements) {
         }
         window.kaspiDicts[i] = allUniqueValues;
 
-        // Вывод примеров с многоточием в конце, если их много
         let examplesHtml = '';
         if (allUniqueValues.length > 0) {
             const examples = allUniqueValues.slice(0, 3);
@@ -3695,25 +3758,25 @@ function renderMapperUI(systemKeys, humanNames, valuesData, requirements) {
             examplesHtml = `<div style="font-size: 11px; color: var(--accent-blue); margin-top: 6px; white-space: normal; line-height: 1.4;"><i>${examplesText}</i></div>`;
         }
 
-        let optionsHtml = `<optgroup label="Поля из базы данных">`;
+        // Запрашиваем переводы для групп и кнопок
+        let optionsHtml = `<optgroup label="${t('grp_db', 'Поля из базы данных')}">`;
         optionsHtml += internalFields.map(f => `<option value="${f.id}">${f.name}</option>`).join('');
         optionsHtml += `</optgroup>`;
 
         if (allUniqueValues.length > 0) {
-            optionsHtml += `<optgroup label="Справочник Каспи">`;
+            optionsHtml += `<optgroup label="${t('grp_kaspi', 'Справочник Каспи')}">`;
             if (allUniqueValues.length <= 50) {
                 optionsHtml += allUniqueValues.map(val => `<option value="static_${val}">📌 ${val}</option>`).join('');
             } else {
-                optionsHtml += `<option value="open_dict">🔍 Найти в справочнике (${allUniqueValues.length})...</option>`;
+                optionsHtml += `<option value="open_dict">🔍 ${t('opt_search', 'Найти в справочнике')} (${allUniqueValues.length})...</option>`;
             }
             optionsHtml += `</optgroup>`;
         } else {
-            optionsHtml += `<optgroup label="Свое значение">`;
-            optionsHtml += `<option value="custom_input">✏️ Ввести вручную...</option>`;
+            optionsHtml += `<optgroup label="${t('grp_custom', 'Свое значение')}">`;
+            optionsHtml += `<option value="custom_input">✏️ ${t('opt_manual', 'Ввести вручную...')}</option>`;
             optionsHtml += `</optgroup>`;
         }
 
-        // Обратите внимание: onchange теперь вызывает handleSelectChange
         html += `
         <div class="mapper-row" style="display: flex; gap: 10px; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; padding: 10px 10px 10px 6px; background: var(--bg-panel); border: 1px solid var(--border-light); ${borderStyle} border-radius: 6px; transition: background 0.2s ease;">
             <div style="flex: 1; overflow-x: auto; white-space: nowrap; -webkit-overflow-scrolling: touch; padding-bottom: 4px; margin-top: 4px;">
