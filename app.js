@@ -529,6 +529,47 @@
             }
         };
 
+        // --- ГЛОБАЛЬНЫЙ АВТОПЕРЕВОДЧИК ИНТЕРФЕЙСА (MutationObserver) ---
+const domObserver = new MutationObserver((mutations) => {
+    let hasSignificantChanges = false;
+
+    // Проверяем, появились ли новые элементы (открылась ли модалка)
+    for (let mutation of mutations) {
+        if (mutation.addedNodes.length > 0) {
+            hasSignificantChanges = true;
+            break;
+        }
+    }
+
+    if (hasSignificantChanges) {
+        clearTimeout(window.translateTimeout);
+        window.translateTimeout = setTimeout(() => {
+            
+            // 1. Узнаем, какой язык сейчас выбран в системе
+            let currentLang = 'ru'; // по умолчанию
+            if (localStorage.getItem('lang')) currentLang = localStorage.getItem('lang');
+            else if (localStorage.getItem('language')) currentLang = localStorage.getItem('language');
+            
+            if (typeof applyLanguage === 'function') {
+                // 2. Отключаем шпиона, чтобы он не среагировал на сам процесс перевода
+                domObserver.disconnect();
+                
+                // 3. Запускаем ВАШУ функцию перевода
+                applyLanguage(currentLang); 
+                
+                // 4. Включаем шпиона обратно
+                domObserver.observe(document.body, { childList: true, subtree: true });
+            }
+            
+        }, 50); // Ждем 50 мс, чтобы окно успело полностью отрисоваться
+    }
+});
+
+// Запускаем слежку за всем экраном при загрузке страницы
+document.addEventListener('DOMContentLoaded', () => {
+    domObserver.observe(document.body, { childList: true, subtree: true });
+});
+
         // 1. Читаем адресную строку
         const urlParams = new URLSearchParams(window.location.search);
         const langParam = urlParams.get('lang');
