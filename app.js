@@ -3576,38 +3576,53 @@ function renderMapperUI(systemKeys, humanNames, valuesData, requirements) {
         
         if (!humName && !sysKey) continue; 
 
-        // Строгая проверка на обязательность поля
+        // Проверка на обязательность
         const reqText = (requirements && requirements[i]) ? String(requirements[i]).toLowerCase() : '';
         const isRequired = reqText.includes('обязательн') && !reqText.includes('необязательн');
         
-        // Главный индикатор - левая рамка. Для необязательных делаем ее прозрачной, чтобы текст не прыгал.
-        const borderStyle = isRequired ? 'border-left: 4px solid #ef4444;' : 'border-left: 4px solid transparent;';
+        // Звездочка и цветные рамки
+        const reqAsterisk = isRequired ? '<span style="color: #ef4444; margin-left: 4px;">*</span>' : '';
+        const borderStyle = isRequired ? 'border-left: 4px solid #ef4444;' : 'border-left: 4px solid var(--accent-blue, #3b82f6);';
 
-        // Примеры значений
-        let examplesHtml = '';
+        // Собираем ВСЕ уникальные значения из справочника Kaspi для этой колонки
+        let allUniqueValues = [];
         if (valuesData && valuesData.length > 0 && humName) {
-            let examples = [];
             for (let row of valuesData) {
-                if (row[humName] && !examples.includes(row[humName])) {
-                    examples.push(row[humName]);
+                if (row[humName] && !allUniqueValues.includes(row[humName])) {
+                    allUniqueValues.push(row[humName]);
                 }
-                if (examples.length >= 3) break; 
-            }
-            if (examples.length > 0) {
-                examplesHtml = `<div style="font-size: 11px; color: var(--accent-blue); margin-top: 6px; white-space: normal; line-height: 1.4;"><i>${examples.join('<br>')}</i></div>`;
             }
         }
 
-        // Добавлен gap: 10px для жесткого разделения колонок
+        // Отрисовка примеров (берем только первые 3 для текста)
+        let examplesHtml = '';
+        if (allUniqueValues.length > 0) {
+            const examples = allUniqueValues.slice(0, 3);
+            examplesHtml = `<div style="font-size: 11px; color: var(--accent-blue); margin-top: 6px; white-space: normal; line-height: 1.4;"><i>${examples.join('<br>')}</i></div>`;
+        }
+
+        // Формируем выпадающий список с группами
+        let optionsHtml = `<optgroup label="Поля из базы данных">`;
+        optionsHtml += internalFields.map(f => `<option value="${f.id}">${f.name}</option>`).join('');
+        optionsHtml += `</optgroup>`;
+
+        // Если для колонки есть справочник значений, добавляем их как статические варианты
+        if (allUniqueValues.length > 0) {
+            optionsHtml += `<optgroup label="Задать для всех товаров">`;
+            // Добавляем префикс static_ чтобы при экспорте скрипт понял, что это не поле БД, а готовое слово
+            optionsHtml += allUniqueValues.map(val => `<option value="static_${val}">${val}</option>`).join('');
+            optionsHtml += `</optgroup>`;
+        }
+
         html += `
         <div class="mapper-row" style="display: flex; gap: 10px; justify-content: space-between; align-items: center; margin-bottom: 8px; padding: 10px 10px 10px 6px; background: var(--bg-panel); border: 1px solid var(--border-light); ${borderStyle} border-radius: 6px; transition: background 0.2s ease;">
             <div style="flex: 1; overflow-x: auto; white-space: nowrap; -webkit-overflow-scrolling: touch; padding-bottom: 4px;">
-                <div style="font-size: 13px; font-weight: bold;">${humName || 'Без названия'}</div>
+                <div style="font-size: 13px; font-weight: bold;">${humName || 'Без названия'}${reqAsterisk}</div>
                 <div style="font-size: 11px; color: var(--text-muted);">${sysKey || '-'}</div>
                 ${examplesHtml}
             </div>
             <select class="mapper-select" data-col-index="${i}" data-sys-key="${sysKey}" onchange="updateSelectStates()" style="width: 140px; flex-shrink: 0; padding: 6px; background: var(--bg-body); color: var(--text-main); border: 1px solid var(--border-main); border-radius: 4px; font-size: 13px; outline: none;">
-                ${internalFields.map(f => `<option value="${f.id}">${f.name}</option>`).join('')}
+                ${optionsHtml}
             </select>
         </div>
         `;
@@ -6571,24 +6586,26 @@ document.addEventListener("DOMContentLoaded", () => {
 // Контроль уникальности и подсветка выбранных полей
 function updateSelectStates() {
     const selects = document.querySelectorAll('.mapper-select');
-    const selectedValues = Array.from(selects).map(s => s.value).filter(v => v !== '');
+    
+    // Собираем выбранные поля базы данных (игнорируем пустышки и статические значения Каспи)
+    const selectedValues = Array.from(selects)
+        .map(s => s.value)
+        .filter(v => v !== '' && !v.startsWith('static_'));
 
     selects.forEach(select => {
-        // Подсветка фона: находим родительскую карточку
         const row = select.closest('.mapper-row');
         if (select.value !== '') {
-            // Если поле заполнено, делаем фон слегка выделенным (можно поменять цвет rgba)
-            row.style.background = 'rgba(40, 167, 69, 0.15)'; // Легкий зеленый оттенок
+            row.style.background = 'rgba(40, 167, 69, 0.15)'; 
         } else {
-            // Возвращаем стандартный фон
             row.style.background = 'var(--bg-panel)'; 
         }
 
-        // Блокировка уже выбранных пунктов
         Array.from(select.options).forEach(opt => {
-            if (opt.value === '') {
+            // Разрешаем выбирать пустышку и любые статические значения без ограничений
+            if (opt.value === '' || opt.value.startsWith('static_')) {
                 opt.disabled = false; 
             } else if (selectedValues.includes(opt.value) && select.value !== opt.value) {
+                // Блокируем только системные поля БД, если они уже заняты другой колонкой
                 opt.disabled = true;  
             } else {
                 opt.disabled = false; 
