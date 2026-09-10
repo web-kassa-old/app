@@ -3553,7 +3553,7 @@ function handleTemplateUpload(event) {
 // Глобальный объект для хранения словарей Каспи
 window.kaspiDicts = {};
 
-// 1. ОТРИСОВКА ИНТЕРФЕЙСА (Чистая левая колонка, все действия в селекте)
+// 1. ОТРИСОВКА ИНТЕРФЕЙСА (Без "Ввести вручную", чистые примеры с новой строки)
 function renderMapperUI(systemKeys, humanNames, valuesData, requirements) {
     const mapperArea = document.getElementById('exportMapperArea');
     mapperArea.innerHTML = ''; 
@@ -3594,10 +3594,11 @@ function renderMapperUI(systemKeys, humanNames, valuesData, requirements) {
         }
         window.kaspiDicts[i] = allUniqueValues;
 
+        // Убрали слово "Например", примеры выводятся каждое с новой строки
         let examplesHtml = '';
         if (allUniqueValues.length > 0) {
             const examples = allUniqueValues.slice(0, 3);
-            examplesHtml = `<div style="font-size: 11px; color: var(--accent-blue); margin-top: 6px; white-space: normal; line-height: 1.4;"><i>Например: ${examples.join(', ')}...</i></div>`;
+            examplesHtml = `<div style="font-size: 11px; color: var(--accent-blue); margin-top: 6px; white-space: normal; line-height: 1.4;"><i>${examples.join('<br>')}</i></div>`;
         }
 
         let optionsHtml = `<optgroup label="Поля из базы данных">`;
@@ -3613,10 +3614,6 @@ function renderMapperUI(systemKeys, humanNames, valuesData, requirements) {
             }
             optionsHtml += `</optgroup>`;
         }
-
-        optionsHtml += `<optgroup label="Свое значение">`;
-        optionsHtml += `<option value="custom_input">✏️ Ввести вручную...</option>`;
-        optionsHtml += `</optgroup>`;
 
         html += `
         <div class="mapper-row" style="display: flex; gap: 10px; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; padding: 10px 10px 10px 6px; background: var(--bg-panel); border: 1px solid var(--border-light); ${borderStyle} border-radius: 6px; transition: background 0.2s ease;">
@@ -3639,32 +3636,16 @@ function renderMapperUI(systemKeys, humanNames, valuesData, requirements) {
     document.getElementById('generateExportBtn').style.display = 'block'; 
 }
 
-// 2. КОНТРОЛЬ СЕЛЕКТОВ (Обрабатывает клики по "Ввести вручную" и "Справочник")
+// 2. КОНТРОЛЬ СЕЛЕКТОВ (Только открытие справочника по клику)
 function updateSelectStates(changedSelect = null) {
     if (changedSelect) {
         const colIndex = changedSelect.getAttribute('data-col-index');
         const colName = changedSelect.getAttribute('data-col-name');
         
         if (changedSelect.value === 'open_dict') {
-            changedSelect.value = ''; 
+            changedSelect.value = ''; // Сбрасываем триггер в спикере
             openDictionaryModal(colIndex, colName);
             return;
-        }
-        
-        if (changedSelect.value === 'custom_input') {
-            changedSelect.value = ''; 
-            const customVal = prompt(`Введите значение для поля "${colName}":`);
-            
-            if (customVal && customVal.trim() !== '') {
-                const valId = `static_${customVal.trim()}`;
-                let opt = document.createElement('option');
-                opt.value = valId;
-                opt.innerHTML = `✏️ ${customVal.trim()}`;
-                opt.style.background = '#fefce8';
-                opt.style.color = '#854d0e';
-                changedSelect.appendChild(opt);
-                changedSelect.value = valId;
-            }
         }
     }
 
@@ -3678,7 +3659,7 @@ function updateSelectStates(changedSelect = null) {
         row.style.background = select.value !== '' ? 'rgba(40, 167, 69, 0.15)' : 'var(--bg-panel)'; 
 
         Array.from(select.options).forEach(opt => {
-            if (opt.value === '' || opt.value.startsWith('static_') || opt.value === 'open_dict' || opt.value === 'custom_input') {
+            if (opt.value === '' || opt.value.startsWith('static_') || opt.value === 'open_dict') {
                 opt.disabled = false; 
             } else if (selectedValues.includes(opt.value) && select.value !== opt.value) {
                 opt.disabled = true;  
@@ -3689,32 +3670,39 @@ function updateSelectStates(changedSelect = null) {
     });
 }
 
-// 3. УМНЫЙ СПРАВОЧНИК КАСПИ (Окно поиска для больших списков)
+// 3. УМНЫЙ СПРАВОЧНИК КАСПИ (Исправлен баг с мгновенным закрытием)
 let currentModalColIndex = -1;
 
 function createDictionaryModal() {
     if (document.getElementById('kaspiDictModal')) return;
     const modal = document.createElement('div');
     modal.id = 'kaspiDictModal';
-    modal.style.cssText = 'display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:9999; flex-direction:column; align-items:center; padding:20px; box-sizing:border-box; backdrop-filter:blur(3px);';
+    // Исправлено: добавлено прерывание клика внутри контента (stopImmediatePropagation), чтобы модалка не закрывалась сама по себе
+    modal.style.cssText = 'display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:9999; flex-direction:column; align-items:center; justify-content:center; padding:20px; box-sizing:border-box; backdrop-filter:blur(3px);';
     modal.innerHTML = `
-        <div style="background:var(--bg-body, #1e1e1e); color:var(--text-main, #fff); width:100%; max-width:400px; border-radius:10px; display:flex; flex-direction:column; max-height:85vh; margin-top:20px;">
+        <div id="dictModalContent" style="background:var(--bg-body, #1e1e1e); color:var(--text-main, #fff); width:100%; max-width:400px; border-radius:10px; display:flex; flex-direction:column; max-height:85vh; box-sizing:border-box;">
             <div style="padding:15px; border-bottom:1px solid var(--border-main, #444); display:flex; justify-content:space-between; align-items:center;">
                 <b id="dictModalTitle" style="font-size:15px;">Выберите значение</b>
                 <span onclick="closeDictionaryModal()" style="font-size:24px; cursor:pointer; color:#888; line-height:1;">&times;</span>
             </div>
             <div style="padding:15px; border-bottom:1px solid var(--border-main, #444);">
-                <input type="text" id="dictModalSearch" placeholder="Поиск..." oninput="filterDictionary()" style="width:100%; padding:12px; border:1px solid var(--accent-blue, #3b82f6); background:var(--bg-panel, #2a2a2a); color:var(--text-main, #fff); border-radius:6px; font-size:15px; outline:none; box-sizing:border-box;">
+                <input type="text" id="dictModalSearch" placeholder="Поиск или ввод вручную..." oninput="filterDictionary()" style="width:100%; padding:12px; border:1px solid var(--accent-blue, #3b82f6); background:var(--bg-panel, #2a2a2a); color:var(--text-main, #fff); border-radius:6px; font-size:15px; outline:none; box-sizing:border-box;">
             </div>
             <ul id="dictModalList" style="list-style:none; padding:0; margin:0; overflow-y:auto; flex:1; max-height:50vh;"></ul>
         </div>
     `;
+    
+    // Защита от случайного закрытия при клике на само окно
+    modal.onclick = (e) => {
+        if (e.target.id === 'kaspiDictModal') closeDictionaryModal();
+    };
+    
     document.body.appendChild(modal);
 }
 
 function openDictionaryModal(colIndex, colName) {
     createDictionaryModal();
-    currentModalColIndex = colIndex;
+    currentModalColIndex = parseInt(colIndex);
     document.getElementById('dictModalTitle').innerText = colName;
     document.getElementById('dictModalSearch').value = '';
     document.getElementById('kaspiDictModal').style.display = 'flex';
@@ -3723,7 +3711,8 @@ function openDictionaryModal(colIndex, colName) {
 }
 
 function closeDictionaryModal() {
-    document.getElementById('kaspiDictModal').style.display = 'none';
+    const modal = document.getElementById('kaspiDictModal');
+    if (modal) modal.style.display = 'none';
 }
 
 function filterDictionary() {
@@ -3734,11 +3723,19 @@ function filterDictionary() {
     
     const filtered = dict.filter(val => String(val).toLowerCase().includes(query)).slice(0, 100);
     
-    if (filtered.length === 0 || dict.length === 0) {
-        list.innerHTML = `
-            <li style="padding:15px; text-align:center; color:#888;">
-                <div style="margin-bottom: 10px;">Ничего не найдено.</div>
-            </li>`;
+    // Если в справочнике ничего не найдено, даем возможность использовать введенный текст как кастомное значение
+    if (filtered.length === 0) {
+        if (query.length > 0) {
+            list.innerHTML = `
+                <li style="padding:15px; text-align:center; color:#888;">
+                    <div style="margin-bottom: 10px;">В справочнике не найдено.</div>
+                    <button onclick="selectDictionaryValue('${query.replace(/'/g, "\\'")}', true)" style="padding:10px 15px; background:#eab308; color:#854d0e; border:none; border-radius:6px; font-weight:bold; width:100%; font-size:14px; cursor:pointer;">
+                        ✏️ Использовать "${query}"
+                    </button>
+                </li>`;
+        } else {
+            list.innerHTML = `<li style="padding:15px; text-align:center; color:#888;">Справочник пуст или ничего не введено</li>`;
+        }
         return;
     }
 
@@ -3749,12 +3746,12 @@ function filterDictionary() {
         const li = document.createElement('li');
         li.style.cssText = 'padding:15px; border-bottom:1px solid var(--border-light, #333); cursor:pointer; font-size:14px;';
         li.innerHTML = highlighted;
-        li.onclick = () => selectDictionaryValue(val);
+        li.onclick = () => selectDictionaryValue(val, false);
         list.appendChild(li);
     });
 }
 
-function selectDictionaryValue(value) {
+function selectDictionaryValue(value, isCustom) {
     if (!value) return;
     const select = document.querySelector(`select[data-col-index="${currentModalColIndex}"]`);
     if (select) {
@@ -3764,9 +3761,9 @@ function selectDictionaryValue(value) {
         if (!opt) {
             opt = document.createElement('option');
             opt.value = valId;
-            opt.innerHTML = `📌 ${value}`;
-            opt.style.background = '#e0f2fe';
-            opt.style.color = '#0369a1';
+            opt.innerHTML = isCustom ? `✏️ ${value}` : `📌 ${value}`;
+            opt.style.background = isCustom ? '#fefce8' : '#e0f2fe';
+            opt.style.color = isCustom ? '#854d0e' : '#0369a1';
             select.appendChild(opt);
         }
         select.value = valId;
