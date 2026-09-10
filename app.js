@@ -3550,7 +3550,10 @@ function handleTemplateUpload(event) {
     reader.readAsArrayBuffer(file);
 }
 
-// Отрисовка интерфейса маппинга
+// Глобальный словарь
+window.kaspiDicts = {};
+
+// 1. ОБНОВЛЕННЫЙ РЕНДЕР (Без глючного datalist)
 function renderMapperUI(systemKeys, humanNames, valuesData, requirements) {
     const mapperArea = document.getElementById('exportMapperArea');
     mapperArea.innerHTML = ''; 
@@ -3581,7 +3584,6 @@ function renderMapperUI(systemKeys, humanNames, valuesData, requirements) {
         const reqAsterisk = isRequired ? '<span style="color: #ef4444; margin-left: 4px;">*</span>' : '';
         const borderStyle = isRequired ? 'border-left: 4px solid #ef4444;' : 'border-left: 4px solid var(--accent-blue, #3b82f6);';
 
-        // Собираем ВСЕ значения (без лимитов) для умного автокомплита
         let allUniqueValues = [];
         if (valuesData && valuesData.length > 0 && humName) {
             for (let row of valuesData) {
@@ -3590,23 +3592,20 @@ function renderMapperUI(systemKeys, humanNames, valuesData, requirements) {
                 }
             }
         }
+        window.kaspiDicts[i] = allUniqueValues;
 
-        // Создаем невидимый Datalist для подсказок при ручном вводе
-        let datalistHtml = '';
-        if (allUniqueValues.length > 0) {
-            datalistHtml = `<datalist id="kaspi_dict_${i}">`;
-            datalistHtml += allUniqueValues.map(val => `<option value="${val}">`).join('');
-            datalistHtml += `</datalist>`;
-        }
-
-        // Кликабельные примеры (Идея №4)
         let examplesHtml = '';
         if (allUniqueValues.length > 0) {
             const examples = allUniqueValues.slice(0, 3);
             examplesHtml = `
-            <div onclick="activateCustomInput(${i})" style="font-size: 11px; color: var(--accent-blue); margin-top: 6px; white-space: normal; line-height: 1.4; cursor: pointer; display: inline-block; padding: 4px 6px; background: rgba(59, 130, 246, 0.1); border-radius: 6px; border: 1px dashed rgba(59, 130, 246, 0.4);">
-                <b>👉 Найти в справочнике Каспи:</b><br>
-                <i>${examples.join('<br>')}...</i>
+            <div onclick="openDictionaryModal(${i}, '${humName}')" style="font-size: 11px; color: var(--accent-blue); margin-top: 6px; white-space: normal; line-height: 1.4; cursor: pointer; display: inline-block; padding: 6px 8px; background: rgba(59, 130, 246, 0.1); border-radius: 6px; border: 1px dashed rgba(59, 130, 246, 0.4); box-sizing: border-box;">
+                <b>🔍 Открыть справочник (${allUniqueValues.length} шт):</b><br>
+                <i>${examples.join(', ')}...</i>
+            </div>`;
+        } else {
+            examplesHtml = `
+            <div onclick="openDictionaryModal(${i}, '${humName}')" style="font-size: 11px; color: #854d0e; margin-top: 6px; cursor: pointer; display: inline-block; padding: 6px 8px; background: #fefce8; border-radius: 6px; border: 1px dashed #eab308;">
+                <b>✏️ Ввести значение вручную</b>
             </div>`;
         }
 
@@ -3614,11 +3613,7 @@ function renderMapperUI(systemKeys, humanNames, valuesData, requirements) {
         optionsHtml += internalFields.map(f => `<option value="${f.id}">${f.name}</option>`).join('');
         optionsHtml += `</optgroup>`;
 
-        optionsHtml += `<optgroup label="Свое значение">`;
-        optionsHtml += `<option value="custom_input" style="background: #fef08a; color: #854d0e; font-weight: bold;">✏️ Ввести вручную...</option>`;
-        optionsHtml += `</optgroup>`;
-
-        // В выпадающий список выводим напрямую только если значений мало (< 50)
+        // Статику в сам селект больше не грузим, если ее больше 50
         if (allUniqueValues.length > 0 && allUniqueValues.length <= 50) {
             optionsHtml += `<optgroup label="Задать для всех товаров">`;
             optionsHtml += allUniqueValues.map(val => `<option value="static_${val}" style="background: #e0f2fe; color: #0369a1;">📌 ${val}</option>`).join('');
@@ -3632,12 +3627,10 @@ function renderMapperUI(systemKeys, humanNames, valuesData, requirements) {
                 <div style="font-size: 11px; color: var(--text-muted);">${sysKey || '-'}</div>
                 ${examplesHtml}
             </div>
-            <div style="display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; width: 140px;">
+            <div style="flex-shrink: 0; width: 140px;">
                 <select class="mapper-select" data-col-index="${i}" data-sys-key="${sysKey}" onchange="updateSelectStates()" style="width: 100%; padding: 6px; background: var(--bg-body); color: var(--text-main); border: 1px solid var(--border-main); border-radius: 4px; font-size: 13px; outline: none;">
                     ${optionsHtml}
                 </select>
-                <input type="text" class="custom-value-input" list="kaspi_dict_${i}" onblur="handleInputBlur(this, ${i})" placeholder="Начните вводить..." style="display: none; width: 100%; padding: 6px; font-size: 13px; border: 1px solid #eab308; background: #fefce8; color: #854d0e; border-radius: 4px; outline: none; box-sizing: border-box;">
-                ${datalistHtml}
             </div>
         </div>
         `;
@@ -3648,39 +3641,19 @@ function renderMapperUI(systemKeys, humanNames, valuesData, requirements) {
     document.getElementById('generateExportBtn').style.display = 'block'; 
 }
 
-// Контроль уникальности, ручной ввод и центрирование экрана
+// 2. УПРОЩЕННЫЙ КОНТРОЛЬ СТАТУСОВ
 function updateSelectStates() {
     const selects = document.querySelectorAll('.mapper-select');
-    
     const selectedValues = Array.from(selects)
         .map(s => s.value)
-        .filter(v => v !== '' && !v.startsWith('static_') && v !== 'custom_input');
+        .filter(v => v !== '' && !v.startsWith('static_'));
 
     selects.forEach(select => {
         const row = select.closest('.mapper-row');
-        const customInput = row.querySelector('.custom-value-input');
-        
-        if (select.value === 'custom_input') {
-            if (customInput.style.display !== 'block') {
-                customInput.style.display = 'block';
-                // Центрируем элемент на экране (спасает от клавиатуры)
-                setTimeout(() => {
-                    customInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    customInput.focus();
-                }, 100);
-            }
-        } else {
-            customInput.style.display = 'none';
-        }
-
-        if (select.value !== '') {
-            row.style.background = 'rgba(40, 167, 69, 0.15)'; 
-        } else {
-            row.style.background = 'var(--bg-panel)'; 
-        }
+        row.style.background = select.value !== '' ? 'rgba(40, 167, 69, 0.15)' : 'var(--bg-panel)'; 
 
         Array.from(select.options).forEach(opt => {
-            if (opt.value === '' || opt.value.startsWith('static_') || opt.value === 'custom_input') {
+            if (opt.value === '' || opt.value.startsWith('static_')) {
                 opt.disabled = false; 
             } else if (selectedValues.includes(opt.value) && select.value !== opt.value) {
                 opt.disabled = true;  
@@ -3689,6 +3662,94 @@ function updateSelectStates() {
             }
         });
     });
+}
+
+// 3. САМО МОДАЛЬНОЕ ОКНО СПРАВОЧНИКА
+let currentModalColIndex = -1;
+
+function createDictionaryModal() {
+    if (document.getElementById('kaspiDictModal')) return;
+    const modal = document.createElement('div');
+    modal.id = 'kaspiDictModal';
+    modal.style.cssText = 'display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:9999; flex-direction:column; align-items:center; padding:20px; box-sizing:border-box; backdrop-filter:blur(3px);';
+    modal.innerHTML = `
+        <div style="background:var(--bg-body, #1e1e1e); color:var(--text-main, #fff); width:100%; max-width:400px; border-radius:10px; display:flex; flex-direction:column; max-height:85vh; margin-top:20px;">
+            <div style="padding:15px; border-bottom:1px solid var(--border-main, #444); display:flex; justify-content:space-between; align-items:center;">
+                <b id="dictModalTitle" style="font-size:15px;">Выберите значение</b>
+                <span onclick="closeDictionaryModal()" style="font-size:24px; cursor:pointer; color:#888; line-height:1;">&times;</span>
+            </div>
+            <div style="padding:15px; border-bottom:1px solid var(--border-main, #444);">
+                <input type="text" id="dictModalSearch" placeholder="Поиск или ввод вручную..." oninput="filterDictionary()" style="width:100%; padding:12px; border:1px solid var(--accent-blue, #3b82f6); background:var(--bg-panel, #2a2a2a); color:var(--text-main, #fff); border-radius:6px; font-size:15px; outline:none; box-sizing:border-box;">
+            </div>
+            <ul id="dictModalList" style="list-style:none; padding:0; margin:0; overflow-y:auto; flex:1; max-height:50vh;"></ul>
+        </div>
+    `;
+    document.body.appendChild(modal);
+}
+
+function openDictionaryModal(colIndex, colName) {
+    createDictionaryModal();
+    currentModalColIndex = colIndex;
+    document.getElementById('dictModalTitle').innerText = colName;
+    document.getElementById('dictModalSearch').value = '';
+    document.getElementById('kaspiDictModal').style.display = 'flex';
+    filterDictionary();
+}
+
+function closeDictionaryModal() {
+    document.getElementById('kaspiDictModal').style.display = 'none';
+}
+
+function filterDictionary() {
+    const query = document.getElementById('dictModalSearch').value.toLowerCase().trim();
+    const list = document.getElementById('dictModalList');
+    const dict = window.kaspiDicts[currentModalColIndex] || [];
+    list.innerHTML = '';
+    
+    const filtered = dict.filter(val => String(val).toLowerCase().includes(query)).slice(0, 100);
+    
+    if (filtered.length === 0 || dict.length === 0) {
+        list.innerHTML = `
+            <li style="padding:15px; text-align:center; color:#888;">
+                <div style="margin-bottom: 10px;">В справочнике такого нет.</div>
+                <button onclick="selectDictionaryValue('${query.replace(/'/g, "\\'")}', true)" style="padding:10px 15px; background:#eab308; color:#854d0e; border:none; border-radius:6px; font-weight:bold; width:100%; font-size:14px; cursor:pointer;">
+                    Всё равно использовать "${query || 'Пусто'}"
+                </button>
+            </li>`;
+        return;
+    }
+
+    filtered.forEach(val => {
+        const regex = new RegExp(`(${query})`, "gi");
+        const highlighted = query ? String(val).replace(regex, "<mark style='background:#fef08a; color:#854d0e;'>$1</mark>") : val;
+        
+        const li = document.createElement('li');
+        li.style.cssText = 'padding:15px; border-bottom:1px solid var(--border-light, #333); cursor:pointer; font-size:14px;';
+        li.innerHTML = highlighted;
+        li.onclick = () => selectDictionaryValue(val, false);
+        list.appendChild(li);
+    });
+}
+
+function selectDictionaryValue(value, isCustom) {
+    if (!value) return;
+    const select = document.querySelector(`select[data-col-index="${currentModalColIndex}"]`);
+    if (select) {
+        const valId = `static_${value}`;
+        let opt = select.querySelector(`option[value="${valId}"]`);
+        
+        if (!opt) {
+            opt = document.createElement('option');
+            opt.value = valId;
+            opt.innerHTML = isCustom ? `✏️ ${value}` : `📌 ${value}`;
+            opt.style.background = isCustom ? '#fefce8' : '#e0f2fe';
+            opt.style.color = isCustom ? '#854d0e' : '#0369a1';
+            select.appendChild(opt);
+        }
+        select.value = valId;
+        updateSelectStates();
+    }
+    closeDictionaryModal();
 }
 
 // НОВАЯ ФУНКЦИЯ: Сброс при пустом поле ввода
