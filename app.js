@@ -3588,33 +3588,35 @@ function renderMapperUI(systemKeys, humanNames, valuesData, requirements) {
                 if (row[humName] && !allUniqueValues.includes(row[humName])) {
                     allUniqueValues.push(row[humName]);
                 }
+                // ПРЕДОХРАНИТЕЛЬ: спасаем браузер от 10 000 брендов
+                if (allUniqueValues.length > 50) {
+                    break;
+                }
             }
         }
 
+        // Примеры значений оставляем в любом случае
         let examplesHtml = '';
         if (allUniqueValues.length > 0) {
             const examples = allUniqueValues.slice(0, 3);
             examplesHtml = `<div style="font-size: 11px; color: var(--accent-blue); margin-top: 6px; white-space: normal; line-height: 1.4;"><i>${examples.join('<br>')}</i></div>`;
         }
 
-        // 1. Блок полей из БД
         let optionsHtml = `<optgroup label="Поля из базы данных">`;
         optionsHtml += internalFields.map(f => `<option value="${f.id}">${f.name}</option>`).join('');
         optionsHtml += `</optgroup>`;
 
-        // 2. Блок ручного ввода (выделен желтым и эмодзи)
         optionsHtml += `<optgroup label="Свое значение">`;
         optionsHtml += `<option value="custom_input" style="background: #fef08a; color: #854d0e; font-weight: bold;">✏️ Ввести вручную...</option>`;
         optionsHtml += `</optgroup>`;
 
-        // 3. Блок значений из шаблона Каспи (выделен голубым и скрепкой)
-        if (allUniqueValues.length > 0) {
+        // Выводим статические значения, только если их меньше 50
+        if (allUniqueValues.length > 0 && allUniqueValues.length <= 50) {
             optionsHtml += `<optgroup label="Задать для всех товаров">`;
             optionsHtml += allUniqueValues.map(val => `<option value="static_${val}" style="background: #e0f2fe; color: #0369a1;">📌 ${val}</option>`).join('');
             optionsHtml += `</optgroup>`;
         }
 
-        // Верстка карточки изменена: селект и инпут теперь лежат в своей колонке справа
         html += `
         <div class="mapper-row" style="display: flex; gap: 10px; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; padding: 10px 10px 10px 6px; background: var(--bg-panel); border: 1px solid var(--border-light); ${borderStyle} border-radius: 6px; transition: background 0.2s ease;">
             <div style="flex: 1; overflow-x: auto; white-space: nowrap; -webkit-overflow-scrolling: touch; padding-bottom: 4px; margin-top: 4px;">
@@ -3626,7 +3628,7 @@ function renderMapperUI(systemKeys, humanNames, valuesData, requirements) {
                 <select class="mapper-select" data-col-index="${i}" data-sys-key="${sysKey}" onchange="updateSelectStates()" style="width: 100%; padding: 6px; background: var(--bg-body); color: var(--text-main); border: 1px solid var(--border-main); border-radius: 4px; font-size: 13px; outline: none;">
                     ${optionsHtml}
                 </select>
-                <input type="text" class="custom-value-input" placeholder="Введите текст..." style="display: none; width: 100%; padding: 6px; font-size: 13px; border: 1px solid #eab308; background: #fefce8; color: #854d0e; border-radius: 4px; outline: none; box-sizing: border-box;">
+                <input type="text" class="custom-value-input" placeholder="Введите значение..." style="display: none; width: 100%; padding: 6px; font-size: 13px; border: 1px solid #eab308; background: #fefce8; color: #854d0e; border-radius: 4px; outline: none; box-sizing: border-box;">
             </div>
         </div>
         `;
@@ -6587,17 +6589,27 @@ document.addEventListener("DOMContentLoaded", () => {
         clearTimeout(pressTimer);
     });
 });
-// Контроль уникальности и подсветка выбранных полей
+// Контроль уникальности, подсветка и ручной ввод
 function updateSelectStates() {
     const selects = document.querySelectorAll('.mapper-select');
     
-    // Собираем выбранные поля базы данных (игнорируем пустышки и статические значения Каспи)
     const selectedValues = Array.from(selects)
         .map(s => s.value)
-        .filter(v => v !== '' && !v.startsWith('static_'));
+        .filter(v => v !== '' && !v.startsWith('static_') && v !== 'custom_input');
 
     selects.forEach(select => {
         const row = select.closest('.mapper-row');
+        const customInput = row.querySelector('.custom-value-input');
+        
+        // Появление окна ручного ввода
+        if (select.value === 'custom_input') {
+            customInput.style.display = 'block';
+            customInput.focus(); // Сразу ставим курсор для ввода
+        } else {
+            customInput.style.display = 'none';
+            customInput.value = ''; // Очищаем поле, если пользователь передумал
+        }
+
         if (select.value !== '') {
             row.style.background = 'rgba(40, 167, 69, 0.15)'; 
         } else {
@@ -6605,11 +6617,9 @@ function updateSelectStates() {
         }
 
         Array.from(select.options).forEach(opt => {
-            // Разрешаем выбирать пустышку и любые статические значения без ограничений
-            if (opt.value === '' || opt.value.startsWith('static_')) {
+            if (opt.value === '' || opt.value.startsWith('static_') || opt.value === 'custom_input') {
                 opt.disabled = false; 
             } else if (selectedValues.includes(opt.value) && select.value !== opt.value) {
-                // Блокируем только системные поля БД, если они уже заняты другой колонкой
                 opt.disabled = true;  
             } else {
                 opt.disabled = false; 
