@@ -3578,28 +3578,36 @@ function renderMapperUI(systemKeys, humanNames, valuesData, requirements) {
 
         const reqText = (requirements && requirements[i]) ? String(requirements[i]).toLowerCase() : '';
         const isRequired = reqText.includes('обязательн') && !reqText.includes('необязательн');
-        
         const reqAsterisk = isRequired ? '<span style="color: #ef4444; margin-left: 4px;">*</span>' : '';
         const borderStyle = isRequired ? 'border-left: 4px solid #ef4444;' : 'border-left: 4px solid var(--accent-blue, #3b82f6);';
 
+        // Собираем ВСЕ значения (без лимитов) для умного автокомплита
         let allUniqueValues = [];
         if (valuesData && valuesData.length > 0 && humName) {
             for (let row of valuesData) {
                 if (row[humName] && !allUniqueValues.includes(row[humName])) {
                     allUniqueValues.push(row[humName]);
                 }
-                // ПРЕДОХРАНИТЕЛЬ: спасаем браузер от 10 000 брендов
-                if (allUniqueValues.length > 50) {
-                    break;
-                }
             }
         }
 
-        // Примеры значений оставляем в любом случае
+        // Создаем невидимый Datalist для подсказок при ручном вводе
+        let datalistHtml = '';
+        if (allUniqueValues.length > 0) {
+            datalistHtml = `<datalist id="kaspi_dict_${i}">`;
+            datalistHtml += allUniqueValues.map(val => `<option value="${val}">`).join('');
+            datalistHtml += `</datalist>`;
+        }
+
+        // Кликабельные примеры (Идея №4)
         let examplesHtml = '';
         if (allUniqueValues.length > 0) {
             const examples = allUniqueValues.slice(0, 3);
-            examplesHtml = `<div style="font-size: 11px; color: var(--accent-blue); margin-top: 6px; white-space: normal; line-height: 1.4;"><i>${examples.join('<br>')}</i></div>`;
+            examplesHtml = `
+            <div onclick="activateCustomInput(${i})" style="font-size: 11px; color: var(--accent-blue); margin-top: 6px; white-space: normal; line-height: 1.4; cursor: pointer; display: inline-block; padding: 4px 6px; background: rgba(59, 130, 246, 0.1); border-radius: 6px; border: 1px dashed rgba(59, 130, 246, 0.4);">
+                <b>👉 Найти в справочнике Каспи:</b><br>
+                <i>${examples.join('<br>')}...</i>
+            </div>`;
         }
 
         let optionsHtml = `<optgroup label="Поля из базы данных">`;
@@ -3610,7 +3618,7 @@ function renderMapperUI(systemKeys, humanNames, valuesData, requirements) {
         optionsHtml += `<option value="custom_input" style="background: #fef08a; color: #854d0e; font-weight: bold;">✏️ Ввести вручную...</option>`;
         optionsHtml += `</optgroup>`;
 
-        // Выводим статические значения, только если их меньше 50
+        // В выпадающий список выводим напрямую только если значений мало (< 50)
         if (allUniqueValues.length > 0 && allUniqueValues.length <= 50) {
             optionsHtml += `<optgroup label="Задать для всех товаров">`;
             optionsHtml += allUniqueValues.map(val => `<option value="static_${val}" style="background: #e0f2fe; color: #0369a1;">📌 ${val}</option>`).join('');
@@ -3628,7 +3636,8 @@ function renderMapperUI(systemKeys, humanNames, valuesData, requirements) {
                 <select class="mapper-select" data-col-index="${i}" data-sys-key="${sysKey}" onchange="updateSelectStates()" style="width: 100%; padding: 6px; background: var(--bg-body); color: var(--text-main); border: 1px solid var(--border-main); border-radius: 4px; font-size: 13px; outline: none;">
                     ${optionsHtml}
                 </select>
-                <input type="text" class="custom-value-input" placeholder="Введите значение..." style="display: none; width: 100%; padding: 6px; font-size: 13px; border: 1px solid #eab308; background: #fefce8; color: #854d0e; border-radius: 4px; outline: none; box-sizing: border-box;">
+                <input type="text" class="custom-value-input" list="kaspi_dict_${i}" onblur="handleInputBlur(this, ${i})" placeholder="Начните вводить..." style="display: none; width: 100%; padding: 6px; font-size: 13px; border: 1px solid #eab308; background: #fefce8; color: #854d0e; border-radius: 4px; outline: none; box-sizing: border-box;">
+                ${datalistHtml}
             </div>
         </div>
         `;
@@ -3637,6 +3646,69 @@ function renderMapperUI(systemKeys, humanNames, valuesData, requirements) {
     mapperArea.innerHTML = html;
     mapperArea.style.display = 'flex';
     document.getElementById('generateExportBtn').style.display = 'block'; 
+}
+
+// Контроль уникальности, ручной ввод и центрирование экрана
+function updateSelectStates() {
+    const selects = document.querySelectorAll('.mapper-select');
+    
+    const selectedValues = Array.from(selects)
+        .map(s => s.value)
+        .filter(v => v !== '' && !v.startsWith('static_') && v !== 'custom_input');
+
+    selects.forEach(select => {
+        const row = select.closest('.mapper-row');
+        const customInput = row.querySelector('.custom-value-input');
+        
+        if (select.value === 'custom_input') {
+            if (customInput.style.display !== 'block') {
+                customInput.style.display = 'block';
+                // Центрируем элемент на экране (спасает от клавиатуры)
+                setTimeout(() => {
+                    customInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    customInput.focus();
+                }, 100);
+            }
+        } else {
+            customInput.style.display = 'none';
+        }
+
+        if (select.value !== '') {
+            row.style.background = 'rgba(40, 167, 69, 0.15)'; 
+        } else {
+            row.style.background = 'var(--bg-panel)'; 
+        }
+
+        Array.from(select.options).forEach(opt => {
+            if (opt.value === '' || opt.value.startsWith('static_') || opt.value === 'custom_input') {
+                opt.disabled = false; 
+            } else if (selectedValues.includes(opt.value) && select.value !== opt.value) {
+                opt.disabled = true;  
+            } else {
+                opt.disabled = false; 
+            }
+        });
+    });
+}
+
+// НОВАЯ ФУНКЦИЯ: Сброс при пустом поле ввода
+function handleInputBlur(inputElem, colIndex) {
+    if (inputElem.value.trim() === '') {
+        const selectElem = document.querySelector(`select[data-col-index="${colIndex}"]`);
+        if (selectElem && selectElem.value === 'custom_input') {
+            selectElem.value = ''; // Возвращаем на "Не выгружать"
+            updateSelectStates();
+        }
+    }
+}
+
+// НОВАЯ ФУНКЦИЯ: Активация ручного ввода по клику на подсказку
+function activateCustomInput(colIndex) {
+    const selectElem = document.querySelector(`select[data-col-index="${colIndex}"]`);
+    if (selectElem) {
+        selectElem.value = 'custom_input';
+        updateSelectStates();
+    }
 }
 
         // Глобальное хранилище состояния (чтобы передать данные от Фазы 1 к Фазе 2)
@@ -6589,41 +6661,3 @@ document.addEventListener("DOMContentLoaded", () => {
         clearTimeout(pressTimer);
     });
 });
-// Контроль уникальности, подсветка и ручной ввод
-function updateSelectStates() {
-    const selects = document.querySelectorAll('.mapper-select');
-    
-    const selectedValues = Array.from(selects)
-        .map(s => s.value)
-        .filter(v => v !== '' && !v.startsWith('static_') && v !== 'custom_input');
-
-    selects.forEach(select => {
-        const row = select.closest('.mapper-row');
-        const customInput = row.querySelector('.custom-value-input');
-        
-        // Появление окна ручного ввода
-        if (select.value === 'custom_input') {
-            customInput.style.display = 'block';
-            customInput.focus(); // Сразу ставим курсор для ввода
-        } else {
-            customInput.style.display = 'none';
-            customInput.value = ''; // Очищаем поле, если пользователь передумал
-        }
-
-        if (select.value !== '') {
-            row.style.background = 'rgba(40, 167, 69, 0.15)'; 
-        } else {
-            row.style.background = 'var(--bg-panel)'; 
-        }
-
-        Array.from(select.options).forEach(opt => {
-            if (opt.value === '' || opt.value.startsWith('static_') || opt.value === 'custom_input') {
-                opt.disabled = false; 
-            } else if (selectedValues.includes(opt.value) && select.value !== opt.value) {
-                opt.disabled = true;  
-            } else {
-                opt.disabled = false; 
-            }
-        });
-    });
-}
