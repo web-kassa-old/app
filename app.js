@@ -3576,15 +3576,12 @@ function renderMapperUI(systemKeys, humanNames, valuesData, requirements) {
         
         if (!humName && !sysKey) continue; 
 
-        // Проверка на обязательность
         const reqText = (requirements && requirements[i]) ? String(requirements[i]).toLowerCase() : '';
         const isRequired = reqText.includes('обязательн') && !reqText.includes('необязательн');
         
-        // Звездочка и цветные рамки
         const reqAsterisk = isRequired ? '<span style="color: #ef4444; margin-left: 4px;">*</span>' : '';
         const borderStyle = isRequired ? 'border-left: 4px solid #ef4444;' : 'border-left: 4px solid var(--accent-blue, #3b82f6);';
 
-        // Собираем ВСЕ уникальные значения из справочника Kaspi для этой колонки
         let allUniqueValues = [];
         if (valuesData && valuesData.length > 0 && humName) {
             for (let row of valuesData) {
@@ -3594,36 +3591,43 @@ function renderMapperUI(systemKeys, humanNames, valuesData, requirements) {
             }
         }
 
-        // Отрисовка примеров (берем только первые 3 для текста)
         let examplesHtml = '';
         if (allUniqueValues.length > 0) {
             const examples = allUniqueValues.slice(0, 3);
             examplesHtml = `<div style="font-size: 11px; color: var(--accent-blue); margin-top: 6px; white-space: normal; line-height: 1.4;"><i>${examples.join('<br>')}</i></div>`;
         }
 
-        // Формируем выпадающий список с группами
+        // 1. Блок полей из БД
         let optionsHtml = `<optgroup label="Поля из базы данных">`;
         optionsHtml += internalFields.map(f => `<option value="${f.id}">${f.name}</option>`).join('');
         optionsHtml += `</optgroup>`;
 
-        // Если для колонки есть справочник значений, добавляем их как статические варианты
+        // 2. Блок ручного ввода (выделен желтым и эмодзи)
+        optionsHtml += `<optgroup label="Свое значение">`;
+        optionsHtml += `<option value="custom_input" style="background: #fef08a; color: #854d0e; font-weight: bold;">✏️ Ввести вручную...</option>`;
+        optionsHtml += `</optgroup>`;
+
+        // 3. Блок значений из шаблона Каспи (выделен голубым и скрепкой)
         if (allUniqueValues.length > 0) {
             optionsHtml += `<optgroup label="Задать для всех товаров">`;
-            // Добавляем префикс static_ чтобы при экспорте скрипт понял, что это не поле БД, а готовое слово
-            optionsHtml += allUniqueValues.map(val => `<option value="static_${val}">${val}</option>`).join('');
+            optionsHtml += allUniqueValues.map(val => `<option value="static_${val}" style="background: #e0f2fe; color: #0369a1;">📌 ${val}</option>`).join('');
             optionsHtml += `</optgroup>`;
         }
 
+        // Верстка карточки изменена: селект и инпут теперь лежат в своей колонке справа
         html += `
-        <div class="mapper-row" style="display: flex; gap: 10px; justify-content: space-between; align-items: center; margin-bottom: 8px; padding: 10px 10px 10px 6px; background: var(--bg-panel); border: 1px solid var(--border-light); ${borderStyle} border-radius: 6px; transition: background 0.2s ease;">
-            <div style="flex: 1; overflow-x: auto; white-space: nowrap; -webkit-overflow-scrolling: touch; padding-bottom: 4px;">
+        <div class="mapper-row" style="display: flex; gap: 10px; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; padding: 10px 10px 10px 6px; background: var(--bg-panel); border: 1px solid var(--border-light); ${borderStyle} border-radius: 6px; transition: background 0.2s ease;">
+            <div style="flex: 1; overflow-x: auto; white-space: nowrap; -webkit-overflow-scrolling: touch; padding-bottom: 4px; margin-top: 4px;">
                 <div style="font-size: 13px; font-weight: bold;">${humName || 'Без названия'}${reqAsterisk}</div>
                 <div style="font-size: 11px; color: var(--text-muted);">${sysKey || '-'}</div>
                 ${examplesHtml}
             </div>
-            <select class="mapper-select" data-col-index="${i}" data-sys-key="${sysKey}" onchange="updateSelectStates()" style="width: 140px; flex-shrink: 0; padding: 6px; background: var(--bg-body); color: var(--text-main); border: 1px solid var(--border-main); border-radius: 4px; font-size: 13px; outline: none;">
-                ${optionsHtml}
-            </select>
+            <div style="display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; width: 140px;">
+                <select class="mapper-select" data-col-index="${i}" data-sys-key="${sysKey}" onchange="updateSelectStates()" style="width: 100%; padding: 6px; background: var(--bg-body); color: var(--text-main); border: 1px solid var(--border-main); border-radius: 4px; font-size: 13px; outline: none;">
+                    ${optionsHtml}
+                </select>
+                <input type="text" class="custom-value-input" placeholder="Введите текст..." style="display: none; width: 100%; padding: 6px; font-size: 13px; border: 1px solid #eab308; background: #fefce8; color: #854d0e; border-radius: 4px; outline: none; box-sizing: border-box;">
+            </div>
         </div>
         `;
     }
