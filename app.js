@@ -3515,7 +3515,6 @@ function handleTemplateUpload(event) {
             const data = new Uint8Array(e.target.result);
             const workbook = XLSX.read(data, { type: 'array' });
 
-            // 1. Ищем лист attributes
             let targetSheet = workbook.SheetNames.find(name => name.toLowerCase() === 'attributes');
             if (!targetSheet) {
                 targetSheet = workbook.SheetNames.length > 1 ? workbook.SheetNames[1] : workbook.SheetNames[0];
@@ -3529,18 +3528,18 @@ function handleTemplateUpload(event) {
                 return;
             }
 
-            const systemKeys = jsonData[1]; // Строка 2: merchant_sku...
-            const humanNames = jsonData[2]; // Строка 3: Артикул...
+            const requirements = jsonData[0]; // Строка 1: - обязательное поле...
+            const systemKeys = jsonData[1];   // Строка 2: merchant_sku...
+            const humanNames = jsonData[2];   // Строка 3: Артикул...
 
-            // 2. Ищем лист values (для примеров)
             let valuesSheetName = workbook.SheetNames.find(name => name.toLowerCase() === 'values');
             let valuesData = [];
             if (valuesSheetName) {
                 valuesData = XLSX.utils.sheet_to_json(workbook.Sheets[valuesSheetName], { defval: "" });
             }
 
-            // Передаем данные в рендер
-            renderMapperUI(systemKeys, humanNames, valuesData);
+            // Передаем requirements в рендер
+            renderMapperUI(systemKeys, humanNames, valuesData, requirements);
 
         } catch (err) {
             alert("Ошибка чтения файла: " + err.message);
@@ -3552,11 +3551,10 @@ function handleTemplateUpload(event) {
 }
 
 // Отрисовка интерфейса маппинга
-function renderMapperUI(systemKeys, humanNames, valuesData) {
+function renderMapperUI(systemKeys, humanNames, valuesData, requirements) {
     const mapperArea = document.getElementById('exportMapperArea');
     mapperArea.innerHTML = ''; 
 
-    // Обновленные базовые поля + имитация будущих динамических JSON-полей
     const internalFields = [
         { id: '', name: '-- Не выгружать --' },
         { id: 'id', name: 'ID товара (Артикул)' },
@@ -3565,9 +3563,8 @@ function renderMapperUI(systemKeys, humanNames, valuesData) {
         { id: 'qty', name: 'Остаток партии' },
         { id: 'weight', name: 'Вес, кг' },
         { id: 'volume', name: 'Объем, м3' },
-        // --- Имитация полей из JSON накладных ---
         { id: 'json_Бренд', name: 'Бренд (из накладной)' },
-        { id: 'json_Ширина обода (J)', name: 'Ширина обода (J) (из накладной)' },
+        { id: 'json_Ширина обода (J)', name: 'Ширина обода (J)' },
         { id: 'json_Цвет', name: 'Цвет (из накладной)' }
     ];
 
@@ -3576,10 +3573,17 @@ function renderMapperUI(systemKeys, humanNames, valuesData) {
     for (let i = 0; i < humanNames.length; i++) {
         const sysKey = systemKeys[i];
         const humName = humanNames[i];
-
+        
         if (!humName && !sysKey) continue; 
 
-        // Ищем примеры значений для этой колонки
+        // Проверяем, обязательно ли поле
+        const reqText = (requirements && requirements[i]) ? requirements[i].toLowerCase() : '';
+        const isRequired = reqText.includes('обязательное');
+        const reqAsterisk = isRequired ? '<span style="color: #ef4444; margin-left: 4px;">*</span>' : '';
+        // Если поле обязательное, делаем левую рамку карточки красной для привлечения внимания
+        const borderStyle = isRequired ? 'border-left: 4px solid #ef4444;' : 'border-left: 1px solid var(--border-light);';
+
+        // Формируем примеры (без "Например", каждое с новой строки)
         let examplesHtml = '';
         if (valuesData && valuesData.length > 0 && humName) {
             let examples = [];
@@ -3590,19 +3594,19 @@ function renderMapperUI(systemKeys, humanNames, valuesData) {
                 if (examples.length >= 3) break; 
             }
             if (examples.length > 0) {
-                examplesHtml = `<div style="font-size: 11px; color: var(--accent-blue); margin-top: 4px; white-space: normal; line-height: 1.2;"><i>Например: ${examples.join(', ')}</i></div>`;
+                examplesHtml = `<div style="font-size: 11px; color: var(--accent-blue); margin-top: 6px; white-space: normal; line-height: 1.4;"><i>${examples.join('<br>')}</i></div>`;
             }
         }
 
+        // Добавлен класс mapper-row и стили для горизонтального скролла текста
         html += `
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; padding: 10px; background: var(--bg-panel); border: 1px solid var(--border-light); border-radius: 6px;">
-            <div style="flex: 1; padding-right: 10px; overflow: hidden;">
-                <div style="font-size: 13px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${humName || 'Без названия'}</div>
-                <div style="font-size: 11px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${sysKey || '-'}</div>
+        <div class="mapper-row" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; padding: 10px; background: var(--bg-panel); border: 1px solid var(--border-light); ${borderStyle} border-radius: 6px; transition: background 0.2s ease;">
+            <div style="flex: 1; padding-right: 15px; overflow-x: auto; white-space: nowrap; -webkit-overflow-scrolling: touch; padding-bottom: 4px;">
+                <div style="font-size: 13px; font-weight: bold;">${humName || 'Без названия'}${reqAsterisk}</div>
+                <div style="font-size: 11px; color: var(--text-muted);">${sysKey || '-'}</div>
                 ${examplesHtml}
             </div>
-            <!-- Измените эту строку внутри renderMapperUI: -->
-                <select class="mapper-select" data-col-index="${i}" data-sys-key="${sysKey}" onchange="updateSelectStates()" style="width: 140px; padding: 6px; background: var(--bg-body); color: var(--text-main); border: 1px solid var(--border-main); border-radius: 4px; font-size: 13px; outline: none;">
+            <select class="mapper-select" data-col-index="${i}" data-sys-key="${sysKey}" onchange="updateSelectStates()" style="width: 140px; flex-shrink: 0; padding: 6px; background: var(--bg-body); color: var(--text-main); border: 1px solid var(--border-main); border-radius: 4px; font-size: 13px; outline: none;">
                 ${internalFields.map(f => `<option value="${f.id}">${f.name}</option>`).join('')}
             </select>
         </div>
@@ -6564,20 +6568,30 @@ document.addEventListener("DOMContentLoaded", () => {
         clearTimeout(pressTimer);
     });
 });
-// Контроль уникальности выбора в маппере
+// Контроль уникальности и подсветка выбранных полей
 function updateSelectStates() {
     const selects = document.querySelectorAll('.mapper-select');
-    // Собираем все значения, которые уже выбраны (игнорируем пустые)
     const selectedValues = Array.from(selects).map(s => s.value).filter(v => v !== '');
 
     selects.forEach(select => {
+        // Подсветка фона: находим родительскую карточку
+        const row = select.closest('.mapper-row');
+        if (select.value !== '') {
+            // Если поле заполнено, делаем фон слегка выделенным (можно поменять цвет rgba)
+            row.style.background = 'rgba(40, 167, 69, 0.15)'; // Легкий зеленый оттенок
+        } else {
+            // Возвращаем стандартный фон
+            row.style.background = 'var(--bg-panel)'; 
+        }
+
+        // Блокировка уже выбранных пунктов
         Array.from(select.options).forEach(opt => {
             if (opt.value === '') {
-                opt.disabled = false; // Пустой пункт всегда доступен
+                opt.disabled = false; 
             } else if (selectedValues.includes(opt.value) && select.value !== opt.value) {
-                opt.disabled = true;  // Блокируем, если занято другим селектом
+                opt.disabled = true;  
             } else {
-                opt.disabled = false; // Открываем, если свободно
+                opt.disabled = false; 
             }
         });
     });
