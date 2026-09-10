@@ -3553,20 +3553,20 @@ function handleTemplateUpload(event) {
 // Глобальный объект для хранения словарей Каспи
 window.kaspiDicts = {};
 
-// 1. ОТРИСОВКА ИНТЕРФЕЙСА (Без "Ввести вручную", чистые примеры с новой строки)
+// 1. ОТРИСОВКА ИНТЕРФЕЙСА
 function renderMapperUI(systemKeys, humanNames, valuesData, requirements) {
     const mapperArea = document.getElementById('exportMapperArea');
     mapperArea.innerHTML = ''; 
 
+    // Заменили ID на Штрихкод в списке полей БД
     const internalFields = [
         { id: '', name: '-- Не выгружать --' },
-        { id: 'barcode', name: 'Штрихкод / SKU' }, // <-- Заменили ID на Штрихкод
+        { id: 'barcode', name: 'Штрихкод / SKU' },
         { id: 'name', name: 'Название' },
         { id: 'price', name: 'Цена' },
         { id: 'qty', name: 'Остаток партии' },
         { id: 'weight', name: 'Вес, кг' },
         { id: 'volume', name: 'Объем, м3' },
-        // Ниже пока имитация того, что в будущем придет из JSON справочника базы
         { id: 'json_Бренд', name: 'Бренд (из накладной)' },
         { id: 'json_Ширина обода (J)', name: 'Ширина обода (J)' },
         { id: 'json_Цвет', name: 'Цвет (из накладной)' }
@@ -3595,7 +3595,6 @@ function renderMapperUI(systemKeys, humanNames, valuesData, requirements) {
         }
         window.kaspiDicts[i] = allUniqueValues;
 
-        // Убрали слово "Например", примеры выводятся каждое с новой строки
         let examplesHtml = '';
         if (allUniqueValues.length > 0) {
             const examples = allUniqueValues.slice(0, 3);
@@ -3606,6 +3605,7 @@ function renderMapperUI(systemKeys, humanNames, valuesData, requirements) {
         optionsHtml += internalFields.map(f => `<option value="${f.id}">${f.name}</option>`).join('');
         optionsHtml += `</optgroup>`;
 
+        // Умная логика показа пунктов (убираем дублирование)
         if (allUniqueValues.length > 0) {
             optionsHtml += `<optgroup label="Справочник Каспи">`;
             if (allUniqueValues.length <= 50) {
@@ -3613,6 +3613,11 @@ function renderMapperUI(systemKeys, humanNames, valuesData, requirements) {
             } else {
                 optionsHtml += `<option value="open_dict">🔍 Найти в справочнике (${allUniqueValues.length})...</option>`;
             }
+            optionsHtml += `</optgroup>`;
+        } else {
+            // Если справочника вообще нет, только тогда показываем обычный ручной ввод
+            optionsHtml += `<optgroup label="Свое значение">`;
+            optionsHtml += `<option value="custom_input">✏️ Ввести вручную...</option>`;
             optionsHtml += `</optgroup>`;
         }
 
@@ -3637,16 +3642,32 @@ function renderMapperUI(systemKeys, humanNames, valuesData, requirements) {
     document.getElementById('generateExportBtn').style.display = 'block'; 
 }
 
-// 2. КОНТРОЛЬ СЕЛЕКТОВ (Только открытие справочника по клику)
+// 2. ОБРАБОТЧИК ВЫБОРА
 function updateSelectStates(changedSelect = null) {
     if (changedSelect) {
         const colIndex = changedSelect.getAttribute('data-col-index');
         const colName = changedSelect.getAttribute('data-col-name');
         
         if (changedSelect.value === 'open_dict') {
-            changedSelect.value = ''; // Сбрасываем триггер в спикере
+            changedSelect.value = ''; 
             openDictionaryModal(colIndex, colName);
             return;
+        }
+        
+        if (changedSelect.value === 'custom_input') {
+            changedSelect.value = ''; 
+            const customVal = prompt(`Введите значение для поля "${colName}":`);
+            
+            if (customVal && customVal.trim() !== '') {
+                const valId = `static_${customVal.trim()}`;
+                let opt = document.createElement('option');
+                opt.value = valId;
+                opt.innerHTML = `✏️ ${customVal.trim()}`;
+                opt.style.background = '#fefce8';
+                opt.style.color = '#854d0e';
+                changedSelect.appendChild(opt);
+                changedSelect.value = valId;
+            }
         }
     }
 
@@ -3660,7 +3681,7 @@ function updateSelectStates(changedSelect = null) {
         row.style.background = select.value !== '' ? 'rgba(40, 167, 69, 0.15)' : 'var(--bg-panel)'; 
 
         Array.from(select.options).forEach(opt => {
-            if (opt.value === '' || opt.value.startsWith('static_') || opt.value === 'open_dict') {
+            if (opt.value === '' || opt.value.startsWith('static_') || opt.value === 'open_dict' || opt.value === 'custom_input') {
                 opt.disabled = false; 
             } else if (selectedValues.includes(opt.value) && select.value !== opt.value) {
                 opt.disabled = true;  
@@ -3671,14 +3692,13 @@ function updateSelectStates(changedSelect = null) {
     });
 }
 
-// 3. УМНЫЙ СПРАВОЧНИК КАСПИ (Исправлен баг с мгновенным закрытием)
+// 3. ОКНО УМНОГО СПРАВОЧНИКА
 let currentModalColIndex = -1;
 
 function createDictionaryModal() {
     if (document.getElementById('kaspiDictModal')) return;
     const modal = document.createElement('div');
     modal.id = 'kaspiDictModal';
-    // Исправлено: добавлено прерывание клика внутри контента (stopImmediatePropagation), чтобы модалка не закрывалась сама по себе
     modal.style.cssText = 'display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:9999; flex-direction:column; align-items:center; justify-content:center; padding:20px; box-sizing:border-box; backdrop-filter:blur(3px);';
     modal.innerHTML = `
         <div id="dictModalContent" style="background:var(--bg-body, #1e1e1e); color:var(--text-main, #fff); width:100%; max-width:400px; border-radius:10px; display:flex; flex-direction:column; max-height:85vh; box-sizing:border-box;">
@@ -3693,11 +3713,10 @@ function createDictionaryModal() {
         </div>
     `;
     
-    // Защита от случайного закрытия при клике на само окно
+    // Закрытие по клику на затемненный фон
     modal.onclick = (e) => {
         if (e.target.id === 'kaspiDictModal') closeDictionaryModal();
     };
-    
     document.body.appendChild(modal);
 }
 
@@ -3708,7 +3727,7 @@ function openDictionaryModal(colIndex, colName) {
     document.getElementById('dictModalSearch').value = '';
     document.getElementById('kaspiDictModal').style.display = 'flex';
     filterDictionary();
-    // Удален setTimeout с focus(), теперь клавиатура не будет моргать
+    // Фокус убран, чтобы клавиатура на смартфонах не моргала!
 }
 
 function closeDictionaryModal() {
@@ -3724,7 +3743,7 @@ function filterDictionary() {
     
     const filtered = dict.filter(val => String(val).toLowerCase().includes(query)).slice(0, 100);
     
-    // Если в справочнике ничего не найдено, даем возможность использовать введенный текст как кастомное значение
+    // Интеграция ручного ввода прямо в окно поиска
     if (filtered.length === 0) {
         if (query.length > 0) {
             list.innerHTML = `
@@ -3735,7 +3754,7 @@ function filterDictionary() {
                     </button>
                 </li>`;
         } else {
-            list.innerHTML = `<li style="padding:15px; text-align:center; color:#888;">Справочник пуст или ничего не введено</li>`;
+            list.innerHTML = `<li style="padding:15px; text-align:center; color:#888;">Начните вводить текст</li>`;
         }
         return;
     }
