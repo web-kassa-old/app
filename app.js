@@ -3767,28 +3767,37 @@ function createDictionaryModal() {
     
     const modal = document.createElement('div');
     modal.id = 'kaspiDictModal';
-    modal.style.cssText = 'display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:999999; flex-direction:column; align-items:center; justify-content:center; padding:20px; box-sizing:border-box; backdrop-filter:blur(3px);';
+    // Изменили выравнивание на flex-start (прижали к верху) и добавили safe-area-inset-top для защиты от челки/динамического острова на iPhone
+    modal.style.cssText = 'display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:999999; flex-direction:column; align-items:center; justify-content:flex-start; padding-top:env(safe-area-inset-top, 20px); padding-left:10px; padding-right:10px; box-sizing:border-box; backdrop-filter:blur(3px);';
     
+    // Увеличили max-height и немного уплотнили отступы
     modal.innerHTML = `
-        <div id="dictModalContent" style="background:var(--bg-body, #1e1e1e); color:var(--text-main, #fff); width:100%; max-width:400px; border-radius:10px; display:flex; flex-direction:column; max-height:85vh; box-sizing:border-box;">
-            <div style="padding:15px; border-bottom:1px solid var(--border-main, #444); display:flex; justify-content:space-between; align-items:center;">
+        <div id="dictModalContent" style="background:var(--bg-body, #1e1e1e); color:var(--text-main, #fff); width:100%; max-width:400px; border-radius:10px; display:flex; flex-direction:column; max-height:90vh; margin-top:10px; box-sizing:border-box;">
+            <div style="padding:12px 15px; border-bottom:1px solid var(--border-main, #444); display:flex; justify-content:space-between; align-items:center;">
                 <b id="dictModalTitle" style="font-size:15px;">${t('dict_title')}</b>
                 <span onclick="closeDictionaryModal()" style="font-size:24px; cursor:pointer; color:#888; line-height:1;">&times;</span>
             </div>
-            <div style="padding:15px; padding-bottom:5px; border-bottom:1px solid var(--border-main, #444);">
-                <input type="text" id="dictModalSearch" placeholder="${t('dict_placeholder')}" oninput="filterDictionary()" style="width:100%; padding:12px; border:1px solid var(--accent-blue, #3b82f6); background:var(--bg-panel, #2a2a2a); color:var(--text-main, #fff); border-radius:6px; font-size:15px; outline:none; box-sizing:border-box;">
-                <div id="dictModalCountInfo" style="font-size:11px; color:var(--text-muted, #888); margin-top:8px; text-align:right;">
+            <div style="padding:10px 15px; padding-bottom:5px; border-bottom:1px solid var(--border-main, #444);">
+                <input type="text" id="dictModalSearch" placeholder="${t('dict_placeholder')}" oninput="filterDictionary()" style="width:100%; padding:10px; border:1px solid var(--accent-blue, #3b82f6); background:var(--bg-panel, #2a2a2a); color:var(--text-main, #fff); border-radius:6px; font-size:15px; outline:none; box-sizing:border-box;">
+                <div id="dictModalCountInfo" style="font-size:11px; color:var(--text-muted, #888); margin-top:6px; margin-bottom:4px; text-align:right;">
                     <span id="dictModalCountText">${t('dict_total')}</span> <span id="dictTotalCount">0</span>
                 </div>
             </div>
-            <ul id="dictModalList" style="list-style:none; padding:0; margin:0; overflow-y:auto; flex:1; max-height:50vh;"></ul>
+            <ul id="dictModalList" style="list-style:none; padding:0; margin:0; overflow-y:auto; flex:1; max-height:none; overscroll-behavior:contain;"></ul>
         </div>
     `;
     
     modal.onclick = (e) => {
         if (e.target.id === 'kaspiDictModal') closeDictionaryModal();
     };
+    
     document.body.appendChild(modal);
+
+    // УМНОЕ СКРЫТИЕ КЛАВИАТУРЫ: Срабатывает при касании списка
+    const listElem = document.getElementById('dictModalList');
+    listElem.addEventListener('touchstart', () => {
+        document.getElementById('dictModalSearch').blur();
+    }, { passive: true });
 }
 
 function openDictionaryModal(colIndex, colName) {
