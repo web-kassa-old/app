@@ -3558,7 +3558,6 @@ function renderMapperUI(systemKeys, humanNames, valuesData, requirements) {
     const mapperArea = document.getElementById('exportMapperArea');
     mapperArea.innerHTML = ''; 
 
-    // Заменили ID на Штрихкод в списке полей БД
     const internalFields = [
         { id: '', name: '-- Не выгружать --' },
         { id: 'barcode', name: 'Штрихкод / SKU' },
@@ -3580,6 +3579,10 @@ function renderMapperUI(systemKeys, humanNames, valuesData, requirements) {
         
         if (!humName && !sysKey) continue; 
 
+        // Защита от ошибок, если у колонки вдруг нет названия
+        const safeHumName = humName || 'Без названия';
+        const cleanColNameForData = safeHumName.replace(/"/g, '&quot;');
+
         const reqText = (requirements && requirements[i]) ? String(requirements[i]).toLowerCase() : '';
         const isRequired = reqText.includes('обязательн') && !reqText.includes('необязательн');
         const reqAsterisk = isRequired ? '<span style="color: #ef4444; margin-left: 4px;">*</span>' : '';
@@ -3595,17 +3598,21 @@ function renderMapperUI(systemKeys, humanNames, valuesData, requirements) {
         }
         window.kaspiDicts[i] = allUniqueValues;
 
+        // Вывод примеров с многоточием в конце, если их много
         let examplesHtml = '';
         if (allUniqueValues.length > 0) {
             const examples = allUniqueValues.slice(0, 3);
-            examplesHtml = `<div style="font-size: 11px; color: var(--accent-blue); margin-top: 6px; white-space: normal; line-height: 1.4;"><i>${examples.join('<br>')}</i></div>`;
+            let examplesText = examples.join('<br>');
+            if (allUniqueValues.length > 3) {
+                examplesText += '<br><span style="color:#888;">...</span>';
+            }
+            examplesHtml = `<div style="font-size: 11px; color: var(--accent-blue); margin-top: 6px; white-space: normal; line-height: 1.4;"><i>${examplesText}</i></div>`;
         }
 
         let optionsHtml = `<optgroup label="Поля из базы данных">`;
         optionsHtml += internalFields.map(f => `<option value="${f.id}">${f.name}</option>`).join('');
         optionsHtml += `</optgroup>`;
 
-        // Умная логика показа пунктов (убираем дублирование)
         if (allUniqueValues.length > 0) {
             optionsHtml += `<optgroup label="Справочник Каспи">`;
             if (allUniqueValues.length <= 50) {
@@ -3615,21 +3622,21 @@ function renderMapperUI(systemKeys, humanNames, valuesData, requirements) {
             }
             optionsHtml += `</optgroup>`;
         } else {
-            // Если справочника вообще нет, только тогда показываем обычный ручной ввод
             optionsHtml += `<optgroup label="Свое значение">`;
             optionsHtml += `<option value="custom_input">✏️ Ввести вручную...</option>`;
             optionsHtml += `</optgroup>`;
         }
 
+        // Обратите внимание: onchange теперь вызывает handleSelectChange
         html += `
         <div class="mapper-row" style="display: flex; gap: 10px; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; padding: 10px 10px 10px 6px; background: var(--bg-panel); border: 1px solid var(--border-light); ${borderStyle} border-radius: 6px; transition: background 0.2s ease;">
             <div style="flex: 1; overflow-x: auto; white-space: nowrap; -webkit-overflow-scrolling: touch; padding-bottom: 4px; margin-top: 4px;">
-                <div style="font-size: 13px; font-weight: bold;">${humName || 'Без названия'}${reqAsterisk}</div>
+                <div style="font-size: 13px; font-weight: bold;">${safeHumName}${reqAsterisk}</div>
                 <div style="font-size: 11px; color: var(--text-muted);">${sysKey || '-'}</div>
                 ${examplesHtml}
             </div>
             <div style="flex-shrink: 0; width: 140px;">
-                <select class="mapper-select" data-col-index="${i}" data-sys-key="${sysKey}" data-col-name="${humName.replace(/"/g, '&quot;')}" onchange="updateSelectStates(this)" style="width: 100%; padding: 6px; background: var(--bg-body); color: var(--text-main); border: 1px solid var(--border-main); border-radius: 4px; font-size: 13px; outline: none;">
+                <select class="mapper-select" data-col-index="${i}" data-sys-key="${sysKey}" data-col-name="${cleanColNameForData}" onchange="handleSelectChange(this)" style="width: 100%; padding: 6px; background: var(--bg-body); color: var(--text-main); border: 1px solid var(--border-main); border-radius: 4px; font-size: 13px; outline: none;">
                     ${optionsHtml}
                 </select>
             </div>
@@ -3642,35 +3649,39 @@ function renderMapperUI(systemKeys, humanNames, valuesData, requirements) {
     document.getElementById('generateExportBtn').style.display = 'block'; 
 }
 
-// 2. ОБРАБОТЧИК ВЫБОРА
-function updateSelectStates(changedSelect = null) {
-    if (changedSelect) {
-        const colIndex = changedSelect.getAttribute('data-col-index');
-        const colName = changedSelect.getAttribute('data-col-name');
-        
-        if (changedSelect.value === 'open_dict') {
-            changedSelect.value = ''; 
-            openDictionaryModal(colIndex, colName);
-            return;
-        }
-        
-        if (changedSelect.value === 'custom_input') {
-            changedSelect.value = ''; 
-            const customVal = prompt(`Введите значение для поля "${colName}":`);
-            
-            if (customVal && customVal.trim() !== '') {
-                const valId = `static_${customVal.trim()}`;
-                let opt = document.createElement('option');
-                opt.value = valId;
-                opt.innerHTML = `✏️ ${customVal.trim()}`;
-                opt.style.background = '#fefce8';
-                opt.style.color = '#854d0e';
-                changedSelect.appendChild(opt);
-                changedSelect.value = valId;
-            }
+// 2. ДИСПЕТЧЕР КЛИКОВ (Новая функция для надежной обработки действий)
+function handleSelectChange(selectElem) {
+    const val = selectElem.value;
+    const colIndex = selectElem.getAttribute('data-col-index');
+    const colName = selectElem.getAttribute('data-col-name');
+    
+    // Если выбрали открытие модалки
+    if (val === 'open_dict') {
+        selectElem.value = ''; // Сбрасываем значение селекта
+        openDictionaryModal(colIndex, colName); // Открываем модалку
+    } 
+    // Если выбрали системный ручной ввод
+    else if (val === 'custom_input') {
+        selectElem.value = ''; 
+        const customVal = prompt(`Введите значение для поля "${colName}":`);
+        if (customVal && customVal.trim() !== '') {
+            const valId = `static_${customVal.trim()}`;
+            let opt = document.createElement('option');
+            opt.value = valId;
+            opt.innerHTML = `✏️ ${customVal.trim()}`;
+            opt.style.background = '#fefce8';
+            opt.style.color = '#854d0e';
+            selectElem.appendChild(opt);
+            selectElem.value = valId;
         }
     }
+    
+    // В самом конце всегда обновляем цвета и блокировки
+    updateSelectStates();
+}
 
+// 3. КОНТРОЛЬ ЦВЕТОВ И БЛОКИРОВОК (Очищенная функция)
+function updateSelectStates() {
     const selects = document.querySelectorAll('.mapper-select');
     const selectedValues = Array.from(selects)
         .map(s => s.value)
@@ -3699,7 +3710,8 @@ function createDictionaryModal() {
     if (document.getElementById('kaspiDictModal')) return;
     const modal = document.createElement('div');
     modal.id = 'kaspiDictModal';
-    modal.style.cssText = 'display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:9999; flex-direction:column; align-items:center; justify-content:center; padding:20px; box-sizing:border-box; backdrop-filter:blur(3px);';
+    // ВНИМАНИЕ: установлен z-index: 999999, чтобы перекрыть все окна POS Noir
+    modal.style.cssText = 'display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:999999; flex-direction:column; align-items:center; justify-content:center; padding:20px; box-sizing:border-box; backdrop-filter:blur(3px);';
     modal.innerHTML = `
         <div id="dictModalContent" style="background:var(--bg-body, #1e1e1e); color:var(--text-main, #fff); width:100%; max-width:400px; border-radius:10px; display:flex; flex-direction:column; max-height:85vh; box-sizing:border-box;">
             <div style="padding:15px; border-bottom:1px solid var(--border-main, #444); display:flex; justify-content:space-between; align-items:center;">
@@ -3713,7 +3725,6 @@ function createDictionaryModal() {
         </div>
     `;
     
-    // Закрытие по клику на затемненный фон
     modal.onclick = (e) => {
         if (e.target.id === 'kaspiDictModal') closeDictionaryModal();
     };
