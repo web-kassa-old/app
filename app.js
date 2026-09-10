@@ -529,43 +529,70 @@
             }
         };
 
-        // --- ГЛОБАЛЬНЫЙ АВТОПЕРЕВОДЧИК ИНТЕРФЕЙСА (MutationObserver) ---
-const domObserver = new MutationObserver((mutations) => {
-    let hasSignificantChanges = false;
+        // --- ГЛОБАЛЬНЫЙ АВТОПЕРЕВОДЧИК ИНТЕРФЕЙСА (Исправленный) ---
 
-    // Проверяем, появились ли новые элементы (открылась ли модалка)
+// Флаг, который усыпляет шпиона во время ручного переключения
+window.isAutoTranslating = false;
+
+// 1. Перехватываем вашу функцию applyLanguage, чтобы шпион ей не мешал
+const originalApplyLanguage = typeof applyLanguage === 'function' ? applyLanguage : null;
+
+if (originalApplyLanguage) {
+    window.applyLanguage = function(lang) {
+        window.isAutoTranslating = true; // Усыпляем шпиона
+        window.appCurrentLang = lang;    // Запоминаем, какой язык вы выбрали
+        
+        originalApplyLanguage(lang);     // Запускаем ваш родной перевод
+        
+        // Будим шпиона через полсекунды, когда перевод точно закончился
+        setTimeout(() => { window.isAutoTranslating = false; }, 500); 
+    };
+}
+
+// 2. Сам шпион
+const domObserver = new MutationObserver((mutations) => {
+    // Если сейчас идет ручной перевод по кнопке - шпион ничего не делает
+    if (window.isAutoTranslating) return;
+
+    let hasNewElements = false;
     for (let mutation of mutations) {
         if (mutation.addedNodes.length > 0) {
-            hasSignificantChanges = true;
+            hasNewElements = true;
             break;
         }
     }
 
-    if (hasSignificantChanges) {
+    if (hasNewElements && originalApplyLanguage) {
         clearTimeout(window.translateTimeout);
         window.translateTimeout = setTimeout(() => {
             
-            // 1. Узнаем, какой язык сейчас выбран в системе
-            let currentLang = 'ru'; // по умолчанию
-            if (localStorage.getItem('lang')) currentLang = localStorage.getItem('lang');
-            else if (localStorage.getItem('language')) currentLang = localStorage.getItem('language');
+            // Пытаемся узнать текущий язык из нашей переменной
+            let lang = window.appCurrentLang;
             
-            if (typeof applyLanguage === 'function') {
-                // 2. Отключаем шпиона, чтобы он не среагировал на сам процесс перевода
-                domObserver.disconnect();
-                
-                // 3. Запускаем ВАШУ функцию перевода
-                applyLanguage(currentLang); 
-                
-                // 4. Включаем шпиона обратно
-                domObserver.observe(document.body, { childList: true, subtree: true });
+            // Если переменная пустая (например, при первом входе), смотрим на активную кнопку
+            if (!lang) {
+                const activeBtn = document.querySelector('.lang-btn.active');
+                if (activeBtn) {
+                    lang = activeBtn.id.includes('kz') ? 'kz' : 'ru';
+                } else {
+                    lang = 'ru'; // резервный вариант
+                }
             }
+
+            // Отключаем шпиона, переводим окно и включаем обратно
+            window.isAutoTranslating = true;
+            domObserver.disconnect();
+            
+            originalApplyLanguage(lang); 
+            
+            domObserver.observe(document.body, { childList: true, subtree: true });
+            window.isAutoTranslating = false;
             
         }, 50); // Ждем 50 мс, чтобы окно успело полностью отрисоваться
     }
 });
 
-// Запускаем слежку за всем экраном при загрузке страницы
+// Запускаем слежку при загрузке страницы
 document.addEventListener('DOMContentLoaded', () => {
     domObserver.observe(document.body, { childList: true, subtree: true });
 });
