@@ -3560,12 +3560,13 @@ function renderMapperUI(systemKeys, humanNames, valuesData, requirements) {
 
     const internalFields = [
         { id: '', name: '-- Не выгружать --' },
-        { id: 'id', name: 'ID товара (Артикул)' },
+        { id: 'barcode', name: 'Штрихкод / SKU' }, // <-- Заменили ID на Штрихкод
         { id: 'name', name: 'Название' },
         { id: 'price', name: 'Цена' },
         { id: 'qty', name: 'Остаток партии' },
         { id: 'weight', name: 'Вес, кг' },
         { id: 'volume', name: 'Объем, м3' },
+        // Ниже пока имитация того, что в будущем придет из JSON справочника базы
         { id: 'json_Бренд', name: 'Бренд (из накладной)' },
         { id: 'json_Ширина обода (J)', name: 'Ширина обода (J)' },
         { id: 'json_Цвет', name: 'Цвет (из накладной)' }
@@ -3707,7 +3708,7 @@ function openDictionaryModal(colIndex, colName) {
     document.getElementById('dictModalSearch').value = '';
     document.getElementById('kaspiDictModal').style.display = 'flex';
     filterDictionary();
-    setTimeout(() => document.getElementById('dictModalSearch').focus(), 100);
+    // Удален setTimeout с focus(), теперь клавиатура не будет моргать
 }
 
 function closeDictionaryModal() {
