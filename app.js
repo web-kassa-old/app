@@ -3636,12 +3636,13 @@ function setReportView(view) {
             }
         }
 
-// Обработка загрузки файла шаблона
+// Обработка загрузки файла шаблона (С динамическим поиском строк)
 function handleTemplateUpload(event) {
     const file = event.target.files[0];
     if (!file) return;
 
-    document.getElementById('templateFileName').innerText = '📄 ' + file.name;
+    const fileNameSpan = document.getElementById('templateFileName');
+    fileNameSpan.innerText = '⏳ Обработка: ' + file.name;
 
     const reader = new FileReader();
     reader.onload = function(e) {
@@ -3649,6 +3650,7 @@ function handleTemplateUpload(event) {
             const data = new Uint8Array(e.target.result);
             const workbook = XLSX.read(data, { type: 'array' });
 
+            // Ищем лист attributes или берем подходящий по умолчанию
             let targetSheet = workbook.SheetNames.find(name => name.toLowerCase() === 'attributes');
             if (!targetSheet) {
                 targetSheet = workbook.SheetNames.length > 1 ? workbook.SheetNames[1] : workbook.SheetNames[0];
@@ -3657,26 +3659,57 @@ function handleTemplateUpload(event) {
             const sheet = workbook.Sheets[targetSheet];
             const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
 
-            if (jsonData.length < 3) {
-                alert("Ошибка: Неверный формат шаблона Kaspi.");
+            // --- АЛГОРИТМ "ПЛАВАЮЩИЙ ЯКОРЬ" ---
+            let anchorIndex = -1;
+            // Ищем человеческие названия колонок
+            const kaspiMarkers = ["артикул", "модель", "бренд", "цена"];
+
+            // Сканируем первые 20 строк сверху вниз
+            for (let i = 0; i < Math.min(jsonData.length, 20); i++) {
+                const rowText = jsonData[i].join(" ").toLowerCase();
+                
+                let matchCount = 0;
+                kaspiMarkers.forEach(marker => {
+                    if (rowText.includes(marker)) matchCount++;
+                });
+
+                // Если нашли хотя бы 2 совпадения - это нужная строка
+                if (matchCount >= 2) {
+                    anchorIndex = i;
+                    console.log(`✅ Якорь шапки найден на строке ${i + 1}`);
+                    break;
+                }
+            }
+
+            // Проверка на мусорные файлы или слишком высокое расположение шапки
+            if (anchorIndex === -1 || anchorIndex < 2) {
+                alert("Ошибка: Не удалось распознать структуру шаблона Kaspi. Загрузите корректный файл.");
+                fileNameSpan.innerText = '📄 Загрузить пустой шаблон (.xml, .xlsx)';
                 return;
             }
 
-            const requirements = jsonData[0]; // Строка 1: - обязательное поле...
-            const systemKeys = jsonData[1];   // Строка 2: merchant_sku...
-            const humanNames = jsonData[2];   // Строка 3: Артикул...
+            // Динамически забираем нужные строки относительно найденного якоря
+            const requirements = jsonData[anchorIndex - 2]; // Требования (на 2 строки выше)
+            const systemKeys = jsonData[anchorIndex - 1];   // Системные ключи (на 1 строку выше)
+            const humanNames = jsonData[anchorIndex];       // Сами названия
 
+            // Забираем справочники с листа values (если есть)
             let valuesSheetName = workbook.SheetNames.find(name => name.toLowerCase() === 'values');
             let valuesData = [];
             if (valuesSheetName) {
                 valuesData = XLSX.utils.sheet_to_json(workbook.Sheets[valuesSheetName], { defval: "" });
             }
 
-            // Передаем requirements в рендер
+            fileNameSpan.innerText = '✅ Шаблон загружен';
+            fileNameSpan.style.color = "var(--accent-green)";
+
+            // Передаем динамически найденные данные в рендер
             renderMapperUI(systemKeys, humanNames, valuesData, requirements);
 
         } catch (err) {
+            console.error(err);
             alert("Ошибка чтения файла: " + err.message);
+            fileNameSpan.innerText = '📄 Загрузить пустой шаблон (.xml, .xlsx)';
         }
     };
     
