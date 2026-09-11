@@ -3779,13 +3779,20 @@ function renderMapperUI(systemKeys, humanNames, valuesData, requirements, dynami
         { id: 'volume', name: t('f_volume', 'Объем, м3') }
     ];
 
-    // 2. Динамически добавляем атрибуты из вашей базы (JSON)
+    // 2. Очищаем атрибуты БД от дубликатов системных полей
     if (dynamicKeys && Array.isArray(dynamicKeys) && dynamicKeys.length > 0) {
+        // Черный список ключей из БД, которые мы скрываем, чтобы не дублировать
+        const ignoredKeys = ['штрихкод', 'наименование', 'код товара', 'кол-во', 'базовая цена', 'цена со скидкой', 'объем (cbm)', 'вес (кг)', 'цена'];
+        
         dynamicKeys.forEach(key => {
-            // Добавляем пометку "(из БД)", чтобы кассир понимал источник данных
-            internalFields.push({ id: `json_${key}`, name: `${key} (из БД)` });
+            if (!ignoredKeys.includes(key.toLowerCase().trim())) {
+                internalFields.push({ id: `json_${key}`, name: `${key} (из БД)` });
+            }
         });
     }
+    
+    // Переменная для отслеживания уже занятых полей (чтобы решить проблему двух колонок "Вес")
+    const usedAutoValues = new Set();
 
     let html = `<h4 style="margin-bottom: 10px; color: var(--text-muted); font-size: 13px;" data-i18n="map_title">${t('map_title', 'СОПОСТАВЛЕНИЕ КОЛОНОК:')}</h4>`;
 
@@ -3853,7 +3860,7 @@ function renderMapperUI(systemKeys, humanNames, valuesData, requirements, dynami
         else if (sys === 'price' || hum.includes('цена')) autoSelectValue = 'price';
         else if (sys === 'brand' || hum.includes('бренд')) autoSelectValue = 'json_Бренд';
         
-        // 2. Мягкий поиск (если жесткое правило не сработало)
+        // 2. Мягкий поиск
         if (!autoSelectValue && dynamicKeys && dynamicKeys.length > 0) {
             for (let k of dynamicKeys) {
                 const lowerK = k.toLowerCase();
@@ -3864,7 +3871,16 @@ function renderMapperUI(systemKeys, humanNames, valuesData, requirements, dynami
             }
         }
 
-        // Внедряем автовыбор прямо в HTML: заменяем value="..." на value="..." selected
+        // 3. ЗАЩИТА: Если мы уже привязали это значение выше, сбрасываем его (решает проблему двух полей "Вес")
+        if (autoSelectValue) {
+            if (usedAutoValues.has(autoSelectValue)) {
+                autoSelectValue = ''; 
+            } else {
+                usedAutoValues.add(autoSelectValue);
+            }
+        }
+
+        // Внедряем автовыбор прямо в HTML
         let finalOptionsHtml = optionsHtml;
         if (autoSelectValue) {
             finalOptionsHtml = finalOptionsHtml.replace(`value="${autoSelectValue}"`, `value="${autoSelectValue}" selected`);
@@ -3890,6 +3906,17 @@ function renderMapperUI(systemKeys, humanNames, valuesData, requirements, dynami
     mapperArea.innerHTML = html;
     mapperArea.style.display = 'flex';
     document.getElementById('generateExportBtn').style.display = 'block'; 
+
+    // === ИМИТАЦИЯ КЛИКА ДЛЯ ОБНОВЛЕНИЯ ЦВЕТОВ ===
+    setTimeout(() => {
+        const selects = mapperArea.querySelectorAll('.mapper-select');
+        selects.forEach(select => {
+            // Если поле было выбрано автоматически, прогоняем его через вашу функцию смены цвета
+            if (select.value !== '' && typeof handleSelectChange === 'function') {
+                handleSelectChange(select);
+            }
+        });
+    }, 50); // Небольшая задержка, чтобы DOM успел отрисоваться
 }
 
 // 2. ДИСПЕТЧЕР КЛИКОВ (Новая функция для надежной обработки действий)
