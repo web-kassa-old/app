@@ -3636,7 +3636,7 @@ function setReportView(view) {
             }
         }
 
-// Обработка загрузки файла шаблона (С динамическим поиском строк)
+// Обработка загрузки файла шаблона (С независимым поиском всех строк)
 function handleTemplateUpload(event) {
     const file = event.target.files[0];
     if (!file) return;
@@ -3650,7 +3650,6 @@ function handleTemplateUpload(event) {
             const data = new Uint8Array(e.target.result);
             const workbook = XLSX.read(data, { type: 'array' });
 
-            // Ищем лист attributes или берем подходящий по умолчанию
             let targetSheet = workbook.SheetNames.find(name => name.toLowerCase() === 'attributes');
             if (!targetSheet) {
                 targetSheet = workbook.SheetNames.length > 1 ? workbook.SheetNames[1] : workbook.SheetNames[0];
@@ -3659,39 +3658,49 @@ function handleTemplateUpload(event) {
             const sheet = workbook.Sheets[targetSheet];
             const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
 
-            // --- АЛГОРИТМ "ПЛАВАЮЩИЙ ЯКОРЬ" ---
-            let anchorIndex = -1;
-            // Ищем человеческие названия колонок
-            const kaspiMarkers = ["артикул", "модель", "бренд", "цена"];
+            // --- АЛГОРИТМ "НЕЗАВИСИМЫЕ ДЕТЕКТОРЫ" ---
+            let requirements = [];
+            let systemKeys = [];
+            let humanNames = [];
 
-            // Сканируем первые 20 строк сверху вниз
+            const humMarkers = ["артикул", "модель", "бренд", "цена"];
+            const sysMarkers = ["merchant_sku", "model", "brand", "price"];
+
+            // Сканируем первые 20 строк файла
             for (let i = 0; i < Math.min(jsonData.length, 20); i++) {
+                // Склеиваем строку в текст для удобного поиска
                 const rowText = jsonData[i].join(" ").toLowerCase();
-                
-                let matchCount = 0;
-                kaspiMarkers.forEach(marker => {
-                    if (rowText.includes(marker)) matchCount++;
-                });
+                if (!rowText.trim()) continue; // Пропускаем абсолютно пустые строки
 
-                // Если нашли хотя бы 2 совпадения - это нужная строка
-                if (matchCount >= 2) {
-                    anchorIndex = i;
-                    console.log(`✅ Якорь шапки найден на строке ${i + 1}`);
-                    break;
+                // 1. Детектор человеческих названий
+                let humMatch = 0;
+                humMarkers.forEach(m => { if (rowText.includes(m)) humMatch++; });
+                if (humMatch >= 2) {
+                    humanNames = jsonData[i];
+                    continue; // Нашли - идем к следующей строке
+                }
+
+                // 2. Детектор системных ключей Каспи
+                let sysMatch = 0;
+                sysMarkers.forEach(m => { if (rowText.includes(m)) sysMatch++; });
+                if (sysMatch >= 2) {
+                    systemKeys = jsonData[i];
+                    continue;
+                }
+
+                // 3. Детектор требований (Обязательные поля)
+                if (rowText.includes("обязательное") || rowText.includes("обязат.")) {
+                    requirements = jsonData[i];
+                    continue;
                 }
             }
 
-            // Проверка на мусорные файлы или слишком высокое расположение шапки
-            if (anchorIndex === -1 || anchorIndex < 2) {
+            // Проверяем, нашел ли скрипт самое главное
+            if (humanNames.length === 0 || systemKeys.length === 0) {
                 alert("Ошибка: Не удалось распознать структуру шаблона Kaspi. Загрузите корректный файл.");
                 fileNameSpan.innerText = '📄 Загрузить пустой шаблон (.xml, .xlsx)';
                 return;
             }
-
-            // Динамически забираем нужные строки относительно найденного якоря
-            const requirements = jsonData[anchorIndex - 2]; // Требования (на 2 строки выше)
-            const systemKeys = jsonData[anchorIndex - 1];   // Системные ключи (на 1 строку выше)
-            const humanNames = jsonData[anchorIndex];       // Сами названия
 
             // Забираем справочники с листа values (если есть)
             let valuesSheetName = workbook.SheetNames.find(name => name.toLowerCase() === 'values');
@@ -3703,7 +3712,7 @@ function handleTemplateUpload(event) {
             fileNameSpan.innerText = '✅ Шаблон загружен';
             fileNameSpan.style.color = "var(--accent-green)";
 
-            // Передаем динамически найденные данные в рендер
+            // Передаем динамически собранные данные в рендер
             renderMapperUI(systemKeys, humanNames, valuesData, requirements);
 
         } catch (err) {
