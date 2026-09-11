@@ -7074,3 +7074,49 @@ document.addEventListener("DOMContentLoaded", () => {
         clearTimeout(pressTimer);
     });
 });
+// Генерация итогового прайс-листа для Kaspi
+async function generateExportFile() {
+    const btn = document.getElementById('generateExportBtn');
+    const originalText = btn.innerText;
+    
+    // Блокируем кнопку от двойных кликов
+    btn.innerText = '⏳ Сборка данных...';
+    btn.disabled = true;
+
+    try {
+        // 1. Считываем настройки интерфейса (что с чем связал кассир)
+        const selects = document.querySelectorAll('.mapper-select');
+        const mappingConfig = [];
+
+        selects.forEach(select => {
+            const colIndex = select.getAttribute('data-col-index');
+            const sysKey = select.getAttribute('data-sys-key');
+            const colName = select.getAttribute('data-col-name');
+            const selectedValue = select.value;
+
+            // Запоминаем структуру каждой колонки шаблона
+            mappingConfig.push({
+                index: parseInt(colIndex),
+                kaspiSysKey: sysKey,
+                kaspiName: colName,
+                ourSource: selectedValue // Выбор кассира ('json_Бренд', 'price', или пустота)
+            });
+        });
+
+        // Временно выводим схему в консоль для проверки
+        console.log("✅ Схема маппинга успешно собрана:", mappingConfig);
+        alert("Схема собрана! Откройте консоль (F12), чтобы посмотреть.");
+
+        // ========================================================
+        // ДАЛЬШЕ МЫ БУДЕМ БРАТЬ ТОВАРЫ И ВПИСЫВАТЬ ИХ В ЭТУ СХЕМУ
+        // ========================================================
+
+    } catch (err) {
+        console.error("Ошибка при генерации прайса:", err);
+        alert("Ошибка: " + err.message);
+    } finally {
+        // Возвращаем кнопку в исходное состояние
+        btn.innerText = originalText;
+        btn.disabled = false;
+    }
+}
