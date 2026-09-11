@@ -7079,43 +7079,95 @@ async function generateExportFile() {
     const btn = document.getElementById('generateExportBtn');
     const originalText = btn.innerText;
     
-    // Блокируем кнопку от двойных кликов
-    btn.innerText = '⏳ Сборка данных...';
+    btn.innerText = '⏳ Загрузка товаров из базы...';
     btn.disabled = true;
 
     try {
-        // 1. Считываем настройки интерфейса (что с чем связал кассир)
+        // 1. Считываем схему интерфейса
         const selects = document.querySelectorAll('.mapper-select');
         const mappingConfig = [];
+        let maxColIndex = 0;
+
+        const row1 = []; // Человеческие названия колонок
+        const row2 = []; // Системные ключи Kaspi
 
         selects.forEach(select => {
-            const colIndex = select.getAttribute('data-col-index');
-            const sysKey = select.getAttribute('data-sys-key');
-            const colName = select.getAttribute('data-col-name');
-            const selectedValue = select.value;
-
-            // Запоминаем структуру каждой колонки шаблона
-            mappingConfig.push({
-                index: parseInt(colIndex),
-                kaspiSysKey: sysKey,
-                kaspiName: colName,
-                ourSource: selectedValue // Выбор кассира ('json_Бренд', 'price', или пустота)
-            });
+            const colIndex = parseInt(select.getAttribute('data-col-index'));
+            if (colIndex > maxColIndex) maxColIndex = colIndex;
+            
+            mappingConfig.push({ index: colIndex, ourSource: select.value });
+            
+            row1[colIndex] = select.getAttribute('data-col-name').replace(/&quot;/g, '"');
+            row2[colIndex] = select.getAttribute('data-sys-key') || '';
         });
 
-        // Временно выводим схему в консоль для проверки
-        console.log("✅ Схема маппинга успешно собрана:", mappingConfig);
-        alert("Схема собрана! Откройте консоль (F12), чтобы посмотреть.");
+        // 2. Скачиваем свежие товары через smartFetch
+        const url = window.SCRIPT_URL; 
+        const payload = { action: 'getKaspiItemsData', api_key: CLIENT_API_KEY };
+        const dbResponse = await window.smartFetch(url, payload, 'kaspi_items_temp', 3);
 
-        // ========================================================
-        // ДАЛЬШЕ МЫ БУДЕМ БРАТЬ ТОВАРЫ И ВПИСЫВАТЬ ИХ В ЭТУ СХЕМУ
-        // ========================================================
+        if (!dbResponse || !dbResponse.success) {
+            throw new Error(dbResponse ? dbResponse.error : "Сервер не ответил");
+        }
+
+        const items = dbResponse.items;
+        btn.innerText = '⏳ Формирование файла...';
+
+        // 3. Собираем таблицу для Excel
+        const exportData = [];
+        
+        // Добавляем 3 обязательные строки шапки Kaspi
+        exportData.push(row1);
+        exportData.push(row2);
+        exportData.push(row2.map(() => "")); // Третья строка (требования) часто пустая, Kaspi читает по 2-й
+
+        // 4. Заполняем товары
+        items.forEach(item => {
+            const row = new Array(maxColIndex + 1).fill('');
+            let hasData = false;
+
+            mappingConfig.forEach(config => {
+                const source = config.ourSource;
+                let value = '';
+
+                if (source === 'barcode') value = item.barcode;
+                else if (source === 'name') value = item.name;
+                else if (source === 'price') value = item.price;
+                else if (source === 'qty') value = item.qty;
+                else if (source.startsWith('json_')) {
+                    const key = source.replace('json_', '');
+                    if (item.attributes && item.attributes[key]) {
+                        value = item.attributes[key];
+                    }
+                } else if (source.startsWith('static_')) {
+                    value = source.replace('static_', '');
+                }
+
+                row[config.index] = value;
+                if (value) hasData = true; // Отмечаем, если в строке есть хоть какие-то данные
+            });
+
+            // Добавляем в файл, только если строка не полностью пустая
+            if (hasData) {
+                exportData.push(row);
+            }
+        });
+
+        // 5. Создаем и скачиваем файл (Используем библиотеку SheetJS)
+        const ws = XLSX.utils.aoa_to_sheet(exportData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Template");
+
+        // Формируем имя файла с текущей датой
+        const dateStr = new Date().toISOString().slice(0, 10);
+        XLSX.writeFile(wb, `Kaspi_Export_${dateStr}.xlsx`);
+        
+        alert("✅ Прайс успешно сгенерирован и начал скачиваться!");
 
     } catch (err) {
         console.error("Ошибка при генерации прайса:", err);
         alert("Ошибка: " + err.message);
     } finally {
-        // Возвращаем кнопку в исходное состояние
         btn.innerText = originalText;
         btn.disabled = false;
     }
