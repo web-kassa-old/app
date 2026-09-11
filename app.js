@@ -3711,26 +3711,12 @@ function handleTemplateUpload(event) {
                 valuesData = XLSX.utils.sheet_to_json(workbook.Sheets[valuesSheetName], { defval: "" });
             }
 
-            // 3. Подключение к серверу для получения атрибутов из БД
-            fileNameSpan.innerText = '⏳ Подключение к базе данных...';
+            // 3. (ВРЕМЕННО БЕЗ СЕРВЕРА) Просто запускаем отрисовку, чтобы не ломать приложение
+            fileNameSpan.innerText = '✅ Шаблон загружен';
+            fileNameSpan.style.color = "var(--accent-green)";
             
-            google.script.run
-                .withSuccessHandler(function(dbResponse) {
-                    if (dbResponse.success) {
-                        fileNameSpan.innerText = '✅ Шаблон и база готовы';
-                        fileNameSpan.style.color = "var(--accent-green)";
-                        
-                        // Передаем все данные в рендер, включая 5-й параметр (dynamicKeys)
-                        renderMapperUI(systemKeys, humanNames, valuesData, requirements, dbResponse.dynamicKeys);
-                    }
-                })
-                .withFailureHandler(function(error) {
-                    console.error("Ошибка сервера:", error);
-                    alert("Ошибка связи с сервером: " + error.message);
-                    fileNameSpan.innerText = '❌ Ошибка базы данных';
-                    fileNameSpan.style.color = "var(--text-main)";
-                })
-                .getKaspiExportData(); // Функция в backend.gs
+            // Передаем пустой массив [] вместо динамических ключей
+            renderMapperUI(systemKeys, humanNames, valuesData, requirements, []);
 
         } catch (err) {
             console.error(err);
@@ -3740,7 +3726,7 @@ function handleTemplateUpload(event) {
         }
     };
     
-    event.target.value = ''; // Сбрасываем input, чтобы можно было загрузить тот же файл еще раз
+    event.target.value = '';
     reader.readAsArrayBuffer(file);
 }
 
