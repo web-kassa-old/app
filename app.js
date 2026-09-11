@@ -3636,13 +3636,14 @@ function setReportView(view) {
             }
         }
 
-// Обработка загрузки файла шаблона (С независимым поиском всех строк)
+// Обработка загрузки файла шаблона Kaspi
 function handleTemplateUpload(event) {
     const file = event.target.files[0];
     if (!file) return;
 
     const fileNameSpan = document.getElementById('templateFileName');
     fileNameSpan.innerText = '⏳ Обработка: ' + file.name;
+    fileNameSpan.style.color = "var(--accent-blue)";
 
     const reader = new FileReader();
     reader.onload = function(e) {
@@ -3650,6 +3651,7 @@ function handleTemplateUpload(event) {
             const data = new Uint8Array(e.target.result);
             const workbook = XLSX.read(data, { type: 'array' });
 
+            // 1. Ищем лист attributes или берем подходящий по умолчанию
             let targetSheet = workbook.SheetNames.find(name => name.toLowerCase() === 'attributes');
             if (!targetSheet) {
                 targetSheet = workbook.SheetNames.length > 1 ? workbook.SheetNames[1] : workbook.SheetNames[0];
@@ -3668,19 +3670,18 @@ function handleTemplateUpload(event) {
 
             // Сканируем первые 20 строк файла
             for (let i = 0; i < Math.min(jsonData.length, 20); i++) {
-                // Склеиваем строку в текст для удобного поиска
                 const rowText = jsonData[i].join(" ").toLowerCase();
-                if (!rowText.trim()) continue; // Пропускаем абсолютно пустые строки
+                if (!rowText.trim()) continue; // Пропускаем пустые строки
 
-                // 1. Детектор человеческих названий
+                // Детектор человеческих названий
                 let humMatch = 0;
                 humMarkers.forEach(m => { if (rowText.includes(m)) humMatch++; });
                 if (humMatch >= 2) {
                     humanNames = jsonData[i];
-                    continue; // Нашли - идем к следующей строке
+                    continue;
                 }
 
-                // 2. Детектор системных ключей Каспи
+                // Детектор системных ключей
                 let sysMatch = 0;
                 sysMarkers.forEach(m => { if (rowText.includes(m)) sysMatch++; });
                 if (sysMatch >= 2) {
@@ -3688,41 +3689,58 @@ function handleTemplateUpload(event) {
                     continue;
                 }
 
-                // 3. Детектор требований (Обязательные поля)
+                // Детектор требований (Обязательные поля)
                 if (rowText.includes("обязательное") || rowText.includes("обязат.")) {
                     requirements = jsonData[i];
                     continue;
                 }
             }
 
-            // Проверяем, нашел ли скрипт самое главное
+            // Проверка на корректность найденных шапок
             if (humanNames.length === 0 || systemKeys.length === 0) {
                 alert("Ошибка: Не удалось распознать структуру шаблона Kaspi. Загрузите корректный файл.");
                 fileNameSpan.innerText = '📄 Загрузить пустой шаблон (.xml, .xlsx)';
+                fileNameSpan.style.color = "var(--text-main)";
                 return;
             }
 
-            // Забираем справочники с листа values (если есть)
+            // 2. Читаем лист справочников values (оставляем первую строку как шапку)
             let valuesSheetName = workbook.SheetNames.find(name => name.toLowerCase() === 'values');
             let valuesData = [];
             if (valuesSheetName) {
                 valuesData = XLSX.utils.sheet_to_json(workbook.Sheets[valuesSheetName], { defval: "" });
             }
 
-            fileNameSpan.innerText = '✅ Шаблон загружен';
-            fileNameSpan.style.color = "var(--accent-green)";
-
-            // Передаем динамически собранные данные в рендер
-            renderMapperUI(systemKeys, humanNames, valuesData, requirements);
+            // 3. Подключение к серверу для получения атрибутов из БД
+            fileNameSpan.innerText = '⏳ Подключение к базе данных...';
+            
+            google.script.run
+                .withSuccessHandler(function(dbResponse) {
+                    if (dbResponse.success) {
+                        fileNameSpan.innerText = '✅ Шаблон и база готовы';
+                        fileNameSpan.style.color = "var(--accent-green)";
+                        
+                        // Передаем все данные в рендер, включая 5-й параметр (dynamicKeys)
+                        renderMapperUI(systemKeys, humanNames, valuesData, requirements, dbResponse.dynamicKeys);
+                    }
+                })
+                .withFailureHandler(function(error) {
+                    console.error("Ошибка сервера:", error);
+                    alert("Ошибка связи с сервером: " + error.message);
+                    fileNameSpan.innerText = '❌ Ошибка базы данных';
+                    fileNameSpan.style.color = "var(--text-main)";
+                })
+                .getKaspiExportData(); // Функция в backend.gs
 
         } catch (err) {
             console.error(err);
             alert("Ошибка чтения файла: " + err.message);
             fileNameSpan.innerText = '📄 Загрузить пустой шаблон (.xml, .xlsx)';
+            fileNameSpan.style.color = "var(--text-main)";
         }
     };
     
-    event.target.value = '';
+    event.target.value = ''; // Сбрасываем input, чтобы можно было загрузить тот же файл еще раз
     reader.readAsArrayBuffer(file);
 }
 
