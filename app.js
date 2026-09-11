@@ -3704,7 +3704,7 @@ async function handleTemplateUpload(event) {
             try {
                 // Используем глобальный URL из конфига (предполагается, что это SCRIPT_URL или APP_URL)
                 // Если переменная URL у вас называется по-другому, поправьте её здесь
-                const url = window.SCRIPT_URL; 
+                const url = APPS_SCRIPT_URL; 
                 
                 // Формируем точный запрос с ключом
                 const payload = { 
@@ -7102,7 +7102,7 @@ async function generateExportFile() {
         });
 
         // 2. Скачиваем свежие товары через smartFetch
-        const url = window.SCRIPT_URL; 
+        const url = APPS_SCRIPT_URL; 
         const payload = { action: 'getKaspiItemsData', api_key: CLIENT_API_KEY };
         const dbResponse = await window.smartFetch(url, payload, 'kaspi_items_temp', 3);
 
