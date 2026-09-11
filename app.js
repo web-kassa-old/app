@@ -3763,11 +3763,11 @@ function t(key, defaultText) {
 }
 
 // 1. ОТРИСОВКА ИНТЕРФЕЙСА (Берет переводы из глобальной базы)
-function renderMapperUI(systemKeys, humanNames, valuesData, requirements) {
+function renderMapperUI(systemKeys, humanNames, valuesData, requirements, dynamicKeys) {
     const mapperArea = document.getElementById('exportMapperArea');
     mapperArea.innerHTML = ''; 
 
-    // Запрашиваем переводы, передавая русский текст как запасной вариант
+    // 1. Базовые системные поля (Оставляем как есть, с переводами)
     const internalFields = [
         { id: '', name: t('opt_skip', '-- Не выгружать --') },
         { id: 'barcode', name: t('f_barcode', 'Штрихкод / SKU') },
@@ -3775,12 +3775,16 @@ function renderMapperUI(systemKeys, humanNames, valuesData, requirements) {
         { id: 'price', name: t('f_price', 'Цена') },
         { id: 'qty', name: t('f_qty', 'Остаток партии') },
         { id: 'weight', name: t('f_weight', 'Вес, кг') },
-        { id: 'volume', name: t('f_volume', 'Объем, м3') },
-        // Эти ключи из JSON не переводим!
-        { id: 'json_Бренд', name: 'Бренд (из накладной)' },
-        { id: 'json_Ширина обода (J)', name: 'Ширина обода (J)' },
-        { id: 'json_Цвет', name: 'Цвет (из накладной)' }
+        { id: 'volume', name: t('f_volume', 'Объем, м3') }
     ];
+
+    // 2. Динамически добавляем атрибуты из вашей базы (JSON)
+    if (dynamicKeys && Array.isArray(dynamicKeys) && dynamicKeys.length > 0) {
+        dynamicKeys.forEach(key => {
+            // Добавляем пометку "(из БД)", чтобы кассир понимал источник данных
+            internalFields.push({ id: `json_${key}`, name: `${key} (из БД)` });
+        });
+    }
 
     let html = `<h4 style="margin-bottom: 10px; color: var(--text-muted); font-size: 13px;" data-i18n="map_title">${t('map_title', 'СОПОСТАВЛЕНИЕ КОЛОНОК:')}</h4>`;
 
