@@ -3637,7 +3637,7 @@ function setReportView(view) {
         }
 
 // Обработка загрузки файла шаблона Kaspi
-function handleTemplateUpload(event) {
+async function handleTemplateUpload(event) {
     const file = event.target.files[0];
     if (!file) return;
 
@@ -3646,77 +3646,92 @@ function handleTemplateUpload(event) {
     fileNameSpan.style.color = "var(--accent-blue)";
 
     const reader = new FileReader();
-    reader.onload = function(e) {
+    
+    reader.onload = async function(e) {
         try {
             const data = new Uint8Array(e.target.result);
             const workbook = XLSX.read(data, { type: 'array' });
 
-            // 1. Ищем лист attributes или берем подходящий по умолчанию
+            // 1. Ищем лист attributes
             let targetSheet = workbook.SheetNames.find(name => name.toLowerCase() === 'attributes');
             if (!targetSheet) {
                 targetSheet = workbook.SheetNames.length > 1 ? workbook.SheetNames[1] : workbook.SheetNames[0];
             }
-
             const sheet = workbook.Sheets[targetSheet];
             const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
 
-            // --- АЛГОРИТМ "НЕЗАВИСИМЫЕ ДЕТЕКТОРЫ" ---
+            // --- НЕЗАВИСИМЫЕ ДЕТЕКТОРЫ ---
             let requirements = [];
             let systemKeys = [];
             let humanNames = [];
-
             const humMarkers = ["артикул", "модель", "бренд", "цена"];
             const sysMarkers = ["merchant_sku", "model", "brand", "price"];
 
-            // Сканируем первые 20 строк файла
             for (let i = 0; i < Math.min(jsonData.length, 20); i++) {
                 const rowText = jsonData[i].join(" ").toLowerCase();
-                if (!rowText.trim()) continue; // Пропускаем пустые строки
+                if (!rowText.trim()) continue;
 
-                // Детектор человеческих названий
                 let humMatch = 0;
                 humMarkers.forEach(m => { if (rowText.includes(m)) humMatch++; });
-                if (humMatch >= 2) {
-                    humanNames = jsonData[i];
-                    continue;
-                }
+                if (humMatch >= 2) { humanNames = jsonData[i]; continue; }
 
-                // Детектор системных ключей
                 let sysMatch = 0;
                 sysMarkers.forEach(m => { if (rowText.includes(m)) sysMatch++; });
-                if (sysMatch >= 2) {
-                    systemKeys = jsonData[i];
-                    continue;
-                }
+                if (sysMatch >= 2) { systemKeys = jsonData[i]; continue; }
 
-                // Детектор требований (Обязательные поля)
                 if (rowText.includes("обязательное") || rowText.includes("обязат.")) {
-                    requirements = jsonData[i];
-                    continue;
+                    requirements = jsonData[i]; continue;
                 }
             }
 
-            // Проверка на корректность найденных шапок
             if (humanNames.length === 0 || systemKeys.length === 0) {
-                alert("Ошибка: Не удалось распознать структуру шаблона Kaspi. Загрузите корректный файл.");
+                alert("Ошибка: Не удалось распознать структуру шаблона Kaspi.");
                 fileNameSpan.innerText = '📄 Загрузить пустой шаблон (.xml, .xlsx)';
                 fileNameSpan.style.color = "var(--text-main)";
                 return;
             }
 
-            // 2. Читаем лист справочников values (оставляем первую строку как шапку)
+            // 2. Читаем лист справочников values
             let valuesSheetName = workbook.SheetNames.find(name => name.toLowerCase() === 'values');
             let valuesData = [];
             if (valuesSheetName) {
                 valuesData = XLSX.utils.sheet_to_json(workbook.Sheets[valuesSheetName], { defval: "" });
             }
 
-            // 3. (ВРЕМЕННО БЕЗ СЕРВЕРА) Просто запускаем отрисовку, чтобы не ломать приложение
-            fileNameSpan.innerText = '✅ Шаблон загружен';
-            fileNameSpan.style.color = "var(--accent-green)";
+            // 3. ПОДКЛЮЧЕНИЕ К БАЗЕ ЧЕРЕЗ ВАШ ДВИЖОК
+            fileNameSpan.innerText = '⏳ Подключение к базе данных...';
             
-            // Передаем пустой массив [] вместо динамических ключей
-            renderMapperUI(systemKeys, humanNames, valuesData, requirements, []);
+            try {
+                // Используем глобальный URL из конфига (предполагается, что это SCRIPT_URL или APP_URL)
+                // Если переменная URL у вас называется по-другому, поправьте её здесь
+                const url = window.SCRIPT_URL; 
+                
+                // Формируем точный запрос с ключом
+                const payload = { 
+                    action: 'getKaspiExportData',
+                    api_key: CLIENT_API_KEY 
+                };
+                const cacheKey = 'kaspi_dynamic_keys_cache';
+                
+                // Вызываем ваш бронированный метод smartFetch
+                const dbResponse = await window.smartFetch(url, payload, cacheKey, 3);
+
+                if (dbResponse && dbResponse.success) {
+                    fileNameSpan.innerText = '✅ Шаблон и база готовы';
+                    fileNameSpan.style.color = "var(--accent-green)";
+                    renderMapperUI(systemKeys, humanNames, valuesData, requirements, dbResponse.dynamicKeys);
+                } else {
+                    throw new Error(dbResponse ? dbResponse.error : 'Нет ответа от сервера');
+                }
+                
+            } catch (serverError) {
+                console.warn("Не удалось подтянуть ключи из базы:", serverError);
+                fileNameSpan.innerText = '⚠️ Шаблон готов (Без связи с БД)';
+                fileNameSpan.style.color = "var(--accent-orange)";
+                
+                // Рисуем интерфейс с пустым массивом ключей, если сервер не ответил
+                renderMapperUI(systemKeys, humanNames, valuesData, requirements, []);
+            }
 
         } catch (err) {
             console.error(err);
