@@ -3842,6 +3842,35 @@ function renderMapperUI(systemKeys, humanNames, valuesData, requirements, dynami
             optionsHtml += `</optgroup>`;
         }
 
+        // === УМНЫЙ АВТОМАППИНГ ===
+        const sys = (sysKey || '').toLowerCase();
+        const hum = (humName || '').toLowerCase();
+        let autoSelectValue = '';
+
+        // 1. Жесткие правила
+        if (sys === 'merchant_sku' || hum.includes('артикул')) autoSelectValue = 'barcode';
+        else if (sys === 'name' || hum.includes('название')) autoSelectValue = 'name';
+        else if (sys === 'price' || hum.includes('цена')) autoSelectValue = 'price';
+        else if (sys === 'brand' || hum.includes('бренд')) autoSelectValue = 'json_Бренд';
+        
+        // 2. Мягкий поиск (если жесткое правило не сработало)
+        if (!autoSelectValue && dynamicKeys && dynamicKeys.length > 0) {
+            for (let k of dynamicKeys) {
+                const lowerK = k.toLowerCase();
+                if (hum.includes(lowerK) || sys.includes(lowerK)) {
+                    autoSelectValue = `json_${k}`;
+                    break;
+                }
+            }
+        }
+
+        // Внедряем автовыбор прямо в HTML: заменяем value="..." на value="..." selected
+        let finalOptionsHtml = optionsHtml;
+        if (autoSelectValue) {
+            finalOptionsHtml = finalOptionsHtml.replace(`value="${autoSelectValue}"`, `value="${autoSelectValue}" selected`);
+        }
+        // =========================
+
         html += `
         <div class="mapper-row" style="display: flex; gap: 10px; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; padding: 10px 10px 10px 6px; background: var(--bg-panel); border: 1px solid var(--border-light); ${borderStyle} border-radius: 6px; transition: background 0.2s ease;">
             <div style="flex: 1; overflow-x: auto; white-space: nowrap; -webkit-overflow-scrolling: touch; padding-bottom: 4px; margin-top: 4px;">
@@ -3851,7 +3880,7 @@ function renderMapperUI(systemKeys, humanNames, valuesData, requirements, dynami
             </div>
             <div style="flex-shrink: 0; width: 140px;">
                 <select class="mapper-select" data-col-index="${i}" data-sys-key="${sysKey}" data-col-name="${cleanColNameForData}" onchange="handleSelectChange(this)" style="width: 100%; padding: 6px; background: var(--bg-body); color: var(--text-main); border: 1px solid var(--border-main); border-radius: 4px; font-size: 13px; outline: none;">
-                    ${optionsHtml}
+                    ${finalOptionsHtml}
                 </select>
             </div>
         </div>
