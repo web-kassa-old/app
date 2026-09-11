@@ -3658,6 +3658,11 @@ async function handleTemplateUpload(event) {
                 targetSheet = workbook.SheetNames.length > 1 ? workbook.SheetNames[1] : workbook.SheetNames[0];
             }
             const sheet = workbook.Sheets[targetSheet];
+            
+            // === СОХРАНЯЕМ ОРИГИНАЛ ДЛЯ ЭКСПОРТА ===
+            window.originalKaspiWorkbook = workbook;
+            window.kaspiTargetSheetName = targetSheet;
+            // =======================================
             const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
 
             // --- НЕЗАВИСИМЫЕ ДЕТЕКТОРЫ ---
@@ -7169,15 +7174,9 @@ async function generateExportFile() {
         const items = dbResponse.items;
         btn.innerText = '⏳ Формирование файла...';
 
-        // 3. Собираем таблицу для Excel
+        // 3. Подготавливаем только данные товаров (строго без шапок)
         const exportData = [];
         
-        // Добавляем 3 обязательные строки шапки Kaspi
-        exportData.push(row1);
-        exportData.push(row2);
-        exportData.push(row2.map(() => "")); // Третья строка (требования) часто пустая, Kaspi читает по 2-й
-
-        // 4. Заполняем товары
         items.forEach(item => {
             const row = new Array(maxColIndex + 1).fill('');
             let hasData = false;
@@ -7200,25 +7199,38 @@ async function generateExportFile() {
                 }
 
                 row[config.index] = value;
-                if (value) hasData = true; // Отмечаем, если в строке есть хоть какие-то данные
+                if (value) hasData = true; // Отмечаем, если в строке есть данные
             });
 
-            // Добавляем в файл, только если строка не полностью пустая
+            // Добавляем строку товара в выгрузку, только если она не пустая
             if (hasData) {
                 exportData.push(row);
             }
         });
 
-        // 5. Создаем и скачиваем файл (Используем библиотеку SheetJS)
-        const ws = XLSX.utils.aoa_to_sheet(exportData);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Template");
+        // 4. Вставляем данные в ОРИГИНАЛЬНЫЙ ШАБЛОН
+        if (!window.originalKaspiWorkbook) {
+            throw new Error("Оригинальный шаблон не найден в памяти. Пожалуйста, загрузите файл заново.");
+        }
+        
+        const wb = window.originalKaspiWorkbook;
+        const ws = wb.Sheets[window.kaspiTargetSheetName];
 
-        // Формируем имя файла с текущей датой
+        // Узнаем, где заканчиваются данные (шапки/требования) в оригинальном шаблоне
+        const range = XLSX.utils.decode_range(ws['!ref']);
+        
+        // range.e.r — индекс последней занятой строки (начинается с 0).
+        // Прибавляем 1, чтобы получить индекс первой пустой строки, куда будем вставлять товары.
+        const nextEmptyRowIndex = range.e.r + 1; 
+
+        // Вписываем массив товаров точно под шапками оригинала
+        XLSX.utils.sheet_add_aoa(ws, exportData, { origin: nextEmptyRowIndex });
+
+        // 5. Скачиваем готовый файл со всеми скрытыми листами и справочниками
         const dateStr = new Date().toISOString().slice(0, 10);
         XLSX.writeFile(wb, `Kaspi_Export_${dateStr}.xlsx`);
         
-        alert("✅ Прайс успешно сгенерирован и начал скачиваться!");
+        alert("✅ Прайс успешно сгенерирован в оригинальном шаблоне!");
 
     } catch (err) {
         console.error("Ошибка при генерации прайса:", err);
