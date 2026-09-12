@@ -654,27 +654,36 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // === БРОНИРОВАННЫЙ ДВИЖОК ЗАПРОСОВ (smartFetch) ===
         window.smartFetch = async function(url, payload, cacheKey, maxRetries = 3) {
+            const TIMEOUT_MS = 8000; // Ждем максимум 8 секунд на одну попытку
+
             for (let i = 0; i < maxRetries; i++) {
+                // Создаем контроллер для прерывания зависших запросов
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
+
                 try {
                     const response = await fetch(url, {
                         method: 'POST',
                         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                         body: JSON.stringify(payload),
-                        redirect: 'follow'
+                        redirect: 'follow',
+                        signal: controller.signal // Привязываем контроллер
                     });
 
-                    // 1. Сначала читаем ответ как обычный текст
+                    clearTimeout(timeoutId); // Если успели вовремя - отменяем таймер смерти
+
+                    // 1. Читаем ответ
                     const text = await response.text();
                     
-                    // 2. Защита от бага Гугла: если пришел HTML (начинается с <) — выбрасываем ошибку, чтобы пойти на следующий круг
+                    // 2. Защита от бага Гугла
                     if (text.trim().startsWith('<')) {
-                        throw new Error('Сервер вернул HTML вместо JSON');
+                        throw new Error('Сервер вернул HTML вместо JSON (Ошибка Google)');
                     }
 
-                    // 3. Если это не HTML, парсим данные
+                    // 3. Парсим данные
                     const data = JSON.parse(text);
 
-                    // 4. Успех! Тихо сохраняем в резервный кэш
+                    // 4. Успех! Тихо сохраняем в кэш
                     if (data && data.success) {
                         localStorage.setItem(cacheKey, text);
                     }
@@ -682,9 +691,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     return data; 
                     
                 } catch (error) {
-                    console.warn(`Попытка ${i + 1} из ${maxRetries} для ${payload.action} не удалась:`, error.message);
+                    clearTimeout(timeoutId);
+                    const isTimeout = error.name === 'AbortError';
+                    console.warn(`Попытка ${i + 1} из ${maxRetries} для ${payload.action} не удалась:`, isTimeout ? "Превышено время ожидания сервера" : error.message);
                     
-                    // Если это не последняя попытка — ждем полсекунды и пробуем снова
+                    // Ждем 500мс перед новой попыткой
                     if (i < maxRetries - 1) {
                         await new Promise(resolve => setTimeout(resolve, 500));
                     }
@@ -703,7 +714,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
             
-            return null; // Отдаем пустоту только если нет ни связи, ни кэша
+            return null; // Отдаем пустоту
         };
 
         // =======================================================
