@@ -13,9 +13,8 @@
                 txt_payment: "Оплата: ", txt_total: "ИТОГО: ",
                 btn_add_cart: "В КОРЗИНУ", btn_save_db: "СОХРАНИТЬ В БАЗУ", 
                 btn_camera: "КАМЕРА", btn_gallery: "ГАЛЕРЕЯ",
-                btn_saving: "СОХРАНЕНИЕ...", btn_saved: "СОХРАНЕНО!",
+                btn_saved: "СОХРАНЕНО!",
                 report_name: "НАИМЕНОВАНИЕ", report_qty: "КОЛ.", report_sum: "СУММА",
-                report_sales: "Продажи", report_returns: "Возвраты", report_total_net: "Итого (чис.):",
                 report_in_register: "В КАССЕ:", msg_loading: "ЗАГРУЗКА...", msg_no_internet: "НЕТ ИНТЕРНЕТА", 
                 msg_no_data: "ОПЕРАЦИЙ НЕ НАЙДЕНО", msg_server_error: "ОШИБКА СЕРВЕРА",
                 report_avg: "ср:",
@@ -34,15 +33,13 @@
                 income_meta_items: "Позиций",
                 receive_btn: "ПРИЕМКА",
                 pin_no_internet: "НЕТ ИНТЕРНЕТА", pin_checking: "ПРОВЕРКА...", pin_granted: "ДОСТУП РАЗРЕШЕН",
-                pin_wrong: "НЕВЕРНЫЙ ПИН-КОД", pin_wrong_left: "НЕВЕРНЫЙ ПИН. ОСТАЛОСЬ: ", pin_conn_error: "СБОЙ ПОДКЛЮЧЕНИЯ",
-                inc_file_selected: "Выбрано файлов: ", inc_file_placeholder: "Нажмите для выбора Excel",
+                pin_wrong_left: "НЕВЕРНЫЙ ПИН. ОСТАЛОСЬ: ", pin_conn_error: "СБОЙ ПОДКЛЮЧЕНИЯ",
                 inc_err_no_doc: "нет номера инвойса", inc_err_no_sup: "нет поставщика", inc_err_no_table: "таблица с товарами не найдена",
                 inc_err_missing: "в шапке (строка {0}) не найдено: ", inc_err_no_items: "из таблицы не удалось извлечь товары",
                 inc_success: "{0} поз. распознано", inc_err_doc_format: "ОШИБКА НОМЕРА",
                 inc_lbl_sup: "Поставщик:", inc_lbl_doc: "Документ:", inc_lbl_items: "Позиций:",
-                inc_empty_cart: "Корзина пуста!", inc_doc_empty: "Номер документа не может быть пустым!",
                 inc_sending: "Отправка {0}...", inc_server_err: "Ошибка сервера", inc_send_err: "❌ Ошибка при отправке инвойса: ",
-                inc_archive_created: "Архив создан! Склад обновлен.", inc_all_done: "✅ Все накладные успешно проведены!",
+                inc_archive_created: "Архив создан! Склад обновлен.", 
                 word_code: "«Код»", word_qty: "«Кол-во»", word_price: "«Цена»", login_title: "ВХОД", inc_err_sheet_missing: "[Лист {0}] стр. {1}: нет ",
                 inc_err_sheet_no_table: "[Лист {0}]: нет таблицы с цифрами", cat_all: "Все",
                 server_dup: "Накладная с номером {0} уже была проведена ранее.",
@@ -146,7 +143,6 @@
                 modal_search_supplier: "Поиск или новый поставщик...",
                 modal_add_supplier: "+ Добавить",
                 modal_unknown_supplier: "Неизвестный поставщик",
-                // Плейсхолдеры и заголовки полей нового товара
                 ph_barcode: "Штрихкод...",
                 ph_name: "Наименование товара...",
                 ph_supplier: "Поставщик...",
@@ -154,8 +150,7 @@
                 nt_qty: "Количество",
                 nt_price_in: "Цена закупа",
                 nt_price_out: "Розница",
-                // Системные сообщения и кнопки для сохранения
-                msg_barcode_req: "Наименование обязательны для заполнения!",
+                msg_barcode_req: "Наименование обязательно для заполнения!",
                 msg_qty_req: "Количество должно быть больше нуля!",
                 btn_saving: "⏳ СОХРАНЕНИЕ...",
                 btn_save_ready: "✅ ОПРИХОДОВАТЬ НА СКЛАД",
@@ -189,7 +184,6 @@
                 setup_license_error_desc: "Касса уже была установлена на данный Google аккаунт.",
                 setup_license_error_step1: "Для новой установки (тестового периода) используйте другой аккаунт Google.",
                 setup_license_error_step2: "Для продления текущей кассы обратитесь к администратору.",
-                // --- БАЗА ДАННЫХ (DRIVE МОДАЛКА) ---
                 drive_modal_title: "БАЗА ДАННЫХ (DRIVE)",
                 drive_root: "КОРНЕВАЯ ПАПКА",
                 drive_db: "ТАБЛИЦА: ТОВАРЫ И ЧЕКИ",
@@ -198,16 +192,12 @@
                 drive_invoices: "ПАПКА: НАКЛАДНЫЕ",
                 drive_backups: "ПАПКА: РЕЗЕРВНЫЕ КОПИИ",
                 drive_secret: "ПАПКА: СЕКРЕТНЫЕ КОПИИ",
-                btn_close: "ЗАКРЫТЬ",
                 drive_danger_zone: "ОПЕРАТИВНЫЕ ДЕЙСТВИЯ",
                 drive_clear_btn: "ОЧИСТИТЬ БАЗУ ДАННЫХ",
                 drive_restore_btn: "ВОССТАНОВИТЬ ОЧИЩЕННЫЕ ДАННЫЕ",
                 drive_deep_restore_btn: "ВОССТАНОВИТЬ ИЗ БЭКАПА",
                 deep_restore_title: "Выбор резервной копии",
                 deep_restore_loading: "Поиск файлов в архиве...",
-
-                // --- ОКНА ПОДТВЕРЖДЕНИЯ (SWEETALERT) ---
-                // Окно очистки
                 swal_clear_title: "ОЧИСТКА БАЗЫ",
                 swal_clear_text: "Выберите тип очистки. Текущие данные будут временно сохранены в архив.",
                 swal_clear_ops_btn: "ТОЛЬКО ОПЕРАЦИИ (Чеки)",
@@ -215,8 +205,6 @@
                 swal_catalog_warn_title: "ВНИМАНИЕ!",
                 swal_catalog_warn_text: "Старые чеки будут навсегда удалены из быстрого буфера. Вы уверены?",
                 swal_catalog_warn_confirm: "Да, восстановить только каталог<br>(Накладные и Товары)",
-
-                // Окно восстановления
                 swal_restore_title: "ВОССТАНОВЛЕНИЕ ДАННЫХ",
                 swal_restore_text: "Выберите, какие данные нужно вернуть из временного архива.",
                 swal_restore_catalog_btn: "ТОЛЬКО КАТАЛОГ (Товары и Накладные)",
@@ -276,15 +264,16 @@
                 f_weight: "Вес, кг",
                 f_volume: "Объем, м3",
                 prompt_enter: "Введите значение для поля",
-                download_template: "Загрузить пустой шаблон (.xml, .xlsx)",
-                map_title: "СОПОСТАВЛЕНИЕ КОЛОНОК:",
-                grp_db: "Поля из базы данных",
-                grp_kaspi: "Справочник Каспи",
-                grp_custom: "Свое значение",
                 from_db: "(из БД)",
                 no_name: "Без названия",
                 export_success: "✅ Прайс успешно сгенерирован в оригинальном шаблоне!",
-                export_error: "Ошибка: "
+                export_error: "Ошибка: ",
+                uploading_template: "Анализ шаблона и загрузка базы...",
+                error_parse_template: "Ошибка: Не удалось распознать структуру шаблона Kaspi.",
+                connecting_db: "Подключение к базе данных...",
+                template_ready: "Шаблон и база готовы",
+                template_ready_no_db: "Шаблон готов (Без связи с БД)",
+                error_read_file: "Ошибка чтения файла: "
             },
             kz: {
                 btn_sale: "САТУ", btn_return: "ҚАЙТАРУ", search_placeholder: "ІЗДЕУ...",
@@ -300,9 +289,8 @@
                 txt_payment: "Төлем: ", txt_total: "БАРЛЫҒЫ: ",
                 btn_add_cart: "СЕБЕТКЕ САЛУ", btn_save_db: "БАЗАҒА САҚТАУ", 
                 btn_camera: "КАМЕРА", btn_gallery: "ГАЛЕРЕЯ",
-                btn_saving: "САҚТАЛУДА...", btn_saved: "САҚТАЛДЫ!",
+                btn_saved: "САҚТАЛДЫ!",
                 report_name: "АТАУЫ", report_qty: "САНЫ", report_sum: "СОМАСЫ",
-                report_sales: "Сатылымдар", report_returns: "Қайтарымдар", report_total_net: "Таза табыс:",
                 report_in_register: "КАССАДА:", msg_loading: "ЖҮКТЕЛУДЕ...", msg_no_internet: "ИНТЕРНЕТ ЖОҚ", 
                 msg_no_data: "ОПЕРАЦИЯЛАР ЖОҚ", msg_server_error: "СЕРВЕР ҚАТЕСІ",
                 report_avg: "орт:",
@@ -321,15 +309,13 @@
                 income_meta_items: "Позициялар",
                 receive_btn: "ҚАБЫЛДАУ",
                 pin_no_internet: "ИНТЕРНЕТ ЖОҚ", pin_checking: "БАЗАДАН ТЕКСЕРІЛУДЕ...", pin_granted: "РУҚСАТ БЕРІЛДІ",
-                pin_wrong: "ҚАТЕ ПИН-КОД", pin_wrong_left: "ҚАТЕ ПИН. ҚАЛДЫ: ", pin_conn_error: "ҚОСЫЛУ ҚАТЕСІ",
-                inc_file_selected: "Таңдалған файлдар: ", inc_file_placeholder: "Excel файлын таңдау үшін басыңыз",
+                pin_wrong_left: "ҚАТЕ ПИН. ҚАЛДЫ: ", pin_conn_error: "ҚОСЫЛУ ҚАТЕСІ",
                 inc_err_no_doc: "инвойс нөмірі жоқ", inc_err_no_sup: "жеткізуші жоқ", inc_err_no_table: "тауарлар кестесі табылмады",
                 inc_err_missing: "бас жағында ({0}-жол) табылмады: ", inc_err_no_items: "кестеден тауарларды оқу мүмкін болмады",
                 inc_success: "{0} поз. анықталды", inc_err_doc_format: "НӨМІР ҚАТЕСІ",
                 inc_lbl_sup: "Жеткізуші:", inc_lbl_doc: "Құжат:", inc_lbl_items: "Позициялар:",
-                inc_empty_cart: "Себет бос!", inc_doc_empty: "Құжат нөмірі бос болмауы керек!",
                 inc_sending: "{0} жіберілуде...", inc_server_err: "Сервер қатесі", inc_send_err: "❌ Инвойсты жіберу қатесі: ",
-                inc_archive_created: "Мұрағат құрылды! Қойма жаңартылды.", inc_all_done: "✅ Барлық жүкқұжаттар сәтті өтті!",
+                inc_archive_created: "Мұрағат құрылды! Қойма жаңартылды.",
                 word_code: "«Код»", word_qty: "«Саны»", word_price: "«Бағасы»", login_title: "КІРУ", inc_err_sheet_missing: "[{0} парағы] {1}-жол: табылмады ",
                 inc_err_sheet_no_table: "[{0} парағы]: цифрлары бар кесте жоқ", cat_all: "Барлығы",
                 server_dup: "{0} нөмірлі жүкқұжат бұрын қабылданған.",
@@ -433,7 +419,6 @@
                 modal_search_supplier: "Іздеу немесе жаңа жеткізуші...",
                 modal_add_supplier: "+ Қосу",
                 modal_unknown_supplier: "Белгісіз жеткізуші",
-                // Плейсхолдеры и заголовки полей нового товара
                 ph_barcode: "Штрихкод...",
                 ph_name: "Тауар атауы...",
                 ph_supplier: "Жеткізуші...",
@@ -441,7 +426,6 @@
                 nt_qty: "Саны",
                 nt_price_in: "Сатып алу бағасы",
                 nt_price_out: "Бөлшек баға",
-                // Системные сообщения и кнопки для сохранения
                 msg_barcode_req: "Атауы міндетті түрде толтырылуы тиіс!",
                 msg_qty_req: "Саны нөлден үлкен болуы керек!",
                 btn_saving: "⏳ САҚТАЛУДА...",
@@ -476,7 +460,6 @@
                 setup_license_error_desc: "Бұл Google аккаунтына касса бұрын орнатылған.",
                 setup_license_error_step1: "Жаңадан орнату үшін (сынақ мерзімі) басқа Google аккаунтын пайдаланыңыз.",
                 setup_license_error_step2: "Қазіргі кассаны ұзарту үшін әкімшіге хабарласыңыз.",
-                // --- ДЕРЕКҚОР (DRIVE МОДАЛКАСЫ) ---
                 drive_modal_title: "ДЕРЕКҚОР (DRIVE)",
                 drive_root: "ТҮБІРЛІК БУМА",
                 drive_db: "КЕСТЕ: ТАУАРЛАР МЕН ЧЕКТЕР",
@@ -485,16 +468,12 @@
                 drive_invoices: "БУМА: ЖҮКҚҰЖАТТАР",
                 drive_backups: "БУМА: РЕЗЕРВТІК КӨШІРМЕЛЕР",
                 drive_secret: "БУМА: ҚҰПИЯ КӨШІРМЕЛЕР",
-                btn_close: "ЖАБУ",
                 drive_danger_zone: "ЖЕДЕЛ ӘРЕКЕТТЕР",
                 drive_clear_btn: "ДЕРЕКҚОРДЫ ТАЗАЛАУ",
                 drive_restore_btn: "ТАЗАЛАНҒАНДЫ ҚАЙТАРУ",
                 drive_deep_restore_btn: "БЭКАПТАН ҚАЛПЫНА КЕЛТІРУ",
                 deep_restore_title: "Резервтік көшірмені таңдау",
                 deep_restore_loading: "Мұрағаттан файлдарды іздеу...",
-
-                // --- РАСТАУ ТЕРЕЗЕЛЕРІ (SWEETALERT) ---
-                // Тазалау терезесі
                 swal_clear_title: "ДЕРЕКҚОРДЫ ТАЗАЛАУ",
                 swal_clear_text: "Тазалау түрін таңдаңыз. Ағымдағы деректер уақытша мұрағатта сақталады.",
                 swal_clear_ops_btn: "ТЕК ОПЕРАЦИЯЛАР (Чектер)",
@@ -502,8 +481,6 @@
                 swal_catalog_warn_title: "НАЗАР АУДАРЫҢЫЗ!",
                 swal_catalog_warn_text: "Ескі чектер жылдам буферден біржолата жойылады. Сенімдісіз бе?",
                 swal_catalog_warn_confirm: "ИӘ, КАТАЛОГТЫ ҒАНА ҚАЛПЫНА КЕЛТІРУ<br>(Жүкқұжаттар, Тауарлар)",
-
-                // Қалпына келтіру терезесі
                 swal_restore_title: "ДЕРЕКТЕРДІ ҚАЛПЫНА КЕЛТІРУ",
                 swal_restore_text: "Уақытша мұрағаттан қандай деректерді қайтару керектігін таңдаңыз.",
                 swal_restore_catalog_btn: "ТЕК КАТАЛОГ (Тауарлар мен Жүкқұжаттар)",
@@ -538,7 +515,7 @@
                 mapper_cbm: "Көлемі (CBM)",
                 mapper_weight: "Салмағы (кг)",
                 export_title: "ЭКСПОРТТЫ БАПТАУ",
-                upload_template: "📄 Бос үлгіні жүктеу (.xml, .xlsx)",
+                upload_template: "📄 Бос шаблонды жүктеу (.xml, .xlsx)",
                 generate_price: "БАҒА ПАРАҒЫН ЖАСАУ",
                 dict_title: "Мәнді таңдаңыз", 
                 dict_placeholder: "Іздеу немесе қолмен енгізу...",
@@ -549,9 +526,9 @@
                 dict_start_typing: "Мәтінді енгізуді бастаңыз",
                 dict_and_more: "...және тағы",
                 dict_options: "нұсқа.",
-                map_title: "БАҒАНДАРДЫ САЛЫСТЫРУ:",
+                map_title: "БАҒАНДАРДЫ СӘЙКЕСТЕНДІРУ:",
                 grp_db: "Дерекқор өрістері",
-                grp_kaspi: "Каспи анықтамалығы",
+                grp_kaspi: "Kaspi анықтамалығы",
                 grp_custom: "Өз мәні",
                 opt_skip: "-- Жүктемеу --",
                 opt_search: "Анықтамалықтан іздеу",
@@ -563,15 +540,16 @@
                 f_weight: "Салмағы, кг",
                 f_volume: "Көлемі, м3",
                 prompt_enter: "Өріс үшін мәнді енгізіңіз",
-                download_template: "Бос үлгіні жүктеу (.xml, .xlsx)",
-                map_title: "БАҒАНДАРДЫ СӘЙКЕСТЕНДІРУ:",
-                grp_db: "Дерекқор өрістері",
-                grp_kaspi: "Kaspi анықтамалығы",
-                grp_custom: "Өз мәні",
                 from_db: "(ДҚ-нан)",
                 no_name: "Атаусыз",
                 export_success: "✅ Прайс түпнұсқа шаблонда сәтті жасалды!",
-                export_error: "Қате: "
+                export_error: "Қате: ",
+                uploading_template: "Шаблонды талдау және дерекқорды жүктеу...",
+                error_parse_template: "Қате: Kaspi шаблонының құрылымын анықтау мүмкін болмады.",
+                connecting_db: "Дерекқорға қосылуда...",
+                template_ready: "Шаблон мен дерекқор дайын",
+                template_ready_no_db: "Шаблон дайын (ДҚ-мен байланыссыз)",
+                error_read_file: "Файлды оқу қатесі: "
             }
         };
 
@@ -3639,9 +3617,14 @@ async function handleTemplateUpload(event) {
     const file = event.target.files[0];
     if (!file) return;
 
+    const fileInput = document.getElementById('templateFileInput');
     const fileNameSpan = document.getElementById('templateFileName');
-    fileNameSpan.innerText = '⏳ Обработка: ' + file.name;
+    
+    // === ВИЗУАЛЬНАЯ БЛОКИРОВКА И ИНДИКАЦИЯ ===
+    fileInput.disabled = true; // Запрещаем кликать повторно, пока идет процесс
+    fileNameSpan.innerText = `⏳ ${t('uploading_template', 'Анализ шаблона и загрузка базы...')}`;
     fileNameSpan.style.color = "var(--accent-blue)";
+    // ========================================
 
     const reader = new FileReader();
     
@@ -3688,9 +3671,10 @@ async function handleTemplateUpload(event) {
             }
 
             if (humanNames.length === 0 || systemKeys.length === 0) {
-                alert("Ошибка: Не удалось распознать структуру шаблона Kaspi.");
-                fileNameSpan.innerText = '📄 Загрузить пустой шаблон (.xml, .xlsx)';
+                alert(t('error_parse_template', "Ошибка: Не удалось распознать структуру шаблона Kaspi."));
+                fileNameSpan.innerText = t('upload_template', '📄 Загрузить пустой шаблон (.xml, .xlsx)');
                 fileNameSpan.style.color = "var(--text-main)";
+                fileInput.disabled = false; // Разблокируем при раннем выходе
                 return;
             }
 
@@ -3702,11 +3686,10 @@ async function handleTemplateUpload(event) {
             }
 
             // 3. ПОДКЛЮЧЕНИЕ К БАЗЕ ЧЕРЕЗ ВАШ ДВИЖОК
-            fileNameSpan.innerText = '⏳ Подключение к базе данных...';
+            fileNameSpan.innerText = `⏳ ${t('connecting_db', 'Подключение к базе данных...')}`;
             
             try {
-                // Используем глобальный URL из конфига (предполагается, что это SCRIPT_URL или APP_URL)
-                // Если переменная URL у вас называется по-другому, поправьте её здесь
+                // Используем глобальный URL из конфига
                 const url = APPS_SCRIPT_URL; 
                 
                 // Формируем точный запрос с ключом
@@ -3720,7 +3703,7 @@ async function handleTemplateUpload(event) {
                 const dbResponse = await window.smartFetch(url, payload, cacheKey, 3);
 
                 if (dbResponse && dbResponse.success) {
-                    fileNameSpan.innerText = '✅ Шаблон и база готовы';
+                    fileNameSpan.innerText = `✅ ${t('template_ready', 'Шаблон и база готовы')} (${file.name})`;
                     fileNameSpan.style.color = "var(--accent-green)";
                     renderMapperUI(systemKeys, humanNames, valuesData, requirements, dbResponse.dynamicKeys);
                 } else {
@@ -3729,7 +3712,7 @@ async function handleTemplateUpload(event) {
                 
             } catch (serverError) {
                 console.warn("Не удалось подтянуть ключи из базы:", serverError);
-                fileNameSpan.innerText = '⚠️ Шаблон готов (Без связи с БД)';
+                fileNameSpan.innerText = `⚠️ ${t('template_ready_no_db', 'Шаблон готов (Без связи с БД)')}`;
                 fileNameSpan.style.color = "var(--accent-orange)";
                 
                 // Рисуем интерфейс с пустым массивом ключей, если сервер не ответил
@@ -3738,9 +3721,12 @@ async function handleTemplateUpload(event) {
 
         } catch (err) {
             console.error(err);
-            alert("Ошибка чтения файла: " + err.message);
-            fileNameSpan.innerText = '📄 Загрузить пустой шаблон (.xml, .xlsx)';
+            alert(t('error_read_file', "Ошибка чтения файла: ") + err.message);
+            fileNameSpan.innerText = t('upload_template', '📄 Загрузить пустой шаблон (.xml, .xlsx)');
             fileNameSpan.style.color = "var(--text-main)";
+        } finally {
+            // === РАЗБЛОКИРУЕМ КНОПКУ В САМОМ КОНЦЕ ПРИ ЛЮБОМ ИСХОДЕ ===
+            fileInput.disabled = false;
         }
     };
     
@@ -3785,7 +3771,7 @@ function renderMapperUI(systemKeys, humanNames, valuesData, requirements, dynami
     // 2. Очищаем атрибуты БД от дубликатов системных полей
     if (dynamicKeys && Array.isArray(dynamicKeys) && dynamicKeys.length > 0) {
         // Черный список ключей из БД, которые мы скрываем, чтобы не дублировать
-        const ignoredKeys = ['штрихкод', 'наименование', 'код товара', 'кол-во', 'базовая цена', 'цена со скидкой', 'объем (cbm)', 'вес (кг)', 'цена'];
+        const ignoredKeys = ['штрихкод', 'наименование', 'код товара', 'кол-во', 'базовая цена', 'цена со скидкой', 'объем (cbm)', 'вес (кг)', 'цена', 'артикул поставщика'];
         
         dynamicKeys.forEach(key => {
             if (!ignoredKeys.includes(key.toLowerCase().trim())) {
