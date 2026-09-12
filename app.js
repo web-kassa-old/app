@@ -7178,7 +7178,9 @@ async function generateExportFile() {
             
             mappingConfig.push({ index: colIndex, ourSource: select.value });
             
-            row1[colIndex] = select.getAttribute('data-col-name').replace(/&quot;/g, '"');
+            // --- БЕЗОПАСНЫЙ КОД ---
+            const rawColName = select.getAttribute('data-col-name') || '';
+            row1[colIndex] = rawColName.replace(/&quot;/g, '"');
             row2[colIndex] = select.getAttribute('data-sys-key') || '';
         });
 
