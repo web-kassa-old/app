@@ -3621,15 +3621,18 @@ async function handleTemplateUpload(event) {
     const fileNameSpan = document.getElementById('templateFileName');
     
     // === ВИЗУАЛЬНАЯ БЛОКИРОВКА И ИНДИКАЦИЯ ===
-    fileInput.disabled = true; // Запрещаем кликать повторно, пока идет процесс
+    fileInput.disabled = true; 
     fileNameSpan.innerText = `⏳ ${t('uploading_template', 'Анализ шаблона и загрузка базы...')}`;
     fileNameSpan.style.color = "var(--accent-blue)";
     // ========================================
 
-    const reader = new FileReader();
-    
-    reader.onload = async function(e) {
-        try {
+    // Даем браузеру 50мс на отрисовку текста перед тяжелой задачей чтения Excel
+    setTimeout(() => {
+        const reader = new FileReader();
+        
+        reader.onload = async function(e) {
+            try {
+                // ... (весь ваш огромный код внутри try/catch остается БЕЗ ИЗМЕНЕНИЙ) ...
             const data = new Uint8Array(e.target.result);
             const workbook = XLSX.read(data, { type: 'array' });
 
@@ -3732,6 +3735,8 @@ async function handleTemplateUpload(event) {
     
     event.target.value = '';
     reader.readAsArrayBuffer(file);
+    
+    }, 50); // <-- Закрываем setTimeout
 }
 
 // Глобальный объект для хранения словарей Каспи
