@@ -262,15 +262,6 @@
                 dict_start_typing: "Начните вводить текст",
                 dict_and_more: "...и ещё",
                 dict_options: "вариантов.",
-                dict_title: "Выберите значение", 
-                dict_placeholder: "Поиск или ввод вручную...",
-                dict_total: "Всего доступно вариантов:",
-                dict_search_in: "Поиск среди:",
-                dict_not_found: "В справочнике не найдено.",
-                dict_use_custom: "Использовать",
-                dict_start_typing: "Начните вводить текст",
-                dict_and_more: "...и ещё",
-                dict_options: "вариантов.",
                 map_title: "СОПОСТАВЛЕНИЕ КОЛОНОК:",
                 grp_db: "Поля из базы данных",
                 grp_kaspi: "Справочник Каспи",
@@ -285,7 +276,13 @@
                 f_weight: "Вес, кг",
                 f_volume: "Объем, м3",
                 prompt_enter: "Введите значение для поля",
-                download_template: "Загрузить пустой шаблон (.xml, .xlsx)"
+                download_template: "Загрузить пустой шаблон (.xml, .xlsx)",
+                map_title: "СОПОСТАВЛЕНИЕ КОЛОНОК:",
+                grp_db: "Поля из базы данных",
+                grp_kaspi: "Справочник Каспи",
+                grp_custom: "Свое значение",
+                from_db: "(из БД)",
+                no_name: "Без названия"
             },
             kz: {
                 btn_sale: "САТУ", btn_return: "ҚАЙТАРУ", search_placeholder: "ІЗДЕУ...",
@@ -550,15 +547,6 @@
                 dict_start_typing: "Мәтінді енгізуді бастаңыз",
                 dict_and_more: "...және тағы",
                 dict_options: "нұсқа.",
-                dict_title: "Мәнді таңдаңыз", 
-                dict_placeholder: "Іздеу немесе қолмен енгізу...",
-                dict_total: "Барлық қолжетімді нұсқалар:",
-                dict_search_in: "Ішінен іздеу:",
-                dict_not_found: "Анықтамалықтан табылмады.",
-                dict_use_custom: "Қолдану",
-                dict_start_typing: "Мәтінді енгізуді бастаңыз",
-                dict_and_more: "...және тағы",
-                dict_options: "нұсқа.",
                 map_title: "БАҒАНДАРДЫ САЛЫСТЫРУ:",
                 grp_db: "Дерекқор өрістері",
                 grp_kaspi: "Каспи анықтамалығы",
@@ -573,7 +561,13 @@
                 f_weight: "Салмағы, кг",
                 f_volume: "Көлемі, м3",
                 prompt_enter: "Өріс үшін мәнді енгізіңіз",
-                download_template: "Бос үлгіні жүктеу (.xml, .xlsx)"
+                download_template: "Бос үлгіні жүктеу (.xml, .xlsx)",
+                map_title: "БАҒАНДАРДЫ СӘЙКЕСТЕНДІРУ:",
+                grp_db: "Дерекқор өрістері",
+                grp_kaspi: "Kaspi анықтамалығы",
+                grp_custom: "Өз мәні",
+                from_db: "(ДҚ-нан)",
+                no_name: "Атаусыз"
             }
         };
 
