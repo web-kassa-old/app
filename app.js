@@ -7239,8 +7239,28 @@ async function generateExportFile() {
         // Получаем нужный лист (по имени из памяти или первый попавшийся)
         const worksheet = workbook.getWorksheet(window.kaspiTargetSheetName) || workbook.worksheets[0];
 
-        // Шапки в шаблонах Kaspi всегда занимают 3 строки. Данные пишутся с 4-й.
-        const startRow = 4; 
+        // Идеальный алгоритм: ищем снизу вверх до первой непустой ячейки
+        let lastRowWithData = 0;
+        const totalRows = worksheet.rowCount; // Получаем самую нижнюю границу файла
+
+        for (let i = totalRows; i >= 1; i--) {
+            const row = worksheet.getRow(i);
+            let rowHasText = false;
+            
+            // Проверяем ячейки в текущей строке
+            row.eachCell((cell) => {
+                if (cell.value !== null && cell.value !== undefined && cell.value !== '') {
+                    rowHasText = true;
+                }
+            });
+
+            if (rowHasText) {
+                lastRowWithData = i;
+                break; // Мгновенно останавливаем цикл
+            }
+        }
+
+        const startRow = Math.max(4, lastRowWithData + 1); 
 
         // Бережно вписываем данные в ячейки, не ломая стили
         exportData.forEach((rowData, rowIndex) => {
