@@ -3660,11 +3660,11 @@ async function handleTemplateUpload(event) {
                             targetSheet = workbook.SheetNames.length > 1 ? workbook.SheetNames[1] : workbook.SheetNames[0];
                         }
                         const sheet = workbook.Sheets[targetSheet];
-                        
-                        // === СОХРАНЯЕМ ОРИГИНАЛ ДЛЯ ЭКСПОРТА ===
-                        window.originalKaspiWorkbook = workbook;
-                        window.kaspiTargetSheetName = targetSheet;
-                        // =======================================
+
+                        // === СОХРАНЯЕМ СЛЕПОК ДЛЯ КРАСИВОГО ЭКСПОРТА (EXCELJS) ===
+                        window.rawKaspiTemplateBuffer = e.target.result; // <-- СОХРАНЯЕМ СЫРОЙ ФАЙЛ СО ВСЕМИ СТИЛЯМИ
+                        window.kaspiTargetSheetName = targetSheet;       // Имя листа нам всё ещё нужно
+                        // ========================================================
                         const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
 
                         // --- НЕЗАВИСИМЫЕ ДЕТЕКТОРЫ ---
@@ -7218,27 +7218,50 @@ async function generateExportFile() {
             }
         });
 
-        // 4. Вставляем данные в ОРИГИНАЛЬНЫЙ ШАБЛОН
-        if (!window.originalKaspiWorkbook) {
+        // === ИЗМЕНЕНИЯ НАЧИНАЮТСЯ ЗДЕСЬ (ШАГИ 4 и 5) ===
+
+        // 4. Вставляем данные в ОРИГИНАЛЬНЫЙ ШАБЛОН через ExcelJS
+        if (!window.rawKaspiTemplateBuffer) {
             throw new Error("Оригинальный шаблон не найден в памяти. Пожалуйста, загрузите файл заново.");
         }
         
-        const wb = window.originalKaspiWorkbook;
-        const ws = wb.Sheets[window.kaspiTargetSheetName];
-
-        // Узнаем, где заканчиваются данные (шапки/требования) в оригинальном шаблоне
-        const range = XLSX.utils.decode_range(ws['!ref']);
+        // Создаем движок ExcelJS и загружаем "сырой" файл со всеми стилями
+        const workbook = new ExcelJS.Workbook();
+        await workbook.xlsx.load(window.rawKaspiTemplateBuffer);
         
-        // range.e.r — индекс последней занятой строки (начинается с 0).
-        // Прибавляем 1, чтобы получить индекс первой пустой строки, куда будем вставлять товары.
-        const nextEmptyRowIndex = range.e.r + 1; 
+        // Получаем нужный лист (по имени из памяти или первый попавшийся)
+        const worksheet = workbook.getWorksheet(window.kaspiTargetSheetName) || workbook.worksheets[0];
 
-        // Вписываем массив товаров точно под шапками оригинала
-        XLSX.utils.sheet_add_aoa(ws, exportData, { origin: nextEmptyRowIndex });
+        // Шапки в шаблонах Kaspi всегда занимают 3 строки. Данные пишутся с 4-й.
+        const startRow = 4; 
 
-        // 5. Скачиваем готовый файл со всеми скрытыми листами и справочниками
+        // Бережно вписываем данные в ячейки, не ломая стили
+        exportData.forEach((rowData, rowIndex) => {
+            const row = worksheet.getRow(startRow + rowIndex);
+            
+            rowData.forEach((val, colIndex) => {
+                // Если значение есть, записываем его. 
+                // ExcelJS считает колонки начиная с 1 (A=1, B=2), поэтому прибавляем 1
+                if (val !== undefined && val !== null && val !== '') {
+                    row.getCell(colIndex + 1).value = val;
+                }
+            });
+            row.commit(); // Подтверждаем изменения в строке
+        });
+
+        // 5. Упаковываем файл обратно с сохранением всех выпадающих списков и цветов
+        const buffer = await workbook.xlsx.writeBuffer();
+        const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+        
         const dateStr = new Date().toISOString().slice(0, 10);
-        XLSX.writeFile(wb, `Kaspi_Export_${dateStr}.xlsx`);
+        
+        // Имитируем клик для скачивания файла
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `Kaspi_Export_${dateStr}.xlsx`; 
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
         
         alert(t('export_success', "✅ Прайс успешно сгенерирован в оригинальном шаблоне!"));
 
