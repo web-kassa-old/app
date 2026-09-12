@@ -282,7 +282,9 @@
                 grp_kaspi: "Справочник Каспи",
                 grp_custom: "Свое значение",
                 from_db: "(из БД)",
-                no_name: "Без названия"
+                no_name: "Без названия",
+                export_success: "✅ Прайс успешно сгенерирован в оригинальном шаблоне!",
+                export_error: "Ошибка: "
             },
             kz: {
                 btn_sale: "САТУ", btn_return: "ҚАЙТАРУ", search_placeholder: "ІЗДЕУ...",
@@ -567,7 +569,9 @@
                 grp_kaspi: "Kaspi анықтамалығы",
                 grp_custom: "Өз мәні",
                 from_db: "(ДҚ-нан)",
-                no_name: "Атаусыз"
+                no_name: "Атаусыз",
+                export_success: "✅ Прайс түпнұсқа шаблонда сәтті жасалды!",
+                export_error: "Қате: "
             }
         };
 
@@ -7224,11 +7228,11 @@ async function generateExportFile() {
         const dateStr = new Date().toISOString().slice(0, 10);
         XLSX.writeFile(wb, `Kaspi_Export_${dateStr}.xlsx`);
         
-        alert("✅ Прайс успешно сгенерирован в оригинальном шаблоне!");
+        alert(t('export_success', "✅ Прайс успешно сгенерирован в оригинальном шаблоне!"));
 
     } catch (err) {
         console.error("Ошибка при генерации прайса:", err);
-        alert("Ошибка: " + err.message);
+        alert(t('export_error', "Ошибка: ") + err.message);
     } finally {
         btn.innerText = originalText;
         btn.disabled = false;
