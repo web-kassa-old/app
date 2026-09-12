@@ -4445,14 +4445,17 @@ function activateCustomInput(colIndex) {
                 const colName = row.getAttribute('data-col-name');
                 const action = row.querySelector('.mapper-select').value;
 
-                if (action !== 'skip') {
-                    // Если колонку не пропустили — она железно идет в JSON
+                if (action !== 'skip' && action !== '' && action !== 'none') {
+                    // Идет в JSON, если это атрибут или системная роль
                     jsonCols.push({ index: colIdx, name: colName });
                     
-                    // Если это еще и системная роль (не просто атрибут), то привязываем ее
+                    // Если это системная роль, проверяем дубликаты безопасно
                     if (action !== 'attribute') {
-                        if (colMap[action] !== -1) hasDuplicates = true;
-                        colMap[action] = colIdx;
+                        // Убеждаемся, что такой ключ вообще существует в colMap
+                        if (colMap.hasOwnProperty(action)) {
+                            if (colMap[action] !== -1) hasDuplicates = true;
+                            colMap[action] = colIdx;
+                        }
                     }
                 }
             });
