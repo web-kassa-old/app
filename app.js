@@ -5508,9 +5508,12 @@ document.addEventListener('visibilitychange', () => {
 });
 
 function loginWithGoogle(event) {
-    // 1. Блокируем стандартное поведение браузера (чтобы телефон не пытался обновить страницу сам)
-    if (event) event.preventDefault();
-    if (window.event) window.event.preventDefault();
+    // 1. Жестко блокируем стандартное поведение браузера (чтобы телефон не пытался обновить страницу сам)
+    if (event) {
+        event.preventDefault();
+    } else if (window.event) {
+        window.event.preventDefault();
+    }
 
     try {
         const now = Date.now();
@@ -5532,34 +5535,38 @@ function loginWithGoogle(event) {
         }
 
         // 3. Защита от двойного клика
-        if (isAuthPending) {
-            if (now - lastLoginClickTime < 3000) {
+        // (Используем window. чтобы точно не было ошибок ReferenceError)
+        if (window.isAuthPending) {
+            if (now - (window.lastLoginClickTime || 0) < 3000) {
                 return; // Игнорируем частые нажатия
             }
-            // Если прошло больше 3 секунд, а окно не открылось (например, сработал блокировщик рекламы)
-            // Просто сбрасываем флаг, чтобы кассир мог нажать еще раз. БЕЗ ПЕРЕЗАГРУЗКИ.
-            isAuthPending = false; 
+            // Если прошло больше 3 секунд, а окно не открылось
+            window.isAuthPending = false; 
         }
 
         // 4. Мгновенно вызываем Гугл, чтобы браузер не потерял "жест пользователя"
         tokenClient.requestAccessToken();
 
         // 5. Меняем визуал кнопки
-        isAuthPending = true; 
-        lastLoginClickTime = now; 
+        window.isAuthPending = true; 
+        window.lastLoginClickTime = now; 
         
         if (btnSpan && typeof translations !== 'undefined' && translations[currentLang]) {
             btnSpan.innerText = translations[currentLang].auth_opening || "Запуск...";
         }
 
     } catch (err) {
-        // Если телефон жестко заблокировал всплывающее окно, покажем ошибку на экране, а не будем втихую перезагружать!
-        alert("Блокировка окна: " + err.message);
-        isAuthPending = false;
+        // Если телефон жестко заблокировал всплывающее окно, покажем ошибку
+        console.error("Ошибка вызова Google:", err);
+        alert("Блокировка окна: " + err.message + "\nПожалуйста, разрешите всплывающие окна.");
+        
+        window.isAuthPending = false;
         
         const btnSpan = document.querySelector('#login-btn span');
         if (btnSpan && typeof translations !== 'undefined' && translations[currentLang]) {
             btnSpan.innerText = translations[currentLang].btn_google || "ВОЙТИ ЧЕРЕЗ GOOGLE";
+        } else if (btnSpan) {
+            btnSpan.innerText = "ВОЙТИ ЧЕРЕЗ GOOGLE";
         }
     }
 }
