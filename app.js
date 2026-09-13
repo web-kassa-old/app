@@ -274,6 +274,11 @@
                 template_ready: "Шаблон и база готовы",
                 template_ready_no_db: "Шаблон готов (Без связи с БД)",
                 error_read_file: "Ошибка чтения файла: ",
+                kaspi_tpl_title: "ШАБЛОНЫ KASPI",
+                kaspi_tpl_name: "Название категории (например: Диски):",
+                kaspi_tpl_name_ph: "Введите название...",
+                kaspi_tpl_file: "Файл шаблона Kaspi (.xlsx):",
+                btn_save_tpl: "Сохранить",
                 btn_kaspi_templates: "Шаблоны Kaspi"
             },
             kz: {
@@ -551,6 +556,11 @@
                 template_ready: "Шаблон мен дерекқор дайын",
                 template_ready_no_db: "Шаблон дайын (ДҚ-мен байланыссыз)",
                 error_read_file: "Файлды оқу қатесі: ",
+                kaspi_tpl_title: "KASPI ШАБЛОНДАРЫ",
+                kaspi_tpl_name: "Санат атауы (мысалы: Дискілер):",
+                kaspi_tpl_name_ph: "Атауын енгізіңіз...",
+                kaspi_tpl_file: "Kaspi шаблонының файлы (.xlsx):",
+                btn_save_tpl: "Сақтау",
                 btn_kaspi_templates: "Kaspi шаблондары"
             }
         };
@@ -6649,9 +6659,25 @@ function openDriveBase() {
     document.getElementById('drive-base-modal').style.display = 'flex';
 }
 
+// Открывает окно менеджера шаблонов
 function openKaspiManager() {
-    // Скоро здесь будет код открытия новой подмодалки
-    console.log("Кнопка Kaspi работает!");
+    // Очищаем поля при каждом новом открытии
+    document.getElementById('kaspi-category-name').value = '';
+    document.getElementById('kaspi-template-file').value = '';
+    document.getElementById('kaspi-status').innerText = '';
+    
+    // Показываем окно (используем flex, чтобы содержимое центрировалось, как у вас)
+    document.getElementById('kaspi-modal').style.display = 'flex';
+}
+
+// Закрывает окно менеджера шаблонов
+function closeKaspiManager() {
+    document.getElementById('kaspi-modal').style.display = 'none';
+}
+
+// Заглушка для кнопки "Сохранить" (логику парсинга напишем на следующем шаге)
+function processKaspiTemplate() {
+    console.log("Скоро здесь будет парсинг Excel-файла!");
 }
 
 async function handleDriveClick(btnElement, dataKey, expectedName) {
