@@ -273,7 +273,8 @@
                 connecting_db: "Подключение к базе данных...",
                 template_ready: "Шаблон и база готовы",
                 template_ready_no_db: "Шаблон готов (Без связи с БД)",
-                error_read_file: "Ошибка чтения файла: "
+                error_read_file: "Ошибка чтения файла: ",
+                btn_kaspi_templates: "Шаблоны Kaspi"
             },
             kz: {
                 btn_sale: "САТУ", btn_return: "ҚАЙТАРУ", search_placeholder: "ІЗДЕУ...",
@@ -549,7 +550,8 @@
                 connecting_db: "Дерекқорға қосылуда...",
                 template_ready: "Шаблон мен дерекқор дайын",
                 template_ready_no_db: "Шаблон дайын (ДҚ-мен байланыссыз)",
-                error_read_file: "Файлды оқу қатесі: "
+                error_read_file: "Файлды оқу қатесі: ",
+                btn_kaspi_templates: "Kaspi шаблондары"
             }
         };
 
@@ -6645,6 +6647,11 @@ function openDriveBase() {
     }
     
     document.getElementById('drive-base-modal').style.display = 'flex';
+}
+
+function openKaspiManager() {
+    // Скоро здесь будет код открытия новой подмодалки
+    console.log("Кнопка Kaspi работает!");
 }
 
 async function handleDriveClick(btnElement, dataKey, expectedName) {
