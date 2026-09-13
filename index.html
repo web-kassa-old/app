@@ -324,14 +324,19 @@
         
         <div class="s-group">
             <div class="s-title" data-i18n="settings_sync">Синхронизация</div>
-            <button class="s-btn" onclick="manualSync()">
-                <span data-i18n="btn_sync">Отправить чеки</span><span id="sync-status">📡</span>
-            </button>
-            
-            <!-- Новая кнопка: Шаблоны Kaspi -->
-            <button id="btn-settings-kaspi" class="s-btn" style="margin-top: 8px;" onclick="openKaspiManager()">
-                <span data-i18n="btn_kaspi_templates">Шаблоны Kaspi</span><span>🛒</span>
-            </button>
+            <div class="lang-row">
+                <!-- Кнопка: Отправить чеки -->
+                <button class="s-btn" onclick="manualSync()" style="flex: 1; margin: 0; padding: 12px 10px;">
+                    <span data-i18n="btn_sync">Отправить чеки</span>
+                    <span id="sync-status">📡</span>
+                </button>
+                
+                <!-- Новая кнопка: Шаблоны Kaspi -->
+                <button id="btn-settings-kaspi" class="s-btn" onclick="openKaspiManager()" style="flex: 1; margin: 0; padding: 12px 10px;">
+                    <span data-i18n="btn_kaspi_templates">Шаблоны Kaspi</span>
+                    <span>🛒</span>
+                </button>
+            </div>
         </div>
         
         <div class="s-group">
