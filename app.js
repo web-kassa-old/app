@@ -7458,27 +7458,33 @@ async function generateExportFile() {
         btn.disabled = false;
     }
 }
-async function testRestoreTemplate(categoryName) {
+window.testRestoreTemplate = async function(categoryName) {
     console.log(`Запрашиваем скелет для категории: ${categoryName}...`);
     
-    // 1. Делаем запрос к нашему бэкенду (используйте вашу функцию smartFetch или fetch)
-    const response = await smartFetch({ action: 'getKaspiTemplate', category: categoryName });
-    
-    if (!response.success) {
-        console.error("Ошибка:", response.error);
+    // Берем ключ авторизации, как это делает остальная касса
+    const tenantKey = localStorage.getItem('api_key');
+    if (!tenantKey) {
+        alert("Ошибка: api_key не найден в памяти кассы");
         return;
     }
 
+    // Делаем запрос к серверу
+    const response = await window.smartFetch(APPS_SCRIPT_URL, { 
+        action: 'getKaspiTemplate', 
+        category: categoryName,
+        api_key: tenantKey 
+    });
+    
+    if (!response.success) {
+        alert("Ошибка сервера: " + response.error);
+        return;
+    }
+    
     console.log("Скелет получен! Восстанавливаем Excel...");
-    
-    // 2. Читаем Base64 с помощью SheetJS
     const workbook = XLSX.read(response.fileBase64, { type: 'base64' });
-    
-    // 3. Выводим список листов в консоль для проверки
     console.log("Листы в шаблоне:", workbook.SheetNames);
     
-    // 4. Скачиваем восстановленный файл обратно!
+    // Скачиваем файл
     XLSX.writeFile(workbook, `RESTORED_${categoryName}.xlsx`);
-    
-    console.log("🎉 Готово! Проверьте загрузки браузера.");
-}
+    alert("🎉 Готово! Файл скачан. Проверьте списки внутри.");
+};
