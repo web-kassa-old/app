@@ -6748,12 +6748,11 @@ window.processKaspiTemplate = async function() {
                     valuesData = XLSX.utils.sheet_to_json(workbook.Sheets[valuesSheetName], { defval: "" });
                 }
 
-                // Пакуем всё найденное в единый JSON
+                // Пакуем всё найденное в единый JSON (БЕЗ valuesData!)
                 const extractedHeaders = {
                     humanNames: humanNames,
                     systemKeys: systemKeys,
-                    requirements: requirements,
-                    valuesData: valuesData
+                    requirements: requirements
                 };
 
                 // === 2. КОДИРУЕМ ОРИГИНАЛЬНЫЙ ФАЙЛ В BASE64 ===
