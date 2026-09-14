@@ -157,19 +157,11 @@
         </h3>
 
         <div class="file-input-wrapper" style="margin-bottom: 15px;">
-    <!-- ВРЕМЕННАЯ ТЕСТОВАЯ КНОПКА -->
-    <button onclick="testRestoreTemplate('шины')" style="width: 100%; padding: 12px; border: 1px solid var(--accent-blue); border-radius: 4px; display: flex; align-items: center; justify-content: center; cursor: pointer; background: var(--accent-blue); color: white; font-size: 14px; font-weight: bold;">
-        📥 ТЕСТ СКАЧИВАНИЯ ШАБЛОНА
-    </button>
-
-    <!-- ВАШ ОРИГИНАЛЬНЫЙ КОД СПРЯТАН ТУТ (он не будет работать, пока закомментирован) -->
-    <!--
-    <label for="templateFileInput" class="file-upload-label" style="padding: 12px; border: 1px dashed var(--border-main); border-radius: 4px; display: flex; align-items: center; justify-content: center; cursor: pointer; background: var(--bg-body); transition: background-color 0.2s;">
-        <span id="templateFileName" style="font-size: 14px; color: var(--text-main);" data-i18n="upload_template">📄 Загрузить пустой шаблон (.xlsx)</span>
-    </label>
-    <input type="file" id="templateFileInput" accept=".xml, text/xml, application/xml, .xls, .xlsx, .xlsm" style="display: none;" onchange="handleTemplateUpload(event)">
-    -->
-</div>
+            <label for="templateFileInput" class="file-upload-label" style="padding: 12px; border: 1px dashed var(--border-main); border-radius: 4px; display: flex; align-items: center; justify-content: center; cursor: pointer; background: var(--bg-body); transition: background-color 0.2s;">
+                <span id="templateFileName" style="font-size: 14px; color: var(--text-main);" data-i18n="upload_template">📄 Загрузить пустой шаблон (.xlsx)</span>
+            </label>
+            <input type="file" id="templateFileInput" accept=".xml, text/xml, application/xml, .xls, .xlsx, .xlsm" style="display: none;" onchange="handleTemplateUpload(event)">
+        </div>
 
         <div id="exportMapperArea" style="display: none; flex-direction: column; overflow-y: auto; max-height: 50vh; padding-right: 5px; -webkit-overflow-scrolling: touch;">
             <!-- Селекты маппинга -->
