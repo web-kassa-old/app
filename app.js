@@ -7459,12 +7459,11 @@ async function generateExportFile() {
     }
 }
 window.testRestoreTemplate = async function(categoryName) {
-    console.log(`Запрашиваем скелет для категории: ${categoryName}...`);
+    console.log(`Запрашиваем скелет (ExcelJS) для категории: ${categoryName}...`);
     
-    // 👇 ЖЕСТКО ПРОПИСАЛИ КЛЮЧ ДЛЯ ТЕСТА
-    const tenantKey = 'TC-F76D36BE'; 
+    const tenantKey = 'TC-F76D36BE'; // Жесткий ключ для теста
 
-    // Делаем запрос к серверу
+    // 1. Запрашиваем Base64 с сервера
     const response = await window.smartFetch(APPS_SCRIPT_URL, { 
         action: 'getKaspiTemplate', 
         category: categoryName,
@@ -7476,11 +7475,32 @@ window.testRestoreTemplate = async function(categoryName) {
         return;
     }
     
-    console.log("Скелет получен! Восстанавливаем Excel...");
-    const workbook = XLSX.read(response.fileBase64, { type: 'base64' });
-    console.log("Листы в шаблоне:", workbook.SheetNames);
+    console.log("Скелет получен! Конвертируем для ExcelJS...");
+
+    // 2. Превращаем Base64 обратно в сырой бинарный буфер (ArrayBuffer)
+    const binaryString = window.atob(response.fileBase64);
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+    }
+    const buffer = bytes.buffer;
+
+    // 3. Загружаем буфер в ExcelJS (ровно так же, как в вашем боевом коде)
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(buffer);
     
-    // Скачиваем файл
-    XLSX.writeFile(workbook, `RESTORED_${categoryName}.xlsx`);
-    alert("🎉 Готово! Файл скачан. Проверьте списки внутри.");
+    console.log("Шаблон успешно прочитан ExcelJS со всеми стилями!");
+
+    // 4. Упаковываем и скачиваем результат
+    const outBuffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([outBuffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `RESTORED_EXCELJS_${categoryName}.xlsx`; 
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    alert("🎉 Готово! Проверьте файл: цвета и списки должны быть на месте.");
 };
