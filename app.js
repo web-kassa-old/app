@@ -7461,12 +7461,8 @@ async function generateExportFile() {
 window.testRestoreTemplate = async function(categoryName) {
     console.log(`Запрашиваем скелет для категории: ${categoryName}...`);
     
-    // Берем ключ авторизации, как это делает остальная касса
-    const tenantKey = localStorage.getItem('api_key');
-    if (!tenantKey) {
-        alert("Ошибка: api_key не найден в памяти кассы");
-        return;
-    }
+    // 👇 ЖЕСТКО ПРОПИСАЛИ КЛЮЧ ДЛЯ ТЕСТА
+    const tenantKey = 'TC-F76D36BE'; 
 
     // Делаем запрос к серверу
     const response = await window.smartFetch(APPS_SCRIPT_URL, { 
