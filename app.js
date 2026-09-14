@@ -6696,16 +6696,14 @@ window.processKaspiTemplate = async function() {
 
     try {
         const file = fileInput.files[0];
-        
         const reader = new FileReader();
         
         reader.onload = async function(e) {
             try {
-                // === 1. ВАШ ИДЕАЛЬНЫЙ ПАРСИНГ ЧЕРЕЗ SHEETJS (XLSX) ===
+                // === ПАРСИНГ ЧЕРЕЗ SHEETJS (БЕЗ ТЯЖЕЛЫХ СПРАВОЧНИКОВ) ===
                 const data = new Uint8Array(e.target.result);
                 const workbook = XLSX.read(data, { type: 'array' });
 
-                // Ищем лист attributes
                 let targetSheet = workbook.SheetNames.find(name => name.toLowerCase() === 'attributes');
                 if (!targetSheet) {
                     targetSheet = workbook.SheetNames.length > 1 ? workbook.SheetNames[1] : workbook.SheetNames[0];
@@ -6719,7 +6717,6 @@ window.processKaspiTemplate = async function() {
                 const humMarkers = ["артикул", "модель", "бренд", "цена"];
                 const sysMarkers = ["merchant_sku", "model", "brand", "price"];
 
-                // Сканируем первые 20 строк по вашим маркерам
                 for (let i = 0; i < Math.min(jsonData.length, 20); i++) {
                     const rowText = jsonData[i].join(" ").toLowerCase();
                     if (!rowText.trim()) continue;
@@ -6741,21 +6738,14 @@ window.processKaspiTemplate = async function() {
                     throw new Error("Не удалось распознать структуру шаблона Kaspi.");
                 }
 
-                // Читаем лист values
-                let valuesSheetName = workbook.SheetNames.find(name => name.toLowerCase() === 'values');
-                let valuesData = [];
-                if (valuesSheetName) {
-                    valuesData = XLSX.utils.sheet_to_json(workbook.Sheets[valuesSheetName], { defval: "" });
-                }
-
-                // Пакуем всё найденное в единый JSON (БЕЗ valuesData!)
+                // Облегченный JSON (только структура, без справочника values!)
                 const extractedHeaders = {
                     humanNames: humanNames,
                     systemKeys: systemKeys,
                     requirements: requirements
                 };
 
-                // === 2. КОДИРУЕМ ОРИГИНАЛЬНЫЙ ФАЙЛ В BASE64 ===
+                // === КОДИРОВАНИЕ И ОТПРАВКА ===
                 const base64Reader = new FileReader();
                 base64Reader.readAsDataURL(file);
                 
@@ -6763,7 +6753,6 @@ window.processKaspiTemplate = async function() {
                     try {
                         const base64String = base64Reader.result.split(',')[1]; 
 
-                        // Пакуем данные в вашем фирменном стиле
                         const payload = {
                             action: 'saveKaspiTemplate',
                             api_key: CLIENT_API_KEY,
@@ -6772,10 +6761,12 @@ window.processKaspiTemplate = async function() {
                             fileBase64: base64String
                         };
 
-                        // Отправляем через ваш движок (без кэширования)
                         const res = await window.smartFetch(APPS_SCRIPT_URL, payload);
 
                         if (res && res.success) {
+                            // 👇 НАШ МАЯЧОК
+                            console.log(`🎉 Успешно! Файл базы: "${res.dbName}", Строка: ${res.row}`);
+                            
                             statusDiv.innerText = '✅';
                             setTimeout(closeKaspiManager, 1500);
                         } else {
@@ -6800,7 +6791,7 @@ window.processKaspiTemplate = async function() {
             }
         };
 
-        reader.readAsArrayBuffer(file); // Запускаем чтение
+        reader.readAsArrayBuffer(file); 
 
     } catch (error) {
         console.error("Критическая ошибка:", error);
