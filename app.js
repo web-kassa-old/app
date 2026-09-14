@@ -6675,18 +6675,12 @@ function closeKaspiManager() {
     document.getElementById('kaspi-modal').style.display = 'none';
 }
 
-// Заглушка для кнопки "Сохранить" (логику парсинга напишем на следующем шаге)
-function processKaspiTemplate() {
-    console.log("Скоро здесь будет парсинг Excel-файла!");
-}
-
 window.processKaspiTemplate = async function() {
     const nameInput = document.getElementById('kaspi-category-name');
     const fileInput = document.getElementById('kaspi-template-file');
     const statusDiv = document.getElementById('kaspi-status');
     const saveBtn = document.getElementById('btn-save-kaspi');
 
-    // Проверка полей (подсветка красным, если пусто)
     if (!nameInput.value.trim() || !fileInput.files[0]) {
         if (!nameInput.value.trim()) nameInput.style.borderColor = 'red';
         if (!fileInput.files[0]) fileInput.style.borderColor = 'red';
@@ -6697,104 +6691,116 @@ window.processKaspiTemplate = async function() {
         return;
     }
 
-    // Визуальный старт загрузки
     statusDiv.innerText = '⏳';
     saveBtn.disabled = true;
 
     try {
         const file = fileInput.files[0];
         
-        // 1. Читаем структуру файла через ExcelJS
-        const arrayBuffer = await file.arrayBuffer();
-        const workbook = new ExcelJS.Workbook();
-        await workbook.xlsx.load(arrayBuffer);
-        const worksheet = workbook.worksheets[0];
-        
-        // --- УМНАЯ ЛОГИКА ПОИСКА ШАПКИ (СНИЗУ ВВЕРХ) ---
-        let headerRow = null;
-        const lastRow = worksheet.rowCount; 
-        
-        for (let i = lastRow; i >= 1; i--) {
-            const row = worksheet.getRow(i);
-            let filledCellsCount = 0;
-            
-            row.eachCell((cell) => {
-                if (cell.value && cell.value.toString().trim() !== '') {
-                    filledCellsCount++;
-                }
-            });
-            
-            // Если в строке больше 3-х заполненных ячеек — это шапка
-            if (filledCellsCount > 3) {
-                headerRow = row;
-                break;
-            }
-        }
-
-        if (!headerRow) {
-            throw new Error("Не удалось найти заголовки колонок в файле!");
-        }
-        // -------------------------------------------------------------
-
-        let headersDict = {};
-
-        // Вытаскиваем шапки и выпадающие списки из найденной строки
-        headerRow.eachCell((cell, colNumber) => {
-            const headerName = cell.value ? cell.value.toString().trim() : '';
-            if (headerName) {
-                let listOptions = []; 
-                
-                // Проверяем наличие Data Validation (списков Excel)
-                if (cell.dataValidation && cell.dataValidation.type === 'list') {
-                    let formula = cell.dataValidation.formulae ? cell.dataValidation.formulae[0] : '';
-                    if (formula) {
-                        // Очищаем от кавычек и разбиваем массив
-                        formula = formula.replace(/^"/, '').replace(/"$/, '');
-                        listOptions = formula.split(',').map(s => s.trim());
-                    }
-                }
-                headersDict[headerName] = listOptions;
-            }
-        });
-
-        // 2. Кодируем оригинальный файл в Base64
         const reader = new FileReader();
-        reader.readAsDataURL(file);
         
-        reader.onload = function() {
-            const base64String = reader.result.split(',')[1]; 
+        reader.onload = async function(e) {
+            try {
+                // === 1. ВАШ ИДЕАЛЬНЫЙ ПАРСИНГ ЧЕРЕЗ SHEETJS (XLSX) ===
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
 
-            const payload = {
-                category: nameInput.value.trim(),
-                headersJson: JSON.stringify(headersDict),
-                fileBase64: base64String
-            };
+                // Ищем лист attributes
+                let targetSheet = workbook.SheetNames.find(name => name.toLowerCase() === 'attributes');
+                if (!targetSheet) {
+                    targetSheet = workbook.SheetNames.length > 1 ? workbook.SheetNames[1] : workbook.SheetNames[0];
+                }
+                const sheet = workbook.Sheets[targetSheet];
+                const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
 
-            // 3. Отправляем запакованный payload на сервер
-            google.script.run
-                .withSuccessHandler((res) => {
-                    if (res.success) {
-                        statusDiv.innerText = '✅';
-                        setTimeout(closeKaspiManager, 1500); // Автозакрытие
-                    } else {
-                        statusDiv.innerText = '❌';
-                        console.error("Ошибка сервера:", res.error);
+                let requirements = [];
+                let systemKeys = [];
+                let humanNames = [];
+                const humMarkers = ["артикул", "модель", "бренд", "цена"];
+                const sysMarkers = ["merchant_sku", "model", "brand", "price"];
+
+                // Сканируем первые 20 строк по вашим маркерам
+                for (let i = 0; i < Math.min(jsonData.length, 20); i++) {
+                    const rowText = jsonData[i].join(" ").toLowerCase();
+                    if (!rowText.trim()) continue;
+
+                    let humMatch = 0;
+                    humMarkers.forEach(m => { if (rowText.includes(m)) humMatch++; });
+                    if (humMatch >= 2) { humanNames = jsonData[i]; continue; }
+
+                    let sysMatch = 0;
+                    sysMarkers.forEach(m => { if (rowText.includes(m)) sysMatch++; });
+                    if (sysMatch >= 2) { systemKeys = jsonData[i]; continue; }
+
+                    if (rowText.includes("обязательное") || rowText.includes("обязат.")) {
+                        requirements = jsonData[i]; continue;
                     }
-                    saveBtn.disabled = false;
-                })
-                .withFailureHandler((err) => {
-                    statusDiv.innerText = '❌';
-                    console.error("Ошибка соединения:", err);
-                    saveBtn.disabled = false;
-                })
-                .saveKaspiTemplateBackend(payload);
+                }
+
+                if (humanNames.length === 0 || systemKeys.length === 0) {
+                    throw new Error("Не удалось распознать структуру шаблона Kaspi.");
+                }
+
+                // Читаем лист values
+                let valuesSheetName = workbook.SheetNames.find(name => name.toLowerCase() === 'values');
+                let valuesData = [];
+                if (valuesSheetName) {
+                    valuesData = XLSX.utils.sheet_to_json(workbook.Sheets[valuesSheetName], { defval: "" });
+                }
+
+                // Пакуем всё найденное в единый JSON
+                const extractedHeaders = {
+                    humanNames: humanNames,
+                    systemKeys: systemKeys,
+                    requirements: requirements,
+                    valuesData: valuesData
+                };
+
+                // === 2. КОДИРУЕМ ОРИГИНАЛЬНЫЙ ФАЙЛ В BASE64 ===
+                const base64Reader = new FileReader();
+                base64Reader.readAsDataURL(file);
+                
+                base64Reader.onload = function() {
+                    const base64String = base64Reader.result.split(',')[1]; 
+
+                    const payload = {
+                        category: nameInput.value.trim(),
+                        headersJson: JSON.stringify(extractedHeaders), // Сохраняем вашу структуру
+                        fileBase64: base64String
+                    };
+
+                    // === 3. ОТПРАВЛЯЕМ НА СЕРВЕР ===
+                    google.script.run
+                        .withSuccessHandler((res) => {
+                            if (res.success) {
+                                statusDiv.innerText = '✅';
+                                setTimeout(closeKaspiManager, 1500);
+                            } else {
+                                statusDiv.innerText = '❌';
+                                console.error("Ошибка сервера:", res.error);
+                            }
+                            saveBtn.disabled = false;
+                        })
+                        .withFailureHandler((err) => {
+                            statusDiv.innerText = '❌';
+                            console.error("Ошибка соединения:", err);
+                            saveBtn.disabled = false;
+                        })
+                        .saveKaspiTemplateBackend(payload);
+                };
+                
+                base64Reader.onerror = function() {
+                    throw new Error("Ошибка чтения Base64");
+                };
+
+            } catch (err) {
+                console.error("Ошибка парсинга XLSX:", err);
+                statusDiv.innerText = '❌';
+                saveBtn.disabled = false;
+            }
         };
-        
-        reader.onerror = function(error) {
-            console.error("Ошибка чтения файла:", error);
-            statusDiv.innerText = '❌';
-            saveBtn.disabled = false;
-        };
+
+        reader.readAsArrayBuffer(file); // Запускаем чтение
 
     } catch (error) {
         console.error("Критическая ошибка:", error);
