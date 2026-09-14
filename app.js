@@ -7458,3 +7458,65 @@ async function generateExportFile() {
         btn.disabled = false;
     }
 }
+window.currentImportMode = null; 
+
+window.selectImportMode = function(mode) {
+    window.currentImportMode = mode;
+    
+    document.getElementById('btnModeInternal').style.borderColor = 'var(--border-main)';
+    document.getElementById('btnModeKaspi').style.borderColor = 'var(--border-main)';
+    
+    const templateBlock = document.getElementById('kaspiTemplateBlock');
+    templateBlock.style.display = 'none';
+    
+    if (mode === 'internal') {
+        document.getElementById('btnModeInternal').style.borderColor = '#2ecc71'; 
+        unlockInvoiceUpload(); 
+    } else if (mode === 'kaspi') {
+        document.getElementById('btnModeKaspi').style.borderColor = '#3498db'; 
+        templateBlock.style.display = 'block'; 
+        lockInvoiceUpload(); 
+    }
+};
+
+window.unlockInvoiceUpload = function() {
+    const templateSelect = document.getElementById('kaspiTemplateSelect');
+    
+    if (window.currentImportMode === 'kaspi' && templateSelect.value === 'new_template') {
+        alert(t('alert_add_new_template', "Загрузка пустого шаблона от Kaspi. В разработке!"));
+        templateSelect.value = ""; 
+        lockInvoiceUpload();       
+        return;
+    }
+
+    const wrapper = document.getElementById('invoiceUploadWrapper');
+    const labelSpan = document.getElementById('fileNameTextCompact');
+    
+    wrapper.style.opacity = '1';
+    wrapper.style.pointerEvents = 'auto';
+    
+    // Возвращаем иконку файла и ваш стандартный текст
+    labelSpan.previousElementSibling.innerText = '📄';
+    labelSpan.innerText = t('file_select_excel', 'Нажмите для выбора Excel');
+};
+
+window.lockInvoiceUpload = function() {
+    const wrapper = document.getElementById('invoiceUploadWrapper');
+    const labelSpan = document.getElementById('fileNameTextCompact');
+    
+    wrapper.style.opacity = '0.5';
+    wrapper.style.pointerEvents = 'none';
+    
+    // Ставим замочек и текст блокировки
+    labelSpan.previousElementSibling.innerText = '🔒';
+    labelSpan.innerText = t('upload_invoice_locked', 'Сначала выберите режим');
+    
+    document.getElementById('invoiceFileInput').value = '';
+};
+
+window.showImportHelp = function() {
+    alert(t('import_help_text', 
+        "📥 ТОЛЬКО В БАЗУ:\nБыстрая приёмка. Товар не пойдет на маркетплейс.\n\n" +
+        "🛒 БАЗА + KASPI:\nУмная приёмка. Потребуется указать Бренд, Размеры и т.д."
+    ));
+};
