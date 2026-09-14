@@ -6760,33 +6760,34 @@ window.processKaspiTemplate = async function() {
                 const base64Reader = new FileReader();
                 base64Reader.readAsDataURL(file);
                 
-                base64Reader.onload = function() {
-                    const base64String = base64Reader.result.split(',')[1]; 
+                base64Reader.onload = async function() {
+                    try {
+                        const base64String = base64Reader.result.split(',')[1]; 
 
-                    const payload = {
-                        category: nameInput.value.trim(),
-                        headersJson: JSON.stringify(extractedHeaders), // Сохраняем вашу структуру
-                        fileBase64: base64String
-                    };
+                        // Пакуем данные в вашем фирменном стиле
+                        const payload = {
+                            action: 'saveKaspiTemplate',
+                            api_key: CLIENT_API_KEY,
+                            category: nameInput.value.trim(),
+                            headersJson: JSON.stringify(extractedHeaders),
+                            fileBase64: base64String
+                        };
 
-                    // === 3. ОТПРАВЛЯЕМ НА СЕРВЕР ===
-                    google.script.run
-                        .withSuccessHandler((res) => {
-                            if (res.success) {
-                                statusDiv.innerText = '✅';
-                                setTimeout(closeKaspiManager, 1500);
-                            } else {
-                                statusDiv.innerText = '❌';
-                                console.error("Ошибка сервера:", res.error);
-                            }
-                            saveBtn.disabled = false;
-                        })
-                        .withFailureHandler((err) => {
-                            statusDiv.innerText = '❌';
-                            console.error("Ошибка соединения:", err);
-                            saveBtn.disabled = false;
-                        })
-                        .saveKaspiTemplateBackend(payload);
+                        // Отправляем через ваш движок (без кэширования)
+                        const res = await window.smartFetch(APPS_SCRIPT_URL, payload);
+
+                        if (res && res.success) {
+                            statusDiv.innerText = '✅';
+                            setTimeout(closeKaspiManager, 1500);
+                        } else {
+                            throw new Error(res ? res.error : "Пустой ответ от сервера");
+                        }
+                    } catch (err) {
+                        statusDiv.innerText = '❌';
+                        console.error("Ошибка отправки на сервер:", err);
+                    } finally {
+                        saveBtn.disabled = false;
+                    }
                 };
                 
                 base64Reader.onerror = function() {
