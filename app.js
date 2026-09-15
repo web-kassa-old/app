@@ -3640,64 +3640,74 @@ window.handleTemplateUpload = async function(event) {
     const file = event.target.files[0];
     if (!file) return;
 
-    // 1. БЛОКИРУЕМ ГЛАВНУЮ НАКЛАДНУЮ
-    // Замените 'mainInvoiceFileInput' на реальный ID вашего инпута накладной
+    // 1. СНАЧАЛА спрашиваем имя (чтобы не замораживать индикатор)
+    let defaultName = file.name.replace('.xlsx', '').trim();
+    const categoryName = prompt("Укажите категорию (например, 'Шины'):", defaultName);
+    
+    if (!categoryName) {
+        event.target.value = ''; // Сбрасываем инпут, если отменили
+        window.loadKaspiTemplatesFromServer(); 
+        return;
+    }
+
+    // 2. ТЕПЕРЬ включаем визуальные индикаторы
+    const select = document.getElementById('kaspiTemplateSelect');
+    if (select) {
+        select.innerHTML = '<option value="" disabled selected>⏳ Сохраняем на сервер...</option>';
+        select.disabled = true;
+    }
+
+    // Блокируем главную накладную
     const mainInvoiceInput = document.getElementById('mainInvoiceFileInput'); 
     if (mainInvoiceInput) mainInvoiceInput.disabled = true;
 
-    // 2. БЛОКИРУЕМ СПИСОК ШАБЛОНОВ И ПОКАЗЫВАЕМ СТАТУС
-    const select = document.getElementById('kaspiTemplateSelect');
-    select.innerHTML = '<option value="" disabled selected>⏳ Сохраняем на сервер...</option>';
-    select.disabled = true;
+    // 3. Заставляем браузер принудительно обновить экран перед чтением файла
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+            setTimeout(() => {
+                
+                const reader = new FileReader();
+                reader.onload = async function(e) {
+                    try {
+                        const base64Data = e.target.result.split(',')[1];
+                        
+                        const payload = {
+                            action: 'saveKaspiTemplate', 
+                            api_key: CLIENT_API_KEY,
+                            category: categoryName.toLowerCase(),
+                            headersJson: "[]", 
+                            fileBase64: base64Data
+                        };
 
-    const reader = new FileReader();
-    reader.onload = async function(e) {
-        try {
-            const base64Data = e.target.result.split(',')[1];
-            
-            let defaultName = file.name.replace('.xlsx', '').trim();
-            const categoryName = prompt("Укажите категорию (например, 'Шины'):", defaultName);
-            
-            if (!categoryName) {
-                window.loadKaspiTemplatesFromServer(); 
-                if (mainInvoiceInput) mainInvoiceInput.disabled = false;
-                return;
-            }
+                        const response = await fetch(APPS_SCRIPT_URL, {
+                            method: 'POST',
+                            body: JSON.stringify(payload)
+                        });
+                        
+                        const result = await response.json();
 
-            const payload = {
-                action: 'saveKaspiTemplate', 
-                api_key: CLIENT_API_KEY,
-                category: categoryName.toLowerCase(),
-                headersJson: "[]", 
-                fileBase64: base64Data
-            };
+                        if (result && result.success) {
+                            alert(`✅ Шаблон "${categoryName}" успешно сохранен!`);
+                        } else {
+                            throw new Error(result ? result.error : "Сервер вернул пустой ответ");
+                        }
 
-            const response = await fetch(APPS_SCRIPT_URL, {
-                method: 'POST',
-                body: JSON.stringify(payload)
-            });
-            
-            const result = await response.json();
+                    } catch (error) {
+                        console.error("Ошибка сохранения шаблона:", error);
+                        alert(`❌ Не удалось сохранить шаблон:\n${error.message}`);
+                    } finally {
+                        event.target.value = ''; 
+                        await window.loadKaspiTemplatesFromServer(); 
+                        
+                        if (mainInvoiceInput) mainInvoiceInput.disabled = false;
+                    }
+                };
+                
+                reader.readAsDataURL(file);
 
-            if (result && result.success) {
-                alert(`✅ Шаблон "${categoryName}" успешно сохранен!`);
-            } else {
-                throw new Error(result ? result.error : "Сервер вернул пустой ответ");
-            }
-
-        } catch (error) {
-            console.error("Ошибка сохранения шаблона:", error);
-            alert(`❌ Не удалось сохранить:\n${error.message}`);
-        } finally {
-            event.target.value = ''; 
-            await window.loadKaspiTemplatesFromServer(); 
-            
-            // 3. СНИМАЕМ БЛОКИРОВКУ С НАКЛАДНОЙ
-            if (mainInvoiceInput) mainInvoiceInput.disabled = false;
-        }
-    };
-    
-    reader.readAsDataURL(file);
+            }, 50); // Небольшая пауза для отрисовки UI
+        });
+    });
 };
 
 // Глобальный объект для хранения словарей Каспи
@@ -7483,16 +7493,19 @@ window.loadKaspiTemplatesFromServer = async function() {
         
         const result = await response.json();
 
-        // Базовый пункт
-        let optionsHTML = '<option value="" disabled selected>-- Выберите шаблон --</option>';
+        // Базовые пункты (вернули "Новый шаблон")
+        let optionsHTML = `
+            <option value="" disabled selected>-- Выберите шаблон --</option>
+            <option value="new_template" style="font-weight: bold; color: #2ecc71;">➕ Новый шаблон</option>
+        `;
 
-        // Если сервер вернул список, рисуем его
+        // Если сервер вернул список, рисуем его ниже
         if (result && result.success && result.templates && result.templates.length > 0) {
             result.templates.forEach(tpl => {
                 optionsHTML += `<option value="${tpl}">${tpl}</option>`;
             });
         }
-
+        
         select.innerHTML = optionsHTML;
         
     } catch (error) {
@@ -7502,35 +7515,6 @@ window.loadKaspiTemplatesFromServer = async function() {
         select.disabled = false;
     }
 };
-
-// Функция отрисовки (замените вашу старую на эту)
-// window.renderTemplateSelect = function(templates) {
-//     const select = document.getElementById('kaspiTemplateSelect');
-    
-//     // Проверяем, пустой ли список пришел с сервера
-//     const isEmpty = (!templates || templates.length === 0);
-    
-//     // Записываем базовые опции с правильным value="new_template" и вашими стилями
-//     if (isEmpty) {
-//         select.innerHTML = `
-//             <option value="" disabled selected>-</option>
-//             <option value="new_template" style="font-weight: bold; color: #2ecc71;" data-i18n="add_new_template">➕ Новый шаблон</option>
-//         `;
-//     } else {
-//         select.innerHTML = `
-//             <option value="" disabled selected data-i18n="select_template">-- Выберите шаблон --</option>
-//             <option value="new_template" style="font-weight: bold; color: #2ecc71;" data-i18n="add_new_template">➕ Новый шаблон</option>
-//         `;
-        
-//         // Перебираем полученные с сервера названия
-//         templates.forEach(name => {
-//             const opt = document.createElement('option');
-//             opt.value = name; 
-//             opt.textContent = name.charAt(0).toUpperCase() + name.slice(1); 
-//             select.appendChild(opt);
-//         });
-//     }
-// };
 
 window.renderTemplateSelect = async function() {
     // Просто перенаправляем запрос в нашу новую исправленную функцию
