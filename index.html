@@ -534,9 +534,9 @@
         <div id="kaspiTemplateBlock" style="display: none; margin-bottom: 15px;">
             <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 5px;" data-i18n="select_template_label">Шаблон маркетплейса:</label>
             
-            <select id="kaspiTemplateSelect" onchange="handleTemplateChange(event); unlockInvoiceUpload()" style="width: 100%; padding: 12px; min-height: 46px; font-size: 15px; border-radius: 4px; border: 1px solid var(--border-main); background: var(--bg-body); color: var(--text-main);">
-                <!-- Опции генерируются через JS -->
-            </select>
+            <!-- Убрали unlockInvoiceUpload, теперь всё контролирует одна функция -->
+<select id="kaspiTemplateSelect" onchange="handleTemplateChange(event)" style="width: 100%; padding: 12px; min-height: 46px; font-size: 15px; border-radius: 4px; border: 1px solid var(--border-main); background: var(--bg-body); color: var(--text-main);">
+</select>
 
             <!-- Скрытый инпут обязательно должен быть здесь и иметь onchange -->
             <input type="file" id="templateFileInput" accept=".xlsx" style="display: none;" onchange="handleTemplateUpload(event)">

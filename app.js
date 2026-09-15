@@ -7475,8 +7475,8 @@ window.loadKaspiTemplatesFromServer = async function() {
 
     try {
         const payload = { action: 'getKaspiTemplateListBackend', api_key: CLIENT_API_KEY };
-        // Здесь можно использовать smartFetch с кэшем, так как это просто получение списка
-        const response = await window.smartFetch(APPS_SCRIPT_URL, payload, 'kaspi_templates_list', 0);
+        // СТАЛО (Жесткий запрос на сервер без кэша):
+        const response = await window.smartFetch(APPS_SCRIPT_URL, payload, null, 0);
 
         // === БАЗОВЫЕ ПУНКТЫ (Они будут в списке ВСЕГДА) ===
         let optionsHTML = `
@@ -7536,23 +7536,34 @@ window.renderTemplateSelect = function(templates) {
 
 window.handleTemplateChange = function(event) {
     const selectedValue = event.target.value;
+    
+    // Получаем инпут вашей главной накладной (замените ID, если он другой)
+    const mainInvoiceInput = document.getElementById('mainInvoiceFileInput'); 
 
     if (selectedValue === 'new_template') {
-        // Убираем async, чтобы iOS не ругался
-        const fileInput = document.getElementById('templateFileInput'); 
+        // 1. ПОЛЬЗОВАТЕЛЬ ХОЧЕТ ЗАГРУЗИТЬ ШАБЛОН
         
+        // Блокируем накладную, чтобы не путать клиента
+        if (mainInvoiceInput) mainInvoiceInput.disabled = true;
+        
+        // Открываем галерею
+        const fileInput = document.getElementById('templateFileInput'); 
         if (fileInput) {
-            // Если на телефоне выскочит этот алерт, значит событие onchange работает отлично!
-            // alert("Запуск галереи..."); 
             fileInput.click(); 
-        } else {
-            alert("Ошибка: Скрытый инпут не найден в HTML!");
         }
         
-        // Возвращаем список на "-- Выберите шаблон --"
+        // Сбрасываем список
         event.target.selectedIndex = 0; 
         
     } else if (selectedValue !== '') {
+        // 2. ВЫБРАН ГОТОВЫЙ ШАБЛОН ИЗ БАЗЫ!
         console.log(`Выбран шаблон: ${selectedValue}`);
+        
+        // Вот ТЕПЕРЬ разрешаем загрузить Excel-накладную
+        if (mainInvoiceInput) {
+            mainInvoiceInput.disabled = false;
+            // Здесь же можно добавить визуальную подсветку кнопки накладной, 
+            // чтобы показать клиенту "Теперь жми сюда!"
+        }
     }
 };
