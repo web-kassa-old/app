@@ -7481,6 +7481,9 @@ window.selectImportMode = function(mode) {
         document.getElementById('btnModeKaspi').style.borderColor = '#3498db'; 
         templateBlock.style.display = 'block'; 
         lockInvoiceUpload(); 
+        
+        // Запрашиваем список при открытии вкладки
+        loadKaspiTemplatesFromServer();
     }
 };
 
@@ -7529,4 +7532,48 @@ window.showImportHelp = function() {
         "📥 ТОЛЬКО В БАЗУ:\nБыстрая приёмка. Товар не пойдет на маркетплейс.\n\n" +
         "🛒 БАЗА + KASPI:\nУмная приёмка. Потребуется указать Бренд, Размеры и т.д."
     );
+};
+
+// --- ФАЙЛ app.js (КЛИЕНТСКАЯ ЧАСТЬ) ---
+
+// Функция запроса списка шаблонов
+window.loadKaspiTemplatesFromServer = function() {
+    const select = document.getElementById('kaspiTemplateSelect');
+    select.options[0].text = "⏳ Загрузка шаблонов...";
+
+    // Используем стандартный коннектор Google (или замените на ваш smartFetch, если хотите)
+    google.script.run
+        .withSuccessHandler(function(templates) {
+            if (templates.error) {
+                select.options[0].text = "❌ Ошибка базы";
+                console.error(templates.error);
+                return;
+            }
+            renderTemplateSelect(templates);
+        })
+        .withFailureHandler(function(error) {
+            select.options[0].text = "❌ Ошибка связи";
+            console.error("Сетевая ошибка:", error);
+        })
+        .getKaspiTemplateListBackend(); // Вызов функции из .gs
+};
+
+// Функция отрисовки выпадающего списка
+window.renderTemplateSelect = function(templates) {
+    const select = document.getElementById('kaspiTemplateSelect');
+    
+    // Очищаем старые данные и ставим базовые опции
+    select.innerHTML = `
+        <option value="" disabled selected data-i18n="select_template">-- Выберите шаблон --</option>
+        <option value="new_template" style="font-weight: bold; color: #2ecc71;" data-i18n="add_new_template">➕ Новый шаблон</option>
+    `;
+    
+    // Перебираем полученные с сервера названия ('шины', 'диски')
+    templates.forEach(name => {
+        const opt = document.createElement('option');
+        opt.value = name; // Значение для системы ("шины")
+        // Делаем первую букву заглавной для красоты ("Шины")
+        opt.textContent = name.charAt(0).toUpperCase() + name.slice(1); 
+        select.appendChild(opt);
+    });
 };
