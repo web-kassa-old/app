@@ -535,7 +535,7 @@
             <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 5px;" data-i18n="select_template_label">Шаблон маркетплейса:</label>
             
             <!-- 1. В onchange добавили handleTemplateChange(event) перед вашей функцией -->
-            <select id="kaspiTemplateSelect" class="mapper-select" onchange="handleTemplateChange(event); unlockInvoiceUpload()" style="width: 100%; padding: 12px; min-height: 46px; font-size: 15px; border-radius: 4px; border: 1px solid var(--border-main); background: var(--bg-body); color: var(--text-main);">
+            <select id="kaspiTemplateSelect" onchange="handleTemplateChange(event); unlockInvoiceUpload()" style="width: 100%; padding: 12px; min-height: 46px; font-size: 15px; border-radius: 4px; border: 1px solid var(--border-main); background: var(--bg-body); color: var(--text-main);">
                 <!-- Содержимое очистили, так как его динамически заполнит renderTemplateSelect -->
             </select>
             
