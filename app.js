@@ -3640,7 +3640,12 @@ window.handleTemplateUpload = async function(event) {
     const file = event.target.files[0];
     if (!file) return;
 
-    // Блокируем список и показываем статус
+    // 1. БЛОКИРУЕМ ГЛАВНУЮ НАКЛАДНУЮ
+    // Замените 'mainInvoiceFileInput' на реальный ID вашего инпута накладной
+    const mainInvoiceInput = document.getElementById('mainInvoiceFileInput'); 
+    if (mainInvoiceInput) mainInvoiceInput.disabled = true;
+
+    // 2. БЛОКИРУЕМ СПИСОК ШАБЛОНОВ И ПОКАЗЫВАЕМ СТАТУС
     const select = document.getElementById('kaspiTemplateSelect');
     select.innerHTML = '<option value="" disabled selected>⏳ Сохраняем на сервер...</option>';
     select.disabled = true;
@@ -3648,19 +3653,17 @@ window.handleTemplateUpload = async function(event) {
     const reader = new FileReader();
     reader.onload = async function(e) {
         try {
-            // Берем чистый Base64
             const base64Data = e.target.result.split(',')[1];
             
-            // Спрашиваем имя категории
             let defaultName = file.name.replace('.xlsx', '').trim();
-            const categoryName = prompt("Укажите категорию для этого шаблона (например, 'Шины'):", defaultName);
+            const categoryName = prompt("Укажите категорию (например, 'Шины'):", defaultName);
             
             if (!categoryName) {
                 window.loadKaspiTemplatesFromServer(); 
+                if (mainInvoiceInput) mainInvoiceInput.disabled = false;
                 return;
             }
 
-            // Формируем посылку
             const payload = {
                 action: 'saveKaspiTemplate', 
                 api_key: CLIENT_API_KEY,
@@ -3669,37 +3672,31 @@ window.handleTemplateUpload = async function(event) {
                 fileBase64: base64Data
             };
 
-            console.log("Отправляем файл на сервер напрямую, минуя smartFetch...");
-
-            // === ПРЯМАЯ ОТПРАВКА БЕЗ КЭШИРОВАНИЯ ===
             const response = await fetch(APPS_SCRIPT_URL, {
                 method: 'POST',
-                // Google Apps Script требует отправку простым текстом (text/plain),
-                // чтобы не было проблем с CORS
                 body: JSON.stringify(payload)
             });
             
-            // Ждем ответ от сервера и парсим JSON
             const result = await response.json();
 
-            // Проверяем статус ответа
             if (result && result.success) {
-                alert(`✅ Шаблон "${categoryName}" успешно загружен и сохранен в базе.`);
+                alert(`✅ Шаблон "${categoryName}" успешно сохранен!`);
             } else {
                 throw new Error(result ? result.error : "Сервер вернул пустой ответ");
             }
 
         } catch (error) {
             console.error("Ошибка сохранения шаблона:", error);
-            alert(`❌ Не удалось сохранить шаблон:\n${error.message}`);
+            alert(`❌ Не удалось сохранить:\n${error.message}`);
         } finally {
-            // Сбрасываем инпут и возвращаем список в рабочее состояние
             event.target.value = ''; 
-            window.loadKaspiTemplatesFromServer();
+            await window.loadKaspiTemplatesFromServer(); 
+            
+            // 3. СНИМАЕМ БЛОКИРОВКУ С НАКЛАДНОЙ
+            if (mainInvoiceInput) mainInvoiceInput.disabled = false;
         }
     };
     
-    // Запускаем чтение файла
     reader.readAsDataURL(file);
 };
 
@@ -7541,21 +7538,21 @@ window.handleTemplateChange = function(event) {
     const selectedValue = event.target.value;
 
     if (selectedValue === 'new_template') {
-        // --- СЦЕНАРИЙ 1: Пользователь хочет загрузить свой файл ---
-        console.log("Запуск сценария: Добавление нового шаблона");
-        
+        // Убираем async, чтобы iOS не ругался
         const fileInput = document.getElementById('templateFileInput'); 
+        
         if (fileInput) {
-            fileInput.click(); // Теперь iOS разрешит этот клик!
+            // Если на телефоне выскочит этот алерт, значит событие onchange работает отлично!
+            // alert("Запуск галереи..."); 
+            fileInput.click(); 
         } else {
-            console.error("Ошибка: не найден скрытый инпут templateFileInput");
+            alert("Ошибка: Скрытый инпут не найден в HTML!");
         }
         
-        // Сбрасываем выбор в списке
+        // Возвращаем список на "-- Выберите шаблон --"
         event.target.selectedIndex = 0; 
         
     } else if (selectedValue !== '') {
-        // --- СЦЕНАРИЙ 2: Загрузка готового шаблона с сервера ---
-        console.log(`Запуск сценария: Загрузка шаблона "${selectedValue}"`);
+        console.log(`Выбран шаблон: ${selectedValue}`);
     }
 };
