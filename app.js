@@ -3636,141 +3636,62 @@ function setReportView(view) {
         }
 
 // Обработка загрузки файла шаблона Kaspi
-async function handleTemplateUpload(event) {
+window.handleTemplateUpload = async function(event) {
     const file = event.target.files[0];
     if (!file) return;
 
-    const fileInput = document.getElementById('templateFileInput');
-    const fileNameSpan = document.getElementById('templateFileName');
+    // 1. Включаем визуальный индикатор загрузки в самом списке
+    const select = document.getElementById('kaspiTemplateSelect');
+    select.innerHTML = '<option value="" disabled selected>⏳ Сохраняем на сервер...</option>';
+    select.disabled = true;
+
+    const reader = new FileReader();
+    reader.onload = async function(e) {
+        try {
+            // Извлекаем чистый Base64 (отрезаем служебный префикс data:...)
+            const base64Data = e.target.result.split(',')[1];
+            
+            // Предлагаем пользователю подтвердить или изменить имя категории
+            let defaultName = file.name.replace('.xlsx', '').trim();
+            const categoryName = prompt("Укажите категорию для этого шаблона (например, 'Шины'):", defaultName);
+            
+            if (!categoryName) {
+                // Если пользователь нажал "Отмена"
+                window.loadKaspiTemplatesFromServer(); 
+                return;
+            }
+
+            // 2. Отправляем шаблон в Google Apps Script
+            const payload = {
+                action: 'saveKaspiTemplate', 
+                api_key: CLIENT_API_KEY,
+                category: categoryName.toLowerCase(), // В базу пишем единообразно
+                fileBase64: base64Data
+            };
+
+            // Используем 0 повторов (retries), чтобы не дублировать тяжелые POST-запросы
+            const response = await window.smartFetch(APPS_SCRIPT_URL, payload, 'save_template', 0);
+
+            // 3. ИНДИКАТОР УСПЕХА
+            if (response && response.success) {
+                alert(`✅ УРА! Шаблон "${categoryName}" успешно загружен и сохранен в базе.`);
+            } else {
+                throw new Error(response ? response.error : "Сервер не ответил");
+            }
+
+        } catch (error) {
+            console.error("Ошибка сохранения шаблона:", error);
+            alert(`❌ Не удалось сохранить шаблон:\n${error.message}`);
+        } finally {
+            // 4. Очищаем инпут и заново скачиваем обновленный список шаблонов
+            event.target.value = ''; 
+            window.loadKaspiTemplatesFromServer();
+        }
+    };
     
-    // === ОТКЛЮЧАЕМ АВТОПЕРЕВОД НА ВРЕМЯ ЗАГРУЗКИ ===
-    // Иначе при возврате фокуса во вкладку скрипт локализации затрет наш статус
-    fileNameSpan.removeAttribute('data-i18n');
-    
-    // === ВИЗУАЛЬНАЯ БЛОКИРОВКА И ИНДИКАЦИЯ ===
-    fileInput.disabled = true; 
-    fileNameSpan.innerText = `⏳ ${t('uploading_template', 'Анализ шаблона и загрузка базы...')}`;
-    fileNameSpan.style.color = "var(--accent-blue)";
-    // ========================================
-
-    // ПРИНУДИТЕЛЬНАЯ ОТРИСОВКА ДЛЯ МОБИЛЬНЫХ УСТРОЙСТВ
-    // Заставляем браузер обновить экран до начала тяжелой работы
-    requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-            setTimeout(() => {
-                
-                const reader = new FileReader();
-                
-                reader.onload = async function(e) {
-                    try {
-                        const data = new Uint8Array(e.target.result);
-                        const workbook = XLSX.read(data, { type: 'array' });
-
-                        // 1. Ищем лист attributes
-                        let targetSheet = workbook.SheetNames.find(name => name.toLowerCase() === 'attributes');
-                        if (!targetSheet) {
-                            targetSheet = workbook.SheetNames.length > 1 ? workbook.SheetNames[1] : workbook.SheetNames[0];
-                        }
-                        const sheet = workbook.Sheets[targetSheet];
-
-                        // === СОХРАНЯЕМ СЛЕПОК ДЛЯ КРАСИВОГО ЭКСПОРТА (EXCELJS) ===
-                        window.rawKaspiTemplateBuffer = e.target.result; // <-- СОХРАНЯЕМ СЫРОЙ ФАЙЛ СО ВСЕМИ СТИЛЯМИ
-                        window.kaspiTargetSheetName = targetSheet;       // Имя листа нам всё ещё нужно
-                        // ========================================================
-                        const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
-
-                        // --- НЕЗАВИСИМЫЕ ДЕТЕКТОРЫ ---
-                        let requirements = [];
-                        let systemKeys = [];
-                        let humanNames = [];
-                        const humMarkers = ["артикул", "модель", "бренд", "цена"];
-                        const sysMarkers = ["merchant_sku", "model", "brand", "price"];
-
-                        for (let i = 0; i < Math.min(jsonData.length, 20); i++) {
-                            const rowText = jsonData[i].join(" ").toLowerCase();
-                            if (!rowText.trim()) continue;
-
-                            let humMatch = 0;
-                            humMarkers.forEach(m => { if (rowText.includes(m)) humMatch++; });
-                            if (humMatch >= 2) { humanNames = jsonData[i]; continue; }
-
-                            let sysMatch = 0;
-                            sysMarkers.forEach(m => { if (rowText.includes(m)) sysMatch++; });
-                            if (sysMatch >= 2) { systemKeys = jsonData[i]; continue; }
-
-                            if (rowText.includes("обязательное") || rowText.includes("обязат.")) {
-                                requirements = jsonData[i]; continue;
-                            }
-                        }
-
-                        if (humanNames.length === 0 || systemKeys.length === 0) {
-                            alert(t('error_parse_template', "Ошибка: Не удалось распознать структуру шаблона Kaspi."));
-                            
-                            // Возвращаем перевод при ошибке
-                            fileNameSpan.setAttribute('data-i18n', 'upload_template');
-                            fileNameSpan.innerText = t('upload_template', '📄 Загрузить пустой шаблон (.xml, .xlsx)');
-                            fileNameSpan.style.color = "var(--text-main)";
-                            fileInput.disabled = false; // Разблокируем при раннем выходе
-                            return;
-                        }
-
-                        // 2. Читаем лист справочников values
-                        let valuesSheetName = workbook.SheetNames.find(name => name.toLowerCase() === 'values');
-                        let valuesData = [];
-                        if (valuesSheetName) {
-                            valuesData = XLSX.utils.sheet_to_json(workbook.Sheets[valuesSheetName], { defval: "" });
-                        }
-
-                        // 3. ПОДКЛЮЧЕНИЕ К БАЗЕ ЧЕРЕЗ ВАШ ДВИЖОК
-                        fileNameSpan.innerText = `⏳ ${t('connecting_db', 'Подключение к базе данных...')}`;
-                        
-                        try {
-                            const url = APPS_SCRIPT_URL; 
-                            const payload = { 
-                                action: 'getKaspiExportData',
-                                api_key: CLIENT_API_KEY 
-                            };
-                            const cacheKey = 'kaspi_dynamic_keys_cache';
-                            
-                            const dbResponse = await window.smartFetch(url, payload, cacheKey, 3);
-
-                            if (dbResponse && dbResponse.success) {
-                                fileNameSpan.innerText = `✅ ${t('template_ready', 'Шаблон и база готовы')} (${file.name})`;
-                                fileNameSpan.style.color = "var(--accent-green)";
-                                renderMapperUI(systemKeys, humanNames, valuesData, requirements, dbResponse.dynamicKeys);
-                            } else {
-                                throw new Error(dbResponse ? dbResponse.error : 'Нет ответа от сервера');
-                            }
-                            
-                        } catch (serverError) {
-                            console.warn("Не удалось подтянуть ключи из базы:", serverError);
-                            fileNameSpan.innerText = `⚠️ ${t('template_ready_no_db', 'Шаблон готов (Без связи с БД)')}`;
-                            fileNameSpan.style.color = "var(--accent-orange)";
-                            
-                            renderMapperUI(systemKeys, humanNames, valuesData, requirements, []);
-                        }
-
-                    } catch (err) {
-                        console.error(err);
-                        alert(t('error_read_file', "Ошибка чтения файла: ") + err.message);
-                        
-                        // Возвращаем перевод при ошибке
-                        fileNameSpan.setAttribute('data-i18n', 'upload_template');
-                        fileNameSpan.innerText = t('upload_template', '📄 Загрузить пустой шаблон (.xml, .xlsx)');
-                        fileNameSpan.style.color = "var(--text-main)";
-                    } finally {
-                        // === РАЗБЛОКИРУЕМ КНОПКУ В САМОМ КОНЦЕ ПРИ ЛЮБОМ ИСХОДЕ ===
-                        fileInput.disabled = false;
-                    }
-                };
-                
-                event.target.value = '';
-                reader.readAsArrayBuffer(file);
-                
-            }, 150); // <-- Закрываем setTimeout (150мс для надежности на смартфонах)
-        }); // <-- Закрываем второй requestAnimationFrame
-    }); // <-- Закрываем первый requestAnimationFrame
-}
+    // Запускаем чтение файла
+    reader.readAsDataURL(file);
+};
 
 // Глобальный объект для хранения словарей Каспи
 window.kaspiDicts = {};
