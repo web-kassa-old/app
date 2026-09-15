@@ -3640,74 +3640,62 @@ window.handleTemplateUpload = async function(event) {
     const file = event.target.files[0];
     if (!file) return;
 
-    // 1. СНАЧАЛА спрашиваем имя (чтобы не замораживать индикатор)
     let defaultName = file.name.replace('.xlsx', '').trim();
     const categoryName = prompt("Укажите категорию (например, 'Шины'):", defaultName);
     
     if (!categoryName) {
-        event.target.value = ''; // Сбрасываем инпут, если отменили
+        event.target.value = ''; 
         window.loadKaspiTemplatesFromServer(); 
         return;
     }
 
-    // 2. ТЕПЕРЬ включаем визуальные индикаторы
+    // === НАДЕЖНЫЙ ИНДИКАТОР ЗАГРУЗКИ ===
     const select = document.getElementById('kaspiTemplateSelect');
     if (select) {
-        select.innerHTML = '<option value="" disabled selected>⏳ Сохраняем на сервер...</option>';
+        select.options.length = 0; // Очищаем список полностью
+        select.add(new Option('⏳ Сохраняем на сервер...', '')); // Надежно добавляем индикатор
         select.disabled = true;
     }
 
-    // Блокируем главную накладную
-    const mainInvoiceInput = document.getElementById('mainInvoiceFileInput'); 
-    if (mainInvoiceInput) mainInvoiceInput.disabled = true;
-
-    // 3. Заставляем браузер принудительно обновить экран перед чтением файла
-    requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-            setTimeout(() => {
+    // Принудительно отрисовываем UI перед тяжелой работой
+    setTimeout(async () => {
+        try {
+            const reader = new FileReader();
+            reader.onload = async function(e) {
+                const base64Data = e.target.result.split(',')[1];
                 
-                const reader = new FileReader();
-                reader.onload = async function(e) {
-                    try {
-                        const base64Data = e.target.result.split(',')[1];
-                        
-                        const payload = {
-                            action: 'saveKaspiTemplate', 
-                            api_key: CLIENT_API_KEY,
-                            category: categoryName.toLowerCase(),
-                            headersJson: "[]", 
-                            fileBase64: base64Data
-                        };
-
-                        const response = await fetch(APPS_SCRIPT_URL, {
-                            method: 'POST',
-                            body: JSON.stringify(payload)
-                        });
-                        
-                        const result = await response.json();
-
-                        if (result && result.success) {
-                            alert(`✅ Шаблон "${categoryName}" успешно сохранен!`);
-                        } else {
-                            throw new Error(result ? result.error : "Сервер вернул пустой ответ");
-                        }
-
-                    } catch (error) {
-                        console.error("Ошибка сохранения шаблона:", error);
-                        alert(`❌ Не удалось сохранить шаблон:\n${error.message}`);
-                    } finally {
-                        event.target.value = ''; 
-                        await window.loadKaspiTemplatesFromServer(); 
-                        
-                        if (mainInvoiceInput) mainInvoiceInput.disabled = false;
-                    }
+                const payload = {
+                    action: 'saveKaspiTemplate', 
+                    api_key: CLIENT_API_KEY,
+                    category: categoryName.toLowerCase(),
+                    headersJson: "[]", 
+                    fileBase64: base64Data
                 };
-                
-                reader.readAsDataURL(file);
 
-            }, 50); // Небольшая пауза для отрисовки UI
-        });
-    });
+                const response = await fetch(APPS_SCRIPT_URL, {
+                    method: 'POST',
+                    body: JSON.stringify(payload)
+                });
+                
+                const result = await response.json();
+                if (result && result.success) {
+                    alert(`✅ Шаблон "${categoryName}" успешно сохранен!`);
+                } else {
+                    throw new Error(result ? result.error : "Сервер вернул ошибку");
+                }
+                
+                event.target.value = ''; 
+                await window.loadKaspiTemplatesFromServer(); 
+            };
+            
+            reader.readAsDataURL(file);
+
+        } catch (error) {
+            console.error("Ошибка:", error);
+            alert(`❌ Ошибка:\n${error.message}`);
+            await window.loadKaspiTemplatesFromServer(); 
+        }
+    }, 50);
 };
 
 // Глобальный объект для хранения словарей Каспи
@@ -7522,34 +7510,21 @@ window.renderTemplateSelect = async function() {
 };
 window.handleTemplateChange = function(event) {
     const selectedValue = event.target.value;
-    
-    // Получаем инпут вашей главной накладной (замените ID, если он другой)
-    const mainInvoiceInput = document.getElementById('mainInvoiceFileInput'); 
 
     if (selectedValue === 'new_template') {
-        // 1. ПОЛЬЗОВАТЕЛЬ ХОЧЕТ ЗАГРУЗИТЬ ШАБЛОН
-        
-        // Блокируем накладную, чтобы не путать клиента
-        if (mainInvoiceInput) mainInvoiceInput.disabled = true;
-        
-        // Открываем галерею
         const fileInput = document.getElementById('templateFileInput'); 
-        if (fileInput) {
-            fileInput.click(); 
-        }
+        if (fileInput) fileInput.click(); 
         
-        // Сбрасываем список
         event.target.selectedIndex = 0; 
         
     } else if (selectedValue !== '') {
-        // 2. ВЫБРАН ГОТОВЫЙ ШАБЛОН ИЗ БАЗЫ!
         console.log(`Выбран шаблон: ${selectedValue}`);
         
-        // Вот ТЕПЕРЬ разрешаем загрузить Excel-накладную
-        if (mainInvoiceInput) {
-            mainInvoiceInput.disabled = false;
-            // Здесь же можно добавить визуальную подсветку кнопки накладной, 
-            // чтобы показать клиенту "Теперь жми сюда!"
+        // ВЫЗЫВАЕМ ВАШУ ФУНКЦИЮ РАЗБЛОКИРОВКИ НАКЛАДНОЙ!
+        if (typeof window.unlockInvoiceUpload === 'function') {
+            window.unlockInvoiceUpload();
+        } else {
+            console.warn("Функция unlockInvoiceUpload не найдена");
         }
     }
 };
