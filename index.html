@@ -483,20 +483,26 @@
                 
                 <<div class="minimal-input-container" style="display: flex; flex-direction: column; gap: 15px; margin-bottom: 20px;">
     
-    <!-- 1. Выбор валюты (оставлен без изменений, но теперь он будет на отдельной строке сверху) -->
-                <div class="currency-minimal-container" style="position: relative; width: 90px;">
-                    <div class="currency-minimal-header" id="dropdownHeader" onclick="toggleDropdown()" style="font-size: 15px; padding: 12px; background: var(--bg-body, rgba(0,0,0,0.03)); border: 1px solid var(--border-main); border-radius: 4px; display: flex; justify-content: space-between; align-items: center; cursor: pointer;">
-                        <span id="dropdownSelectedCode" style="color: var(--accent-yellow, #FFD700); font-weight: bold;">USD</span>
-                        <span class="curr-arrow-mini" style="color: var(--text-muted); font-size: 10px;">▼</span>
+            <!-- 1. Выбор валюты (С поясняющим текстом) -->
+                <div style="display: flex; align-items: center; justify-content: space-between; background: var(--bg-body, rgba(0,0,0,0.03)); padding: 10px 15px; border-radius: 8px; border: 1px dashed var(--border-main);">
+                    <label style="font-size: 13px; font-weight: bold; color: var(--text-main); margin: 0; display: flex; align-items: center; gap: 8px;" data-i18n="invoice_currency_label">
+                        💵 <span>Валюта цен в накладной:</span>
+                    </label>
+                    
+                    <div class="currency-minimal-container" style="position: relative; width: 90px;">
+                        <div class="currency-minimal-header" id="dropdownHeader" onclick="toggleDropdown()" style="font-size: 15px; padding: 8px 12px; background: var(--bg-modal, #fff); border: 1px solid var(--border-main); border-radius: 4px; display: flex; justify-content: space-between; align-items: center; cursor: pointer;">
+                            <span id="dropdownSelectedCode" style="color: var(--accent-yellow, #FFD700); font-weight: bold;">USD</span>
+                            <span class="curr-arrow-mini" style="color: var(--text-muted); font-size: 10px;">▼</span>
+                        </div>
+                        <div class="currency-minimal-list" id="dropdownList" style="position: absolute; top: calc(100% + 4px); left: 0; width: 100%; z-index: 9999; background: var(--bg-modal); border: 1px solid var(--border-light); border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+                            <div class="currency-minimal-item" onclick="selectCurrency('KZT')">KZT</div>
+                            <div class="currency-minimal-item selected" onclick="selectCurrency('USD')">USD</div>
+                            <div class="currency-minimal-item" onclick="selectCurrency('CNY')">CNY</div>
+                            <div class="currency-minimal-item" onclick="selectCurrency('EUR')">EUR</div>
+                            <div class="currency-minimal-item" onclick="selectCurrency('RUB')">RUB</div>
+                        </div>
+                        <input type="hidden" id="invoiceCurrency" value="USD">
                     </div>
-                    <div class="currency-minimal-list" id="dropdownList" style="position: absolute; top: calc(100% + 4px); left: 0; width: 100%; z-index: 9999; background: var(--bg-modal); border: 1px solid var(--border-light); border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
-                        <div class="currency-minimal-item" onclick="selectCurrency('KZT')">KZT</div>
-                        <div class="currency-minimal-item selected" onclick="selectCurrency('USD')">USD</div>
-                        <div class="currency-minimal-item" onclick="selectCurrency('CNY')">CNY</div>
-                        <div class="currency-minimal-item" onclick="selectCurrency('EUR')">EUR</div>
-                        <div class="currency-minimal-item" onclick="selectCurrency('RUB')">RUB</div>
-                    </div>
-                    <input type="hidden" id="invoiceCurrency" value="USD">
                 </div>
 
                 <!-- 2. ФАЗА 1: Блок выбора режима импорта -->
@@ -510,19 +516,19 @@
                     </div>
                     
                     <!-- Плитки выбора режима -->
-                    <div style="display: flex; gap: 10px; margin-bottom: 15px;">
-                        <div id="btnModeInternal" onclick="selectImportMode('internal')" style="flex: 1; padding: 12px 5px; border: 2px solid var(--border-main); border-radius: 8px; text-align: center; cursor: pointer; background: var(--bg-body); transition: 0.2s;">
-                            <div style="font-size: 24px; margin-bottom: 5px;">📥</div>
-                            <div style="font-size: 13px; font-weight: bold;" data-i18n="mode_internal_title">Только в базу</div>
-                            <div style="font-size: 11px; color: var(--text-muted);" data-i18n="mode_internal_desc">Быстрая приёмка</div>
-                        </div>
-                        
-                        <div id="btnModeKaspi" onclick="selectImportMode('kaspi')" style="flex: 1; padding: 12px 5px; border: 2px solid var(--border-main); border-radius: 8px; text-align: center; cursor: pointer; background: var(--bg-body); transition: 0.2s;">
-                            <div style="font-size: 24px; margin-bottom: 5px;">🛒</div>
-                            <div style="font-size: 13px; font-weight: bold;" data-i18n="mode_kaspi_title">База + Kaspi</div>
-                            <div style="font-size: 11px; color: var(--text-muted);" data-i18n="mode_kaspi_desc">Умный импорт</div>
-                        </div>
+                <div style="display: flex; gap: 10px; margin-bottom: 15px; overflow: hidden;">
+                    <div id="btnModeInternal" onclick="selectImportMode('internal')" style="flex: 1; min-width: 0; padding: 12px 2px; border: 2px solid var(--border-main); border-radius: 8px; text-align: center; cursor: pointer; background: var(--bg-body); transition: 0.2s;">
+                        <div style="font-size: 24px; margin-bottom: 5px;">📥</div>
+                        <div style="font-size: 12px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" data-i18n="mode_internal_title">Только в базу</div>
+                        <div style="font-size: 10px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" data-i18n="mode_internal_desc">Быстрая приёмка</div>
                     </div>
+                    
+                    <div id="btnModeKaspi" onclick="selectImportMode('kaspi')" style="flex: 1; min-width: 0; padding: 12px 2px; border: 2px solid var(--border-main); border-radius: 8px; text-align: center; cursor: pointer; background: var(--bg-body); transition: 0.2s;">
+                        <div style="font-size: 24px; margin-bottom: 5px;">🛒</div>
+                        <div style="font-size: 12px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" data-i18n="mode_kaspi_title">База + Kaspi</div>
+                        <div style="font-size: 10px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" data-i18n="mode_kaspi_desc">Умный импорт</div>
+                    </div>
+                </div>
 
                     <!-- Скрытый блок выбора шаблона -->
                     <div id="kaspiTemplateBlock" style="display: none; margin-bottom: 15px;">
