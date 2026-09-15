@@ -533,11 +533,14 @@
         <!-- Скрытый блок выбора шаблона (Адаптирован для iOS) -->
         <div id="kaspiTemplateBlock" style="display: none; margin-bottom: 15px;">
             <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 5px;" data-i18n="select_template_label">Шаблон маркетплейса:</label>
-            <select id="kaspiTemplateSelect" class="mapper-select" onchange="unlockInvoiceUpload()" style="width: 100%; padding: 12px; min-height: 46px; font-size: 15px; border-radius: 4px; border: 1px solid var(--border-main); background: var(--bg-body); color: var(--text-main);">
-                <option value="" disabled selected data-i18n="select_template">-- Выберите шаблон --</option>
-                <option value="new_template" style="font-weight: bold; color: #2ecc71;" data-i18n="add_new_template">➕ Новый шаблон</option>
-                <option value="шины">Шины (Автотовары)</option>
+            
+            <!-- 1. В onchange добавили handleTemplateChange(event) перед вашей функцией -->
+            <select id="kaspiTemplateSelect" class="mapper-select" onchange="handleTemplateChange(event); unlockInvoiceUpload()" style="width: 100%; padding: 12px; min-height: 46px; font-size: 15px; border-radius: 4px; border: 1px solid var(--border-main); background: var(--bg-body); color: var(--text-main);">
+                <!-- Содержимое очистили, так как его динамически заполнит renderTemplateSelect -->
             </select>
+            
+            <!-- 2. Скрытый инпут для окна выбора файла -->
+            <input type="file" id="templateFileInput" accept=".xlsx" style="display: none;">
         </div>
     </div>
 

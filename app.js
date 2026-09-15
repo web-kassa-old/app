@@ -7611,3 +7611,26 @@ window.renderTemplateSelect = function(templates) {
         });
     }
 };
+
+window.handleTemplateChange = async function(event) {
+    const selectedValue = event.target.value;
+
+    if (selectedValue === 'new_template') {
+        // --- СЦЕНАРИЙ 1: Пользователь хочет загрузить свой файл ---
+        console.log("Запуск сценария: Добавление нового шаблона");
+        
+        const fileInput = document.getElementById('templateFileInput'); 
+        if (fileInput) {
+            fileInput.click(); // Программно "нажимаем" на скрытую кнопку выбора файла
+        } else {
+            console.error("Ошибка: не найден скрытый инпут templateFileInput");
+        }
+        
+        // Сбрасываем выбор в списке, чтобы пункт "Новый шаблон" не зависал визуально
+        event.target.selectedIndex = 0; 
+        
+    } else if (selectedValue !== '') {
+        // --- СЦЕНАРИЙ 2: Загрузка готового шаблона с сервера ---
+        console.log(`Запуск сценария: Загрузка шаблона "${selectedValue}"`);
+    }
+};
