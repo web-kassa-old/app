@@ -7469,37 +7469,35 @@ window.loadKaspiTemplatesFromServer = async function() {
     const select = document.getElementById('kaspiTemplateSelect');
     if (!select) return;
 
-    // Индикатор процесса загрузки самого списка
     select.innerHTML = '<option value="" disabled selected>⏳ Загрузка списка...</option>';
     select.disabled = true;
 
     try {
         const payload = { action: 'getKaspiTemplateListBackend', api_key: CLIENT_API_KEY };
-        // СТАЛО (Жесткий запрос на сервер без кэша):
-        const response = await window.smartFetch(APPS_SCRIPT_URL, payload, null, 0);
+        
+        // === ПРЯМОЙ ЗАПРОС К СЕРВЕРУ БЕЗ ПОСРЕДНИКОВ И КЭША ===
+        const response = await fetch(APPS_SCRIPT_URL, {
+            method: 'POST',
+            body: JSON.stringify(payload)
+        });
+        
+        const result = await response.json();
 
-        // === БАЗОВЫЕ ПУНКТЫ (Они будут в списке ВСЕГДА) ===
-        let optionsHTML = `
-            <option value="" disabled selected data-i18n="select_template">-- Выберите шаблон --</option>
-            <option value="new_template" style="font-weight: bold; color: #2ecc71;" data-i18n="add_new_template">➕ Новый шаблон</option>
-        `;
+        // Базовый пункт
+        let optionsHTML = '<option value="" disabled selected>-- Выберите шаблон --</option>';
 
-        // Если с сервера пришли сохраненные шаблоны, добавляем их ниже
-        if (response && response.success && response.templates && response.templates.length > 0) {
-            response.templates.forEach(tpl => {
+        // Если сервер вернул список, рисуем его
+        if (result && result.success && result.templates && result.templates.length > 0) {
+            result.templates.forEach(tpl => {
                 optionsHTML += `<option value="${tpl}">${tpl}</option>`;
             });
         }
 
-        // Отрисовываем готовый список
         select.innerHTML = optionsHTML;
+        
     } catch (error) {
         console.error("Ошибка загрузки списка:", error);
-        // Даже при ошибке сервера даем возможность нажать "Новый шаблон"
-        select.innerHTML = `
-            <option value="" disabled selected>-- Выберите шаблон --</option>
-            <option value="new_template" style="font-weight: bold; color: #2ecc71;">➕ Новый шаблон</option>
-        `;
+        select.innerHTML = '<option value="" disabled selected>-- Выберите шаблон --</option>';
     } finally {
         select.disabled = false;
     }
