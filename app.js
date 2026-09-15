@@ -3670,7 +3670,7 @@ window.handleTemplateUpload = async function(event) {
             };
 
             // Отправляем на сервер (без повторов, чтобы не дублировать тяжелый файл)
-            const response = await window.smartFetch(APPS_SCRIPT_URL, payload, 'save_template', 0);
+            const response = await window.smartFetch(APPS_SCRIPT_URL, payload, null, 0);
 
             if (response && response.success) {
                 alert(`✅ Шаблон "${categoryName}" успешно загружен и сохранен в базе.`);
