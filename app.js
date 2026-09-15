@@ -7506,34 +7506,38 @@ window.loadKaspiTemplatesFromServer = async function() {
 };
 
 // Функция отрисовки (замените вашу старую на эту)
-window.renderTemplateSelect = function(templates) {
-    const select = document.getElementById('kaspiTemplateSelect');
+// window.renderTemplateSelect = function(templates) {
+//     const select = document.getElementById('kaspiTemplateSelect');
     
-    // Проверяем, пустой ли список пришел с сервера
-    const isEmpty = (!templates || templates.length === 0);
+//     // Проверяем, пустой ли список пришел с сервера
+//     const isEmpty = (!templates || templates.length === 0);
     
-    // Записываем базовые опции с правильным value="new_template" и вашими стилями
-    if (isEmpty) {
-        select.innerHTML = `
-            <option value="" disabled selected>-</option>
-            <option value="new_template" style="font-weight: bold; color: #2ecc71;" data-i18n="add_new_template">➕ Новый шаблон</option>
-        `;
-    } else {
-        select.innerHTML = `
-            <option value="" disabled selected data-i18n="select_template">-- Выберите шаблон --</option>
-            <option value="new_template" style="font-weight: bold; color: #2ecc71;" data-i18n="add_new_template">➕ Новый шаблон</option>
-        `;
+//     // Записываем базовые опции с правильным value="new_template" и вашими стилями
+//     if (isEmpty) {
+//         select.innerHTML = `
+//             <option value="" disabled selected>-</option>
+//             <option value="new_template" style="font-weight: bold; color: #2ecc71;" data-i18n="add_new_template">➕ Новый шаблон</option>
+//         `;
+//     } else {
+//         select.innerHTML = `
+//             <option value="" disabled selected data-i18n="select_template">-- Выберите шаблон --</option>
+//             <option value="new_template" style="font-weight: bold; color: #2ecc71;" data-i18n="add_new_template">➕ Новый шаблон</option>
+//         `;
         
-        // Перебираем полученные с сервера названия
-        templates.forEach(name => {
-            const opt = document.createElement('option');
-            opt.value = name; 
-            opt.textContent = name.charAt(0).toUpperCase() + name.slice(1); 
-            select.appendChild(opt);
-        });
-    }
-};
+//         // Перебираем полученные с сервера названия
+//         templates.forEach(name => {
+//             const opt = document.createElement('option');
+//             opt.value = name; 
+//             opt.textContent = name.charAt(0).toUpperCase() + name.slice(1); 
+//             select.appendChild(opt);
+//         });
+//     }
+// };
 
+window.renderTemplateSelect = async function() {
+    // Просто перенаправляем запрос в нашу новую исправленную функцию
+    await window.loadKaspiTemplatesFromServer();
+};
 window.handleTemplateChange = function(event) {
     const selectedValue = event.target.value;
     
