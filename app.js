@@ -7539,54 +7539,55 @@ window.showImportHelp = function() {
 // Функция запроса списка шаблонов
 window.loadKaspiTemplatesFromServer = async function() {
     const select = document.getElementById('kaspiTemplateSelect');
-    select.options[0].text = "⏳ Загрузка шаблонов...";
+    
+    // 1. Убираем все старые опции (включая хардкодные) и ставим индикатор загрузки
+    select.innerHTML = '<option value="" disabled selected>⏳ Загрузка шаблонов...</option>';
 
     try {
-        // 1. Защита для локальной разработки (если вы тестируете просто открыв HTML-файл)
-        if (typeof APPS_SCRIPT_URL === 'undefined' || typeof window.smartFetch === 'undefined') {
-            console.warn("Локальный запуск: Сервер недоступен. Используем мок-данные.");
-            setTimeout(() => { renderTemplateSelect(['шины', 'диски', 'одежда']); }, 500);
-            return;
-        }
-
-        // 2. БОЕВОЙ ЗАПРОС
         const payload = { 
-            action: 'getKaspiTemplateListBackend', // Имя функции на бэкенде
+            action: 'getKaspiTemplateListBackend', 
             api_key: CLIENT_API_KEY 
         };
         
-        // Делаем запрос с кэшированием (ключ 'kaspi_templates_list') и 3 попытками
         const dbResponse = await window.smartFetch(APPS_SCRIPT_URL, payload, 'kaspi_templates_list', 3);
 
         if (!dbResponse || !dbResponse.success) {
             throw new Error(dbResponse ? dbResponse.error : "Сервер не ответил");
         }
 
-        // 3. Отдаем массив названий в отрисовку
+        // Передаем полученный массив в функцию отрисовки
         renderTemplateSelect(dbResponse.templates);
 
     } catch (error) {
-        select.options[0].text = "❌ Ошибка загрузки";
-        console.error("Ошибка при получении шаблонов:", error.message);
+        select.innerHTML = '<option value="" disabled selected>❌ Ошибка загрузки</option>';
+        console.error("Ошибка при загрузке шаблонов Kaspi:", error.message);
     }
 };
 
-// Функция отрисовки выпадающего списка
-window.renderTemplateSelect = function(templates) {
+// Функция отрисовки (замените вашу старую на эту)
+function renderTemplateSelect(templates) {
     const select = document.getElementById('kaspiTemplateSelect');
-    
-    // Очищаем старые данные и ставим базовые опции
-    select.innerHTML = `
-        <option value="" disabled selected data-i18n="select_template">-- Выберите шаблон --</option>
-        <option value="new_template" style="font-weight: bold; color: #2ecc71;" data-i18n="add_new_template">➕ Новый шаблон</option>
-    `;
-    
-    // Перебираем полученные с сервера названия ('шины', 'диски')
+    select.innerHTML = ''; // Полностью очищаем список
+
+    // 2. Если шаблонов нет (пустой массив) — ставим прочерк, как вы просили
+    if (!templates || templates.length === 0) {
+        select.innerHTML = '<option value="" disabled selected>-</option>';
+        return;
+    }
+
+    // 3. Если шаблоны есть — добавляем стандартный заголовок
+    const defaultOption = document.createElement('option');
+    defaultOption.value = "";
+    defaultOption.disabled = true;
+    defaultOption.selected = true;
+    defaultOption.text = "-- Выберите шаблон --";
+    select.appendChild(defaultOption);
+
+    // Добавляем сами шаблоны
     templates.forEach(name => {
         const opt = document.createElement('option');
-        opt.value = name; // Значение для системы ("шины")
-        // Делаем первую букву заглавной для красоты ("Шины")
-        opt.textContent = name.charAt(0).toUpperCase() + name.slice(1); 
+        opt.value = name;
+        opt.text = name;
         select.appendChild(opt);
     });
-};
+}
