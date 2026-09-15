@@ -481,77 +481,78 @@
             <!-- ВКЛАДКА 1: ОРИГИНАЛЬНЫЙ ИМПОРТ -->
            <div id="tab-import" style="display: block; width: 100%; min-width: 0; max-width: 100%; box-sizing: border-box;">
                 
-                <<div class="minimal-input-container" style="display: flex; flex-direction: column; gap: 15px; margin-bottom: 20px;">
+                <div class="minimal-input-container" style="display: flex; flex-direction: column; gap: 15px; margin-bottom: 20px;">
     
-            <!-- 1. Выбор валюты (С поясняющим текстом) -->
-                <div style="display: flex; align-items: center; justify-content: space-between; background: var(--bg-body, rgba(0,0,0,0.03)); padding: 10px 15px; border-radius: 8px; border: 1px dashed var(--border-main);">
-                    <label style="font-size: 13px; font-weight: bold; color: var(--text-main); margin: 0; display: flex; align-items: center; gap: 8px;" data-i18n="invoice_currency_label">
-                        💵 <span>Валюта цен в накладной:</span>
-                    </label>
-                    
-                    <div class="currency-minimal-container" style="position: relative; width: 90px;">
-                        <div class="currency-minimal-header" id="dropdownHeader" onclick="toggleDropdown()" style="font-size: 15px; padding: 8px 12px; background: var(--bg-modal, #fff); border: 1px solid var(--border-main); border-radius: 4px; display: flex; justify-content: space-between; align-items: center; cursor: pointer;">
-                            <span id="dropdownSelectedCode" style="color: var(--accent-yellow, #FFD700); font-weight: bold;">USD</span>
-                            <span class="curr-arrow-mini" style="color: var(--text-muted); font-size: 10px;">▼</span>
-                        </div>
-                        <div class="currency-minimal-list" id="dropdownList" style="position: absolute; top: calc(100% + 4px); left: 0; width: 100%; z-index: 9999; background: var(--bg-modal); border: 1px solid var(--border-light); border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
-                            <div class="currency-minimal-item" onclick="selectCurrency('KZT')">KZT</div>
-                            <div class="currency-minimal-item selected" onclick="selectCurrency('USD')">USD</div>
-                            <div class="currency-minimal-item" onclick="selectCurrency('CNY')">CNY</div>
-                            <div class="currency-minimal-item" onclick="selectCurrency('EUR')">EUR</div>
-                            <div class="currency-minimal-item" onclick="selectCurrency('RUB')">RUB</div>
-                        </div>
-                        <input type="hidden" id="invoiceCurrency" value="USD">
-                    </div>
-                </div>
-
-                <!-- 2. ФАЗА 1: Блок выбора режима импорта -->
-                <div id="importModeContainer">
-                    <!-- Заголовок и кнопка справки -->
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                        <label style="font-size: 14px; font-weight: bold; color: var(--text-main);" data-i18n="import_mode_title">⚙️ Выберите режим приёмки:</label>
-                        <button type="button" onclick="showImportHelp()" style="background: none; border: none; color: #3498db; cursor: pointer; font-size: 16px;" title="Справка">
-                            [?]
-                        </button>
-                    </div>
-                    
-                    <!-- Плитки выбора режима -->
-                <div style="display: flex; gap: 10px; margin-bottom: 15px; overflow: hidden;">
-                    <div id="btnModeInternal" onclick="selectImportMode('internal')" style="flex: 1; min-width: 0; padding: 12px 2px; border: 2px solid var(--border-main); border-radius: 8px; text-align: center; cursor: pointer; background: var(--bg-body); transition: 0.2s;">
-                        <div style="font-size: 24px; margin-bottom: 5px;">📥</div>
-                        <div style="font-size: 12px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" data-i18n="mode_internal_title">Только в базу</div>
-                        <div style="font-size: 10px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" data-i18n="mode_internal_desc">Быстрая приёмка</div>
-                    </div>
-                    
-                    <div id="btnModeKaspi" onclick="selectImportMode('kaspi')" style="flex: 1; min-width: 0; padding: 12px 2px; border: 2px solid var(--border-main); border-radius: 8px; text-align: center; cursor: pointer; background: var(--bg-body); transition: 0.2s;">
-                        <div style="font-size: 24px; margin-bottom: 5px;">🛒</div>
-                        <div style="font-size: 12px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" data-i18n="mode_kaspi_title">База + Kaspi</div>
-                        <div style="font-size: 10px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" data-i18n="mode_kaspi_desc">Умный импорт</div>
-                    </div>
-                </div>
-
-                    <!-- Скрытый блок выбора шаблона -->
-                    <div id="kaspiTemplateBlock" style="display: none; margin-bottom: 15px;">
-                        <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 5px;" data-i18n="select_template_label">Шаблон маркетплейса:</label>
-                        <select id="kaspiTemplateSelect" class="mapper-select" onchange="unlockInvoiceUpload()" style="width: 100%; padding: 10px; border-radius: 4px; border: 1px solid var(--border-main); background: var(--bg-body); color: var(--text-main);">
-                            <option value="" disabled selected data-i18n="select_template">-- Выберите шаблон --</option>
-                            <option value="new_template" style="font-weight: bold; color: #2ecc71;" data-i18n="add_new_template">➕ Добавить новый шаблон</option>
-                            <option value="шины">Шины (Автотовары)</option>
-                        </select>
-                    </div>
-                </div>
-
-                <!-- 3. Кнопка загрузки накладной (исправленная ширина 100%) -->
-                <div class="file-input-wrapper" id="invoiceUploadWrapper" style="width: 100%; opacity: 0.5; pointer-events: none; transition: opacity 0.3s;">
-                    <label for="invoiceFileInput" id="fileInputLabel" class="file-upload-label" style="padding: 12px; border: 1px solid var(--border-main) !important; border-radius: 4px; display: flex; align-items: center; justify-content: center; cursor: pointer; background: var(--bg-body, rgba(0,0,0,0.03)); transition: background-color 0.2s; width: 100%; box-sizing: border-box;">
-                        <div class="file-content" style="display: flex; gap: 8px; align-items: center; max-width: 100%; overflow: hidden;">
-                            <span style="color: var(--text-muted); font-size: 16px; flex-shrink: 0;">🔒</span>
-                            <span id="fileNameTextCompact" class="file-placeholder-text" style="font-size: 14px; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" data-i18n="upload_invoice_locked">Сначала выберите режим</span>
-                        </div>
-                    </label>
-                    <input type="file" id="invoiceFileInput" accept=".csv, .xls, .xlsx" style="display: none;" multiple onchange="updateFileNameCompactUI(this)">
-                </div>
+    <!-- 1. Выбор валюты (С поясняющим текстом на одной линии) -->
+    <div style="display: flex; align-items: center; justify-content: space-between; background: var(--bg-body, rgba(0,0,0,0.03)); padding: 10px 15px; border-radius: 8px; border: 1px dashed var(--border-main);">
+        <label style="font-size: 13px; font-weight: bold; color: var(--text-main); margin: 0; display: flex; align-items: center; gap: 8px;" data-i18n="invoice_currency_label">
+            💵 <span>Валюта цен в накладной:</span>
+        </label>
+        
+        <div class="currency-minimal-container" style="position: relative; width: 90px;">
+            <div class="currency-minimal-header" id="dropdownHeader" onclick="toggleDropdown()" style="font-size: 15px; padding: 8px 12px; background: var(--bg-modal, #fff); border: 1px solid var(--border-main); border-radius: 4px; display: flex; justify-content: space-between; align-items: center; cursor: pointer;">
+                <span id="dropdownSelectedCode" style="color: var(--accent-yellow, #FFD700); font-weight: bold;">USD</span>
+                <span class="curr-arrow-mini" style="color: var(--text-muted); font-size: 10px;">▼</span>
             </div>
+            <div class="currency-minimal-list" id="dropdownList" style="position: absolute; top: calc(100% + 4px); left: 0; width: 100%; z-index: 9999; background: var(--bg-modal); border: 1px solid var(--border-light); border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+                <div class="currency-minimal-item" onclick="selectCurrency('KZT')">KZT</div>
+                <div class="currency-minimal-item selected" onclick="selectCurrency('USD')">USD</div>
+                <div class="currency-minimal-item" onclick="selectCurrency('CNY')">CNY</div>
+                <div class="currency-minimal-item" onclick="selectCurrency('EUR')">EUR</div>
+                <div class="currency-minimal-item" onclick="selectCurrency('RUB')">RUB</div>
+            </div>
+            <input type="hidden" id="invoiceCurrency" value="USD">
+        </div>
+    </div>
+
+    <!-- 2. ФАЗА 1: Блок выбора режима импорта -->
+    <div id="importModeContainer">
+        <!-- Заголовок и кнопка справки -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <label style="font-size: 14px; font-weight: bold; color: var(--text-main);" data-i18n="import_mode_title">⚙️ Выберите режим приёмки:</label>
+            <button type="button" onclick="showImportHelp()" style="background: none; border: none; color: #3498db; cursor: pointer; font-size: 16px;" title="Справка">
+                [?]
+            </button>
+        </div>
+        
+        <!-- Плитки выбора режима (Симметричный текст) -->
+        <div style="display: flex; gap: 10px; margin-bottom: 15px; overflow: hidden;">
+            <div id="btnModeInternal" onclick="selectImportMode('internal')" style="flex: 1; min-width: 0; padding: 12px 2px; border: 2px solid var(--border-main); border-radius: 8px; text-align: center; cursor: pointer; background: var(--bg-body); transition: 0.2s;">
+                <div style="font-size: 24px; margin-bottom: 5px;">📥</div>
+                <div style="font-size: 12px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" data-i18n="mode_internal_title">Только в базу</div>
+                <div style="font-size: 10px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" data-i18n="mode_internal_desc">Быстрая приёмка</div>
+            </div>
+            
+            <div id="btnModeKaspi" onclick="selectImportMode('kaspi')" style="flex: 1; min-width: 0; padding: 12px 2px; border: 2px solid var(--border-main); border-radius: 8px; text-align: center; cursor: pointer; background: var(--bg-body); transition: 0.2s;">
+                <div style="font-size: 24px; margin-bottom: 5px;">🛒</div>
+                <div style="font-size: 12px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" data-i18n="mode_kaspi_title">База + Kaspi</div>
+                <div style="font-size: 10px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" data-i18n="mode_kaspi_desc">Умный импорт</div>
+            </div>
+        </div>
+
+        <!-- Скрытый блок выбора шаблона (Адаптирован для iOS) -->
+        <div id="kaspiTemplateBlock" style="display: none; margin-bottom: 15px;">
+            <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 5px;" data-i18n="select_template_label">Шаблон маркетплейса:</label>
+            <select id="kaspiTemplateSelect" class="mapper-select" onchange="unlockInvoiceUpload()" style="width: 100%; padding: 12px; min-height: 46px; font-size: 15px; border-radius: 4px; border: 1px solid var(--border-main); background: var(--bg-body); color: var(--text-main);">
+                <option value="" disabled selected data-i18n="select_template">-- Выберите шаблон --</option>
+                <option value="new_template" style="font-weight: bold; color: #2ecc71;" data-i18n="add_new_template">➕ Новый шаблон</option>
+                <option value="шины">Шины (Автотовары)</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- 3. Кнопка загрузки накладной (С исправленной шириной) -->
+    <div class="file-input-wrapper" id="invoiceUploadWrapper" style="width: 100%; opacity: 0.5; pointer-events: none; transition: opacity 0.3s;">
+        <label for="invoiceFileInput" id="fileInputLabel" class="file-upload-label" style="padding: 12px; border: 1px solid var(--border-main) !important; border-radius: 4px; display: flex; align-items: center; justify-content: center; cursor: pointer; background: var(--bg-body, rgba(0,0,0,0.03)); transition: background-color 0.2s; width: 100%; box-sizing: border-box;">
+            <div class="file-content" style="display: flex; gap: 8px; align-items: center; max-width: 100%; overflow: hidden;">
+                <span style="color: var(--text-muted); font-size: 16px; flex-shrink: 0;">🔒</span>
+                <!-- Задаем временный жесткий текст через HTML, чтобы не было пустых мест до клика -->
+                <span id="fileNameTextCompact" class="file-placeholder-text" style="font-size: 14px; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" data-i18n="upload_invoice_locked">Сначала выберите режим</span>
+            </div>
+        </label>
+        <input type="file" id="invoiceFileInput" accept=".csv, .xls, .xlsx" style="display: none;" multiple onchange="updateFileNameCompactUI(this)">
+    </div>
+</div>
                 
                 <button id="parseInvoiceBtn" onclick="processInvoiceFile()" class="btn-primary green" style="margin-top: 15px;" data-i18n="income_parse">ОБРАБОТАТЬ ФАЙЛ</button>
                 
