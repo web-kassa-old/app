@@ -7470,47 +7470,41 @@ window.showImportHelp = function() {
 // Функция запроса списка шаблонов
 window.loadKaspiTemplatesFromServer = async function() {
     const select = document.getElementById('kaspiTemplateSelect');
-    
-    // 1. Блокируем список, чтобы было видно, что он "думает" и на него нельзя кликать
+    if (!select) return;
+
+    // Индикатор процесса загрузки самого списка
+    select.innerHTML = '<option value="" disabled selected>⏳ Загрузка списка...</option>';
     select.disabled = true;
-    
-    // 2. Запускаем анимацию текста
-    let dots = 0;
-    const baseText = "⏳ Загрузка шаблонов";
-    select.innerHTML = `<option value="" disabled selected>${baseText}</option>`;
-    
-    // Меняем текст каждые 400 мс
-    const loaderInterval = setInterval(() => {
-        dots = (dots + 1) % 4; // Будет считать 0, 1, 2, 3 и по кругу
-        select.innerHTML = `<option value="" disabled selected>${baseText}${'.'.repeat(dots)}</option>`;
-    }, 400);
 
     try {
-        const payload = { 
-            action: 'getKaspiTemplateListBackend', 
-            api_key: CLIENT_API_KEY 
-        };
-        
-        const dbResponse = await window.smartFetch(APPS_SCRIPT_URL, payload, 'kaspi_templates_list', 3);
+        const payload = { action: 'getKaspiTemplateListBackend', api_key: CLIENT_API_KEY };
+        // Здесь можно использовать smartFetch с кэшем, так как это просто получение списка
+        const response = await window.smartFetch(APPS_SCRIPT_URL, payload, 'kaspi_templates_list', 0);
 
-        // 3. Данные пришли! Убиваем таймер анимации и разблокируем список
-        clearInterval(loaderInterval);
-        select.disabled = false;
+        // === БАЗОВЫЕ ПУНКТЫ (Они будут в списке ВСЕГДА) ===
+        let optionsHTML = `
+            <option value="" disabled selected data-i18n="select_template">-- Выберите шаблон --</option>
+            <option value="new_template" style="font-weight: bold; color: #2ecc71;" data-i18n="add_new_template">➕ Новый шаблон</option>
+        `;
 
-        if (!dbResponse || !dbResponse.success) {
-            throw new Error(dbResponse ? dbResponse.error : "Сервер не ответил");
+        // Если с сервера пришли сохраненные шаблоны, добавляем их ниже
+        if (response && response.success && response.templates && response.templates.length > 0) {
+            response.templates.forEach(tpl => {
+                optionsHTML += `<option value="${tpl}">${tpl}</option>`;
+            });
         }
 
-        // Передаем полученный массив в функцию отрисовки
-        renderTemplateSelect(dbResponse.templates);
-
+        // Отрисовываем готовый список
+        select.innerHTML = optionsHTML;
     } catch (error) {
-        // Если произошла ошибка — тоже обязательно убиваем таймер и разблокируем
-        clearInterval(loaderInterval);
+        console.error("Ошибка загрузки списка:", error);
+        // Даже при ошибке сервера даем возможность нажать "Новый шаблон"
+        select.innerHTML = `
+            <option value="" disabled selected>-- Выберите шаблон --</option>
+            <option value="new_template" style="font-weight: bold; color: #2ecc71;">➕ Новый шаблон</option>
+        `;
+    } finally {
         select.disabled = false;
-        
-        select.innerHTML = '<option value="" disabled selected>❌ Ошибка загрузки</option>';
-        console.error("Ошибка при загрузке шаблонов Kaspi:", error.message);
     }
 };
 
