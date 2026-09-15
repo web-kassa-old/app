@@ -7537,25 +7537,38 @@ window.showImportHelp = function() {
 // --- ФАЙЛ app.js (КЛИЕНТСКАЯ ЧАСТЬ) ---
 
 // Функция запроса списка шаблонов
-window.loadKaspiTemplatesFromServer = function() {
+window.loadKaspiTemplatesFromServer = async function() {
     const select = document.getElementById('kaspiTemplateSelect');
     select.options[0].text = "⏳ Загрузка шаблонов...";
 
-    // Используем стандартный коннектор Google (или замените на ваш smartFetch, если хотите)
-    google.script.run
-        .withSuccessHandler(function(templates) {
-            if (templates.error) {
-                select.options[0].text = "❌ Ошибка базы";
-                console.error(templates.error);
-                return;
-            }
-            renderTemplateSelect(templates);
-        })
-        .withFailureHandler(function(error) {
-            select.options[0].text = "❌ Ошибка связи";
-            console.error("Сетевая ошибка:", error);
-        })
-        .getKaspiTemplateListBackend(); // Вызов функции из .gs
+    try {
+        // 1. Защита для локальной разработки (если вы тестируете просто открыв HTML-файл)
+        if (typeof APPS_SCRIPT_URL === 'undefined' || typeof window.smartFetch === 'undefined') {
+            console.warn("Локальный запуск: Сервер недоступен. Используем мок-данные.");
+            setTimeout(() => { renderTemplateSelect(['шины', 'диски', 'одежда']); }, 500);
+            return;
+        }
+
+        // 2. БОЕВОЙ ЗАПРОС
+        const payload = { 
+            action: 'getKaspiTemplateListBackend', // Имя функции на бэкенде
+            api_key: CLIENT_API_KEY 
+        };
+        
+        // Делаем запрос с кэшированием (ключ 'kaspi_templates_list') и 3 попытками
+        const dbResponse = await window.smartFetch(APPS_SCRIPT_URL, payload, 'kaspi_templates_list', 3);
+
+        if (!dbResponse || !dbResponse.success) {
+            throw new Error(dbResponse ? dbResponse.error : "Сервер не ответил");
+        }
+
+        // 3. Отдаем массив названий в отрисовку
+        renderTemplateSelect(dbResponse.templates);
+
+    } catch (error) {
+        select.options[0].text = "❌ Ошибка загрузки";
+        console.error("Ошибка при получении шаблонов:", error.message);
+    }
 };
 
 // Функция отрисовки выпадающего списка
