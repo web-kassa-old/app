@@ -7565,29 +7565,30 @@ window.loadKaspiTemplatesFromServer = async function() {
 };
 
 // Функция отрисовки (замените вашу старую на эту)
-function renderTemplateSelect(templates) {
+window.renderTemplateSelect = function(templates) {
     const select = document.getElementById('kaspiTemplateSelect');
-    select.innerHTML = ''; // Полностью очищаем список
-
-    // 2. Если шаблонов нет (пустой массив) — ставим прочерк, как вы просили
-    if (!templates || templates.length === 0) {
-        select.innerHTML = '<option value="" disabled selected>-</option>';
-        return;
+    
+    // Проверяем, пустой ли список пришел с сервера
+    const isEmpty = (!templates || templates.length === 0);
+    
+    // Записываем базовые опции с правильным value="new_template" и вашими стилями
+    if (isEmpty) {
+        select.innerHTML = `
+            <option value="" disabled selected>-</option>
+            <option value="new_template" style="font-weight: bold; color: #2ecc71;" data-i18n="add_new_template">➕ Новый шаблон</option>
+        `;
+    } else {
+        select.innerHTML = `
+            <option value="" disabled selected data-i18n="select_template">-- Выберите шаблон --</option>
+            <option value="new_template" style="font-weight: bold; color: #2ecc71;" data-i18n="add_new_template">➕ Новый шаблон</option>
+        `;
+        
+        // Перебираем полученные с сервера названия
+        templates.forEach(name => {
+            const opt = document.createElement('option');
+            opt.value = name; 
+            opt.textContent = name.charAt(0).toUpperCase() + name.slice(1); 
+            select.appendChild(opt);
+        });
     }
-
-    // 3. Если шаблоны есть — добавляем стандартный заголовок
-    const defaultOption = document.createElement('option');
-    defaultOption.value = "";
-    defaultOption.disabled = true;
-    defaultOption.selected = true;
-    defaultOption.text = "-- Выберите шаблон --";
-    select.appendChild(defaultOption);
-
-    // Добавляем сами шаблоны
-    templates.forEach(name => {
-        const opt = document.createElement('option');
-        opt.value = name;
-        opt.text = name;
-        select.appendChild(opt);
-    });
-}
+};
