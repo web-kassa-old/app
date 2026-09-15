@@ -3660,34 +3660,46 @@ window.handleTemplateUpload = async function(event) {
                 return;
             }
 
-            // Формируем payload ТОЧНО под вашу серверную функцию saveKaspiTemplateBackend
+            // Формируем посылку
             const payload = {
                 action: 'saveKaspiTemplate', 
                 api_key: CLIENT_API_KEY,
                 category: categoryName.toLowerCase(),
-                headersJson: "[]", // Заглушка, так как парсинг шапок и словарей делает ExcelJS при скачивании
+                headersJson: "[]", 
                 fileBase64: base64Data
             };
 
-            // Отправляем на сервер (без повторов, чтобы не дублировать тяжелый файл)
-            const response = await window.smartFetch(APPS_SCRIPT_URL, payload, null, 0);
+            console.log("Отправляем файл на сервер напрямую, минуя smartFetch...");
 
-            if (response && response.success) {
+            // === ПРЯМАЯ ОТПРАВКА БЕЗ КЭШИРОВАНИЯ ===
+            const response = await fetch(APPS_SCRIPT_URL, {
+                method: 'POST',
+                // Google Apps Script требует отправку простым текстом (text/plain),
+                // чтобы не было проблем с CORS
+                body: JSON.stringify(payload)
+            });
+            
+            // Ждем ответ от сервера и парсим JSON
+            const result = await response.json();
+
+            // Проверяем статус ответа
+            if (result && result.success) {
                 alert(`✅ Шаблон "${categoryName}" успешно загружен и сохранен в базе.`);
             } else {
-                throw new Error(response ? response.error : "Сервер не ответил");
+                throw new Error(result ? result.error : "Сервер вернул пустой ответ");
             }
 
         } catch (error) {
             console.error("Ошибка сохранения шаблона:", error);
             alert(`❌ Не удалось сохранить шаблон:\n${error.message}`);
         } finally {
-            // Сбрасываем инпут и обновляем список шаблонов
+            // Сбрасываем инпут и возвращаем список в рабочее состояние
             event.target.value = ''; 
             window.loadKaspiTemplatesFromServer();
         }
     };
     
+    // Запускаем чтение файла
     reader.readAsDataURL(file);
 };
 
