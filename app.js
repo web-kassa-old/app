@@ -3640,7 +3640,7 @@ window.handleTemplateUpload = async function(event) {
     const file = event.target.files[0];
     if (!file) return;
 
-    // 1. Включаем визуальный индикатор загрузки в самом списке
+    // Блокируем список и показываем статус
     const select = document.getElementById('kaspiTemplateSelect');
     select.innerHTML = '<option value="" disabled selected>⏳ Сохраняем на сервер...</option>';
     select.disabled = true;
@@ -3648,33 +3648,32 @@ window.handleTemplateUpload = async function(event) {
     const reader = new FileReader();
     reader.onload = async function(e) {
         try {
-            // Извлекаем чистый Base64 (отрезаем служебный префикс data:...)
+            // Берем чистый Base64
             const base64Data = e.target.result.split(',')[1];
             
-            // Предлагаем пользователю подтвердить или изменить имя категории
+            // Спрашиваем имя категории
             let defaultName = file.name.replace('.xlsx', '').trim();
             const categoryName = prompt("Укажите категорию для этого шаблона (например, 'Шины'):", defaultName);
             
             if (!categoryName) {
-                // Если пользователь нажал "Отмена"
                 window.loadKaspiTemplatesFromServer(); 
                 return;
             }
 
-            // 2. Отправляем шаблон в Google Apps Script
+            // Формируем payload ТОЧНО под вашу серверную функцию saveKaspiTemplateBackend
             const payload = {
                 action: 'saveKaspiTemplate', 
                 api_key: CLIENT_API_KEY,
-                category: categoryName.toLowerCase(), // В базу пишем единообразно
+                category: categoryName.toLowerCase(),
+                headersJson: "[]", // Заглушка, так как парсинг шапок и словарей делает ExcelJS при скачивании
                 fileBase64: base64Data
             };
 
-            // Используем 0 повторов (retries), чтобы не дублировать тяжелые POST-запросы
+            // Отправляем на сервер (без повторов, чтобы не дублировать тяжелый файл)
             const response = await window.smartFetch(APPS_SCRIPT_URL, payload, 'save_template', 0);
 
-            // 3. ИНДИКАТОР УСПЕХА
             if (response && response.success) {
-                alert(`✅ УРА! Шаблон "${categoryName}" успешно загружен и сохранен в базе.`);
+                alert(`✅ Шаблон "${categoryName}" успешно загружен и сохранен в базе.`);
             } else {
                 throw new Error(response ? response.error : "Сервер не ответил");
             }
@@ -3683,13 +3682,12 @@ window.handleTemplateUpload = async function(event) {
             console.error("Ошибка сохранения шаблона:", error);
             alert(`❌ Не удалось сохранить шаблон:\n${error.message}`);
         } finally {
-            // 4. Очищаем инпут и заново скачиваем обновленный список шаблонов
+            // Сбрасываем инпут и обновляем список шаблонов
             event.target.value = ''; 
             window.loadKaspiTemplatesFromServer();
         }
     };
     
-    // Запускаем чтение файла
     reader.readAsDataURL(file);
 };
 
