@@ -3640,28 +3640,40 @@ window.handleTemplateUpload = async function(event) {
     const file = event.target.files[0];
     if (!file) return;
 
-    let defaultName = file.name.replace('.xlsx', '').trim();
-    const categoryName = prompt("Укажите категорию (например, 'Шины'):", defaultName);
-    
-    if (!categoryName) {
-        event.target.value = ''; 
-        window.loadKaspiTemplatesFromServer(); 
-        return;
-    }
-
-    // === НАДЕЖНЫЙ ИНДИКАТОР ЗАГРУЗКИ ===
+    // 1. СРАЗУ ВКЛЮЧАЕМ ИНДИКАТОР (До появления окна ввода)
     const select = document.getElementById('kaspiTemplateSelect');
     if (select) {
-        select.options.length = 0; // Очищаем список полностью
-        select.add(new Option('⏳ Сохраняем на сервер...', '')); // Надежно добавляем индикатор
+        select.options.length = 0; // Очищаем список
+        select.add(new Option('⏳ Загрузка файла...', '')); // Показываем статус
         select.disabled = true;
     }
 
-    // Принудительно отрисовываем UI перед тяжелой работой
-    setTimeout(async () => {
-        try {
-            const reader = new FileReader();
-            reader.onload = async function(e) {
+    const mainInvoiceInput = document.getElementById('mainInvoiceFileInput'); 
+    if (mainInvoiceInput) mainInvoiceInput.disabled = true;
+
+    // 2. ДАЕМ БРАУЗЕРУ 100мс НА ОТРИСОВКУ ЭКРАНА
+    setTimeout(() => {
+        // 3. Теперь спрашиваем имя категории
+        let defaultName = file.name.replace('.xlsx', '').trim();
+        const categoryName = prompt("Укажите категорию (например, 'Шины'):", defaultName);
+        
+        if (!categoryName) {
+            // Если нажали "Отмена"
+            event.target.value = ''; 
+            window.loadKaspiTemplatesFromServer(); 
+            if (mainInvoiceInput) mainInvoiceInput.disabled = false;
+            return;
+        }
+
+        // Обновляем статус
+        if (select) {
+            select.options[0].text = '⏳ Сохраняем на сервер...';
+        }
+
+        // 4. Читаем и отправляем файл
+        const reader = new FileReader();
+        reader.onload = async function(e) {
+            try {
                 const base64Data = e.target.result.split(',')[1];
                 
                 const payload = {
@@ -3683,19 +3695,19 @@ window.handleTemplateUpload = async function(event) {
                 } else {
                     throw new Error(result ? result.error : "Сервер вернул ошибку");
                 }
-                
+            } catch (error) {
+                console.error("Ошибка:", error);
+                alert(`❌ Ошибка:\n${error.message}`);
+            } finally {
                 event.target.value = ''; 
                 await window.loadKaspiTemplatesFromServer(); 
-            };
-            
-            reader.readAsDataURL(file);
+                if (mainInvoiceInput) mainInvoiceInput.disabled = false;
+            }
+        };
+        
+        reader.readAsDataURL(file);
 
-        } catch (error) {
-            console.error("Ошибка:", error);
-            alert(`❌ Ошибка:\n${error.message}`);
-            await window.loadKaspiTemplatesFromServer(); 
-        }
-    }, 50);
+    }, 100); // 100 миллисекунд форы для отрисовки интерфейса
 };
 
 // Глобальный объект для хранения словарей Каспи
