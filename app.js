@@ -7537,7 +7537,7 @@ window.renderTemplateSelect = function(templates) {
     }
 };
 
-window.handleTemplateChange = async function(event) {
+window.handleTemplateChange = function(event) {
     const selectedValue = event.target.value;
 
     if (selectedValue === 'new_template') {
@@ -7546,12 +7546,12 @@ window.handleTemplateChange = async function(event) {
         
         const fileInput = document.getElementById('templateFileInput'); 
         if (fileInput) {
-            fileInput.click(); // Программно "нажимаем" на скрытую кнопку выбора файла
+            fileInput.click(); // Теперь iOS разрешит этот клик!
         } else {
             console.error("Ошибка: не найден скрытый инпут templateFileInput");
         }
         
-        // Сбрасываем выбор в списке, чтобы пункт "Новый шаблон" не зависал визуально
+        // Сбрасываем выбор в списке
         event.target.selectedIndex = 0; 
         
     } else if (selectedValue !== '') {
