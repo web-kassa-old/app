@@ -7594,6 +7594,7 @@ window.loadKaspiTemplatesFromServer = async function(isSilent = false) {
     const select = document.getElementById('kaspiTemplateSelect');
     if (!select) return;
 
+    // Ставим заглушку
     select.innerHTML = '<option value="" disabled selected data-i18n="loading_templates">⏳ Обновляем список шаблонов...</option>';
     
     if (typeof applyLanguage === 'function' && typeof currentLang !== 'undefined') {
@@ -7603,18 +7604,18 @@ window.loadKaspiTemplatesFromServer = async function(isSilent = false) {
     select.disabled = true;
 
     try {
-        // Включаем лоадер ТОЛЬКО если это не тихий фоновый вызов
         if (!isSilent && typeof window.showLoading === 'function') {
             window.showLoading(null, 'loading_templates');
         }
 
         const payload = { action: 'getKaspiTemplateListBackend', api_key: typeof CLIENT_API_KEY !== 'undefined' ? CLIENT_API_KEY : "" };
-        const response = await fetchWithTimeout(typeof APPS_SCRIPT_URL !== 'undefined' ? APPS_SCRIPT_URL : "", {
-            method: 'POST',
-            body: JSON.stringify(payload)
-        }, 8000); 
         
-        const result = await response.json();
+        // ОПРЕДЕЛЯЕМ URL (используем ваш стандартный)
+        const targetUrl = typeof APPS_SCRIPT_URL !== 'undefined' ? APPS_SCRIPT_URL : (typeof GATEWAY_URL !== 'undefined' ? GATEWAY_URL : "");
+        
+        // === ИСПОЛЬЗУЕМ ВАШ УМНЫЙ ФЕТЧ ===
+        // Передаем URL, пакет, имя для кэша и ставим 1 попытку (чтобы не ждало долго в фоне)
+        const result = await window.smartFetch(targetUrl, payload, 'kaspiTemplatesCache', 1);
 
         let optionsHTML = `
             <option value="" disabled selected>-- Выберите шаблон --</option>
@@ -7625,6 +7626,8 @@ window.loadKaspiTemplatesFromServer = async function(isSilent = false) {
             result.templates.forEach(tpl => {
                 optionsHTML += `<option value="${tpl}">${tpl}</option>`;
             });
+        } else if (!result || !result.success) {
+            throw new Error("Пустой ответ или ошибка от сервера/кэша");
         }
         
         select.innerHTML = optionsHTML;
@@ -7642,7 +7645,6 @@ window.loadKaspiTemplatesFromServer = async function(isSilent = false) {
             applyLanguage(currentLang);
         }
 
-        // Выключаем лоадер ТОЛЬКО если мы его включали
         if (!isSilent && typeof window.hideLoading === 'function') {
             window.hideLoading();
         }
