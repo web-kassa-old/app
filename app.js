@@ -565,12 +565,12 @@
             }
         };
 
- window.showLoading = function(text) {
+window.showLoading = function(text) {
     const loader = document.getElementById('globalLoader');
     const loaderText = document.getElementById('globalLoaderText');
     if (loader && loaderText) {
         loaderText.innerText = text || 'Подождите...';
-        loader.style.display = 'flex';
+        loader.style.display = 'flex'; // Вот эта команда включает черный экран
     }
 };
 
@@ -7427,43 +7427,63 @@ window.selectImportMode = function(mode) {
     }
 };
 
+// 1. Очищенная функция разблокировки накладной
 window.unlockInvoiceUpload = function() {
-    const templateSelect = document.getElementById('kaspiTemplateSelect');
-    
-    // Если пытаются добавить новый шаблон Kaspi
-    if (window.currentImportMode === 'kaspi' && templateSelect.value === 'new_template') {
-        alert("Здесь будет открываться окно для загрузки пустого шаблона от Kaspi. Пока в разработке!");
-        templateSelect.value = ""; 
-        lockInvoiceUpload();       
-        return;
-    }
-
     const wrapper = document.getElementById('invoiceUploadWrapper');
     const labelSpan = document.getElementById('fileNameTextCompact');
     
     // Снимаем блокировку
-    wrapper.style.opacity = '1';
-    wrapper.style.pointerEvents = 'auto';
+    if (wrapper) {
+        wrapper.style.opacity = '1';
+        wrapper.style.pointerEvents = 'auto';
+    }
     
-    // Временно жестко прописываем текст (переводы подключим в самом конце)
-    labelSpan.previousElementSibling.innerText = '📄';
-    labelSpan.innerText = 'Нажмите для выбора Excel';
+    if (labelSpan) {
+        labelSpan.previousElementSibling.innerText = '📄';
+        labelSpan.innerText = 'Нажмите для выбора Excel';
+    }
 };
 
+// 2. Ваша функция блокировки накладной (без изменений, просто убедитесь, что она есть)
 window.lockInvoiceUpload = function() {
     const wrapper = document.getElementById('invoiceUploadWrapper');
     const labelSpan = document.getElementById('fileNameTextCompact');
     
-    // Возвращаем блокировку
-    wrapper.style.opacity = '0.5';
-    wrapper.style.pointerEvents = 'none';
+    if (wrapper) {
+        wrapper.style.opacity = '0.5';
+        wrapper.style.pointerEvents = 'none';
+    }
     
-    // Временно жестко прописываем текст
-    labelSpan.previousElementSibling.innerText = '🔒';
-    labelSpan.innerText = 'Сначала выберите режим';
+    if (labelSpan) {
+        labelSpan.previousElementSibling.innerText = '🔒';
+        labelSpan.innerText = 'Сначала выберите режим';
+    }
     
-    // Очищаем инпут файла
-    document.getElementById('invoiceFileInput').value = '';
+    const fileInput = document.getElementById('invoiceFileInput');
+    if (fileInput) fileInput.value = '';
+};
+
+// 3. Исправленный перехватчик (ТЕПЕРЬ ОН ВЫЗЫВАЕТ БЛОКИРОВКУ)
+window.handleTemplateChange = function(event) {
+    const selectedValue = event.target.value;
+
+    if (selectedValue === 'new_template') {
+        // ВИЗУАЛЬНО БЛОКИРУЕМ КНОПКУ НАКЛАДНОЙ
+        if (typeof window.lockInvoiceUpload === 'function') {
+            window.lockInvoiceUpload();
+        }
+
+        const fileInput = document.getElementById('templateFileInput'); 
+        if (fileInput) fileInput.click(); 
+        
+        event.target.selectedIndex = 0; 
+        
+    } else if (selectedValue !== '') {
+        // ВИЗУАЛЬНО РАЗБЛОКИРУЕМ КНОПКУ НАКЛАДНОЙ
+        if (typeof window.unlockInvoiceUpload === 'function') {
+            window.unlockInvoiceUpload();
+        }
+    }
 };
 
 // Справка
@@ -7526,30 +7546,4 @@ window.loadKaspiTemplatesFromServer = async function() {
 window.renderTemplateSelect = async function() {
     // Просто перенаправляем запрос в нашу новую исправленную функцию
     await window.loadKaspiTemplatesFromServer();
-};
-window.handleTemplateChange = function(event) {
-    const selectedValue = event.target.value;
-    
-    // Получаем кнопку накладной. Убедитесь, что ID совпадает с вашим!
-    const mainInvoiceInput = document.getElementById('mainInvoiceFileInput');
-
-    if (selectedValue === 'new_template') {
-        // 1. ПОЛЬЗОВАТЕЛЬ НАЖАЛ "НОВЫЙ ШАБЛОН" - ЖЕСТКО БЛОКИРУЕМ НАКЛАДНУЮ
-        if (mainInvoiceInput) mainInvoiceInput.disabled = true;
-
-        const fileInput = document.getElementById('templateFileInput'); 
-        if (fileInput) fileInput.click(); 
-        
-        // Сбрасываем выбор в списке
-        event.target.selectedIndex = 0; 
-        
-    } else if (selectedValue !== '') {
-        // 2. ПОЛЬЗОВАТЕЛЬ ВЫБРАЛ ГОТОВЫЙ ШАБЛОН - РАЗБЛОКИРУЕМ НАКЛАДНУЮ
-        if (mainInvoiceInput) mainInvoiceInput.disabled = false;
-        
-        console.log(`Выбран шаблон: ${selectedValue}`);
-        if (typeof window.unlockInvoiceUpload === 'function') {
-            window.unlockInvoiceUpload();
-        }
-    }
 };
