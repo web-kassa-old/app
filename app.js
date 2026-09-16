@@ -566,12 +566,26 @@
         };
 
 window.showLoading = function(text) {
-    const loader = document.getElementById('globalLoader');
-    const loaderText = document.getElementById('globalLoaderText');
-    if (loader && loaderText) {
-        loaderText.innerText = text || 'Подождите...';
-        loader.style.display = 'flex'; // Вот эта команда включает черный экран
+    let loader = document.getElementById('globalLoader');
+    
+    // Если лоадера нет в HTML, создаем его на лету!
+    if (!loader) {
+        loader = document.createElement('div');
+        loader.id = 'globalLoader';
+        // z-index: 999999 гарантирует, что он будет поверх всего
+        loader.style.cssText = 'display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.85); z-index: 999999; justify-content: center; align-items: center; flex-direction: column; color: #2ecc71; font-family: sans-serif;';
+        loader.innerHTML = `
+            <div style="font-size: 50px; margin-bottom: 15px;">⏳</div>
+            <div id="globalLoaderText" style="font-size: 18px; font-weight: bold; text-align: center; padding: 0 20px;"></div>
+        `;
+        document.body.appendChild(loader);
     }
+    
+    const loaderText = document.getElementById('globalLoaderText');
+    if (loaderText) {
+        loaderText.innerText = text || 'Подождите...';
+    }
+    loader.style.display = 'flex';
 };
 
 window.hideLoading = function() {
