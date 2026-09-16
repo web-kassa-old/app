@@ -7481,16 +7481,15 @@ window.loadKaspiTemplatesFromServer = async function() {
     const select = document.getElementById('kaspiTemplateSelect');
     if (!select) return;
 
-    // Временно блокируем сам список, чтобы пользователь не кликал по нему
+    // СРАЗУ ставим заглушку, чтобы окно не висело пустым!
+    select.innerHTML = '<option value="" disabled selected>⏳ Загрузка списка...</option>';
     select.disabled = true;
 
     try {
-        // === 1. ВКЛЮЧАЕМ ЛОАДЕР ===
-        window.showLoading('Обновляем список шаблонов...');
+        // Включаем глобальный черный экран (если он добавлен в HTML)
+        if (typeof window.showLoading === 'function') window.showLoading('Обновляем список шаблонов...');
 
         const payload = { action: 'getKaspiTemplateListBackend', api_key: CLIENT_API_KEY };
-        
-        // Прямой запрос к серверу без кэша
         const response = await fetch(APPS_SCRIPT_URL, {
             method: 'POST',
             body: JSON.stringify(payload)
@@ -7498,35 +7497,29 @@ window.loadKaspiTemplatesFromServer = async function() {
         
         const result = await response.json();
 
-        // Формируем базовые пункты
         let optionsHTML = `
             <option value="" disabled selected>-- Выберите шаблон --</option>
             <option value="new_template" style="font-weight: bold; color: #2ecc71;">➕ Новый шаблон</option>
         `;
 
-        // Если сервер вернул список, добавляем шаблоны
         if (result && result.success && result.templates && result.templates.length > 0) {
             result.templates.forEach(tpl => {
                 optionsHTML += `<option value="${tpl}">${tpl}</option>`;
             });
         }
-
-        // Отрисовываем обновленный список
+        
         select.innerHTML = optionsHTML;
         
     } catch (error) {
         console.error("Ошибка загрузки списка:", error);
-        // В случае ошибки оставляем хотя бы кнопку добавления
+        // Если сервер совсем отвалился, оставляем возможность добавить шаблон
         select.innerHTML = `
-            <option value="" disabled selected>-- Выберите шаблон --</option>
+            <option value="" disabled selected>-- Ошибка загрузки --</option>
             <option value="new_template" style="font-weight: bold; color: #2ecc71;">➕ Новый шаблон</option>
         `;
     } finally {
-        // Разблокируем список
         select.disabled = false;
-        
-        // === 2. ВЫКЛЮЧАЕМ ЛОАДЕР ===
-        window.hideLoading();
+        if (typeof window.hideLoading === 'function') window.hideLoading();
     }
 };
 
@@ -7536,21 +7529,27 @@ window.renderTemplateSelect = async function() {
 };
 window.handleTemplateChange = function(event) {
     const selectedValue = event.target.value;
+    
+    // Получаем кнопку накладной. Убедитесь, что ID совпадает с вашим!
+    const mainInvoiceInput = document.getElementById('mainInvoiceFileInput');
 
     if (selectedValue === 'new_template') {
+        // 1. ПОЛЬЗОВАТЕЛЬ НАЖАЛ "НОВЫЙ ШАБЛОН" - ЖЕСТКО БЛОКИРУЕМ НАКЛАДНУЮ
+        if (mainInvoiceInput) mainInvoiceInput.disabled = true;
+
         const fileInput = document.getElementById('templateFileInput'); 
         if (fileInput) fileInput.click(); 
         
+        // Сбрасываем выбор в списке
         event.target.selectedIndex = 0; 
         
     } else if (selectedValue !== '') {
-        console.log(`Выбран шаблон: ${selectedValue}`);
+        // 2. ПОЛЬЗОВАТЕЛЬ ВЫБРАЛ ГОТОВЫЙ ШАБЛОН - РАЗБЛОКИРУЕМ НАКЛАДНУЮ
+        if (mainInvoiceInput) mainInvoiceInput.disabled = false;
         
-        // ВЫЗЫВАЕМ ВАШУ ФУНКЦИЮ РАЗБЛОКИРОВКИ НАКЛАДНОЙ!
+        console.log(`Выбран шаблон: ${selectedValue}`);
         if (typeof window.unlockInvoiceUpload === 'function') {
             window.unlockInvoiceUpload();
-        } else {
-            console.warn("Функция unlockInvoiceUpload не найдена");
         }
     }
 };
