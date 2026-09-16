@@ -675,7 +675,7 @@ button,
     align-items: center;
 }
 
-/* Само окошко — теперь использует ваши переменные тем! */
+/* Само окошко */
 .modal-content {
     background: var(--bg-body);
     color: var(--text-main);
@@ -688,10 +688,19 @@ button,
     box-shadow: 0 4px 15px rgba(0,0,0,0.5);
 }
 
-.modal-content h3 { margin-top: 0; margin-bottom: 10px; font-size: 20px; }
+/* Заголовок окна */
+.modal-content h3 { 
+    margin-top: 0; 
+    margin-bottom: 8px; 
+    font-size: 19px; 
+}
 
-/* Текст-подсказка тоже использует вашу переменную */
-.modal-content p { color: var(--text-muted); font-size: 14px; margin-bottom: 25px; }
+/* Текст-подсказка */
+.modal-content p { 
+    color: var(--text-muted); 
+    font-size: 14px; 
+    margin-bottom: 20px; 
+}
 
 /* Зеленая кнопка загрузки */
 .btn-upload {
@@ -701,9 +710,9 @@ button,
     padding: 14px;
     border-radius: 6px;
     cursor: pointer;
-    font-weight: bold;
-    font-size: 16px;
-    margin-bottom: 15px;
+    font-weight: 600;
+    font-size: 15px;
+    margin-bottom: 12px;
 }
 
 /* Кнопка отмены */
@@ -711,9 +720,10 @@ button,
     background: transparent;
     color: #e74c3c;
     border: 1px solid #e74c3c;
-    padding: 10px;
+    padding: 12px;
     border-radius: 6px;
     cursor: pointer;
     width: 100%;
-    font-weight: bold;
+    font-weight: 600;
+    font-size: 15px;
 }
