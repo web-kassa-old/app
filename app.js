@@ -2284,12 +2284,14 @@ async function handleAutoLogin(val) {
     // Мгновенно запрашиваем персональную кассу (без всплывающих окон об ошибке сети)
     refreshPosData(true); 
 
-    // === ОТЛОЖЕННАЯ ЗАГРУЗКА (LAZY LOAD) ===
+   // === ОТЛОЖЕННАЯ ЗАГРУЗКА (LAZY LOAD) ===
     // Тихо грузим справочники в фоне через 3 секунды после успешного входа
     setTimeout(() => {
-        // Убедись, что имена функций совпадают с твоими в проекте
         if (typeof loadSuppliers === 'function') {
             loadSuppliers();
+        }
+        if (typeof loadKaspiTemplatesFromServer === 'function') {
+            loadKaspiTemplatesFromServer(true); // Запускаем тихо (наше правило №1)
         }
     }, 3000);
 }
@@ -7492,7 +7494,7 @@ window.selectImportMode = function(mode) {
         lockInvoiceUpload(); 
         
         // Запрашиваем список при открытии вкладки
-        loadKaspiTemplatesFromServer(true);
+        loadKaspiTemplatesFromServer();
     }
 };
 
