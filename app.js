@@ -3510,12 +3510,16 @@ function setReportView(view) {
             render(); 
             
             // 3. Тихо обновляем окно товара
-            setTimeout(() => { 
-                openItemMenu(selectedItemId); 
-                btnSaveDb.innerHTML = '💾 <span data-i18n="btn_save_db">' + translations[currentLang].btn_save_db + '</span>'; 
-                btnSaveDb.disabled = false; 
-                btnSaveDb.style.display = 'none'; 
-            }, 800); 
+            // === ОТЛОЖЕННАЯ ЗАГРУЗКА (LAZY LOAD) ===
+            setTimeout(() => {
+                // Если у loadSuppliers тоже есть лоадер, можно передать true и туда
+                if (typeof loadSuppliers === 'function') {
+                    loadSuppliers(true); 
+                }
+                if (typeof loadKaspiTemplatesFromServer === 'function') {
+                    loadKaspiTemplatesFromServer(true); // Вызываем ТИХО, без перекрытия экрана
+                }
+            }, 3000); 
         }
         else { alert(translations[currentLang].err_server); btnSaveDb.innerHTML = '💾 <span data-i18n="btn_save_db">' + translations[currentLang].btn_save_db + '</span>'; btnSaveDb.disabled = false; }
     } catch (e) { alert(translations[currentLang].err_network); btnSaveDb.innerHTML = '💾 <span data-i18n="btn_save_db">' + translations[currentLang].btn_save_db + '</span>'; btnSaveDb.disabled = false; }
@@ -7585,14 +7589,13 @@ window.showImportHelp = function() {
 // --- ФАЙЛ app.js (КЛИЕНТСКАЯ ЧАСТЬ) ---
 
 // Функция запроса списка шаблонов
-window.loadKaspiTemplatesFromServer = async function() {
+// Добавили параметр isSilent (по умолчанию false)
+window.loadKaspiTemplatesFromServer = async function(isSilent = false) {
     const select = document.getElementById('kaspiTemplateSelect');
     if (!select) return;
 
-    // Сразу ставим заглушку с ключом перевода, чтобы текст менялся при переключении языка
     select.innerHTML = '<option value="" disabled selected data-i18n="loading_templates">⏳ Обновляем список шаблонов...</option>';
     
-    // Если страница уже на казахском, переводим этот пункт немедленно
     if (typeof applyLanguage === 'function' && typeof currentLang !== 'undefined') {
         applyLanguage(currentLang);
     }
@@ -7600,20 +7603,19 @@ window.loadKaspiTemplatesFromServer = async function() {
     select.disabled = true;
 
     try {
-        // Включаем лоадер с ключом перевода!
-        if (typeof window.showLoading === 'function') {
+        // Включаем лоадер ТОЛЬКО если это не тихий фоновый вызов
+        if (!isSilent && typeof window.showLoading === 'function') {
             window.showLoading(null, 'loading_templates');
         }
 
-        const payload = { action: 'getKaspiTemplateListBackend', api_key: CLIENT_API_KEY };
-        const response = await fetch(APPS_SCRIPT_URL, {
+        const payload = { action: 'getKaspiTemplateListBackend', api_key: typeof CLIENT_API_KEY !== 'undefined' ? CLIENT_API_KEY : "" };
+        const response = await fetchWithTimeout(typeof APPS_SCRIPT_URL !== 'undefined' ? APPS_SCRIPT_URL : "", {
             method: 'POST',
             body: JSON.stringify(payload)
-        });
+        }, 8000); 
         
         const result = await response.json();
 
-        // Формируем пункты списка, добавляем перевод для пункта "Новый шаблон" (если нужно, добавьте ключ new_template в словарь)
         let optionsHTML = `
             <option value="" disabled selected>-- Выберите шаблон --</option>
             <option value="new_template" style="font-weight: bold; color: #2ecc71;">➕ Новый шаблон</option>
@@ -7628,7 +7630,7 @@ window.loadKaspiTemplatesFromServer = async function() {
         select.innerHTML = optionsHTML;
         
     } catch (error) {
-        console.error("Ошибка загрузки списка:", error);
+        console.error("Ошибка загрузки списка шаблонов:", error);
         select.innerHTML = `
             <option value="" disabled selected data-i18n="loading_error">-- Ошибка загрузки --</option>
             <option value="new_template" style="font-weight: bold; color: #2ecc71;">➕ Новый шаблон</option>
@@ -7636,12 +7638,12 @@ window.loadKaspiTemplatesFromServer = async function() {
     } finally {
         select.disabled = false;
         
-        // Принудительно переводим финальный список, чтобы подхватились дефолтные пункты
         if (typeof applyLanguage === 'function' && typeof currentLang !== 'undefined') {
             applyLanguage(currentLang);
         }
 
-        if (typeof window.hideLoading === 'function') {
+        // Выключаем лоадер ТОЛЬКО если мы его включали
+        if (!isSilent && typeof window.hideLoading === 'function') {
             window.hideLoading();
         }
     }
