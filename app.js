@@ -2270,7 +2270,7 @@ async function handleAutoLogin(val) {
         }, 1200);
     }
 }
-        function login(user) {
+async function login(user) { 
     currentUser = user;
     localStorage.setItem('user_role', user.role);
     localStorage.setItem('user_uid', user.uid);
@@ -2281,35 +2281,46 @@ async function handleAutoLogin(val) {
     clearPin();
     document.getElementById('sb').blur(); 
     
-    // Мгновенно запрашиваем персональную кассу (без всплывающих окон об ошибке сети)
-    refreshPosData(true); 
+    // === СТРОГАЯ ПОСЛЕДОВАТЕЛЬНАЯ ЗАГРУЗКА ===
+    
+    // 1. ЖДЕМ загрузку основной базы
+    await refreshPosData(true); 
 
-   // === ОТЛОЖЕННАЯ ЗАГРУЗКА (LAZY LOAD) ===
-    // Тихо грузим справочники в фоне через 3 секунды после успешного входа
-    setTimeout(() => {
-        if (typeof loadSuppliers === 'function') {
-            loadSuppliers();
-        }
-        if (typeof loadKaspiTemplatesFromServer === 'function') {
-            loadKaspiTemplatesFromServer(true); // Запускаем тихо (наше правило №1)
-        }
-    }, 3000);
+    // 2. База скачалась! Подгружаем справочники
+    if (typeof loadSuppliers === 'function') {
+        loadSuppliers();
+    }
+    if (typeof loadKaspiTemplatesFromServer === 'function') {
+        loadKaspiTemplatesFromServer(true); 
+    }
+
+    // 3. Запускаем фоновый пульс только теперь. 
+    // Он сработает ровно через 60 секунд после успешной отрисовки товаров.
+    if (typeof startBackgroundPulse === 'function') {
+        startBackgroundPulse();
+    }
 }
 
-        function logout() {
-            currentUser = null;
-            localStorage.removeItem('user_role');
-            localStorage.removeItem('user_uid'); // Стираем данные сессии
-            document.getElementById('cashier-info').style.display = 'none';
-            document.getElementById('pin-screen').style.display = 'flex';
-            clearPin();
-            
-            // Визуально обнуляем суммы при выходе, чтобы сменщик их не увидел
-            ['sum-cash','sum-qr','sum-red','sum-card','sum-trans'].forEach(id => {
-                const el = document.getElementById(id);
-                if(el) el.innerText = '0 ₸';
-            });
-        }
+function logout() {
+    currentUser = null;
+    localStorage.removeItem('user_role');
+    localStorage.removeItem('user_uid'); // Стираем данные сессии
+    document.getElementById('cashier-info').style.display = 'none';
+    document.getElementById('pin-screen').style.display = 'flex';
+    clearPin();
+    
+    // Визуально обнуляем суммы при выходе, чтобы сменщик их не увидел
+    ['sum-cash','sum-qr','sum-red','sum-card','sum-trans'].forEach(id => {
+        const el = document.getElementById(id);
+        if(el) el.innerText = '0 ₸';
+    });
+
+    // === ОСТАНАВЛИВАЕМ ФОНОВЫЕ ПРОЦЕССЫ ===
+    // Чтобы касса не отправляла запросы, пока никого нет за терминалом
+    if (typeof stopBackgroundPulse === 'function') {
+        stopBackgroundPulse();
+    }
+}
 
 async function load(isFullSync = false) {
     const savedUid = localStorage.getItem('user_uid') || (typeof currentUser !== 'undefined' && currentUser ? currentUser.uid : '');
@@ -7243,14 +7254,29 @@ window.startSmartMerge = function(fileId, fileDate) {
 // АВТОМАТИЗАЦИЯ СИНХРОНИЗАЦИИ (УМНЫЙ ГИБРИД)
 // ===================================================================
 
-// 1. Фоновый пульс: проверяем базу каждую 1 минуту (60 000 мс)
-setInterval(() => {
-    // Выполняем только если есть интернет и кассир авторизован
-    if (navigator.onLine && typeof currentUser !== 'undefined' && currentUser) {
-        console.log("⏳ Фоновый пульс: проверка обновлений...");
-        refreshPosData(true); // true = тихий режим, без блокировки экрана
+// Добавляем переменную для хранения таймера
+let backgroundPulseTimer = null;
+
+function startBackgroundPulse() {
+    // На всякий случай очищаем старый таймер, чтобы не плодить двойников
+    if (backgroundPulseTimer) clearInterval(backgroundPulseTimer);
+
+    // Запускаем пульс
+    backgroundPulseTimer = setInterval(() => {
+        if (navigator.onLine && typeof currentUser !== 'undefined' && currentUser) {
+            console.log("⏳ Фоновый пульс: проверка обновлений...");
+            refreshPosData(true); 
+        }
+    }, 60000);
+}
+
+// Полезно вызывать при выходе кассира (logout)
+function stopBackgroundPulse() {
+    if (backgroundPulseTimer) {
+        clearInterval(backgroundPulseTimer);
+        backgroundPulseTimer = null;
     }
-}, 60000);
+}
 
 // 2. Пробуждение браузера: проверка при возврате на вкладку кассы
 document.addEventListener('visibilitychange', () => {
