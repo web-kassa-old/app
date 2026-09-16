@@ -2799,31 +2799,33 @@ function handleItemClick(id, event) {
 
         function cancelTx() { document.getElementById('receipt-modal').style.display = 'none'; }
 
-        async function confirmTx() { // Вернули твой async!
+        async function confirmTx() {
             const btn = document.getElementById('btn-confirm');
             btn.disabled = true;
             
-            // Чуть подстраховали от пустых ID, логика осталась твоей
+            // Оставляем вашу логику генерации ID
             const tid = (mode === 'sale' ? 'SL-' : 'RT-') + Math.random().toString(36).substring(2, 9).toUpperCase();
             
-            // === ВОТ ОНО - ЕДИНСТВЕННОЕ РЕАЛЬНОЕ ИСПРАВЛЕНИЕ ===
+            // === 1. ИСПРАВЛЕНИЕ ВРЕМЕНИ (Формат ГГГГ-ММ-ДД ЧЧ:ММ:СС) ===
             const now = new Date();
             const pad = (n) => n.toString().padStart(2, '0'); 
-            const localTime = `${pad(now.getDate())}.${pad(now.getMonth() + 1)}.${now.getFullYear()} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
-            // ==================================================
+            const localTime = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+            
+            // === 2. ДИНАМИЧЕСКАЯ ВЕРСИЯ ИЗ ВАШЕГО КОНФИГА ===
+            // Склеиваем "pos_v" и "5.5.45" (из APP_VERSION)
+            const appSource = typeof APP_VERSION !== 'undefined' ? "pos_v" + APP_VERSION : "pos_v5.5.0";
 
             const p = {
                 tx_id: tid, 
                 tx_type: mode, 
                 payment_method: pendingMethod, 
-                source: "pos_v5.5.0", 
-                created_at: localTime,
+                source: appSource, // Передаем склеенную строку
+                created_at: localTime, 
                 seller_id: currentUser ? currentUser.uid : "S-XX", 
                 cart: cart.map(c => ({item_id:c.id, item_name:c.name, qty:c.qty, price:c.price, cost_price:c.cost}))
             };
 
             try {
-                // Твоя логика оффлайн-очереди
                 if (typeof window.addToOfflineQueue === 'function') {
                     window.addToOfflineQueue(p);
                 }
@@ -2842,7 +2844,6 @@ function handleItemClick(id, event) {
                 }
                 document.getElementById('receipt-modal').style.display = 'none';
                 
-                // Твое идеальное локальное обновление остатков
                 cart.forEach(c => {
                     let dbItem = db.find(i => String(i.id) === String(c.id));
                     if (dbItem) {
