@@ -717,7 +717,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // === БРОНИРОВАННЫЙ ДВИЖОК ЗАПРОСОВ (smartFetch) ===
         window.smartFetch = async function(url, payload, cacheKey, maxRetries = 3) {
-            const TIMEOUT_MS = 8000; // Ждем максимум 8 секунд на одну попытку
+            const TIMEOUT_MS = 15000; // Ждем максимум 8 секунд на одну попытку
 
             for (let i = 0; i < maxRetries; i++) {
                 // Создаем контроллер для прерывания зависших запросов
@@ -925,7 +925,7 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         // Запускаем при инициализации
-        window.loadSuppliers();
+        // window.loadSuppliers();
 
         let db = [], cart = [], mode = 'sale', pendingMethod = null;
         let staffList = [], currentUser = null;
