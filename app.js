@@ -925,7 +925,7 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         // Запускаем при инициализации
-        window.loadSuppliers();
+        // window.loadSuppliers();
 
         let db = [], cart = [], mode = 'sale', pendingMethod = null;
         let staffList = [], currentUser = null;
@@ -2291,9 +2291,6 @@ async function handleAutoLogin(val) {
         if (typeof loadSuppliers === 'function') {
             loadSuppliers();
         }
-        if (typeof loadKaspiTemplatesFromServer === 'function') {
-            loadKaspiTemplatesFromServer();
-        }
     }, 3000);
 }
 
@@ -3489,7 +3486,7 @@ function setReportView(view) {
             }; reader.readAsDataURL(file);
         }
 
-        async function confirmUpload() {
+async function confirmUpload() {
     if (!navigator.onLine) return alert(translations[currentLang].msg_sync_error);
     const btnSaveDb = document.getElementById('btn-save-db');
     btnSaveDb.innerText = "⏳ " + translations[currentLang].btn_saving; 
@@ -3510,19 +3507,21 @@ function setReportView(view) {
             render(); 
             
             // 3. Тихо обновляем окно товара
-            // === ОТЛОЖЕННАЯ ЗАГРУЗКА (LAZY LOAD) ===
-            setTimeout(() => {
-                // Если у loadSuppliers тоже есть лоадер, можно передать true и туда
-                if (typeof loadSuppliers === 'function') {
-                    loadSuppliers(true); 
-                }
-                if (typeof loadKaspiTemplatesFromServer === 'function') {
-                    loadKaspiTemplatesFromServer(true); // Вызываем ТИХО, без перекрытия экрана
-                }
-            }, 3000); 
+            // Запускаем перерисовку открытого меню, чтобы фотка появилась сразу
+            if (typeof openItemMenu === 'function' && item) {
+                openItemMenu(item); 
+            }
         }
-        else { alert(translations[currentLang].err_server); btnSaveDb.innerHTML = '💾 <span data-i18n="btn_save_db">' + translations[currentLang].btn_save_db + '</span>'; btnSaveDb.disabled = false; }
-    } catch (e) { alert(translations[currentLang].err_network); btnSaveDb.innerHTML = '💾 <span data-i18n="btn_save_db">' + translations[currentLang].btn_save_db + '</span>'; btnSaveDb.disabled = false; }
+        else { 
+            alert(translations[currentLang].err_server); 
+            btnSaveDb.innerHTML = '💾 <span data-i18n="btn_save_db">' + translations[currentLang].btn_save_db + '</span>'; 
+            btnSaveDb.disabled = false; 
+        }
+    } catch (e) { 
+        alert(translations[currentLang].err_network); 
+        btnSaveDb.innerHTML = '💾 <span data-i18n="btn_save_db">' + translations[currentLang].btn_save_db + '</span>'; 
+        btnSaveDb.disabled = false; 
+    }
 }
 
         async function deletePhoto() {
@@ -7493,7 +7492,7 @@ window.selectImportMode = function(mode) {
         lockInvoiceUpload(); 
         
         // Запрашиваем список при открытии вкладки
-        loadKaspiTemplatesFromServer();
+        loadKaspiTemplatesFromServer(true);
     }
 };
 
@@ -7651,7 +7650,7 @@ window.loadKaspiTemplatesFromServer = async function(isSilent = false) {
     }
 };
 
-window.renderTemplateSelect = async function() {
-    // Просто перенаправляем запрос в нашу новую исправленную функцию
-    await window.loadKaspiTemplatesFromServer();
-};
+// window.renderTemplateSelect = async function() {
+//     // Просто перенаправляем запрос в нашу новую исправленную функцию
+//     await window.loadKaspiTemplatesFromServer();
+// };
