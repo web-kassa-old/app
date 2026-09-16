@@ -925,7 +925,7 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         // Запускаем при инициализации
-        // window.loadSuppliers();
+        window.loadSuppliers();
 
         let db = [], cart = [], mode = 'sale', pendingMethod = null;
         let staffList = [], currentUser = null;
