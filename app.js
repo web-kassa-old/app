@@ -7532,13 +7532,21 @@ window.loadKaspiTemplatesFromServer = async function() {
     const select = document.getElementById('kaspiTemplateSelect');
     if (!select) return;
 
-    // СРАЗУ ставим заглушку, чтобы окно не висело пустым!
-    select.innerHTML = '<option value="" disabled selected>⏳ Загрузка списка...</option>';
+    // Сразу ставим заглушку с ключом перевода, чтобы текст менялся при переключении языка
+    select.innerHTML = '<option value="" disabled selected data-i18n="loading_templates">⏳ Обновляем список шаблонов...</option>';
+    
+    // Если страница уже на казахском, переводим этот пункт немедленно
+    if (typeof applyLanguage === 'function' && typeof currentLang !== 'undefined') {
+        applyLanguage(currentLang);
+    }
+    
     select.disabled = true;
 
     try {
-        // Включаем глобальный черный экран (если он добавлен в HTML)
-        if (typeof window.showLoading === 'function') window.showLoading('Обновляем список шаблонов...');
+        // Включаем лоадер с ключом перевода!
+        if (typeof window.showLoading === 'function') {
+            window.showLoading(null, 'loading_templates');
+        }
 
         const payload = { action: 'getKaspiTemplateListBackend', api_key: CLIENT_API_KEY };
         const response = await fetch(APPS_SCRIPT_URL, {
@@ -7548,6 +7556,7 @@ window.loadKaspiTemplatesFromServer = async function() {
         
         const result = await response.json();
 
+        // Формируем пункты списка, добавляем перевод для пункта "Новый шаблон" (если нужно, добавьте ключ new_template в словарь)
         let optionsHTML = `
             <option value="" disabled selected>-- Выберите шаблон --</option>
             <option value="new_template" style="font-weight: bold; color: #2ecc71;">➕ Новый шаблон</option>
@@ -7563,14 +7572,21 @@ window.loadKaspiTemplatesFromServer = async function() {
         
     } catch (error) {
         console.error("Ошибка загрузки списка:", error);
-        // Если сервер совсем отвалился, оставляем возможность добавить шаблон
         select.innerHTML = `
-            <option value="" disabled selected>-- Ошибка загрузки --</option>
+            <option value="" disabled selected data-i18n="loading_error">-- Ошибка загрузки --</option>
             <option value="new_template" style="font-weight: bold; color: #2ecc71;">➕ Новый шаблон</option>
         `;
     } finally {
         select.disabled = false;
-        if (typeof window.hideLoading === 'function') window.hideLoading();
+        
+        // Принудительно переводим финальный список, чтобы подхватились дефолтные пункты
+        if (typeof applyLanguage === 'function' && typeof currentLang !== 'undefined') {
+            applyLanguage(currentLang);
+        }
+
+        if (typeof window.hideLoading === 'function') {
+            window.hideLoading();
+        }
     }
 };
 
