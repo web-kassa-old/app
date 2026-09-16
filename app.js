@@ -2125,158 +2125,177 @@ window.saveNewProduct = function() {
         }
 
 async function handleAutoLogin(val) {
-            if (blockUntil > Date.now()) {
-                clearPin();
-                return; 
-            }
+    if (blockUntil > Date.now()) {
+        clearPin();
+        return; 
+    }
 
-            const err = document.getElementById('login-error');
-            const field = document.getElementById('pin-field');
-            
-            const securedPin = await getSecurePin(val);
-            
-            // === НАЧАЛО: УМНАЯ ОФЛАЙН-АВТОРИЗАЦИЯ ===
-            if (!navigator.onLine) {
-                const savedPin = localStorage.getItem('offline_pin');
-                const savedUser = localStorage.getItem('offline_user');
-                
-                if (savedPin && savedUser && securedPin === savedPin) {
-                    field.style.color = 'var(--accent-green)'; 
-                    err.innerText = translations[currentLang].pin_granted + translations[currentLang].status_offline;
-                    err.style.color = 'var(--accent-green)';
-                    err.style.visibility = 'visible';
-                    
-                    setTimeout(() => {
-                        login(JSON.parse(savedUser)); 
-                        field.style.color = 'var(--accent-yellow)';
-                        err.style.visibility = 'hidden';
-                    }, 400);
-                    return;
-                } else {
-                    field.style.color = 'var(--accent-red)'; 
-                    field.classList.add('error-shake');
-                    err.innerText = savedPin ? translations[currentLang].pin_wrong : translations[currentLang].pin_no_internet; 
-                    err.style.color = 'var(--accent-red)'; 
-                    err.style.visibility = 'visible';
-                    setTimeout(() => { field.classList.remove('error-shake'); err.style.visibility = 'hidden'; field.style.color = 'var(--accent-yellow)'; clearPin(); }, 1200);
-                    return;
-                }
-            }
-            // === КОНЕЦ: ОФЛАЙН-АВТОРИЗАЦИЯ ===
-
-            field.style.color = 'var(--accent-blue)'; 
-            err.innerText = translations[currentLang].pin_checking;
-            err.style.color = 'var(--accent-blue)';
+    const err = document.getElementById('login-error');
+    const field = document.getElementById('pin-field');
+    
+    const securedPin = await getSecurePin(val);
+    
+    // === НАЧАЛО: УМНАЯ ОФЛАЙН-АВТОРИЗАЦИЯ ===
+    if (!navigator.onLine) {
+        const savedPin = localStorage.getItem('offline_pin');
+        const savedUser = localStorage.getItem('offline_user');
+        
+        if (savedPin && savedUser && securedPin === savedPin) {
+            field.style.color = 'var(--accent-green)'; 
+            err.innerText = translations[currentLang].pin_granted + translations[currentLang].status_offline;
+            err.style.color = 'var(--accent-green)';
             err.style.visibility = 'visible';
+            
+            setTimeout(() => {
+                login(JSON.parse(savedUser)); 
+                field.style.color = 'var(--accent-yellow)';
+                err.style.visibility = 'hidden';
+            }, 400);
+            return;
+        } else {
+            field.style.color = 'var(--accent-red)'; 
+            field.classList.add('error-shake');
+            err.innerText = savedPin ? translations[currentLang].pin_wrong : translations[currentLang].pin_no_internet; 
+            err.style.color = 'var(--accent-red)'; 
+            err.style.visibility = 'visible';
+            setTimeout(() => { field.classList.remove('error-shake'); err.style.visibility = 'hidden'; field.style.color = 'var(--accent-yellow)'; clearPin(); }, 1200);
+            return;
+        }
+    }
+    // === КОНЕЦ: ОФЛАЙН-АВТОРИЗАЦИЯ ===
 
-            try {
-                // Достаем актуальный API-ключ
-                let activeApiKey = localStorage.getItem('CLIENT_API_KEY') || (typeof CLIENT_API_KEY !== 'undefined' ? CLIENT_API_KEY : "");
+    field.style.color = 'var(--accent-blue)'; 
+    err.innerText = translations[currentLang].pin_checking;
+    err.style.color = 'var(--accent-blue)';
+    err.style.visibility = 'visible';
 
-                const response = await fetch(APPS_SCRIPT_URL, {
-                    method: 'POST',
-                    body: JSON.stringify({ 
-                        api_key: activeApiKey, 
-                        action: 'verifyPin', 
-                        pin: securedPin 
-                    })
-                });
+    try {
+        // Достаем актуальный API-ключ
+        let activeApiKey = localStorage.getItem('CLIENT_API_KEY') || (typeof CLIENT_API_KEY !== 'undefined' ? CLIENT_API_KEY : "");
 
-                const textRes = await response.text(); 
-                let res;
-                try {
-                    res = JSON.parse(textRes);
-                } catch (e) {
-                    throw new Error("SERVER_ERROR");
-                }
+        // === НОВОЕ: КОНТРОЛЛЕР ТАЙМ-АУТА (6 СЕКУНД) ===
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 6000);
 
-                if (res.success) {
-                    failedAttempts = 0;
-                    localStorage.removeItem('pos_fails');
-                    localStorage.removeItem('pos_block');
-                    
-                    localStorage.setItem('offline_pin', securedPin);
-                    localStorage.setItem('offline_user', JSON.stringify(res.user));
+        const response = await fetch(APPS_SCRIPT_URL, {
+            method: 'POST',
+            signal: controller.signal, // Привязываем контроллер для прерывания
+            body: JSON.stringify({ 
+                api_key: activeApiKey, 
+                action: 'verifyPin', 
+                pin: securedPin 
+            })
+        });
 
-                    localStorage.setItem('DRIVE_DATA', JSON.stringify(res.driveData));
+        clearTimeout(timeoutId); // Если успели вовремя - отменяем таймер смерти
 
-                    field.style.color = 'var(--accent-green)'; 
-                    err.innerText = translations[currentLang].pin_granted;
-                    err.style.color = 'var(--accent-green)';
-                    
-                    setTimeout(() => {
-                        login(res.user); 
-                        field.style.color = 'var(--accent-yellow)';
-                        err.style.color = 'var(--accent-red)';
-                        err.style.visibility = 'hidden';
-                        err.innerText = translations[currentLang].pin_wrong;
-                    }, 400);
+        const textRes = await response.text(); 
+        let res;
+        try {
+            res = JSON.parse(textRes);
+        } catch (e) {
+            throw new Error("SERVER_ERROR");
+        }
 
-                } else {
-                    // === НОВАЯ ЗАЩИТА ОТ БИТЫХ КЛЮЧЕЙ ===
-                    if (res.error && (res.error.includes("api_key") || res.error.includes("База клиента не найдена") || res.error.includes("INVALID"))) {
-                        throw new Error("BAD_API_KEY"); // Сервер ругается на ключ арендатора
-                    }
-                    throw new Error("WRONG_PIN"); // Реально неверный пин-код
-                }
+        if (res.success) {
+            failedAttempts = 0;
+            localStorage.removeItem('pos_fails');
+            localStorage.removeItem('pos_block');
+            
+            localStorage.setItem('offline_pin', securedPin);
+            localStorage.setItem('offline_user', JSON.stringify(res.user));
 
-            } catch (error) {
-                console.error("Ошибка авторизации:", error);
-                
-                // === АВТОМАТИЧЕСКИЙ СБРОС БЕЗ ЗАВИСАНИЙ ===
-                if (error.message === "BAD_API_KEY") {
-                    localStorage.clear(); // Полностью вычищаем битые ключи
-                    alert("Ключ доступа устарел. Приложение будет перезагружено для безопасности.");
-                    window.location.reload(true); // Жесткая перезагрузка страницы (никаких зависаний)
-                    return;
-                }
+            localStorage.setItem('DRIVE_DATA', JSON.stringify(res.driveData));
 
-                let isWrongPin = error.message === "WRONG_PIN";
-                
-                if (isWrongPin) {
-                    failedAttempts++;
-                    localStorage.setItem('pos_fails', failedAttempts);
-                    
-                    if (failedAttempts >= 3) {
-                        blockUntil = Date.now() + 5 * 60 * 1000;
-                        localStorage.setItem('pos_block', blockUntil);
-                        field.classList.add('error-shake');
-                        setTimeout(() => { field.classList.remove('error-shake'); clearPin(); }, 800);
-                        checkBlockTimer(); 
-                        return;
-                    }
-                }
-
-                field.style.color = 'var(--accent-red)'; 
-                field.classList.add('error-shake');
-                
-                const attemptsLeft = Math.max(0, 3 - failedAttempts);
-                err.innerText = isWrongPin ? `${translations[currentLang].pin_wrong_left}${attemptsLeft}` : translations[currentLang].pin_conn_error;
+            field.style.color = 'var(--accent-green)'; 
+            err.innerText = translations[currentLang].pin_granted;
+            err.style.color = 'var(--accent-green)';
+            
+            setTimeout(() => {
+                login(res.user); 
+                field.style.color = 'var(--accent-yellow)';
                 err.style.color = 'var(--accent-red)';
-                err.style.visibility = 'visible';
+                err.style.visibility = 'hidden';
+                err.innerText = translations[currentLang].pin_wrong;
+            }, 400);
 
-                setTimeout(() => { 
-                    field.classList.remove('error-shake');
-                    err.style.visibility = 'hidden'; 
-                    field.style.color = 'var(--accent-yellow)'; 
-                    clearPin();
-                }, 1200);
+        } else {
+            // Защита от битых ключей
+            if (res.error && (res.error.includes("api_key") || res.error.includes("База клиента не найдена") || res.error.includes("INVALID"))) {
+                throw new Error("BAD_API_KEY"); 
+            }
+            throw new Error("WRONG_PIN"); 
+        }
+
+    } catch (error) {
+        console.error("Ошибка авторизации:", error);
+        
+        // Автоматический сброс при битом ключе
+        if (error.message === "BAD_API_KEY") {
+            localStorage.clear(); 
+            alert("Ключ доступа устарел. Приложение будет перезагружено для безопасности.");
+            window.location.reload(true); 
+            return;
+        }
+
+        let isWrongPin = error.message === "WRONG_PIN";
+        
+        if (isWrongPin) {
+            failedAttempts++;
+            localStorage.setItem('pos_fails', failedAttempts);
+            
+            if (failedAttempts >= 3) {
+                blockUntil = Date.now() + 5 * 60 * 1000;
+                localStorage.setItem('pos_block', blockUntil);
+                field.classList.add('error-shake');
+                setTimeout(() => { field.classList.remove('error-shake'); clearPin(); }, 800);
+                checkBlockTimer(); 
+                return;
             }
         }
-        function login(user) {
-            currentUser = user;
-            localStorage.setItem('user_role', user.role);
-            localStorage.setItem('user_uid', user.uid);
-            document.getElementById('pin-screen').style.display = 'none';
-            const badge = document.getElementById('cashier-info');
-            badge.innerText = `👤 ${user.name.toUpperCase()} (${user.uid})`;
-            badge.style.display = 'inline-block';
+
+        field.style.color = 'var(--accent-red)'; 
+        field.classList.add('error-shake');
+        
+        const attemptsLeft = Math.max(0, 3 - failedAttempts);
+        err.innerText = isWrongPin ? `${translations[currentLang].pin_wrong_left}${attemptsLeft}` : translations[currentLang].pin_conn_error;
+        err.style.color = 'var(--accent-red)';
+        err.style.visibility = 'visible';
+
+        setTimeout(() => { 
+            field.classList.remove('error-shake');
+            err.style.visibility = 'hidden'; 
+            field.style.color = 'var(--accent-yellow)'; 
             clearPin();
-            document.getElementById('sb').blur(); 
-            
-            // Мгновенно запрашиваем персональную кассу (без всплывающих окон об ошибке сети)
-            refreshPosData(true); 
+        }, 1200);
+    }
+}
+        function login(user) {
+    currentUser = user;
+    localStorage.setItem('user_role', user.role);
+    localStorage.setItem('user_uid', user.uid);
+    document.getElementById('pin-screen').style.display = 'none';
+    const badge = document.getElementById('cashier-info');
+    badge.innerText = `👤 ${user.name.toUpperCase()} (${user.uid})`;
+    badge.style.display = 'inline-block';
+    clearPin();
+    document.getElementById('sb').blur(); 
+    
+    // Мгновенно запрашиваем персональную кассу (без всплывающих окон об ошибке сети)
+    refreshPosData(true); 
+
+    // === ОТЛОЖЕННАЯ ЗАГРУЗКА (LAZY LOAD) ===
+    // Тихо грузим справочники в фоне через 3 секунды после успешного входа
+    setTimeout(() => {
+        // Убедись, что имена функций совпадают с твоими в проекте
+        if (typeof loadSuppliers === 'function') {
+            loadSuppliers();
         }
+        if (typeof loadKaspiTemplatesFromServer === 'function') {
+            loadKaspiTemplatesFromServer();
+        }
+    }, 3000);
+}
 
         function logout() {
             currentUser = null;
@@ -2318,20 +2337,25 @@ async function load(isFullSync = false) {
     } catch (e) { console.error("Ошибка чтения кэша", e); }
 
     if (!navigator.onLine) return; 
-    
     if (typeof currentUser === 'undefined' || !currentUser) return;
 
-    // === БЛОК 1: МИКРО-ПИНГ ===
-    // Выполняем ТОЛЬКО если есть кэш и если это НЕ экстренная полная загрузка
+    // === БЛОК 1: МИКРО-ПИНГ (С ТАЙМ-АУТОМ 4 СЕК) ===
     if (!isFullSync && localStorage.getItem('db_cache')) {
         try {
             const pingPayload = { action: 'ping', api_key: typeof CLIENT_API_KEY !== 'undefined' ? CLIENT_API_KEY : "" };
+            
+            const pingController = new AbortController();
+            const pingTimeout = setTimeout(() => pingController.abort(), 4000);
+
             const pingRes = await fetch(typeof APPS_SCRIPT_URL !== 'undefined' ? APPS_SCRIPT_URL : "", {
                 method: 'POST',
                 headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                 body: JSON.stringify(pingPayload),
-                redirect: 'follow'
+                redirect: 'follow',
+                signal: pingController.signal
             });
+            
+            clearTimeout(pingTimeout);
             const pingText = await pingRes.text();
             
             if (!pingText.trim().startsWith('<')) {
@@ -2345,23 +2369,29 @@ async function load(isFullSync = false) {
                 }
             }
         } catch (pingErr) {
-            console.warn("⚠️ Ошибка пинга:", pingErr);
+            console.warn("⚠️ Ошибка пинга (возможно, сервер занят):", pingErr.message);
         }
     }
     
-    // === БЛОК 2: ЗАГРУЗКА БАЗЫ ИЛИ ДЕЛЬТЫ ===
+    // === БЛОК 2: ЗАГРУЗКА БАЗЫ ИЛИ ДЕЛЬТЫ (С ТАЙМ-АУТОМ 8 СЕК) ===
     let fetchSuccess = false;
     let data = null;
-    
-    // Если isFullSync (долгий тап) = true, то время сбрасывается на "0" и сервер отдает 100% базы
     const timeToSend = isFullSync ? "0" : localTimestamp;
-    
     const fetchUrl = `${typeof APPS_SCRIPT_URL !== 'undefined' ? APPS_SCRIPT_URL : ""}?action=getInitialData&api_key=${typeof CLIENT_API_KEY !== 'undefined' ? CLIENT_API_KEY : ""}&t=${Date.now()}&uid=${savedUid}&role=${savedRole}&last_sync=${timeToSend}`;
 
     for (let i = 0; i < 3; i++) {
         try {
-            const res = await fetch(fetchUrl, { redirect: 'follow' });
+            const dbController = new AbortController();
+            const dbTimeout = setTimeout(() => dbController.abort(), 8000);
+
+            const res = await fetch(fetchUrl, { 
+                redirect: 'follow',
+                signal: dbController.signal
+            });
+            
+            clearTimeout(dbTimeout);
             const text = await res.text(); 
+            
             if (text.trim().startsWith('<')) throw new Error('Сервер вернул HTML вместо JSON');
             
             data = JSON.parse(text);
@@ -2369,7 +2399,7 @@ async function load(isFullSync = false) {
             break; 
         } catch (err) {
             console.warn(`Попытка ${i + 1} из 3 для загрузки базы не удалась:`, err.message);
-            if (i < 2) await new Promise(resolve => setTimeout(resolve, 500)); 
+            if (i < 2) await new Promise(resolve => setTimeout(resolve, 800)); 
         }
     }
 
@@ -2378,15 +2408,13 @@ async function load(isFullSync = false) {
         return; 
     }
 
-    // === БЛОК 3: УМНОЕ СЛИЯНИЕ (SMART MERGE) ===
+    // === БЛОК 3: УМНОЕ СЛИЯНИЕ (Оставлено без изменений) ===
     try {
         if (data.items) {
             if (isFullSync || localTimestamp === "0" || !db || db.length === 0) {
-                // Если мы нажали долгий тап (isFullSync) или кэш пуст — просто берем всю базу
                 db = data.items;
                 console.log("📥 Полная загрузка базы: " + db.length + " товаров.");
             } else {
-                // Если это обычный тап (Дельта) — обновляем только измененные товары
                 let updatedCount = data.items.length;
                 if (updatedCount > 0) {
                     let dbMap = new Map(db.map(item => [item.id, item])); 
@@ -2427,7 +2455,6 @@ async function load(isFullSync = false) {
             localStorage.setItem('db_timestamp', window._pendingTimestamp);
             delete window._pendingTimestamp;
         } else if (isFullSync) {
-            // При экстренной загрузке обновляем локальное время на текущее
             localStorage.setItem('db_timestamp', new Date().getTime().toString());
         }
     } catch (e) { 
