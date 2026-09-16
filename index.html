@@ -534,12 +534,28 @@
         <div id="kaspiTemplateBlock" style="display: none; margin-bottom: 15px;">
             <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 5px;" data-i18n="select_template_label">Шаблон маркетплейса:</label>
             
-            <!-- Убрали unlockInvoiceUpload, теперь всё контролирует одна функция -->
-<select id="kaspiTemplateSelect" onchange="handleTemplateChange(event)" style="width: 100%; padding: 12px; min-height: 46px; font-size: 15px; border-radius: 4px; border: 1px solid var(--border-main); background: var(--bg-body); color: var(--text-main);">
-</select>
+            <select id="kaspiTemplateSelect" onchange="handleTemplateChange(event)" style="width: 100%; padding: 12px; min-height: 46px; font-size: 15px; border-radius: 4px; border: 1px solid var(--border-main); background: var(--bg-body); color: var(--text-main);">
+            </select>
 
-            <!-- Скрытый инпут обязательно должен быть здесь и иметь onchange -->
-            <input type="file" id="templateFileInput" accept=".xlsx" style="display: none;" onchange="handleTemplateUpload(event)">
+            <!-- ИЗМЕНИЛИ: вместо style="display: none;" поставили class="visually-hidden" -->
+            <input type="file" id="templateFileInput" accept=".xlsx" class="visually-hidden" onchange="handleTemplateUpload(event)">
+        </div>
+
+        <!-- ДОБАВИЛИ: Наше новое модальное окно для iOS (оно скрыто по умолчанию) -->
+        <div id="newTemplateModal" class="modal-overlay" style="display: none;">
+            <div class="modal-content">
+                <h3 data-i18n="modal_template_title">Новый шаблон</h3>
+                <p data-i18n="modal_template_desc">Выберите Excel-файл для загрузки</p>
+                
+                <!-- Кнопка-ярлык для вызова файла -->
+                <label for="templateFileInput" class="btn-upload" data-i18n="btn_choose_excel">
+                    Выбрать Excel-файл
+                </label>
+                
+                <button type="button" class="btn-cancel" onclick="window.closeTemplateModal()" data-i18n="btn_cancel">
+                    Отмена
+                </button>
+            </div>
         </div>
     </div>
 

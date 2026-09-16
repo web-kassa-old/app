@@ -280,6 +280,10 @@
                 kaspi_tpl_file: "Файл шаблона Kaspi (.xlsx):",
                 btn_save_tpl: "Сохранить",
                 btn_kaspi_templates: "Шаблоны Kaspi",
+                modal_template_title: "Новый шаблон",
+                modal_template_desc: "Выберите Excel-файл для загрузки",
+                btn_choose_excel: "Выбрать Excel-файл",
+                btn_cancel: "Отмена",
                 loading_templates: "Обновляем список шаблонов...",
                 loading_save: "Сохраняем на сервер...",
                 loading_wait: "Подождите...",
@@ -566,6 +570,10 @@
                 kaspi_tpl_file: "Kaspi шаблонының файлы (.xlsx):",
                 btn_save_tpl: "Сақтау",
                 btn_kaspi_templates: "Kaspi шаблондары",
+                modal_template_title: "Жаңа шаблон",
+                modal_template_desc: "Жүктеу үшін Excel файлын таңдаңыз",
+                btn_choose_excel: "Excel файлын таңдау",
+                btn_cancel: "Бас тарту",
                 loading_templates: "Шаблондар тізімі жаңартылуда...",
                 loading_save: "Серверге сақталуда...",
                 loading_wait: "Күте тұрыңыз...",
@@ -7499,23 +7507,45 @@ window.handleTemplateChange = function(event) {
     const selectedValue = event.target.value;
 
     if (selectedValue === 'new_template') {
-        // ВИЗУАЛЬНО БЛОКИРУЕМ КНОПКУ НАКЛАДНОЙ
+        // Блокируем кнопку накладной
         if (typeof window.lockInvoiceUpload === 'function') {
             window.lockInvoiceUpload();
         }
 
-        const fileInput = document.getElementById('templateFileInput'); 
-        if (fileInput) fileInput.click(); 
+        // Открываем модальное окно вместо вызова .click()
+        const modal = document.getElementById('newTemplateModal');
+        if (modal) {
+            modal.style.display = 'flex';
+            // Если нужно, принудительно обновляем переводы в модалке перед показом
+            if (typeof applyLanguage === 'function' && typeof currentLang !== 'undefined') {
+                applyLanguage(currentLang);
+            }
+        }
         
         event.target.selectedIndex = 0; 
         
     } else if (selectedValue !== '') {
-        // ВИЗУАЛЬНО РАЗБЛОКИРУЕМ КНОПКУ НАКЛАДНОЙ
         if (typeof window.unlockInvoiceUpload === 'function') {
             window.unlockInvoiceUpload();
         }
     }
 };
+
+window.closeTemplateModal = function() {
+    const modal = document.getElementById('newTemplateModal');
+    if (modal) modal.style.display = 'none';
+};
+
+// Закрываем окно автоматически, когда файл выбран
+const templateFileInput = document.getElementById('templateFileInput');
+if (templateFileInput) {
+    templateFileInput.addEventListener('change', function(event) {
+        if (event.target.files && event.target.files.length > 0) {
+            window.closeTemplateModal();
+            // Дальше пойдет ваша существующая логика загрузки файла
+        }
+    });
+}
 
 // Справка
 window.showImportHelp = function() {
