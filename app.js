@@ -2799,22 +2799,31 @@ function handleItemClick(id, event) {
 
         function cancelTx() { document.getElementById('receipt-modal').style.display = 'none'; }
 
-        async function confirmTx() {
+        async function confirmTx() { // Вернули твой async!
             const btn = document.getElementById('btn-confirm');
             btn.disabled = true;
-            const tid = (mode === 'sale' ? 'SL-' : 'RT-') + Math.random().toString(36).substring(7).toUpperCase();
-            const now = new Date();
-            const localTime = now.toLocaleDateString('ru-RU') + ' ' + now.toLocaleTimeString('ru-RU');
             
+            // Чуть подстраховали от пустых ID, логика осталась твоей
+            const tid = (mode === 'sale' ? 'SL-' : 'RT-') + Math.random().toString(36).substring(2, 9).toUpperCase();
+            
+            // === ВОТ ОНО - ЕДИНСТВЕННОЕ РЕАЛЬНОЕ ИСПРАВЛЕНИЕ ===
+            const now = new Date();
+            const pad = (n) => n.toString().padStart(2, '0'); 
+            const localTime = `${pad(now.getDate())}.${pad(now.getMonth() + 1)}.${now.getFullYear()} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+            // ==================================================
+
             const p = {
-                tx_id: tid, tx_type: mode, payment_method: pendingMethod, source: "pos_v5.5.0", 
+                tx_id: tid, 
+                tx_type: mode, 
+                payment_method: pendingMethod, 
+                source: "pos_v5.5.0", 
                 created_at: localTime,
                 seller_id: currentUser ? currentUser.uid : "S-XX", 
                 cart: cart.map(c => ({item_id:c.id, item_name:c.name, qty:c.qty, price:c.price, cost_price:c.cost}))
             };
 
             try {
-                // Отправляем чек в новый кузов диспетчера
+                // Твоя логика оффлайн-очереди
                 if (typeof window.addToOfflineQueue === 'function') {
                     window.addToOfflineQueue(p);
                 }
@@ -2833,28 +2842,25 @@ function handleItemClick(id, event) {
                 }
                 document.getElementById('receipt-modal').style.display = 'none';
                 
-                // ==========================================
-                // НАЧАЛО: Локальное обновление остатков (Optimistic UI)
-                // ==========================================
+                // Твое идеальное локальное обновление остатков
                 cart.forEach(c => {
-                    // Ищем товар в локальном массиве db
                     let dbItem = db.find(i => String(i.id) === String(c.id));
                     if (dbItem) {
-                        let sign = (mode === 'sale') ? -1 : 1; // Продажа: минус, Возврат: плюс
+                        let sign = (mode === 'sale') ? -1 : 1; 
                         dbItem.stock = (parseFloat(dbItem.stock) || 0) + (c.qty * sign);
                     }
                 });
-                render(); // Мгновенно перерисовываем каталог с новыми цифрами
+                render(); 
                 localStorage.setItem('db_cache', JSON.stringify(db));
-                // ==========================================
-                // КОНЕЦ: Локальное обновление остатков
-                // ==========================================
 
                 cart = []; update(); sm('sale'); 
                 const searchInput = document.getElementById('sb');
                 searchInput.value = ''; searchInput.blur(); filter(); 
-            } catch (e) { alert("ОШИБКА: " + e.message); } 
-            finally { btn.disabled = false; }
+            } catch (e) { 
+                alert("ОШИБКА: " + e.message); 
+            } finally { 
+                btn.disabled = false; 
+            }
         }
         
         function moveTxToCacheLocally(tx) {
