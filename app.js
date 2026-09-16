@@ -279,7 +279,11 @@
                 kaspi_tpl_name_ph: "Введите название...",
                 kaspi_tpl_file: "Файл шаблона Kaspi (.xlsx):",
                 btn_save_tpl: "Сохранить",
-                btn_kaspi_templates: "Шаблоны Kaspi"
+                btn_kaspi_templates: "Шаблоны Kaspi",
+                loading_templates: "Обновляем список шаблонов...",
+                loading_save: "Сохраняем на сервер...",
+                loading_wait: "Подождите...",
+                loading_error: "Ошибка загрузки..."
             },
             kz: {
                 btn_sale: "САТУ", btn_return: "ҚАЙТАРУ", search_placeholder: "ІЗДЕУ...",
@@ -561,21 +565,23 @@
                 kaspi_tpl_name_ph: "Атауын енгізіңіз...",
                 kaspi_tpl_file: "Kaspi шаблонының файлы (.xlsx):",
                 btn_save_tpl: "Сақтау",
-                btn_kaspi_templates: "Kaspi шаблондары"
+                btn_kaspi_templates: "Kaspi шаблондары",
+                loading_templates: "Шаблондар тізімі жаңартылуда...",
+                loading_save: "Серверге сақталуда...",
+                loading_wait: "Күте тұрыңыз...",
+                loading_error: "Жүктеу қатесі..."
             }
         };
 
-window.showLoading = function(text) {
+window.showLoading = function(text, i18nKey = null) {
     let loader = document.getElementById('globalLoader');
     
-    // Если лоадера нет в HTML, создаем его на лету!
     if (!loader) {
         loader = document.createElement('div');
         loader.id = 'globalLoader';
-        // z-index: 999999 гарантирует, что он будет поверх всего
         loader.style.cssText = 'display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.85); z-index: 999999; justify-content: center; align-items: center; flex-direction: column; color: #2ecc71; font-family: sans-serif;';
         loader.innerHTML = `
-            <div style="font-size: 50px; margin-bottom: 15px;">⏳</div>
+            <div style="font-size: 50px; margin-bottom: 15px; animation: spin 2s linear infinite;">⏳</div>
             <div id="globalLoaderText" style="font-size: 18px; font-weight: bold; text-align: center; padding: 0 20px;"></div>
         `;
         document.body.appendChild(loader);
@@ -583,8 +589,19 @@ window.showLoading = function(text) {
     
     const loaderText = document.getElementById('globalLoaderText');
     if (loaderText) {
-        loaderText.innerText = text || 'Подождите...';
+        if (i18nKey) {
+            // 1. Статический текст из словаря (мультиязычный)
+            loaderText.setAttribute('data-i18n', i18nKey);
+            if (typeof applyLanguage === 'function' && typeof currentLang !== 'undefined') {
+                applyLanguage(currentLang);
+            }
+        } else {
+            // 2. Динамический текст (например, с названием категории внутри)
+            loaderText.removeAttribute('data-i18n');
+            loaderText.innerText = text || 'Подождите...';
+        }
     }
+    
     loader.style.display = 'flex';
 };
 
