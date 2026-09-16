@@ -565,7 +565,19 @@
             }
         };
 
-        // --- ГЛОБАЛЬНЫЙ АВТОПЕРЕВОДЧИК ИНТЕРФЕЙСА (Исправленный) ---
+ window.showLoading = function(text) {
+    const loader = document.getElementById('globalLoader');
+    const loaderText = document.getElementById('globalLoaderText');
+    if (loader && loaderText) {
+        loaderText.innerText = text || 'Подождите...';
+        loader.style.display = 'flex';
+    }
+};
+
+window.hideLoading = function() {
+    const loader = document.getElementById('globalLoader');
+    if (loader) loader.style.display = 'none';
+};
 
 // Флаг, который усыпляет шпиона во время ручного переключения
 window.isAutoTranslating = false;
@@ -3640,37 +3652,23 @@ window.handleTemplateUpload = async function(event) {
     const file = event.target.files[0];
     if (!file) return;
 
-    // 1. СРАЗУ ВКЛЮЧАЕМ ИНДИКАТОР (До появления окна ввода)
-    const select = document.getElementById('kaspiTemplateSelect');
-    if (select) {
-        select.options.length = 0; // Очищаем список
-        select.add(new Option('⏳ Загрузка файла...', '')); // Показываем статус
-        select.disabled = true;
+    // 1. Спрашиваем имя (до включения лоадера, чтобы не повесить браузер)
+    let defaultName = file.name.replace('.xlsx', '').trim();
+    const categoryName = prompt("Укажите категорию (например, 'Шины'):", defaultName);
+    
+    if (!categoryName) {
+        event.target.value = ''; 
+        return;
     }
 
+    // 2. ВКЛЮЧАЕМ НАШ НОВЫЙ ГЛОБАЛЬНЫЙ ИНДИКАТОР!
+    window.showLoading(`Сохраняем шаблон "${categoryName}" на сервер...`);
+    
     const mainInvoiceInput = document.getElementById('mainInvoiceFileInput'); 
     if (mainInvoiceInput) mainInvoiceInput.disabled = true;
 
-    // 2. ДАЕМ БРАУЗЕРУ 100мс НА ОТРИСОВКУ ЭКРАНА
+    // 3. Даем браузеру долю секунды, чтобы лоадер плавно появился на экране
     setTimeout(() => {
-        // 3. Теперь спрашиваем имя категории
-        let defaultName = file.name.replace('.xlsx', '').trim();
-        const categoryName = prompt("Укажите категорию (например, 'Шины'):", defaultName);
-        
-        if (!categoryName) {
-            // Если нажали "Отмена"
-            event.target.value = ''; 
-            window.loadKaspiTemplatesFromServer(); 
-            if (mainInvoiceInput) mainInvoiceInput.disabled = false;
-            return;
-        }
-
-        // Обновляем статус
-        if (select) {
-            select.options[0].text = '⏳ Сохраняем на сервер...';
-        }
-
-        // 4. Читаем и отправляем файл
         const reader = new FileReader();
         reader.onload = async function(e) {
             try {
@@ -3691,7 +3689,7 @@ window.handleTemplateUpload = async function(event) {
                 
                 const result = await response.json();
                 if (result && result.success) {
-                    alert(`✅ Шаблон "${categoryName}" успешно сохранен!`);
+                    alert(`✅ Шаблон успешно сохранен!`);
                 } else {
                     throw new Error(result ? result.error : "Сервер вернул ошибку");
                 }
@@ -3700,14 +3698,18 @@ window.handleTemplateUpload = async function(event) {
                 alert(`❌ Ошибка:\n${error.message}`);
             } finally {
                 event.target.value = ''; 
+                // Загружаем список заново
                 await window.loadKaspiTemplatesFromServer(); 
+                
                 if (mainInvoiceInput) mainInvoiceInput.disabled = false;
+                
+                // 4. ВЫКЛЮЧАЕМ ИНДИКАТОР
+                window.hideLoading(); 
             }
         };
         
         reader.readAsDataURL(file);
-
-    }, 100); // 100 миллисекунд форы для отрисовки интерфейса
+    }, 150); // Пауза для отрисовки интерфейса
 };
 
 // Глобальный объект для хранения словарей Каспи
@@ -7479,13 +7481,16 @@ window.loadKaspiTemplatesFromServer = async function() {
     const select = document.getElementById('kaspiTemplateSelect');
     if (!select) return;
 
-    select.innerHTML = '<option value="" disabled selected>⏳ Загрузка списка...</option>';
+    // Временно блокируем сам список, чтобы пользователь не кликал по нему
     select.disabled = true;
 
     try {
+        // === 1. ВКЛЮЧАЕМ ЛОАДЕР ===
+        window.showLoading('Обновляем список шаблонов...');
+
         const payload = { action: 'getKaspiTemplateListBackend', api_key: CLIENT_API_KEY };
         
-        // === ПРЯМОЙ ЗАПРОС К СЕРВЕРУ БЕЗ ПОСРЕДНИКОВ И КЭША ===
+        // Прямой запрос к серверу без кэша
         const response = await fetch(APPS_SCRIPT_URL, {
             method: 'POST',
             body: JSON.stringify(payload)
@@ -7493,26 +7498,35 @@ window.loadKaspiTemplatesFromServer = async function() {
         
         const result = await response.json();
 
-        // Базовые пункты (вернули "Новый шаблон")
+        // Формируем базовые пункты
         let optionsHTML = `
             <option value="" disabled selected>-- Выберите шаблон --</option>
             <option value="new_template" style="font-weight: bold; color: #2ecc71;">➕ Новый шаблон</option>
         `;
 
-        // Если сервер вернул список, рисуем его ниже
+        // Если сервер вернул список, добавляем шаблоны
         if (result && result.success && result.templates && result.templates.length > 0) {
             result.templates.forEach(tpl => {
                 optionsHTML += `<option value="${tpl}">${tpl}</option>`;
             });
         }
-        
+
+        // Отрисовываем обновленный список
         select.innerHTML = optionsHTML;
         
     } catch (error) {
         console.error("Ошибка загрузки списка:", error);
-        select.innerHTML = '<option value="" disabled selected>-- Выберите шаблон --</option>';
+        // В случае ошибки оставляем хотя бы кнопку добавления
+        select.innerHTML = `
+            <option value="" disabled selected>-- Выберите шаблон --</option>
+            <option value="new_template" style="font-weight: bold; color: #2ecc71;">➕ Новый шаблон</option>
+        `;
     } finally {
+        // Разблокируем список
         select.disabled = false;
+        
+        // === 2. ВЫКЛЮЧАЕМ ЛОАДЕР ===
+        window.hideLoading();
     }
 };
 
