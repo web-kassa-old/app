@@ -753,8 +753,11 @@ button,
 .col-examples { font-size: 12px; color: var(--text-muted); line-height: 1.4; font-style: italic; }
 
 .btn-split { background: var(--bg-hover); border: 1px solid var(--border-light); border-radius: 6px; padding: 8px 12px; color: var(--text-main); font-size: 14px; cursor: pointer; margin-left: 10px; }
-.splitter-zone { display: none; background: #000; padding: 12px; border-radius: 6px; margin-top: 10px; border: 1px dashed var(--accent-yellow); }
-.token { display: inline-block; padding: 6px 10px; margin: 4px 4px 0 0; background: var(--bg-hover); border: 1px solid var(--border-light); border-radius: 4px; font-size: 14px; font-weight: bold; cursor: pointer; user-select: none; }
+/* Используем фон карточки, зависящий от темы (дневная/ночная) */
+.splitter-zone { display: none; background: var(--bg-card); padding: 12px; border-radius: 6px; margin-top: 10px; border: 1px dashed var(--accent-yellow); }
+/* Явно указываем цвет текста для токена */
+.token { display: inline-block; padding: 6px 10px; margin: 4px 4px 0 0; background: var(--bg-hover); border: 1px solid var(--border-light); border-radius: 4px; font-size: 14px; font-weight: bold; cursor: pointer; user-select: none; color: var(--text-main); transition: 0.2s; }
 .token.active { background: rgba(46, 204, 113, 0.2); border-color: var(--accent-green); color: var(--accent-green); }
-.token.separator { opacity: 0.5; background: transparent; border-style: dashed; }
+/* Убираем прозрачность и пунктир, оставляем только легкое затухание для знаков препинания */
+.token.separator { opacity: 0.6; }
 .btn-apply-split { display: block; width: 100%; padding: 10px; margin-top: 12px; background: var(--accent-green); color: #000; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; }
