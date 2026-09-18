@@ -3749,102 +3749,77 @@ window.handleTemplateUpload = async function(event) {
         return;
     }
 
-    // Закрываем модальное окно iOS
-    if (typeof window.closeTemplateModal === 'function') {
-        window.closeTemplateModal();
-    }
-
+    if (typeof window.closeTemplateModal === 'function') window.closeTemplateModal();
     window.showLoading(`Анализируем колонки и сохраняем "${categoryName}"...`);
-    
-    const mainInvoiceInput = document.getElementById('mainInvoiceFileInput'); 
-    if (mainInvoiceInput) mainInvoiceInput.disabled = true;
 
     setTimeout(async () => {
         try {
-            // 1. Читаем файл как ArrayBuffer для ExcelJS
+            // Читаем для парсера
             const arrayBuffer = await new Promise(resolve => {
                 const r = new FileReader();
                 r.onload = e => resolve(new Uint8Array(e.target.result));
                 r.readAsArrayBuffer(file);
             });
 
-            // 2. Читаем файл как Base64 для сохранения на сервере
+            // Читаем для сервера
             const base64Data = await new Promise(resolve => {
                 const r = new FileReader();
                 r.onload = e => resolve(e.target.result.split(',')[1]);
                 r.readAsDataURL(file);
             });
 
-            // 3. ПАРСИМ ШАБЛОН ЧЕРЕЗ EXCELJS
+            // УМНЫЙ ПАРСЕР EXCELJS (Ищет слово "Обязательно")
             const workbook = new ExcelJS.Workbook();
             await workbook.xlsx.load(arrayBuffer);
+            const worksheet = workbook.worksheets[0]; 
             
-            const worksheet = workbook.worksheets[0]; // Берем первый лист
+            let reqRowIdx = -1;
+            worksheet.eachRow((row, rowNumber) => {
+                if (reqRowIdx !== -1) return;
+                row.eachCell((cell) => {
+                    if (cell.text && (cell.text.includes('Обязательно') || cell.text.includes('Необязательно'))) {
+                        reqRowIdx = rowNumber;
+                    }
+                });
+            });
+
+            if (reqRowIdx === -1) reqRowIdx = 4; // Стандарт Kaspi
+
+            const sysRow = worksheet.getRow(reqRowIdx - 2);
+            const humRow = worksheet.getRow(reqRowIdx - 1);
+            const reqRow = worksheet.getRow(reqRowIdx);
+            const maxCol = Math.max(sysRow.cellCount, humRow.cellCount, reqRow.cellCount);
             
-            let sysKeys = [];
-            let humNames = [];
-            let reqs = [];
-
-            // В ExcelJS строки нумеруются с 1. У Kaspi заголовки на 2, 3 и 4 строках.
-            const row2 = worksheet.getRow(2);
-            const row3 = worksheet.getRow(3);
-            const row4 = worksheet.getRow(4);
-
-            // Определяем последнюю колонку с данными
-            const maxCol = Math.max(row2.cellCount, row3.cellCount);
-
+            let sysKeys = [], humNames = [], reqs = [];
             for (let i = 1; i <= maxCol; i++) {
-                // Извлекаем текст из ячеек (используем .text или .value)
-                sysKeys.push(row2.getCell(i).text || '');
-                humNames.push(row3.getCell(i).text || '');
-                reqs.push(row4.getCell(i).text || '');
+                sysKeys.push(sysRow.getCell(i).text || '');
+                humNames.push(humRow.getCell(i).text || '');
+                reqs.push(reqRow.getCell(i).text || '');
             }
 
-            const headersObj = {
-                systemKeys: sysKeys,
-                humanNames: humNames,
-                requirements: reqs
-            };
-            
-            // 4. Отправляем на сервер РЕАЛЬНУЮ структуру
             const payload = {
                 action: 'saveKaspiTemplate', 
                 api_key: CLIENT_API_KEY,
                 category: categoryName.toLowerCase(),
-                headersJson: JSON.stringify(headersObj), 
+                headersJson: JSON.stringify({ systemKeys: sysKeys, humanNames: humNames, requirements: reqs }), 
                 fileBase64: base64Data
             };
 
-            const response = await fetch(APPS_SCRIPT_URL, {
-                method: 'POST',
-                body: JSON.stringify(payload)
-            });
-            
+            const response = await fetch(APPS_SCRIPT_URL, { method: 'POST', body: JSON.stringify(payload) });
             const result = await response.json();
-            if (result && result.success) {
-                console.log(`✅ Шаблон успешно сохранен со структурой!`); 
-            } else {
-                throw new Error(result ? result.error : "Сервер вернул ошибку");
-            }
+            if (!result || !result.success) throw new Error(result ? result.error : "Ошибка сервера");
+
         } catch (error) {
             console.error("Ошибка:", error);
             alert(`❌ Ошибка:\n${error.message}`);
         } finally {
             event.target.value = ''; 
-            
             if (typeof window.loadKaspiTemplatesFromServer === 'function') {
                 await window.loadKaspiTemplatesFromServer(true); 
-                
                 const select = document.getElementById('kaspiTemplateSelect');
-                if (select) {
-                    select.value = categoryName.toLowerCase();
-                }
-                if (typeof window.unlockInvoiceUpload === 'function') {
-                    window.unlockInvoiceUpload();
-                }
+                if (select) select.value = categoryName.toLowerCase();
+                window.unlockInvoiceUpload();
             }
-            
-            if (mainInvoiceInput) mainInvoiceInput.disabled = false;
             window.hideLoading(); 
         }
     }, 150);
@@ -7654,17 +7629,14 @@ function setUploadButtonState(isActive, textHTML) {
 window.lockInvoiceUpload = function() {
     const wrapper = document.getElementById('invoiceUploadWrapper');
     const fileNameText = document.getElementById('fileNameTextCompact');
-    const containerBox = document.getElementById('fileInputLabel');
     
     if (wrapper) {
         wrapper.style.opacity = '0.5';
-        wrapper.style.pointerEvents = 'none';
+        wrapper.style.pointerEvents = 'none'; // Делает кнопку некликабельной
     }
-    
     if (fileNameText) {
-        // ВОЗВРАЩАЕМ ЯКОРЬ ПЕРЕВОДА ДЛЯ ЗАБЛОКИРОВАННОГО СОСТОЯНИЯ
+        // Возвращаем якорь, чтобы переводчик знал, что писать
         fileNameText.setAttribute('data-i18n', 'upload_invoice_locked');
-        
         fileNameText.innerText = (typeof translations !== 'undefined' && translations[currentLang] && translations[currentLang].upload_invoice_locked) 
             ? translations[currentLang].upload_invoice_locked 
             : 'Сначала выберите шаблон';
@@ -7673,28 +7645,20 @@ window.lockInvoiceUpload = function() {
         const iconSpan = fileNameText.previousElementSibling;
         if (iconSpan) iconSpan.innerText = '🔒';
     }
-    
-    if (containerBox) {
-        containerBox.style.borderColor = 'var(--border-main)';
-        containerBox.style.background = 'var(--bg-body)';
-    }
 };
 
 // 2. Разблокировка кнопки 
 window.unlockInvoiceUpload = function() {
     const wrapper = document.getElementById('invoiceUploadWrapper');
     const fileNameText = document.getElementById('fileNameTextCompact');
-    const containerBox = document.getElementById('fileInputLabel');
     
     if (wrapper) {
         wrapper.style.opacity = '1';
-        wrapper.style.pointerEvents = 'auto';
+        wrapper.style.pointerEvents = 'auto'; // Снимаем блокировку
     }
-    
     if (fileNameText) {
-        // МЕНЯЕМ ЯКОРЬ НА РАЗБЛОКИРОВАННЫЙ ТЕКСТ, чтобы Observer ставил правильный перевод
+        // МЕНЯЕМ ЯКОРЬ на разблокированный, чтобы переводчик не вернул замок
         fileNameText.setAttribute('data-i18n', 'inc_file_placeholder');
-        
         fileNameText.innerText = (typeof translations !== 'undefined' && translations[currentLang] && translations[currentLang].inc_file_placeholder) 
             ? translations[currentLang].inc_file_placeholder 
             : 'Нажмите для выбора Excel';
@@ -7703,81 +7667,43 @@ window.unlockInvoiceUpload = function() {
         const iconSpan = fileNameText.previousElementSibling;
         if (iconSpan) iconSpan.innerText = '📄';
     }
-    
-    if (containerBox) {
-        containerBox.style.borderColor = 'var(--border-focus)';
-        containerBox.style.background = 'var(--bg-body)';
-    }
 };
 
 // 3. Вывод имени файла (когда файл уже выбран)
 window.updateFileNameCompactUI = function(input) {
     const fileNameText = document.getElementById('fileNameTextCompact');
-    const containerBox = document.getElementById('fileInputLabel');
-    
-    if (!fileNameText || !containerBox) return;
+    if (!fileNameText) return;
 
     if (input && input.files && input.files.length > 0) {
-        // УДАЛЯЕМ ЯКОРЬ, чтобы Observer не стер имя реального файла!
+        // УДАЛЯЕМ ЯКОРЬ, чтобы переводчик не стер реальное имя файла
         fileNameText.removeAttribute('data-i18n');
-        
-        const isMulti = input.files.length > 1;
-        const hasTranslation = (typeof translations !== 'undefined' && translations[currentLang]);
-        
-        fileNameText.innerText = (isMulti && hasTranslation) 
-            ? translations[currentLang].inc_file_selected + input.files.length 
-            : input.files[0].name;
-            
+        fileNameText.innerText = input.files[0].name;
         fileNameText.classList.remove('file-placeholder-text');
-        fileNameText.style.color = 'var(--text-main)';          
-        containerBox.style.borderColor = 'var(--accent-green)'; 
-        containerBox.style.background = 'var(--bg-success-dim)';  
-        containerBox.style.color = 'var(--text-main)'; 
         
         const iconSpan = fileNameText.previousElementSibling;
         if (iconSpan) iconSpan.innerText = '✅';
     } else {
-        // Если сбросили файл, возвращаем якорь пустого состояния
-        fileNameText.setAttribute('data-i18n', 'inc_file_placeholder');
-        
-        fileNameText.innerText = (typeof translations !== 'undefined' && translations[currentLang]) 
-            ? translations[currentLang].inc_file_placeholder 
-            : 'Нажмите для выбора Excel';
-            
-        fileNameText.classList.add('file-placeholder-text');
-        fileNameText.style.color = 'var(--text-placeholder)';
-        containerBox.style.borderColor = 'var(--border-focus)';
-        containerBox.style.background = 'var(--bg-body)';
-        containerBox.style.color = 'var(--text-muted)';
-        
-        const iconSpan = fileNameText.previousElementSibling;
-        if (iconSpan) iconSpan.innerText = '📄';
+        window.unlockInvoiceUpload(); // Если сбросили файл, возвращаем состояние разблокировки
     }
 };
 
 // 3. Исправленный перехватчик (ТЕПЕРЬ ОН ВЫЗЫВАЕТ БЛОКИРОВКУ)
 window.handleTemplateChange = function(event) {
     const selectedValue = event.target.value;
-    console.log("👉 Сработал выбор шаблона! Выбрано:", selectedValue);
 
     if (selectedValue === 'new' || selectedValue === 'new_template') {
-        if (typeof window.lockInvoiceUpload === 'function') window.lockInvoiceUpload();
-        
+        window.lockInvoiceUpload();
         const modal = document.getElementById('newTemplateModal');
         if (modal) modal.style.display = 'flex';
-        
         setTimeout(() => { event.target.selectedIndex = 0; }, 50);
 
     } else if (selectedValue !== '') {
-        console.log("👉 Шаблон не пустой. Запускаем unlockInvoiceUpload()...");
-        if (typeof window.unlockInvoiceUpload === 'function') {
+        // Пауза 150мс спасает от мобильных глюков iOS при закрытии выпадающего списка
+        setTimeout(() => {
             window.unlockInvoiceUpload();
-            console.log("👉 Функция разблокировки отработала.");
-        } else {
-            console.error("❌ ОШИБКА: Функция unlockInvoiceUpload не найдена!");
-        }
+        }, 150);
     } else {
-        if (typeof window.lockInvoiceUpload === 'function') window.lockInvoiceUpload();
+        window.lockInvoiceUpload();
     }
 };
 
