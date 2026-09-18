@@ -7655,28 +7655,38 @@ window.lockInvoiceUpload = function() {
 
 // 3. Исправленный перехватчик (ТЕПЕРЬ ОН ВЫЗЫВАЕТ БЛОКИРОВКУ)
 window.handleTemplateChange = function(event) {
-    const val = event.target.value;
-    
-    if (val === 'new' || val === 'new_template') {
-        // Сбрасываем селект обратно, чтобы iOS не блокировал последующие клики
-        event.target.value = "";
-        setUploadButtonState(false, '🔒 Выберите шаблон из списка');
+    const selectedValue = event.target.value;
+
+    if (selectedValue === 'new' || selectedValue === 'new_template') {
         
-        // ВЫЗЫВАЕМ ТВОЕ ОКНО ЗАГРУЗКИ НОВОГО ШАБЛОНА
-        // (Если функция называлась иначе, просто впиши сюда свой вызов модалки)
-        const templateModal = document.getElementById('template-upload-modal') || document.getElementById('templateModal');
-        if (templateModal) {
-            templateModal.style.display = 'flex';
-        } else if (typeof window.openTemplateModal === 'function') {
-            window.openTemplateModal();
+        // 1. Блокируем нижнюю кнопку Excel
+        if (typeof window.lockInvoiceUpload === 'function') {
+            window.lockInvoiceUpload();
         }
-        return;
-    }
-    
-    if (val !== "") {
-        setUploadButtonState(true, '📁 Загрузите файл Excel');
+
+        // 2. Открываем твое модальное окно (обход запрета iOS)
+        const modal = document.getElementById('newTemplateModal');
+        if (modal) {
+            modal.style.display = 'flex';
+        } else {
+            alert("Ошибка: окно newTemplateModal не найдено в HTML"); // Предохранитель
+        }
+        
+        // 3. Возвращаем селект на "-- Выберите шаблон --", чтобы onchange сработал в следующий раз
+        setTimeout(() => {
+            event.target.selectedIndex = 0; 
+        }, 50);
+
+    } else if (selectedValue !== '') {
+        // Если выбран реальный шаблон — разблокируем загрузку
+        if (typeof window.unlockInvoiceUpload === 'function') {
+            window.unlockInvoiceUpload();
+        }
     } else {
-        setUploadButtonState(false, '🔒 Выберите шаблон из списка');
+        // Если выбрали пустую строку — блокируем
+        if (typeof window.lockInvoiceUpload === 'function') {
+            window.lockInvoiceUpload();
+        }
     }
 };
 
