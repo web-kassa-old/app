@@ -5158,9 +5158,6 @@ function initQeNumpad() {
         const ua = navigator.userAgent || navigator.vendor || window.opera;
         return (ua.indexOf('Telegram') > -1 || ua.indexOf('Instagram') > -1 || ua.indexOf('FBAN') > -1 || ua.indexOf('FBAV') > -1);
     }
-
-    // Функция ждет, пока Google полностью скачается
-
     // Детектор видимости страницы
         document.addEventListener('visibilitychange', () => {
             if (document.visibilityState === 'visible') {
@@ -7653,7 +7650,7 @@ function setUploadButtonState(isActive, textHTML) {
     }
 }
 
-// 1. Блокировка кнопки (до выбора шаблона)
+// 1. Блокировка кнопки 
 window.lockInvoiceUpload = function() {
     const wrapper = document.getElementById('invoiceUploadWrapper');
     const fileNameText = document.getElementById('fileNameTextCompact');
@@ -7665,7 +7662,9 @@ window.lockInvoiceUpload = function() {
     }
     
     if (fileNameText) {
-        // Безопасно берем перевод или ставим текст по умолчанию
+        // ВОЗВРАЩАЕМ ЯКОРЬ ПЕРЕВОДА ДЛЯ ЗАБЛОКИРОВАННОГО СОСТОЯНИЯ
+        fileNameText.setAttribute('data-i18n', 'upload_invoice_locked');
+        
         fileNameText.innerText = (typeof translations !== 'undefined' && translations[currentLang] && translations[currentLang].upload_invoice_locked) 
             ? translations[currentLang].upload_invoice_locked 
             : 'Сначала выберите шаблон';
@@ -7681,7 +7680,7 @@ window.lockInvoiceUpload = function() {
     }
 };
 
-// 2. Разблокировка кнопки (когда шаблон выбран)
+// 2. Разблокировка кнопки 
 window.unlockInvoiceUpload = function() {
     const wrapper = document.getElementById('invoiceUploadWrapper');
     const fileNameText = document.getElementById('fileNameTextCompact');
@@ -7693,6 +7692,9 @@ window.unlockInvoiceUpload = function() {
     }
     
     if (fileNameText) {
+        // МЕНЯЕМ ЯКОРЬ НА РАЗБЛОКИРОВАННЫЙ ТЕКСТ, чтобы Observer ставил правильный перевод
+        fileNameText.setAttribute('data-i18n', 'inc_file_placeholder');
+        
         fileNameText.innerText = (typeof translations !== 'undefined' && translations[currentLang] && translations[currentLang].inc_file_placeholder) 
             ? translations[currentLang].inc_file_placeholder 
             : 'Нажмите для выбора Excel';
@@ -7708,16 +7710,17 @@ window.unlockInvoiceUpload = function() {
     }
 };
 
-// 3. Твоя оригинальная функция с добавленной защитой и иконкой
+// 3. Вывод имени файла (когда файл уже выбран)
 window.updateFileNameCompactUI = function(input) {
     const fileNameText = document.getElementById('fileNameTextCompact');
     const containerBox = document.getElementById('fileInputLabel');
     
-    // Защита: если элементов нет в HTML, просто прерываем работу без ошибки
     if (!fileNameText || !containerBox) return;
 
     if (input && input.files && input.files.length > 0) {
-        // Безопасно достаем перевод для "выбрано файлов"
+        // УДАЛЯЕМ ЯКОРЬ, чтобы Observer не стер имя реального файла!
+        fileNameText.removeAttribute('data-i18n');
+        
         const isMulti = input.files.length > 1;
         const hasTranslation = (typeof translations !== 'undefined' && translations[currentLang]);
         
@@ -7734,6 +7737,9 @@ window.updateFileNameCompactUI = function(input) {
         const iconSpan = fileNameText.previousElementSibling;
         if (iconSpan) iconSpan.innerText = '✅';
     } else {
+        // Если сбросили файл, возвращаем якорь пустого состояния
+        fileNameText.setAttribute('data-i18n', 'inc_file_placeholder');
+        
         fileNameText.innerText = (typeof translations !== 'undefined' && translations[currentLang]) 
             ? translations[currentLang].inc_file_placeholder 
             : 'Нажмите для выбора Excel';
