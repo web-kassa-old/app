@@ -7556,19 +7556,15 @@ window.selectImportMode = function(mode) {
     const btnInternal = document.getElementById('btnModeInternal');
     const btnKaspi = document.getElementById('btnModeKaspi');
     const templateBlock = document.getElementById('kaspiTemplateBlock');
-    const uploadWrapper = document.getElementById('invoiceUploadWrapper');
-
+    
     if (mode === 'internal') {
         // Режим: Только в базу
         btnInternal.style.borderColor = 'var(--accent-green)';
         btnKaspi.style.borderColor = 'var(--border-main)';
         if (templateBlock) templateBlock.style.display = 'none';
         
-        // Разблокируем загрузку файла сразу
-        if (uploadWrapper) {
-            uploadWrapper.style.opacity = '1';
-            uploadWrapper.style.pointerEvents = 'auto';
-        }
+        // Меняем текст кнопки и разблокируем её
+        setUploadButtonState(true, '📁 Загрузите файл Excel');
     } else {
         // Режим: База + Kaspi
         btnKaspi.style.borderColor = 'var(--accent-green)';
@@ -7576,19 +7572,37 @@ window.selectImportMode = function(mode) {
         if (templateBlock) templateBlock.style.display = 'block';
         
         const select = document.getElementById('kaspiTemplateSelect');
-        // Если шаблоны еще не загружались — загружаем
-        if (select && select.options.length <= 1 && typeof window.loadKaspiTemplatesFromServer === 'function') {
+        if (select && select.options.length <= 2 && typeof window.loadKaspiTemplatesFromServer === 'function') {
             window.loadKaspiTemplatesFromServer();
         }
         
-        // Блокируем загрузку файла, пока кассир не выберет шаблон из списка
-        if (uploadWrapper) {
-            const hasSelectedTemplate = select && select.value !== "";
-            uploadWrapper.style.opacity = hasSelectedTemplate ? '1' : '0.5';
-            uploadWrapper.style.pointerEvents = hasSelectedTemplate ? 'auto' : 'none';
+        // Проверяем, выбран ли уже шаблон (и не равен ли он "new")
+        const hasSelectedTemplate = select && select.value !== "" && select.value !== "new";
+        if (hasSelectedTemplate) {
+            setUploadButtonState(true, '📁 Загрузите файл Excel');
+        } else {
+            setUploadButtonState(false, '🔒 Выберите шаблон из списка');
         }
     }
 };
+
+// Вспомогательная функция для визуала кнопки загрузки
+function setUploadButtonState(isActive, textHTML) {
+    const wrapper = document.getElementById('invoiceUploadWrapper');
+    if (!wrapper) return;
+    
+    wrapper.style.opacity = isActive ? '1' : '0.5';
+    wrapper.style.pointerEvents = isActive ? 'auto' : 'none';
+    
+    // Ищем элемент, в котором лежит текст с замком
+    const label = wrapper.querySelector('label') || wrapper;
+    if (label) {
+        // Осторожно меняем текст, сохраняя невидимый <input type="file">, если он внутри label
+        const input = wrapper.querySelector('input[type="file"]');
+        label.innerHTML = textHTML;
+        if (input) label.appendChild(input);
+    }
+}
 
 // 1. Очищенная функция разблокировки накладной
 window.unlockInvoiceUpload = function() {
@@ -7628,15 +7642,28 @@ window.lockInvoiceUpload = function() {
 
 // 3. Исправленный перехватчик (ТЕПЕРЬ ОН ВЫЗЫВАЕТ БЛОКИРОВКУ)
 window.handleTemplateChange = function(event) {
-    const uploadWrapper = document.getElementById('invoiceUploadWrapper');
-    if (uploadWrapper) {
-        if (event.target.value) {
-            uploadWrapper.style.opacity = '1';
-            uploadWrapper.style.pointerEvents = 'auto';
-        } else {
-            uploadWrapper.style.opacity = '0.5';
-            uploadWrapper.style.pointerEvents = 'none';
+    const val = event.target.value;
+    
+    if (val === 'new' || val === 'new_template') {
+        // Сбрасываем селект обратно, чтобы iOS не блокировал последующие клики
+        event.target.value = "";
+        setUploadButtonState(false, '🔒 Выберите шаблон из списка');
+        
+        // ВЫЗЫВАЕМ ТВОЕ ОКНО ЗАГРУЗКИ НОВОГО ШАБЛОНА
+        // (Если функция называлась иначе, просто впиши сюда свой вызов модалки)
+        const templateModal = document.getElementById('template-upload-modal') || document.getElementById('templateModal');
+        if (templateModal) {
+            templateModal.style.display = 'flex';
+        } else if (typeof window.openTemplateModal === 'function') {
+            window.openTemplateModal();
         }
+        return;
+    }
+    
+    if (val !== "") {
+        setUploadButtonState(true, '📁 Загрузите файл Excel');
+    } else {
+        setUploadButtonState(false, '🔒 Выберите шаблон из списка');
     }
 };
 
