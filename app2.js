@@ -3736,6 +3736,36 @@ async function confirmUpload() {
             }
         }
 
+// Функция отправки шаблона Kaspi на сервер
+async function saveKaspiTemplateBackend(categoryName, buffer, headersObj) {
+    // 1. Конвертируем сырой ArrayBuffer в строку Base64 для передачи по сети
+    let binary = '';
+    const bytes = new Uint8Array(buffer);
+    const len = bytes.byteLength;
+    for (let i = 0; i < len; i++) {
+        binary += String.fromCharCode(bytes[i]);
+    }
+    const base64Data = window.btoa(binary);
+
+    // 2. Формируем пакет данных по стандарту Smart Flow
+    const payload = {
+        action: 'saveKaspiTemplate', // Этот action должен ловить твой Code.gs
+        api_key: typeof CLIENT_API_KEY !== 'undefined' ? CLIENT_API_KEY : '', 
+        category: categoryName,
+        headers: JSON.stringify(headersObj),
+        fileBase64: base64Data
+    };
+
+    // 3. Отправляем через твой шлюз без кэширования (cacheKey = null)
+    const response = await window.smartFetch(APPS_SCRIPT_URL, payload, null, 1);
+
+    if (!response || !response.success) {
+        throw new Error(response ? response.error : 'Сервер не ответил при сохранении шаблона');
+    }
+
+    return response;
+}
+
 // Обработка загрузки файла шаблона Kaspi
 async function handleTemplateUpload(event) {
     const file = event.target.files[0];
