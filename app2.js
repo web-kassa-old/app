@@ -3738,7 +3738,7 @@ async function confirmUpload() {
 
 // Функция отправки шаблона Kaspi на сервер
 async function saveKaspiTemplateBackend(categoryName, buffer, headersObj) {
-    // 1. Конвертируем сырой ArrayBuffer в строку Base64 для передачи по сети
+    // 1. Конвертируем сырой ArrayBuffer в строку Base64
     let binary = '';
     const bytes = new Uint8Array(buffer);
     const len = bytes.byteLength;
@@ -3747,20 +3747,20 @@ async function saveKaspiTemplateBackend(categoryName, buffer, headersObj) {
     }
     const base64Data = window.btoa(binary);
 
-    // 2. Формируем пакет данных по стандарту Smart Flow
+    // 2. Формируем пакет данных (Ключи строго синхронизированы с Code.gs)
     const payload = {
-        action: 'saveKaspiTemplate', // Этот action должен ловить твой Code.gs
+        action: 'saveKaspiTemplate',
         api_key: typeof CLIENT_API_KEY !== 'undefined' ? CLIENT_API_KEY : '', 
         category: categoryName,
-        headers: JSON.stringify(headersObj),
+        headersJson: JSON.stringify(headersObj), // <-- ИСПРАВЛЕНО: теперь ключи совпадают
         fileBase64: base64Data
     };
 
-    // 3. Отправляем через твой шлюз без кэширования (cacheKey = null)
+    // 3. Отправляем через шлюз
     const response = await window.smartFetch(APPS_SCRIPT_URL, payload, null, 1);
 
     if (!response || !response.success) {
-        throw new Error(response ? response.error : 'Сервер не ответил при сохранении шаблона');
+        throw new Error(response ? (response.error || response.message) : 'Сервер не ответил при сохранении шаблона');
     }
 
     return response;
