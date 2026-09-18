@@ -3791,24 +3791,36 @@ async function handleTemplateUpload(event) {
                 
                 reader.onload = async function(e) {
                     try {
-                        const data = new Uint8Array(e.target.result);
-                        const workbook = XLSX.read(data, { type: 'array' });
-
-                        // 1. Ищем лист attributes
-                        let targetSheet = workbook.SheetNames.find(name => name.toLowerCase() === 'attributes');
-                        if (!targetSheet) {
-                            targetSheet = workbook.SheetNames.length > 1 ? workbook.SheetNames[1] : workbook.SheetNames[0];
-                        }
-                        const sheet = workbook.Sheets[targetSheet];
-
                         // === СОХРАНЯЕМ СЛЕПОК ДЛЯ ЭКСПОРТА ===
                         window.rawKaspiTemplateBuffer = e.target.result;
-                        window.kaspiTargetSheetName = targetSheet; 
-                        // ========================================================
                         
-                        const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+                        // === ПЕРЕХОДИМ С ГЛЮЧНОГО SHEETJS (XLSX) НА БРОНЕБОЙНЫЙ EXCELJS ===
+                        const workbook = new ExcelJS.Workbook();
+                        await workbook.xlsx.load(e.target.result);
 
-                        // --- ТВОИ НЕЗАВИСИМЫЕ ДЕТЕКТОРЫ КОЛОНОК ---
+                        // 1. Ищем лист attributes
+                        let targetSheet = workbook.worksheets.find(s => s.name.toLowerCase() === 'attributes');
+                        if (!targetSheet) {
+                            targetSheet = workbook.worksheets.length > 1 ? workbook.worksheets[1] : workbook.worksheets[0];
+                        }
+                        window.kaspiTargetSheetName = targetSheet.name;
+
+                        // 2. Имитируем XLSX.utils.sheet_to_json, чтобы ТВОИ детекторы отработали идеально
+                        const jsonData = [];
+                        targetSheet.eachRow((row, rowNumber) => {
+                            if (rowNumber > 20) return; // Сканируем только первые 20 строк шапки
+                            
+                            let rowData = [];
+                            // Берем с запасом до 100 колонок
+                            const maxCols = targetSheet.columnCount > 0 ? targetSheet.columnCount : 100;
+                            for (let i = 1; i <= maxCols; i++) {
+                                const cell = row.getCell(i);
+                                rowData.push(cell.text ? cell.text.toString().trim() : '');
+                            }
+                            jsonData.push(rowData);
+                        });
+
+                        // --- ТВОИ НЕЗАВИСИМЫЕ ДЕТЕКТОРЫ КОЛОНОК (БЕЗ ИЗМЕНЕНИЙ!) ---
                         let requirements = [];
                         let systemKeys = [];
                         let humanNames = [];
@@ -3856,14 +3868,13 @@ async function handleTemplateUpload(event) {
                         fileNameSpan.innerText = `⏳ Сохранение на сервер...`;
                         fileNameSpan.style.color = "var(--accent-blue)";
                         
-                        // 1. Отправляем в скрытый лист Kaspi_Templates
+                        // Отправляем в бэкенд
                         await saveKaspiTemplateBackend(categoryName, window.rawKaspiTemplateBuffer, headersObj);
                         
-                        // 2. Обновляем статус верхнего окна
                         fileNameSpan.innerText = `✅ ${t('template_ready', 'Шаблон сохранен')} (${categoryName})`;
                         fileNameSpan.style.color = "var(--accent-green)";
                         
-                        // 3. ОБНОВЛЯЕМ НИЖНЮЮ КНОПКУ (ту самую, ради которой всё затевалось)
+                        // Включаем интерфейс!
                         if (typeof updateFileNameCompactUI === 'function') {
                             updateFileNameCompactUI(file.name);
                         }
