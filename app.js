@@ -7754,32 +7754,29 @@ window.handleTemplateChange = function(event) {
     const selectedValue = event.target.value;
 
     if (selectedValue === 'new' || selectedValue === 'new_template') {
-        
-        // 1. Блокируем нижнюю кнопку Excel
+        // Если выбрали "Новый шаблон" - блокируем нижнюю кнопку Excel
         if (typeof window.lockInvoiceUpload === 'function') {
             window.lockInvoiceUpload();
         }
 
-        // 2. Открываем твое модальное окно (обход запрета iOS)
+        // Открываем твое окно для обхода iOS
         const modal = document.getElementById('newTemplateModal');
         if (modal) {
             modal.style.display = 'flex';
-        } else {
-            alert("Ошибка: окно newTemplateModal не найдено в HTML"); // Предохранитель
         }
         
-        // 3. Возвращаем селект на "-- Выберите шаблон --", чтобы onchange сработал в следующий раз
+        // Сбрасываем выбор в списке (важно для iOS)
         setTimeout(() => {
             event.target.selectedIndex = 0; 
         }, 50);
 
     } else if (selectedValue !== '') {
-        // Если выбран реальный шаблон — разблокируем загрузку
+        // ЕСЛИ ВЫБРАЛИ РЕАЛЬНЫЙ ШАБЛОН — РАЗБЛОКИРУЕМ И МЕНЯЕМ ТЕКСТ
         if (typeof window.unlockInvoiceUpload === 'function') {
             window.unlockInvoiceUpload();
         }
     } else {
-        // Если выбрали пустую строку — блокируем
+        // Если выбрали пустую строку "-- Выберите шаблон --" — блокируем
         if (typeof window.lockInvoiceUpload === 'function') {
             window.lockInvoiceUpload();
         }
