@@ -3750,25 +3750,23 @@ window.handleTemplateUpload = async function(event) {
     }
 
     if (typeof window.closeTemplateModal === 'function') window.closeTemplateModal();
-    window.showLoading(`Анализируем колонки и сохраняем "${categoryName}"...`);
+    window.showLoading(`Анализируем колонки...`);
 
     setTimeout(async () => {
         try {
-            // Читаем для парсера
-            const arrayBuffer = await new Promise(resolve => {
-                const r = new FileReader();
-                r.onload = e => resolve(new Uint8Array(e.target.result));
-                r.readAsArrayBuffer(file);
-            });
+            if (typeof ExcelJS === 'undefined') {
+                alert("❌ ОШИБКА: Библиотека ExcelJS не загружена в браузере!");
+                return;
+            }
 
-            // Читаем для сервера
+            const arrayBuffer = await file.arrayBuffer();
             const base64Data = await new Promise(resolve => {
                 const r = new FileReader();
                 r.onload = e => resolve(e.target.result.split(',')[1]);
                 r.readAsDataURL(file);
             });
 
-            // УМНЫЙ ПАРСЕР EXCELJS (Ищет слово "Обязательно")
+            // 1. Пробуем прочитать Excel
             const workbook = new ExcelJS.Workbook();
             await workbook.xlsx.load(arrayBuffer);
             const worksheet = workbook.worksheets[0]; 
@@ -3783,7 +3781,7 @@ window.handleTemplateUpload = async function(event) {
                 });
             });
 
-            if (reqRowIdx === -1) reqRowIdx = 4; // Стандарт Kaspi
+            if (reqRowIdx === -1) reqRowIdx = 4;
 
             const sysRow = worksheet.getRow(reqRowIdx - 2);
             const humRow = worksheet.getRow(reqRowIdx - 1);
@@ -3797,17 +3795,26 @@ window.handleTemplateUpload = async function(event) {
                 reqs.push(reqRow.getCell(i).text || '');
             }
 
+            const headersObj = { systemKeys: sysKeys, humanNames: humNames, requirements: reqs };
+            
+            // МАЯЧОК: Показываем, что парсер сработал!
+            alert(`✅ Excel прочитан!\nКолонок найдено: ${maxCol}\nОтправляем на сервер...`);
+
             const payload = {
                 action: 'saveKaspiTemplate', 
                 api_key: CLIENT_API_KEY,
                 category: categoryName.toLowerCase(),
-                headersJson: JSON.stringify({ systemKeys: sysKeys, humanNames: humNames, requirements: reqs }), 
+                headersJson: JSON.stringify(headersObj), 
                 fileBase64: base64Data
             };
 
             const response = await fetch(APPS_SCRIPT_URL, { method: 'POST', body: JSON.stringify(payload) });
             const result = await response.json();
+            
             if (!result || !result.success) throw new Error(result ? result.error : "Ошибка сервера");
+
+            // МАЯЧОК: Сервер принял данные
+            alert(`🎉 Сервер подтвердил сохранение шаблона!`);
 
         } catch (error) {
             console.error("Ошибка:", error);
@@ -7628,14 +7635,14 @@ function setUploadButtonState(isActive, textHTML) {
 // 1. Блокировка кнопки 
 window.lockInvoiceUpload = function() {
     const wrapper = document.getElementById('invoiceUploadWrapper');
-    const fileNameText = document.getElementById('fileNameTextCompact');
-    
-    if (wrapper) {
-        wrapper.style.opacity = '0.5';
-        wrapper.style.pointerEvents = 'none'; // Делает кнопку некликабельной
-    }
+    if (!wrapper) return;
+
+    wrapper.style.opacity = '0.5';
+    wrapper.style.pointerEvents = 'none';
+
+    // Ищем span строго внутри рабочей обертки
+    const fileNameText = wrapper.querySelector('.file-placeholder-text') || wrapper.querySelector('span[data-i18n]') || document.getElementById('fileNameTextCompact');
     if (fileNameText) {
-        // Возвращаем якорь, чтобы переводчик знал, что писать
         fileNameText.setAttribute('data-i18n', 'upload_invoice_locked');
         fileNameText.innerText = (typeof translations !== 'undefined' && translations[currentLang] && translations[currentLang].upload_invoice_locked) 
             ? translations[currentLang].upload_invoice_locked 
@@ -7650,14 +7657,13 @@ window.lockInvoiceUpload = function() {
 // 2. Разблокировка кнопки 
 window.unlockInvoiceUpload = function() {
     const wrapper = document.getElementById('invoiceUploadWrapper');
-    const fileNameText = document.getElementById('fileNameTextCompact');
-    
-    if (wrapper) {
-        wrapper.style.opacity = '1';
-        wrapper.style.pointerEvents = 'auto'; // Снимаем блокировку
-    }
+    if (!wrapper) return;
+
+    wrapper.style.opacity = '1';
+    wrapper.style.pointerEvents = 'auto';
+
+    const fileNameText = wrapper.querySelector('.file-placeholder-text') || wrapper.querySelector('span[data-i18n]') || document.getElementById('fileNameTextCompact');
     if (fileNameText) {
-        // МЕНЯЕМ ЯКОРЬ на разблокированный, чтобы переводчик не вернул замок
         fileNameText.setAttribute('data-i18n', 'inc_file_placeholder');
         fileNameText.innerText = (typeof translations !== 'undefined' && translations[currentLang] && translations[currentLang].inc_file_placeholder) 
             ? translations[currentLang].inc_file_placeholder 
@@ -7696,12 +7702,8 @@ window.handleTemplateChange = function(event) {
         const modal = document.getElementById('newTemplateModal');
         if (modal) modal.style.display = 'flex';
         setTimeout(() => { event.target.selectedIndex = 0; }, 50);
-
     } else if (selectedValue !== '') {
-        // Пауза 150мс спасает от мобильных глюков iOS при закрытии выпадающего списка
-        setTimeout(() => {
-            window.unlockInvoiceUpload();
-        }, 150);
+        setTimeout(() => { window.unlockInvoiceUpload(); }, 150);
     } else {
         window.lockInvoiceUpload();
     }
