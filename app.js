@@ -3705,26 +3705,6 @@ async function confirmUpload() {
                 }
         });
 
-        function updateFileNameCompactUI(input) {
-            const fileNameText = document.getElementById('fileNameTextCompact');
-            const containerBox = document.getElementById('fileInputLabel');
-            if (input.files && input.files.length > 0) {
-                fileNameText.innerText = input.files.length > 1 ? translations[currentLang].inc_file_selected + input.files.length : input.files[0].name;
-                fileNameText.classList.remove('file-placeholder-text');
-                fileNameText.style.color = 'var(--text-main)';          
-                containerBox.style.borderColor = 'var(--accent-green)'; 
-                containerBox.style.background = 'var(--bg-success-dim)';  
-                containerBox.style.color = 'var(--text-main)';  
-            } else {
-                fileNameText.innerText = translations[currentLang].inc_file_placeholder;
-                fileNameText.classList.add('file-placeholder-text');
-                fileNameText.style.color = 'var(--text-placeholder)';
-                containerBox.style.borderColor = 'var(--border-focus)';
-                containerBox.style.background = 'var(--bg-body)';
-                containerBox.style.color = 'var(--text-muted)';
-            }
-        }
-
         function toggleIncomeModule() {
             const modal = document.getElementById('income-modal');
             if (modal.style.display === 'none' || modal.style.display === '') {
@@ -7673,42 +7653,99 @@ function setUploadButtonState(isActive, textHTML) {
     }
 }
 
-// 1. Бронебойная блокировка кнопки
+// 1. Блокировка кнопки (до выбора шаблона)
 window.lockInvoiceUpload = function() {
     const wrapper = document.getElementById('invoiceUploadWrapper');
-    const labelSpan = document.getElementById('fileNameTextCompact');
+    const fileNameText = document.getElementById('fileNameTextCompact');
+    const containerBox = document.getElementById('fileInputLabel');
     
     if (wrapper) {
         wrapper.style.opacity = '0.5';
         wrapper.style.pointerEvents = 'none';
     }
-    if (labelSpan) {
-        try {
-            if (labelSpan.previousElementSibling) labelSpan.previousElementSibling.innerText = '🔒';
-            labelSpan.innerText = 'Сначала выберите шаблон';
-        } catch (e) {
-            console.warn("Иконка не найдена, меняем только текст");
-            labelSpan.innerText = '🔒 Сначала выберите шаблон';
-        }
+    
+    if (fileNameText) {
+        // Безопасно берем перевод или ставим текст по умолчанию
+        fileNameText.innerText = (typeof translations !== 'undefined' && translations[currentLang] && translations[currentLang].upload_invoice_locked) 
+            ? translations[currentLang].upload_invoice_locked 
+            : 'Сначала выберите шаблон';
+        fileNameText.style.color = 'var(--text-main)';
+        
+        const iconSpan = fileNameText.previousElementSibling;
+        if (iconSpan) iconSpan.innerText = '🔒';
+    }
+    
+    if (containerBox) {
+        containerBox.style.borderColor = 'var(--border-main)';
+        containerBox.style.background = 'var(--bg-body)';
     }
 };
 
-// 2. Бронебойная разблокировка кнопки
+// 2. Разблокировка кнопки (когда шаблон выбран)
 window.unlockInvoiceUpload = function() {
     const wrapper = document.getElementById('invoiceUploadWrapper');
-    const labelSpan = document.getElementById('fileNameTextCompact');
+    const fileNameText = document.getElementById('fileNameTextCompact');
+    const containerBox = document.getElementById('fileInputLabel');
     
     if (wrapper) {
         wrapper.style.opacity = '1';
         wrapper.style.pointerEvents = 'auto';
     }
-    if (labelSpan) {
-        try {
-            if (labelSpan.previousElementSibling) labelSpan.previousElementSibling.innerText = '📄';
-            labelSpan.innerText = 'Нажмите для выбора Excel';
-        } catch (e) {
-            labelSpan.innerText = '📄 Нажмите для выбора Excel';
-        }
+    
+    if (fileNameText) {
+        fileNameText.innerText = (typeof translations !== 'undefined' && translations[currentLang] && translations[currentLang].inc_file_placeholder) 
+            ? translations[currentLang].inc_file_placeholder 
+            : 'Нажмите для выбора Excel';
+        fileNameText.style.color = 'var(--text-main)';
+        
+        const iconSpan = fileNameText.previousElementSibling;
+        if (iconSpan) iconSpan.innerText = '📄';
+    }
+    
+    if (containerBox) {
+        containerBox.style.borderColor = 'var(--border-focus)';
+        containerBox.style.background = 'var(--bg-body)';
+    }
+};
+
+// 3. Твоя оригинальная функция с добавленной защитой и иконкой
+window.updateFileNameCompactUI = function(input) {
+    const fileNameText = document.getElementById('fileNameTextCompact');
+    const containerBox = document.getElementById('fileInputLabel');
+    
+    // Защита: если элементов нет в HTML, просто прерываем работу без ошибки
+    if (!fileNameText || !containerBox) return;
+
+    if (input && input.files && input.files.length > 0) {
+        // Безопасно достаем перевод для "выбрано файлов"
+        const isMulti = input.files.length > 1;
+        const hasTranslation = (typeof translations !== 'undefined' && translations[currentLang]);
+        
+        fileNameText.innerText = (isMulti && hasTranslation) 
+            ? translations[currentLang].inc_file_selected + input.files.length 
+            : input.files[0].name;
+            
+        fileNameText.classList.remove('file-placeholder-text');
+        fileNameText.style.color = 'var(--text-main)';          
+        containerBox.style.borderColor = 'var(--accent-green)'; 
+        containerBox.style.background = 'var(--bg-success-dim)';  
+        containerBox.style.color = 'var(--text-main)'; 
+        
+        const iconSpan = fileNameText.previousElementSibling;
+        if (iconSpan) iconSpan.innerText = '✅';
+    } else {
+        fileNameText.innerText = (typeof translations !== 'undefined' && translations[currentLang]) 
+            ? translations[currentLang].inc_file_placeholder 
+            : 'Нажмите для выбора Excel';
+            
+        fileNameText.classList.add('file-placeholder-text');
+        fileNameText.style.color = 'var(--text-placeholder)';
+        containerBox.style.borderColor = 'var(--border-focus)';
+        containerBox.style.background = 'var(--bg-body)';
+        containerBox.style.color = 'var(--text-muted)';
+        
+        const iconSpan = fileNameText.previousElementSibling;
+        if (iconSpan) iconSpan.innerText = '📄';
     }
 };
 
