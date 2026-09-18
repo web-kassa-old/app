@@ -3774,44 +3774,32 @@ async function handleTemplateUpload(event) {
     const fileInput = document.getElementById('templateFileInput');
     const fileNameSpan = document.getElementById('templateFileName');
     
-    // === ОТКЛЮЧАЕМ АВТОПЕРЕВОД НА ВРЕМЯ ЗАГРУЗКИ ===
     fileNameSpan.removeAttribute('data-i18n');
-    
-    // === ВИЗУАЛЬНАЯ БЛОКИРОВКА И ИНДИКАЦИЯ ===
     fileInput.disabled = true; 
-    fileNameSpan.innerText = `⏳ ${t('uploading_template', 'Анализ шаблона...')}`;
+    fileNameSpan.innerText = `⏳ Анализ шаблона...`;
     fileNameSpan.style.color = "var(--accent-blue)";
-    // ========================================
 
     requestAnimationFrame(() => {
         requestAnimationFrame(() => {
             setTimeout(() => {
                 
                 const reader = new FileReader();
-                
                 reader.onload = async function(e) {
                     try {
-                        // === СОХРАНЯЕМ СЛЕПОК ДЛЯ ЭКСПОРТА ===
                         window.rawKaspiTemplateBuffer = e.target.result;
                         
-                        // === ПЕРЕХОДИМ С ГЛЮЧНОГО SHEETJS (XLSX) НА БРОНЕБОЙНЫЙ EXCELJS ===
                         const workbook = new ExcelJS.Workbook();
                         await workbook.xlsx.load(e.target.result);
 
-                        // 1. Ищем лист attributes
+                        // 1. Читаем основной лист attributes
                         let targetSheet = workbook.worksheets.find(s => s.name.toLowerCase() === 'attributes');
-                        if (!targetSheet) {
-                            targetSheet = workbook.worksheets.length > 1 ? workbook.worksheets[1] : workbook.worksheets[0];
-                        }
+                        if (!targetSheet) targetSheet = workbook.worksheets.length > 1 ? workbook.worksheets[1] : workbook.worksheets[0];
                         window.kaspiTargetSheetName = targetSheet.name;
 
-                        // 2. Имитируем XLSX.utils.sheet_to_json, чтобы ТВОИ детекторы отработали идеально
                         const jsonData = [];
                         targetSheet.eachRow((row, rowNumber) => {
-                            if (rowNumber > 20) return; // Сканируем только первые 20 строк шапки
-                            
+                            if (rowNumber > 20) return; 
                             let rowData = [];
-                            // Берем с запасом до 100 колонок
                             const maxCols = targetSheet.columnCount > 0 ? targetSheet.columnCount : 100;
                             for (let i = 1; i <= maxCols; i++) {
                                 const cell = row.getCell(i);
@@ -3820,10 +3808,7 @@ async function handleTemplateUpload(event) {
                             jsonData.push(rowData);
                         });
 
-                        // --- ТВОИ НЕЗАВИСИМЫЕ ДЕТЕКТОРЫ КОЛОНОК (БЕЗ ИЗМЕНЕНИЙ!) ---
-                        let requirements = [];
-                        let systemKeys = [];
-                        let humanNames = [];
+                        let requirements = [], systemKeys = [], humanNames = [];
                         const humMarkers = ["артикул", "модель", "бренд", "цена"];
                         const sysMarkers = ["merchant_sku", "model", "brand", "price"];
 
@@ -3831,12 +3816,10 @@ async function handleTemplateUpload(event) {
                             const rowText = jsonData[i].join(" ").toLowerCase();
                             if (!rowText.trim()) continue;
 
-                            let humMatch = 0;
-                            humMarkers.forEach(m => { if (rowText.includes(m)) humMatch++; });
+                            let humMatch = 0; humMarkers.forEach(m => { if (rowText.includes(m)) humMatch++; });
                             if (humMatch >= 2) { humanNames = jsonData[i]; continue; }
 
-                            let sysMatch = 0;
-                            sysMarkers.forEach(m => { if (rowText.includes(m)) sysMatch++; });
+                            let sysMatch = 0; sysMarkers.forEach(m => { if (rowText.includes(m)) sysMatch++; });
                             if (sysMatch >= 2) { systemKeys = jsonData[i]; continue; }
 
                             if (rowText.includes("обязательное") || rowText.includes("обязат.")) {
@@ -3845,15 +3828,28 @@ async function handleTemplateUpload(event) {
                         }
 
                         if (humanNames.length === 0 || systemKeys.length === 0) {
-                            alert(t('error_parse_template', "Ошибка: Не удалось распознать структуру шаблона Kaspi."));
-                            fileNameSpan.setAttribute('data-i18n', 'upload_template');
-                            fileNameSpan.innerText = t('upload_template', '📄 Загрузить пустой шаблон (.xml, .xlsx)');
+                            alert("Ошибка: Не удалось распознать структуру шаблона Kaspi.");
+                            fileNameSpan.innerText = '📄 Загрузить пустой шаблон (.xml, .xlsx)';
                             fileNameSpan.style.color = "var(--text-main)";
-                            fileInput.disabled = false;
                             return;
                         }
 
-                        // === ИНТЕГРАЦИЯ КНОПОК И БЭКЕНДА ===
+                        // 2. Читаем лист values (Справочники Kaspi) через ExcelJS
+                        let valuesData = [];
+                        let valuesSheet = workbook.worksheets.find(s => s.name.toLowerCase() === 'values');
+                        if (valuesSheet) {
+                            valuesSheet.eachRow((row) => {
+                                let rData = [];
+                                const maxCols = valuesSheet.columnCount > 0 ? valuesSheet.columnCount : 50;
+                                for (let i = 1; i <= maxCols; i++) {
+                                    let cell = row.getCell(i);
+                                    rData.push(cell.text ? cell.text.toString().trim() : '');
+                                }
+                                valuesData.push(rData);
+                            });
+                        }
+
+                        // 3. Запрос категории и сохранение на сервер
                         const defaultCategory = file.name.replace('.xlsx', '').replace('.xls', '').trim();
                         const categoryName = prompt("Укажите категорию для этого шаблона (например, Шины):", defaultCategory);
                         
@@ -3863,34 +3859,43 @@ async function handleTemplateUpload(event) {
                             return;
                         }
 
-                        const headersObj = { systemKeys, humanNames, requirements };
-                        
                         fileNameSpan.innerText = `⏳ Сохранение на сервер...`;
                         fileNameSpan.style.color = "var(--accent-blue)";
                         
-                        // Отправляем в бэкенд
-                        await saveKaspiTemplateBackend(categoryName, window.rawKaspiTemplateBuffer, headersObj);
+                        await saveKaspiTemplateBackend(categoryName, window.rawKaspiTemplateBuffer, { systemKeys, humanNames, requirements });
                         
-                        fileNameSpan.innerText = `✅ ${t('template_ready', 'Шаблон сохранен')} (${categoryName})`;
+                        // 4. Подтягиваем динамические ключи из базы (твоя оригинальная логика)
+                        fileNameSpan.innerText = `⏳ Подключение к БД...`;
+                        const dbResponse = await window.smartFetch(APPS_SCRIPT_URL, { 
+                            action: 'getKaspiExportData', 
+                            api_key: typeof CLIENT_API_KEY !== 'undefined' ? CLIENT_API_KEY : '' 
+                        }, 'kaspi_dynamic_keys_cache', 3);
+                        
+                        const dynKeys = (dbResponse && dbResponse.success) ? dbResponse.dynamicKeys : [];
+
+                        fileNameSpan.innerText = `✅ Шаблон готов (${categoryName})`;
                         fileNameSpan.style.color = "var(--accent-green)";
                         
-                        // Включаем интерфейс!
+                        // 5. ОТРИСОВКА ИНТЕРФЕЙСА МАППЕРА (Возвращаем визуал!)
+                        if (typeof renderMapperUI === 'function') {
+                            renderMapperUI(systemKeys, humanNames, valuesData, requirements, dynKeys);
+                        }
+
+                        // Разблокируем нижнюю кнопку экспорта
                         if (typeof updateFileNameCompactUI === 'function') {
                             updateFileNameCompactUI(file.name);
                         }
 
                     } catch (err) {
                         console.error(err);
-                        alert(t('error_read_file', "Ошибка чтения файла: ") + err.message);
-                        fileNameSpan.setAttribute('data-i18n', 'upload_template');
-                        fileNameSpan.innerText = t('upload_template', '📄 Загрузить пустой шаблон (.xml, .xlsx)');
+                        alert("Ошибка чтения файла: " + err.message);
+                        fileNameSpan.innerText = '📄 Загрузить пустой шаблон (.xml, .xlsx)';
                         fileNameSpan.style.color = "var(--text-main)";
                     } finally {
                         fileInput.disabled = false;
                     }
                 };
                 
-                // Защита от бага "одного и того же файла"
                 event.target.value = '';
                 reader.readAsArrayBuffer(file);
                 
