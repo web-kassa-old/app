@@ -7752,34 +7752,26 @@ window.updateFileNameCompactUI = function(input) {
 // 3. Исправленный перехватчик (ТЕПЕРЬ ОН ВЫЗЫВАЕТ БЛОКИРОВКУ)
 window.handleTemplateChange = function(event) {
     const selectedValue = event.target.value;
+    console.log("👉 Сработал выбор шаблона! Выбрано:", selectedValue);
 
     if (selectedValue === 'new' || selectedValue === 'new_template') {
-        // Если выбрали "Новый шаблон" - блокируем нижнюю кнопку Excel
-        if (typeof window.lockInvoiceUpload === 'function') {
-            window.lockInvoiceUpload();
-        }
-
-        // Открываем твое окно для обхода iOS
-        const modal = document.getElementById('newTemplateModal');
-        if (modal) {
-            modal.style.display = 'flex';
-        }
+        if (typeof window.lockInvoiceUpload === 'function') window.lockInvoiceUpload();
         
-        // Сбрасываем выбор в списке (важно для iOS)
-        setTimeout(() => {
-            event.target.selectedIndex = 0; 
-        }, 50);
+        const modal = document.getElementById('newTemplateModal');
+        if (modal) modal.style.display = 'flex';
+        
+        setTimeout(() => { event.target.selectedIndex = 0; }, 50);
 
     } else if (selectedValue !== '') {
-        // ЕСЛИ ВЫБРАЛИ РЕАЛЬНЫЙ ШАБЛОН — РАЗБЛОКИРУЕМ И МЕНЯЕМ ТЕКСТ
+        console.log("👉 Шаблон не пустой. Запускаем unlockInvoiceUpload()...");
         if (typeof window.unlockInvoiceUpload === 'function') {
             window.unlockInvoiceUpload();
+            console.log("👉 Функция разблокировки отработала.");
+        } else {
+            console.error("❌ ОШИБКА: Функция unlockInvoiceUpload не найдена!");
         }
     } else {
-        // Если выбрали пустую строку "-- Выберите шаблон --" — блокируем
-        if (typeof window.lockInvoiceUpload === 'function') {
-            window.lockInvoiceUpload();
-        }
+        if (typeof window.lockInvoiceUpload === 'function') window.lockInvoiceUpload();
     }
 };
 
