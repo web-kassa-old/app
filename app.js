@@ -2175,7 +2175,7 @@ async function handleAutoLogin(val) {
 
         // === НОВОЕ: КОНТРОЛЛЕР ТАЙМ-АУТА (6 СЕКУНД) ===
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 6000);
+        const timeoutId = setTimeout(() => controller.abort(), 11000);
 
         const response = await fetch(APPS_SCRIPT_URL, {
             method: 'POST',
@@ -4262,26 +4262,51 @@ window.processInvoiceFile = async function() {
     const fileInput = document.getElementById('invoiceFileInput');
     if (!fileInput || !fileInput.files.length) return alert(translations[currentLang].inc_no_file || "Выберите файл");
 
-    const file = fileInput.files[0];
-    window.mapper2State.fileName = file.name;
+    let templateData = null;
 
-    // Подготовка Base64 для сохранения оригинала на Google Диск
-    const b64Promise = new Promise(resolve => {
-        const reader = new FileReader();
-        reader.onload = e => resolve(e.target.result);
-        reader.readAsDataURL(file);
-    });
-    window.mapper2State.originalBase64 = await b64Promise;
+    // ВЕТВЛЕНИЕ ЛОГИКИ: Если выбран умный режим, жестко требуем шаблон
+    if (window.currentImportMode === 'kaspi') {
+        const templateSelect = document.getElementById('kaspiTemplateSelect');
+        const templateName = templateSelect ? templateSelect.value : "";
+        if (!templateName) return alert("Пожалуйста, выберите шаблон Kaspi из списка!");
 
-    // Чтение бинарника для извлечения данных
-    const dataPromise = new Promise(resolve => {
-        const reader = new FileReader();
-        reader.onload = e => resolve(new Uint8Array(e.target.result));
-        reader.readAsArrayBuffer(file);
-    });
-    const arrayBuffer = await dataPromise;
+        window.showLoading("Скачивание структуры шаблона...");
+        try {
+            const payload = { action: 'getKaspiTemplate', api_key: CLIENT_API_KEY, category: templateName };
+            const res = await window.smartFetch(GATEWAY_URL, payload);
+            if (res && res.success && res.headersJson) {
+                templateData = JSON.parse(res.headersJson);
+            } else {
+                throw new Error("Шаблон не найден на сервере");
+            }
+        } catch (err) {
+            window.hideLoading();
+            return alert("Ошибка загрузки шаблона: " + err.message);
+        }
+    } else {
+        // Обычный режим
+        window.showLoading("Чтение накладной...");
+    }
 
     try {
+        // --- ДАЛЬШЕ ИДЕТ ЧТЕНИЕ EXCEL (как было) ---
+        const file = fileInput.files[0];
+        window.mapper2State.fileName = file.name;
+
+        const b64Promise = new Promise(resolve => {
+            const reader = new FileReader();
+            reader.onload = e => resolve(e.target.result);
+            reader.readAsDataURL(file);
+        });
+        window.mapper2State.originalBase64 = await b64Promise;
+
+        const dataPromise = new Promise(resolve => {
+            const reader = new FileReader();
+            reader.onload = e => resolve(new Uint8Array(e.target.result));
+            reader.readAsArrayBuffer(file);
+        });
+        const arrayBuffer = await dataPromise;
+
         const workbook = XLSX.read(arrayBuffer, {type: 'array'});
         let rows = [];
         for (let sName of workbook.SheetNames) {
@@ -4290,12 +4315,10 @@ window.processInvoiceFile = async function() {
         }
         if (rows.length === 0) throw new Error("Пустой файл");
 
-        // Эвристика: Автоматическая генерация номера документа, если он не указан
         window.mapper2State.supplier = "Не указан";
         let now = new Date();
         window.mapper2State.docNo = `IN-${String(now.getDate()).padStart(2, '0')}.${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
 
-        // Поиск шапки таблицы (ищем строку, под которой идут цифры)
         let firstDataRowIdx = -1;
         for (let i = 0; i < Math.min(50, rows.length); i++) {
             let row = rows[i] || [];
@@ -4312,30 +4335,67 @@ window.processInvoiceFile = async function() {
             window.mapper2State.invoiceHeaders = rows[firstDataRowIdx - 1] || [];
             window.mapper2State.invoiceRows = rows.slice(firstDataRowIdx);
             
-            renderMapper2Cards();
+            window.hideLoading();
+            // В режиме Internal сюда передастся null, и Маппер отрисует только базовые поля (Кол-во, Цена и т.д.)
+            window.renderMapper2Cards(templateData); 
         } else {
-            alert("Не удалось найти таблицу с товарами в файле.");
+            throw new Error("Не удалось найти таблицу с товарами");
         }
     } catch (err) {
+        window.hideLoading();
         console.error(err);
-        alert("Файл поврежден или не является таблицей.");
+        alert("Ошибка обработки: " + err.message);
     }
 };
 
 // 2. ОТРИСОВКА КАРТОЧЕК НА ГЛАВНОМ ЭКРАНЕ
-window.renderMapper2Cards = function() {
+window.renderMapper2Cards = function(templateData) {
     const container = document.getElementById('mapper2CardsContainer');
     container.innerHTML = '';
 
-    const allReqs = [
-        { sysKey: 'brand', name: 'Бренд', req: true, desc: 'Единое значение или колонка (Словарь Kaspi)', isDict: true },
-        { sysKey: 'size', name: 'Типоразмер', req: false, desc: 'Например: 175/70 R13 (Сплиттер)', isDict: false },
-        { sysKey: 'barcode', name: 'Штрихкод / Артикул', req: false, desc: 'Если пусто — авто EAN13', isDict: false },
-        { sysKey: 'name', name: 'Наименование', req: true, desc: 'Обязательно для чеков', isDict: false },
-        { sysKey: 'qty', name: 'Количество', req: true, desc: 'Обязательно', isDict: false },
-        { sysKey: 'price', name: 'Цена закупа', req: true, desc: 'В валюте накладной', isDict: false }
+    let allReqs = [];
+    
+    // 1. Динамическая сборка карточек из JSON Kaspi (если включен умный режим)
+    if (templateData && templateData.systemKeys) {
+        const { humanNames, systemKeys, requirements } = templateData;
+        
+        for (let i = 0; i < systemKeys.length; i++) {
+            let sysKey = systemKeys[i];
+            let humName = humanNames[i];
+            if (!sysKey || !humName) continue;
+
+            let reqText = (requirements[i] || "").toLowerCase();
+            let isReq = reqText.includes('обязательн') && !reqText.includes('необязательн');
+            let isDict = sysKey.toLowerCase().includes('brand') || humName.toLowerCase().includes('бренд');
+
+            allReqs.push({
+                sysKey: sysKey,
+                name: humName,
+                req: isReq,
+                desc: isDict ? 'Словарь Kaspi' : 'Текст или Сплиттер',
+                isDict: isDict
+            });
+        }
+    }
+
+    // 2. Базовые системные поля POS Noir. 
+    // Добавляем их, если их еще нет в списке (чтобы не было дубликатов)
+    const posBaseFields = [
+        { sysKey: 'name', name: 'Наименование', req: true, desc: 'Обязательно', isDict: false },
+        { sysKey: 'qty', name: 'Количество', req: true, desc: 'На складе (POS)', isDict: false },
+        { sysKey: 'price', name: 'Цена закупа', req: true, desc: 'В валюте накладной', isDict: false },
+        { sysKey: 'barcode', name: 'Код / Штрихкод', req: false, desc: 'Если пусто — авто EAN13', isDict: false },
+        { sysKey: 'cbm', name: 'Объем (CBM)', req: false, desc: 'Для расчета логистики', isDict: false },
+        { sysKey: 'weight', name: 'Вес (кг)', req: false, desc: 'Для расчета логистики', isDict: false }
     ];
 
+    posBaseFields.forEach(field => {
+        if (!allReqs.some(r => r.sysKey === field.sysKey)) {
+            allReqs.push(field);
+        }
+    });
+
+    // 3. Отрисовка
     let html = '';
     allReqs.forEach(req => {
         html += `
@@ -4349,6 +4409,7 @@ window.renderMapper2Cards = function() {
     });
     container.innerHTML = html;
 
+    // Переключение интерфейса
     document.getElementById('parseInvoiceBtn').style.display = 'none';
     const importModeContainer = document.getElementById('importModeContainer');
     if (importModeContainer) importModeContainer.style.display = 'none';
@@ -4557,8 +4618,8 @@ window.selectDictionaryValue = function(value, isCustom) {
 window.applyMapper2Logic = function() {
     const state = window.mapper2State;
     
-    if (state.colMap['qty'] === undefined || state.colMap['price'] === undefined) {
-        return alert("Обязательно привяжите колонки «Количество» и «Цена закупа»!");
+    if (state.colMap['qty'] === undefined || state.colMap['price'] === undefined || state.colMap['name'] === undefined) {
+        return alert("Обязательно привяжите колонки «Наименование», «Количество» и «Цена закупа»!");
     }
 
     window.parsedInvoiceData = [];
@@ -4581,7 +4642,6 @@ window.applyMapper2Logic = function() {
             
             let rawVal = String(row[colIdx] || '').trim();
             
-            // Если для колонки есть правило сплиттера - нарезаем и клеим
             if (state.splitRules[sysKey]) {
                 const tokens = rawVal.match(regex) || [];
                 let result = [];
@@ -4594,16 +4654,20 @@ window.applyMapper2Logic = function() {
         };
 
         let qty = parseFloat(getValue('qty'));
-        let price = parseFloat(getValue('price'));
+        let price = parseFloat(String(getValue('price')).replace(',', '.'));
         
         if (isNaN(qty) || isNaN(price)) return;
 
         let barcode = getValue('barcode');
         let name = getValue('name') || barcode;
         
+        // Парсим вес и объем (заменяем запятые на точки для правильной математики)
+        let cbm = parseFloat(String(getValue('cbm')).replace(',', '.')) || 0;
+        let weight = parseFloat(String(getValue('weight')).replace(',', '.')) || 0;
+        
         // Упаковываем специфику Kaspi в JSON
         let attributesObj = {};
-        const baseKeys = ['barcode', 'name', 'qty', 'price'];
+        const baseKeys = ['barcode', 'name', 'qty', 'price', 'cbm', 'weight'];
         
         Object.keys(state.colMap).forEach(key => {
             if (!baseKeys.includes(key)) attributesObj[key] = getValue(key);
@@ -4618,13 +4682,13 @@ window.applyMapper2Logic = function() {
             doc_no: state.docNo,
             category: state.docNo,
             supplier: state.supplier,
-            item_id: barcode, // Бэкенд сгенерирует EAN13, если пусто
+            item_id: barcode,
             barcode: barcode,
             item_name: name,
             qty: qty,
             cost: price,
-            cbm: 0,
-            weight: 0,
+            cbm: cbm,
+            weight: weight,
             attributes: finalAttributes,
             staff_id: (typeof currentUser !== 'undefined' && currentUser) ? currentUser.uid : 'Auto-Import'
         };
@@ -4637,7 +4701,7 @@ window.applyMapper2Logic = function() {
         return alert("Не найдено ни одного валидного товара (проверьте колонки Цена и Количество).");
     }
 
-    // Рендер итоговой таблицы для проверки перед отправкой
+    // Рендер итоговой таблицы для предпросмотра
     document.getElementById('invoiceMetadata').innerHTML = `
         <span style="color:var(--text-muted); font-size:13px;">Поставщик:</span> 
         <span style="color:var(--accent-yellow); font-weight:bold; font-size:14px;">${state.supplier}</span> 
@@ -4657,8 +4721,8 @@ window.applyMapper2Logic = function() {
                 ${item.attributes ? `<br><span style="font-size:10px; color:var(--text-muted);">+ ${Object.keys(JSON.parse(item.attributes)).length} атрибутов Kaspi</span>` : ''}
             </td>
             <td style="padding:5px; text-align:right;">${Number(item.qty).toLocaleString('ru-RU')}</td>
-            <td style="padding:5px; text-align:right;">-</td>
-            <td style="padding:5px; text-align:right;">-</td>
+            <td style="padding:5px; text-align:right;">${item.cbm || '-'}</td>
+            <td style="padding:5px; text-align:right;">${item.weight || '-'}</td>
             <td style="padding:5px; text-align:right; font-weight:bold;">${Number(item.cost).toLocaleString('ru-RU')}</td>
         </tr>`).join('');
     
@@ -7481,32 +7545,48 @@ async function generateExportFile() {
         btn.disabled = false;
     }
 }
-window.currentImportMode = null; 
 
-// --- Глобальная переменная для хранения выбранного режима ---
-window.currentImportMode = null; 
+// Глобальная переменная для отслеживания режима
+window.currentImportMode = 'internal';
 
-// --- Функции для переключения режимов ---
+// Функция клика по плиткам выбора режима
 window.selectImportMode = function(mode) {
     window.currentImportMode = mode;
     
-    // Сбрасываем стили (убираем цветные рамки)
-    document.getElementById('btnModeInternal').style.borderColor = 'var(--border-main)';
-    document.getElementById('btnModeKaspi').style.borderColor = 'var(--border-main)';
-    
+    const btnInternal = document.getElementById('btnModeInternal');
+    const btnKaspi = document.getElementById('btnModeKaspi');
     const templateBlock = document.getElementById('kaspiTemplateBlock');
-    templateBlock.style.display = 'none';
-    
+    const uploadWrapper = document.getElementById('invoiceUploadWrapper');
+
     if (mode === 'internal') {
-        document.getElementById('btnModeInternal').style.borderColor = '#2ecc71'; 
-        unlockInvoiceUpload(); 
-    } else if (mode === 'kaspi') {
-        document.getElementById('btnModeKaspi').style.borderColor = '#3498db'; 
-        templateBlock.style.display = 'block'; 
-        lockInvoiceUpload(); 
+        // Режим: Только в базу
+        btnInternal.style.borderColor = 'var(--accent-green)';
+        btnKaspi.style.borderColor = 'var(--border-main)';
+        if (templateBlock) templateBlock.style.display = 'none';
         
-        // Запрашиваем список при открытии вкладки
-        loadKaspiTemplatesFromServer();
+        // Разблокируем загрузку файла сразу
+        if (uploadWrapper) {
+            uploadWrapper.style.opacity = '1';
+            uploadWrapper.style.pointerEvents = 'auto';
+        }
+    } else {
+        // Режим: База + Kaspi
+        btnKaspi.style.borderColor = 'var(--accent-green)';
+        btnInternal.style.borderColor = 'var(--border-main)';
+        if (templateBlock) templateBlock.style.display = 'block';
+        
+        const select = document.getElementById('kaspiTemplateSelect');
+        // Если шаблоны еще не загружались — загружаем
+        if (select && select.options.length <= 1 && typeof window.loadKaspiTemplatesFromServer === 'function') {
+            window.loadKaspiTemplatesFromServer();
+        }
+        
+        // Блокируем загрузку файла, пока кассир не выберет шаблон из списка
+        if (uploadWrapper) {
+            const hasSelectedTemplate = select && select.value !== "";
+            uploadWrapper.style.opacity = hasSelectedTemplate ? '1' : '0.5';
+            uploadWrapper.style.pointerEvents = hasSelectedTemplate ? 'auto' : 'none';
+        }
     }
 };
 
@@ -7548,29 +7628,14 @@ window.lockInvoiceUpload = function() {
 
 // 3. Исправленный перехватчик (ТЕПЕРЬ ОН ВЫЗЫВАЕТ БЛОКИРОВКУ)
 window.handleTemplateChange = function(event) {
-    const selectedValue = event.target.value;
-
-    if (selectedValue === 'new_template') {
-        // Блокируем кнопку накладной
-        if (typeof window.lockInvoiceUpload === 'function') {
-            window.lockInvoiceUpload();
-        }
-
-        // Открываем модальное окно вместо вызова .click()
-        const modal = document.getElementById('newTemplateModal');
-        if (modal) {
-            modal.style.display = 'flex';
-            // Если нужно, принудительно обновляем переводы в модалке перед показом
-            if (typeof applyLanguage === 'function' && typeof currentLang !== 'undefined') {
-                applyLanguage(currentLang);
-            }
-        }
-        
-        event.target.selectedIndex = 0; 
-        
-    } else if (selectedValue !== '') {
-        if (typeof window.unlockInvoiceUpload === 'function') {
-            window.unlockInvoiceUpload();
+    const uploadWrapper = document.getElementById('invoiceUploadWrapper');
+    if (uploadWrapper) {
+        if (event.target.value) {
+            uploadWrapper.style.opacity = '1';
+            uploadWrapper.style.pointerEvents = 'auto';
+        } else {
+            uploadWrapper.style.opacity = '0.5';
+            uploadWrapper.style.pointerEvents = 'none';
         }
     }
 };
