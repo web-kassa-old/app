@@ -4327,8 +4327,6 @@ window.renderMapper2Cards = function() {
     const container = document.getElementById('mapper2CardsContainer');
     container.innerHTML = '';
 
-    // Здесь в будущем мы будем подтягивать требования из JSON шаблона Kaspi.
-    // Пока создаем жесткий список требований для работы архитектуры.
     const allReqs = [
         { sysKey: 'brand', name: 'Бренд', req: true, desc: 'Единое значение или колонка (Словарь Kaspi)', isDict: true },
         { sysKey: 'size', name: 'Типоразмер', req: false, desc: 'Например: 175/70 R13 (Сплиттер)', isDict: false },
@@ -4344,14 +4342,13 @@ window.renderMapper2Cards = function() {
         <div class="req-card" onclick="openColumnSelector('${req.sysKey}', '${req.name}', ${req.isDict})">
             <div class="req-info">
                 <span class="req-title ${req.req ? 'required' : ''}">${req.name}</span>
-                <span class="req-subtitle">${req.desc}</span>
+                <span class="req-subtitle" id="subtitle-${req.sysKey}">${req.desc}</span>
             </div>
             <div class="req-status status-empty" id="status-${req.sysKey}">Выбрать</div>
         </div>`;
     });
     container.innerHTML = html;
 
-    // Переключаем интерфейс
     document.getElementById('parseInvoiceBtn').style.display = 'none';
     const importModeContainer = document.getElementById('importModeContainer');
     if (importModeContainer) importModeContainer.style.display = 'none';
@@ -4420,11 +4417,18 @@ window.closeSheet = function() {
     setTimeout(() => document.getElementById('sheet-overlay').style.display = 'none', 300);
 };
 
-window.updateReqCardStatus = function(sysKey, text, className) {
+window.updateReqCardStatus = function(sysKey, text, className, previewText) {
     const badge = document.getElementById('status-' + sysKey);
+    const subtitle = document.getElementById('subtitle-' + sysKey);
+    
     if (badge) {
         badge.innerText = text;
         badge.className = 'req-status ' + className;
+    }
+    
+    if (subtitle && previewText) {
+        // Подсвечиваем результат желтым
+        subtitle.innerHTML = `<span style="color: var(--accent-yellow); font-weight: bold;">Результат: ${previewText}</span>`;
     }
 };
 
@@ -4434,7 +4438,15 @@ window.selectMapper2Col = function(colIndex, colName) {
     delete window.mapper2State.dictValues[sysKey];
     
     window.mapper2State.colMap[sysKey] = colIndex;
-    updateReqCardStatus(sysKey, colName + ' 🟢', 'status-filled');
+    
+    // Ищем первый непустой пример для показа
+    let previewVal = "";
+    for (let i = 0; i < window.mapper2State.invoiceRows.length; i++) {
+        let val = String(window.mapper2State.invoiceRows[i][colIndex] || '').trim();
+        if (val) { previewVal = val; break; }
+    }
+    
+    updateReqCardStatus(sysKey, colName + ' 🟢', 'status-filled', previewVal || "Пусто");
     closeSheet();
 };
 
@@ -4498,7 +4510,25 @@ window.applySplitRule = function(colIndex, colName) {
     window.mapper2State.colMap[sysKey] = colIndex;
     window.mapper2State.splitRules[sysKey] = tokenIndices;
 
-    updateReqCardStatus(sysKey, '✂️ ' + colName + ' 🟢', 'status-filled');
+    // Генерируем пример склейки из первой попавшейся строки
+    let rawVal = "";
+    for (let i = 0; i < window.mapper2State.invoiceRows.length; i++) {
+        let val = String(window.mapper2State.invoiceRows[i][colIndex] || '').trim();
+        if (val) { rawVal = val; break; }
+    }
+    
+    let previewVal = "";
+    if (rawVal) {
+        const regex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,]/g;
+        const tokens = rawVal.match(regex) || [];
+        let result = [];
+        tokenIndices.forEach(idx => {
+            if (tokens[idx] !== undefined) result.push(tokens[idx]);
+        });
+        previewVal = result.join('');
+    }
+
+    updateReqCardStatus(sysKey, '✂️ ' + colName + ' 🟢', 'status-filled', previewVal || "Пусто");
     closeSheet();
 };
 
@@ -4518,7 +4548,7 @@ window.selectDictionaryValue = function(value, isCustom) {
     delete window.mapper2State.splitRules[sysKey];
     window.mapper2State.dictValues[sysKey] = value;
     
-    updateReqCardStatus(sysKey, (isCustom ? '✏️ ' : '📌 ') + value, 'status-filled');
+    updateReqCardStatus(sysKey, (isCustom ? '✏️ ' : '📌 ') + 'Словарь 🟢', 'status-filled', value);
     window.closeDictionaryModal();
     closeSheet();
 };
