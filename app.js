@@ -3742,12 +3742,17 @@ window.handleTemplateUpload = async function(event) {
     if (!file) return;
 
     // 1. Спрашиваем имя (до включения лоадера, чтобы не повесить браузер)
-    let defaultName = file.name.replace('.xlsx', '').trim();
+    let defaultName = file.name.replace('.xlsx', '').replace('.xls', '').trim();
     const categoryName = prompt("Укажите категорию (например, 'Шины'):", defaultName);
     
     if (!categoryName) {
         event.target.value = ''; 
         return;
+    }
+
+    // === ДОБАВЛЕНО: Закрываем модальное окно iOS ===
+    if (typeof window.closeTemplateModal === 'function') {
+        window.closeTemplateModal();
     }
 
     // 2. ВКЛЮЧАЕМ НАШ НОВЫЙ ГЛОБАЛЬНЫЙ ИНДИКАТОР!
@@ -3778,7 +3783,9 @@ window.handleTemplateUpload = async function(event) {
                 
                 const result = await response.json();
                 if (result && result.success) {
-                    alert(`✅ Шаблон успешно сохранен!`);
+                    // Убираем alert, чтобы не прерывать плавный flow, либо оставляем, если вам так привычнее. 
+                    // Я оставил тихий console.log, так как визуально лоадер исчезнет, и кнопка файла разблокируется.
+                    console.log(`✅ Шаблон успешно сохранен!`); 
                 } else {
                     throw new Error(result ? result.error : "Сервер вернул ошибку");
                 }
@@ -3787,8 +3794,20 @@ window.handleTemplateUpload = async function(event) {
                 alert(`❌ Ошибка:\n${error.message}`);
             } finally {
                 event.target.value = ''; 
+                
                 // Загружаем список заново
-                await window.loadKaspiTemplatesFromServer(); 
+                if (typeof window.loadKaspiTemplatesFromServer === 'function') {
+                    await window.loadKaspiTemplatesFromServer(true); // Передаем true, чтобы не перебивать текущий лоадер
+                    
+                    // === ДОБАВЛЕНО: Автоматически выбираем новый шаблон в селекте ===
+                    const select = document.getElementById('kaspiTemplateSelect');
+                    if (select) {
+                        select.value = categoryName.toLowerCase();
+                    }
+                    if (typeof window.unlockInvoiceUpload === 'function') {
+                        window.unlockInvoiceUpload();
+                    }
+                }
                 
                 if (mainInvoiceInput) mainInvoiceInput.disabled = false;
                 
@@ -7604,24 +7623,22 @@ function setUploadButtonState(isActive, textHTML) {
     }
 }
 
-// 1. Очищенная функция разблокировки накладной
+// 2. Разблокировка кнопки загрузки накладной (твой оригинал)
 window.unlockInvoiceUpload = function() {
     const wrapper = document.getElementById('invoiceUploadWrapper');
     const labelSpan = document.getElementById('fileNameTextCompact');
     
-    // Снимаем блокировку
     if (wrapper) {
         wrapper.style.opacity = '1';
         wrapper.style.pointerEvents = 'auto';
     }
-    
     if (labelSpan) {
         labelSpan.previousElementSibling.innerText = '📄';
         labelSpan.innerText = 'Нажмите для выбора Excel';
     }
 };
 
-// 2. Ваша функция блокировки накладной (без изменений, просто убедитесь, что она есть)
+// 1. Блокировка кнопки загрузки накладной
 window.lockInvoiceUpload = function() {
     const wrapper = document.getElementById('invoiceUploadWrapper');
     const labelSpan = document.getElementById('fileNameTextCompact');
@@ -7630,14 +7647,10 @@ window.lockInvoiceUpload = function() {
         wrapper.style.opacity = '0.5';
         wrapper.style.pointerEvents = 'none';
     }
-    
     if (labelSpan) {
         labelSpan.previousElementSibling.innerText = '🔒';
-        labelSpan.innerText = 'Сначала выберите режим';
+        labelSpan.innerText = 'Сначала выберите шаблон';
     }
-    
-    const fileInput = document.getElementById('invoiceFileInput');
-    if (fileInput) fileInput.value = '';
 };
 
 // 3. Исправленный перехватчик (ТЕПЕРЬ ОН ВЫЗЫВАЕТ БЛОКИРОВКУ)
@@ -7667,9 +7680,12 @@ window.handleTemplateChange = function(event) {
     }
 };
 
+// 3. Закрытие модального окна iOS
 window.closeTemplateModal = function() {
     const modal = document.getElementById('newTemplateModal');
-    if (modal) modal.style.display = 'none';
+    if (modal) {
+        modal.style.display = 'none';
+    }
 };
 
 // Закрываем окно автоматически, когда файл выбран
