@@ -4239,459 +4239,408 @@ function activateCustomInput(colIndex) {
         // Глобальное хранилище состояния (чтобы передать данные от Фазы 1 к Фазе 2)
         let tempInvoiceState = null;
 
-        async function processInvoiceFile() {
-            const fileInput = document.getElementById('invoiceFileInput');
-            if (!fileInput.files.length) return alert(translations[currentLang].inc_no_file);
+// ========================================================
+// МАППЕР 2.0: РЕВЕРСИВНЫЙ ИМПОРТ И СПЛИТТЕР
+// ========================================================
 
-            parsedInvoiceData = []; 
-            invoiceGroups = {}; 
-            
-            // Берем только первый файл для Smart Flow (обычно накладные грузят по одной)
-            const file = fileInput.files[0];
-            let file_doc_no = 'UNKNOWN';
-            let file_supplier = 'UNKNOWN';
+window.mapper2State = {
+    invoiceRows: [],
+    invoiceHeaders: [],
+    colMap: {},       // Привязки: sysKey -> colIndex
+    splitRules: {},   // Правила сплиттера: sysKey -> [токен1, токен2]
+    dictValues: {},   // Единые значения (Словарь): sysKey -> "Value"
+    docNo: "UNKNOWN",
+    supplier: "UNKNOWN",
+    originalBase64: "",
+    fileName: "",
+    currentSysKey: "",
+    currentReqName: ""
+};
 
-            const b64Promise = new Promise(resolve => {
-                const reader = new FileReader();
-                reader.onload = e => resolve(e.target.result);
-                reader.readAsDataURL(file);
-            });
-            const originalBase64 = await b64Promise;
+// 1. ЧТЕНИЕ ФАЙЛА И ПОИСК ТАБЛИЦЫ
+window.processInvoiceFile = async function() {
+    const fileInput = document.getElementById('invoiceFileInput');
+    if (!fileInput || !fileInput.files.length) return alert(translations[currentLang].inc_no_file || "Выберите файл");
 
-            const dataPromise = new Promise(resolve => {
-                const reader = new FileReader();
-                reader.onload = e => resolve(new Uint8Array(e.target.result));
-                reader.readAsArrayBuffer(file);
-            });
-            const arrayBuffer = await dataPromise;
+    const file = fileInput.files[0];
+    window.mapper2State.fileName = file.name;
 
-            const markers = (invoiceSynonyms['supplier_keywords'] || ["the seller", "vendor", "supplier", "поставщик"]);
-            
-            function isSynonymLocal(cellValue, targetKey) {
-                if (!cellValue) return false;
-                const cleanCell = String(cellValue).replace(/\s+/g, '').toLowerCase();
-                const synonymsList = (invoiceSynonyms[targetKey] || []).map(s => s.replace(/\s+/g, '').toLowerCase());
-                return synonymsList.some(syn => syn !== "" && cleanCell.includes(syn));
-            }
+    // Подготовка Base64 для сохранения оригинала на Google Диск
+    const b64Promise = new Promise(resolve => {
+        const reader = new FileReader();
+        reader.onload = e => resolve(e.target.result);
+        reader.readAsDataURL(file);
+    });
+    window.mapper2State.originalBase64 = await b64Promise;
 
-            try {
-                const workbook = XLSX.read(arrayBuffer, {type: 'array'});
-                // Ищем первый непустой лист
-                let rows = [];
-                let sheetName = '';
-                for (let sName of workbook.SheetNames) {
-                    let sRows = XLSX.utils.sheet_to_json(workbook.Sheets[sName], {header: 1});
-                    if (sRows && sRows.length > 0) {
-                        rows = sRows;
-                        sheetName = sName;
-                        break;
-                    }
-                }
-                if (rows.length === 0) throw new Error("Пустой файл");
+    // Чтение бинарника для извлечения данных
+    const dataPromise = new Promise(resolve => {
+        const reader = new FileReader();
+        reader.onload = e => resolve(new Uint8Array(e.target.result));
+        reader.readAsArrayBuffer(file);
+    });
+    const arrayBuffer = await dataPromise;
 
-                // Поиск поставщика и номера документа (оставляем вашу логику)
-                for (let i = 0; i < Math.min(10, rows.length); i++) {
-                    let row = rows[i] || [];
-                    for (let j = 0; j < row.length; j++) {
-                        let cellVal = String(row[j] || "").toLowerCase();
-                        if (markers.some(m => cellVal.includes(m.toLowerCase()))) {
-                            for (let k = j + 1; k < row.length; k++) {
-                                if (row[k] && String(row[k]).trim() !== '') {
-                                    file_supplier = String(row[k]).trim().replace(/^"|"$/g, ''); 
-                                    break;
-                                }
-                            }
-                        }
-                        if (isSynonymLocal(row[j], 'invoice_no')) {
-                            let val = String(row[j+1] || '').trim();
-                            if (val && val !== 'UNKNOWN') file_doc_no = val;
-                        }
-                    }
-                }
+    try {
+        const workbook = XLSX.read(arrayBuffer, {type: 'array'});
+        let rows = [];
+        for (let sName of workbook.SheetNames) {
+            let sRows = XLSX.utils.sheet_to_json(workbook.Sheets[sName], {header: 1});
+            if (sRows && sRows.length > 0) { rows = sRows; break; }
+        }
+        if (rows.length === 0) throw new Error("Пустой файл");
 
-                if (file_supplier === 'UNKNOWN') file_supplier = translations[currentLang].inc_sup_unknown || 'Не указан'; 
-                if (file_doc_no === 'UNKNOWN' || file_doc_no === '') {
-                    let now = new Date();
-                    file_doc_no = `IN-${String(now.getDate()).padStart(2, '0')}.${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
-                }
+        // Эвристика: Автоматическая генерация номера документа, если он не указан
+        window.mapper2State.supplier = "Не указан";
+        let now = new Date();
+        window.mapper2State.docNo = `IN-${String(now.getDate()).padStart(2, '0')}.${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
 
-                // Поиск шапки таблицы
-                let firstDataRowIdx = -1;
-                for (let i = 0; i < Math.min(50, rows.length); i++) {
-                    let row = rows[i] || [];
-                    if (row.length === 0) continue;
-                    let numCount = row.filter(c => {
-                        let val = String(c).trim().replace(/,/g, '');
-                        return val !== '' && !isNaN(Number(val));
-                    }).length;
-
-                    if (numCount >= 2) {
-                        let firstCol = String(row[0] || '').toUpperCase();
-                        if (!firstCol.includes('TOTAL')) {
-                            firstDataRowIdx = i;
-                            break;
-                        }
-                    }
-                }
-
-                if (firstDataRowIdx > 0) {
-                    let headerRowIdx = firstDataRowIdx - 1;
-                    let headerRow = rows[headerRowIdx] || []; 
-                    let colMap = { code: -1, barcode: -1, brand: -1, desc: -1, qty: -1, price: -1, cbm: -1, weight: -1 };
-                    let unmappedCols = []; // Сюда соберем всё, что система не узнала
-
-                    for (let j = 0; j < headerRow.length; j++) {
-                        let val = String(headerRow[j] || '').replace(/[\r\n]+/g, ' ').trim();
-                        if (!val || val.toLowerCase().includes('total') || val.toLowerCase().includes('итого')) continue;
-                        
-                        let v = val.toLowerCase();
-                        let isMapped = false;
-
-                        if (colMap.code === -1 && (isSynonymLocal(val, 'id') || v === 'код' || v === 'id' || v === 'артикул')) { colMap.code = j; isMapped = true; }
-                        else if (colMap.barcode === -1 && (isSynonymLocal(val, 'barcode') || v === 'sku' || v === 'штрихкод' || v === 'barcode')) { colMap.barcode = j; isMapped = true; }
-                        else if (colMap.qty === -1 && (isSynonymLocal(val, 'qty') || v === 'кол' || v === 'кол-во' || v === 'qty' || v === 'количество')) { colMap.qty = j; isMapped = true; }
-                        else if (colMap.price === -1 && (isSynonymLocal(val, 'price') || v === 'цена' || v === 'price')) { colMap.price = j; isMapped = true; }
-                        else if (colMap.brand === -1 && (isSynonymLocal(val, 'brand') || v === 'бренд' || v === 'brand')) { colMap.brand = j; isMapped = true; }
-                        else if (colMap.desc === -1 && (isSynonymLocal(val, 'name') || v === 'наименование' || v === 'название' || v === 'model')) { colMap.desc = j; isMapped = true; }
-                        else if (colMap.cbm === -1 && isSynonymLocal(val, 'cbm')) { colMap.cbm = j; isMapped = true; }
-                        else if (colMap.weight === -1 && isSynonymLocal(val, 'weight')) { colMap.weight = j; isMapped = true; }
-
-                        if (!isMapped) {
-                            unmappedCols.push({ index: j, name: val });
-                        }
-                    }
-
-                    // Сохраняем стейт для Фазы 2
-                    tempInvoiceState = { rows, firstDataRowIdx, headerRow, colMap, file_doc_no, file_supplier, originalBase64, fileName: file.name, unmappedCols };
-
-                    // Генерируем UI Маппера
-                    generateMapperUI(unmappedCols, headerRow);
-
-                } else {
-                    alert(translations[currentLang].inc_err_sheet_no_table);
-                }
-            } catch (err) {
-                console.error(err);
-                alert(translations[currentLang].inc_file_corrupted);
+        // Поиск шапки таблицы (ищем строку, под которой идут цифры)
+        let firstDataRowIdx = -1;
+        for (let i = 0; i < Math.min(50, rows.length); i++) {
+            let row = rows[i] || [];
+            let numCount = row.filter(c => {
+                let val = String(c).trim().replace(/,/g, '');
+                return val !== '' && !isNaN(Number(val));
+            }).length;
+            if (numCount >= 2 && !String(row[0]||'').toUpperCase().includes('TOTAL')) {
+                firstDataRowIdx = i; break;
             }
         }
 
-        function generateMapperUI(unmappedCols, headerRow) {
-            const container = document.getElementById('mapperRowsContainer');
-            container.innerHTML = '';
-
-            const rows = tempInvoiceState.rows;
-            const startIdx = tempInvoiceState.firstDataRowIdx;
-            const colMap = tempInvoiceState.colMap; 
-
-            let indexToSystemKey = {};
-            for (let key in colMap) {
-                if (colMap[key] !== -1) {
-                    indexToSystemKey[colMap[key]] = key;
-                }
-            }
-
-            headerRow.forEach((colName, index) => {
-                if (!colName || String(colName).trim() === '') return;
-
-                let previews = [];
-                for (let i = startIdx; i < Math.min(startIdx + 20, rows.length); i++) {
-                    let val = String(rows[i][index] || '').trim();
-                    if (val !== '' && previews.length < 3) {
-                        previews.push(val);
-                    }
-                }
-                
-                // Выводим примеры каждый с новой строки
-                let previewText = previews.length > 0 
-                    ? previews.map(p => `<div style="margin-top:2px; color:var(--text-muted); font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">- ${p}</div>`).join('')
-                    : `<div style="opacity:0.6; font-size:11px; margin-top:2px;">${translations[currentLang]?.mapper_empty || 'Пустая колонка'}</div>`;
-
-                // Проверяем, узнала ли система колонку по словарю (чтобы потом покрасить в зеленый)
-                let isRecognized = (indexToSystemKey[index] !== undefined);
-                let guessedKey = indexToSystemKey[index];
-
-                // Если система не узнала колонку: смотрим, есть ли в ней данные
-                if (!guessedKey) {
-                    if (previews.length === 0) {
-                        guessedKey = 'skip'; // Если пустая -> сразу ставим "Пропустить"
-                    } else {
-                        guessedKey = 'attribute'; // Если есть данные -> предлагаем сохранить в JSON
-                    }
-                }
-
-                // Убрали (JSON) из названия
-                const options = [
-                    { val: 'attribute', label: `➕ ${translations[currentLang]?.mapper_attr || 'Доп. атрибут'}` },
-                    { val: 'skip', label: `❌ ${translations[currentLang]?.mapper_skip || 'Пропустить'}` },
-                    { val: 'disabled', label: '──────────' },
-                    { val: 'code', label: translations[currentLang]?.mapper_code || 'Код / Артикул' },
-                    { val: 'barcode', label: translations[currentLang]?.mapper_barcode || 'Штрихкод' },
-                    { val: 'brand', label: translations[currentLang]?.mapper_brand || 'Бренд' },
-                    { val: 'desc', label: translations[currentLang]?.mapper_desc || 'Наименование' },
-                    { val: 'qty', label: `❗️ ${translations[currentLang]?.mapper_qty || 'Кол-во'}` },
-                    { val: 'price', label: `❗️ ${translations[currentLang]?.mapper_price || 'Цена'}` },
-                    { val: 'cbm', label: translations[currentLang]?.mapper_cbm || 'Объем (CBM)' },
-                    { val: 'weight', label: translations[currentLang]?.mapper_weight || 'Вес (кг)' }
-                ];
-
-                let optionsHtml = options.map(opt => {
-                    if (opt.val === 'disabled') return `<option disabled>${opt.label}</option>`;
-                    let selected = (guessedKey === opt.val) ? 'selected' : '';
-                    return `<option value="${opt.val}" ${selected}>${opt.label}</option>`;
-                }).join('');
-
-                let labelColor = isRecognized ? 'var(--accent-green, #4caf50)' : 'var(--text-main)';
-                let titlePrefix = isRecognized ? '✓ ' : '';
-
-                // Адаптивная верстка: flex: 0 0 60% (левая часть) и flex: 0 0 40% (правая часть)
-                let rowHtml = `
-                    <div class="mapper-row" data-col-index="${index}" data-col-name="${colName}" style="display: flex; justify-content: space-between; align-items: flex-start; padding: 12px 0; border-bottom: 1px solid var(--border-light);">
-                        <div style="flex: 0 0 60%; padding-right: 10px; overflow: hidden;">
-                            <div class="mapper-col-title" data-orig-name="${colName}" style="font-weight: bold; font-size: 13px; word-break: break-word; transition: all 0.2s ease;">${colName}</div>
-                            <div style="font-style: italic;">${previewText}</div>
-                        </div>
-                        <div style="flex: 0 0 40%;">
-                            <select class="mapper-select" onchange="updateMapperOptions()" style="width: 100%; padding: 12px 8px; min-height: 44px; background: var(--bg-body); color: var(--text-main); border: 1px solid var(--border-main); border-radius: 6px; font-size: 14px; outline: none; text-overflow: ellipsis;">
-                                ${optionsHtml}
-                            </select>
-                        </div>
-                    </div>
-                `;
-                container.insertAdjacentHTML('beforeend', rowHtml);
-            });
-
-            if (document.getElementById('parseInvoiceBtn')) document.getElementById('parseInvoiceBtn').style.display = 'none';
-            document.getElementById('dataMapperArea').style.display = 'flex';
-            document.getElementById('invoicePreviewArea').style.display = 'none';
-            setTimeout(() => {
-                if (typeof updateMapperOptions === 'function') {
-                    updateMapperOptions();
-                }
-            }, 50);
+        if (firstDataRowIdx > 0) {
+            window.mapper2State.invoiceHeaders = rows[firstDataRowIdx - 1] || [];
+            window.mapper2State.invoiceRows = rows.slice(firstDataRowIdx);
+            
+            renderMapper2Cards();
+        } else {
+            alert("Не удалось найти таблицу с товарами в файле.");
         }
+    } catch (err) {
+        console.error(err);
+        alert("Файл поврежден или не является таблицей.");
+    }
+};
 
-        function applyUserMapping() {
-            if (!tempInvoiceState) return;
-            const { rows, firstDataRowIdx, file_doc_no, file_supplier, originalBase64, fileName } = tempInvoiceState;
-            
-            // СБРОС КАРТЫ: Начинаем с чистого листа, доверяем только интерфейсу
-            let colMap = { code: -1, barcode: -1, brand: -1, desc: -1, qty: -1, price: -1, cbm: -1, weight: -1 };
-            let jsonCols = []; // Изменили название для логики: сюда пойдет всё для JSON
+// 2. ОТРИСОВКА КАРТОЧЕК НА ГЛАВНОМ ЭКРАНЕ
+window.renderMapper2Cards = function() {
+    const container = document.getElementById('mapper2CardsContainer');
+    container.innerHTML = '';
 
-            let hasDuplicates = false;
-            const mapperRows = document.querySelectorAll('.mapper-row');
-            mapperRows.forEach(row => {
-                const colIdx = parseInt(row.getAttribute('data-col-index'));
-                const colName = row.getAttribute('data-col-name');
-                const action = row.querySelector('.mapper-select').value;
+    // Здесь в будущем мы будем подтягивать требования из JSON шаблона Kaspi.
+    // Пока создаем жесткий список требований для работы архитектуры.
+    const allReqs = [
+        { sysKey: 'brand', name: 'Бренд', req: true, desc: 'Единое значение или колонка (Словарь Kaspi)', isDict: true },
+        { sysKey: 'size', name: 'Типоразмер', req: false, desc: 'Например: 175/70 R13 (Сплиттер)', isDict: false },
+        { sysKey: 'barcode', name: 'Штрихкод / Артикул', req: false, desc: 'Если пусто — авто EAN13', isDict: false },
+        { sysKey: 'name', name: 'Наименование', req: true, desc: 'Обязательно для чеков', isDict: false },
+        { sysKey: 'qty', name: 'Количество', req: true, desc: 'Обязательно', isDict: false },
+        { sysKey: 'price', name: 'Цена закупа', req: true, desc: 'В валюте накладной', isDict: false }
+    ];
 
-                if (action !== 'skip' && action !== '' && action !== 'none') {
-                    // Идет в JSON, если это атрибут или системная роль
-                    jsonCols.push({ index: colIdx, name: colName });
-                    
-                    // Если это системная роль, проверяем дубликаты безопасно
-                    if (action !== 'attribute') {
-                        // Убеждаемся, что такой ключ вообще существует в colMap
-                        if (colMap.hasOwnProperty(action)) {
-                            if (colMap[action] !== -1) hasDuplicates = true;
-                            colMap[action] = colIdx;
-                        }
-                    }
-                }
-            });
+    let html = '';
+    allReqs.forEach(req => {
+        html += `
+        <div class="req-card" onclick="openColumnSelector('${req.sysKey}', '${req.name}', ${req.isDict})">
+            <div class="req-info">
+                <span class="req-title ${req.req ? 'required' : ''}">${req.name}</span>
+                <span class="req-subtitle">${req.desc}</span>
+            </div>
+            <div class="req-status status-empty" id="status-${req.sysKey}">Выбрать</div>
+        </div>`;
+    });
+    container.innerHTML = html;
 
-            if (hasDuplicates) {
-                return alert(translations[currentLang]?.mapper_err_dup || 'Ошибка: Вы назначили одну и ту же роль сразу нескольким колонкам!');
-            }
+    // Переключаем интерфейс
+    document.getElementById('parseInvoiceBtn').style.display = 'none';
+    const importModeContainer = document.getElementById('importModeContainer');
+    if (importModeContainer) importModeContainer.style.display = 'none';
+    const invoiceUploadWrapper = document.getElementById('invoiceUploadWrapper');
+    if (invoiceUploadWrapper) invoiceUploadWrapper.style.display = 'none';
+    
+    document.getElementById('mapper2Area').style.display = 'flex';
+    document.getElementById('applyMapper2Btn').style.display = 'block';
+};
 
-            // ВАЛИДАЦИЯ (теперь требуем только Количество и Цену)
-            if (colMap.qty === -1 || colMap.price === -1) {
-                return alert(translations[currentLang]?.mapper_err_missing || 'Ошибка: Обязательно укажите колонки «Кол-во» и «Цена»!');
-            }
+// 3. ОТКРЫТИЕ ШТОРКИ И ОТРИСОВКА КОЛОНОК
+window.openColumnSelector = function(sysKey, reqName, isDict) {
+    window.mapper2State.currentSysKey = sysKey;
+    window.mapper2State.currentReqName = reqName;
+    
+    document.getElementById('sheet-title').innerText = 'Источник: ' + reqName;
+    
+    // Кнопка глобального значения появляется только для словарных полей (например, Бренд)
+    const dictBtn = document.getElementById('btn-global-dict');
+    if (dictBtn) dictBtn.style.display = isDict ? 'block' : 'none';
 
-            parsedInvoiceData = [];
-            invoiceGroups[file_doc_no] = { supplier: file_supplier, items: [], originalFiles: [{ fileName, fileBase64: originalBase64 }] };
+    const colList = document.getElementById('sheet-col-list');
+    colList.innerHTML = '<div style="font-size: 11px; color: var(--text-muted); margin-bottom: 10px; text-transform: uppercase; font-weight: bold;">Колонки из накладной</div>';
 
-            let lastCode = "UNKNOWN", lastBrand = "", lastDesc = "";
-            
-            // ОСНОВНОЙ ЦИКЛ ПАРСИНГА
-            for (let i = firstDataRowIdx; i < rows.length; i++) {
-                const row = rows[i];
-                if (!row || row.length === 0) continue;
+    window.mapper2State.invoiceHeaders.forEach((colName, index) => {
+        if (!colName || String(colName).trim() === '') return;
 
-                let actualCodeIdx = colMap.code !== -1 ? colMap.code : colMap.barcode;
-                let codeCell = actualCodeIdx !== -1 ? String(row[actualCodeIdx] || '').trim() : '';
-                let rawBarcode = colMap.barcode !== -1 ? String(row[colMap.barcode] || '').trim() : ''; // <-- Убрали codeCell в конце
-                
-                let qty = parseFloat(row[colMap.qty]);
-                let price = parseFloat(row[colMap.price]);
-                let brandStr = colMap.brand !== -1 ? String(row[colMap.brand] || '').trim() : '';
-                let descStr = colMap.desc !== -1 ? String(row[colMap.desc] || '').trim() : '';
-
-                if (codeCell === "" && (!isNaN(qty) || !isNaN(price))) {
-                    codeCell = lastCode; brandStr = brandStr || lastBrand; descStr = descStr || lastDesc;
-                } else if (codeCell !== "") {
-                    if (codeCell.toUpperCase().includes('TOTAL')) break;
-                    lastCode = codeCell; lastBrand = brandStr; lastDesc = descStr;
-                } else {
-                    break; 
-                }
-
-                if (!isNaN(qty) && !isNaN(price)) {
-                    let finalNameParts = [];
-                    if (brandStr && !descStr.toUpperCase().includes(brandStr.toUpperCase())) finalNameParts.push(brandStr.toUpperCase());
-                    if (descStr) finalNameParts.push(descStr);
-                    let finalName = finalNameParts.join(' ').trim() || codeCell;
-
-                    // Упаковка JSON (теперь включает вообще все полезные колонки)
-                    let attributesObj = {};
-                    jsonCols.forEach(col => {
-                        let val = String(row[col.index] || '').trim();
-                        if (val) attributesObj[col.name] = val;
-                    });
-                    let finalAttributes = Object.keys(attributesObj).length > 0 ? JSON.stringify(attributesObj) : "";
-
-                    const itemData = {
-                        doc_no: file_doc_no, category: file_doc_no, supplier: file_supplier,
-                        item_id: codeCell, barcode: rawBarcode, item_name: finalName,
-                        qty: qty, cost: price,
-                        cbm: colMap.cbm !== -1 ? (parseFloat(String(row[colMap.cbm]).replace(',', '.')) || "") : "",
-                        weight: colMap.weight !== -1 ? (parseFloat(String(row[colMap.weight]).replace(',', '.')) || "") : "",
-                        attributes: finalAttributes,
-                        staff_id: (typeof currentUser !== 'undefined' && currentUser) ? currentUser.uid : 'Auto-Import'
-                    };
-
-                    parsedInvoiceData.push(itemData);
-                    invoiceGroups[file_doc_no].items.push(itemData);
-                }
-            }
-
-            // РЕНДЕР ИТОГОВОЙ ТАБЛИЦЫ
-            document.getElementById('invoiceMetadata').innerHTML = `
-                <span style="color:var(--text-muted); font-size:13px;">${translations[currentLang].inc_lbl_sup}</span> 
-                <span style="color:var(--accent-yellow); font-weight:bold; font-size:14px;">${file_supplier}</span> 
-                <span style="color:var(--border-light); margin:0 10px;">|</span> 
-                <span style="color:var(--text-muted); font-size:13px;">${translations[currentLang].inc_lbl_doc}</span> 
-                <span style="color:var(--accent-yellow); font-weight:bold;">${file_doc_no}</span> 
-                <span style="color:var(--border-light); margin:0 10px;">|</span> 
-                <span style="color:var(--text-muted); font-size:13px;">${translations[currentLang].inc_lbl_items}</span> 
-                <span style="color:var(--accent-yellow); font-weight:bold; font-size:14px;">${parsedInvoiceData.length}</span>
-            `;
-            
-            document.getElementById('invoiceTableBody').innerHTML = parsedInvoiceData.map(item => `
-                <tr style="border-bottom:1px solid var(--border-light); color:var(--text-main);">
-                    <td style="padding:5px;">${item.item_id}</td>
-                    <td style="padding:5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 150px;">
-                        ${item.item_name}
-                        ${item.attributes ? `<br><span style="font-size:10px; color:var(--text-muted);">+ ${Object.keys(JSON.parse(item.attributes)).length} атрибутов</span>` : ''}
-                    </td>
-                    <td style="padding:5px; text-align:right;">${Number(item.qty).toLocaleString('ru-RU')}</td>
-                    <td style="padding:5px; text-align:right;">${item.cbm || '-'}</td>
-                    <td style="padding:5px; text-align:right;">${item.weight || '-'}</td>
-                    <td style="padding:5px; text-align:right; font-weight:bold;">${Number(item.cost).toLocaleString('ru-RU')}</td>
-                </tr>`).join('');
-            
-            document.getElementById('dataMapperArea').style.display = 'none';
-            document.getElementById('invoicePreviewArea').style.display = 'flex';
+        let previews = [];
+        for (let i = 0; i < Math.min(10, window.mapper2State.invoiceRows.length); i++) {
+            let val = String(window.mapper2State.invoiceRows[i][index] || '').trim();
+            if (val && previews.indexOf(val) === -1 && previews.length < 3) previews.push(val);
         }
+        let previewText = previews.length > 0 ? '- ' + previews.join('<br>- ') : 'Пустая колонка';
+        let safeColName = String(colName).replace(/'/g, "\\'");
+        let safePreview = previews[0] ? String(previews[0]).replace(/'/g, "\\'") : '';
 
-        function updateMapperOptions() {
-            const allSelects = document.querySelectorAll('.mapper-select');
+        colList.innerHTML += `
+        <div class="col-item">
+            <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                <div class="col-content" onclick="selectMapper2Col(${index}, '${safeColName}')">
+                    <div class="col-name">${colName}</div>
+                    <div class="col-examples">${previewText}</div>
+                </div>
+                <button class="btn-split" onclick="toggleSplitter(this, ${index}, '${safePreview}')">✂️</button>
+            </div>
             
-            // 1. Собираем все занятые роли
-            let selectedRoles = [];
-            allSelects.forEach(select => {
-                let val = select.value;
-                if (val !== 'attribute' && val !== 'skip' && val !== 'disabled') {
-                    selectedRoles.push(val);
-                }
-            });
+            <div class="splitter-zone" id="splitter-zone-${index}">
+                <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 8px;">Выберите фрагменты, чтобы собрать значение:</div>
+                <div id="token-container-${index}"></div>
+                <div style="margin-top: 10px; font-size: 13px; color: var(--accent-yellow);">
+                    Результат: <b id="split-result-${index}">...</b>
+                </div>
+                <button class="btn-apply-split" onclick="applySplitRule(${index}, '${safeColName}')">Применить правило</button>
+            </div>
+        </div>`;
+    });
 
-            // 2. Проходим по всем спискам и меняем UI
-            allSelects.forEach(select => {
-                let currentVal = select.value;
-                
-                select.style.fontWeight = 'bold';
-                select.style.transition = 'all 0.2s ease';
-                
-                // --- БРОНЕБОЙНЫЙ ПОИСК ЛЕВОЙ КОЛОНКИ ---
-                // Ищем родительскую строку (div с классом mapper-row)
-                const row = select.closest('.mapper-row');
-                let leftTitle = null;
-                let origName = '';
+    document.getElementById('sheet-overlay').style.display = 'block';
+    setTimeout(() => document.getElementById('sheet-overlay').style.opacity = '1', 10);
+    document.getElementById('bottom-sheet').style.transform = 'translateY(0)';
+};
 
-                if (row) {
-                    // Берем оригинальное имя прямо из атрибута строки
-                    origName = row.getAttribute('data-col-name') || '';
-                    // Находим заголовок по структуре
-                    if (row.children[0] && row.children[0].children[0]) {
-                        leftTitle = row.children[0].children[0];
-                    }
-                }
+window.closeSheet = function() {
+    document.getElementById('sheet-overlay').style.opacity = '0';
+    document.getElementById('bottom-sheet').style.transform = 'translateY(100%)';
+    setTimeout(() => document.getElementById('sheet-overlay').style.display = 'none', 300);
+};
 
-                // --- БЛОК 1: ПРОПУСТИТЬ ---
-                if (currentVal === 'skip') {
-                    select.style.backgroundColor = 'rgba(244, 67, 54, 0.1)';
-                    select.style.borderColor = 'rgba(244, 67, 54, 0.4)';
-                    select.style.color = 'var(--text-main)'; 
-                    
-                    if (leftTitle) {
-                        leftTitle.style.color = '#d32f2f'; // Ярко-красный
-                        leftTitle.style.textDecoration = 'line-through';
-                        leftTitle.innerText = origName; 
-                    }
-                    
-                // --- БЛОК 2: ДОП. АТРИБУТ ---
-                } else if (currentVal === 'attribute') {
-                    select.style.backgroundColor = 'rgba(33, 150, 243, 0.15)';
-                    select.style.borderColor = 'rgba(33, 150, 243, 0.5)';
-                    select.style.color = 'var(--text-main)';
-                    
-                    if (leftTitle) {
-                        leftTitle.style.color = '#1976d2'; // Голубой
-                        leftTitle.style.textDecoration = 'none';
-                        leftTitle.innerText = origName; 
-                    }
-                    
-                // --- БЛОК 3: СИСТЕМНЫЕ КОЛОНКИ (Выбрано) ---
-                } else {
-                    select.style.backgroundColor = 'rgba(76, 175, 80, 0.15)';
-                    select.style.borderColor = 'rgba(76, 175, 80, 0.5)';
-                    select.style.color = 'var(--text-main)';
-                    
-                    if (leftTitle) {
-                        leftTitle.style.color = '#2e7d32'; // Ярко-зеленый
-                        leftTitle.style.textDecoration = 'none';
-                        leftTitle.innerText = '✅ ' + origName; 
-                    }
-                }
+window.updateReqCardStatus = function(sysKey, text, className) {
+    const badge = document.getElementById('status-' + sysKey);
+    if (badge) {
+        badge.innerText = text;
+        badge.className = 'req-status ' + className;
+    }
+};
 
-                // --- ФИКС БЕЛОГО ТЕКСТА ВНУТРИ СПИСКА ---
-                let options = select.querySelectorAll('option');
-                options.forEach(opt => {
-                    if (opt.value === 'attribute' || opt.value === 'skip' || opt.value === 'disabled') {
-                        opt.style.backgroundColor = '';
-                        opt.style.color = '#222';
-                        return;
-                    }
-                    if (selectedRoles.includes(opt.value) && opt.value !== currentVal) {
-                        opt.disabled = true;
-                        opt.style.backgroundColor = '#ecf0f1';
-                        opt.style.color = '#95a5a6';
-                    } else {
-                        opt.disabled = false;
-                        opt.style.backgroundColor = ''; 
-                        opt.style.color = '#222';
-                    }
+window.selectMapper2Col = function(colIndex, colName) {
+    const sysKey = window.mapper2State.currentSysKey;
+    delete window.mapper2State.splitRules[sysKey];
+    delete window.mapper2State.dictValues[sysKey];
+    
+    window.mapper2State.colMap[sysKey] = colIndex;
+    updateReqCardStatus(sysKey, colName + ' 🟢', 'status-filled');
+    closeSheet();
+};
+
+// 4. СПЛИТТЕР (Регулярные выражения для нарезки токенов)
+window.activeTokensState = {};
+
+window.toggleSplitter = function(btn, colIndex, sampleText) {
+    const zone = document.getElementById('splitter-zone-' + colIndex);
+    if (zone.style.display === 'block') {
+        zone.style.display = 'none';
+        return;
+    }
+    
+    document.querySelectorAll('.splitter-zone').forEach(el => el.style.display = 'none');
+    zone.style.display = 'block';
+    
+    window.activeTokensState[colIndex] = [];
+    document.getElementById('split-result-' + colIndex).innerText = '...';
+
+    // Алгоритм разделения (дроби, цифры, слова, символы)
+    const regex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,]/g;
+    const matches = (sampleText || "").match(regex) || [];
+
+    const container = document.getElementById('token-container-' + colIndex);
+    container.innerHTML = '';
+
+    matches.forEach((token, tokenIndex) => {
+        const span = document.createElement('span');
+        span.innerText = token;
+        if (token.length === 1 && !/[a-zA-Zа-яА-ЯёЁ0-9]/.test(token)) span.className = 'token separator';
+        else span.className = 'token';
+
+        span.onclick = function() {
+            this.classList.toggle('active');
+            if (this.classList.contains('active')) {
+                window.activeTokensState[colIndex][tokenIndex] = true;
+            } else {
+                delete window.activeTokensState[colIndex][tokenIndex];
+            }
+            
+            let resultArr = [];
+            for(let i=0; i<matches.length; i++) {
+                if (window.activeTokensState[colIndex][i]) resultArr.push(matches[i]);
+            }
+            document.getElementById('split-result-' + colIndex).innerText = resultArr.join('') || '...';
+        };
+        container.appendChild(span);
+    });
+};
+
+window.applySplitRule = function(colIndex, colName) {
+    const sysKey = window.mapper2State.currentSysKey;
+    const tokenIndices = [];
+    for (let idx in window.activeTokensState[colIndex]) {
+        if (window.activeTokensState[colIndex][idx]) tokenIndices.push(parseInt(idx));
+    }
+    
+    if (tokenIndices.length === 0) return alert('Выберите фрагменты!');
+
+    delete window.mapper2State.dictValues[sysKey];
+    window.mapper2State.colMap[sysKey] = colIndex;
+    window.mapper2State.splitRules[sysKey] = tokenIndices;
+
+    updateReqCardStatus(sysKey, '✂️ ' + colName + ' 🟢', 'status-filled');
+    closeSheet();
+};
+
+// 5. ИНТЕГРАЦИЯ СО СЛОВАРЕМ KASPI (Переиспользуем старый архивный код)
+window.openGlobalDictionary = function() {
+    const colName = window.mapper2State.currentReqName;
+    // Вызываем вашу старую функцию (0 передаем просто как заглушку индекса)
+    window.openDictionaryModal(0, colName); 
+};
+
+// Переопределяем старую функцию selectDictionaryValue (чтобы она не искала `<select>`)
+window.selectDictionaryValue = function(value, isCustom) {
+    if (!value) return;
+    const sysKey = window.mapper2State.currentSysKey;
+    
+    delete window.mapper2State.colMap[sysKey];
+    delete window.mapper2State.splitRules[sysKey];
+    window.mapper2State.dictValues[sysKey] = value;
+    
+    updateReqCardStatus(sysKey, (isCustom ? '✏️ ' : '📌 ') + value, 'status-filled');
+    window.closeDictionaryModal();
+    closeSheet();
+};
+
+// 6. ФИНАЛЬНАЯ СБОРКА JSON ДЛЯ СЕРВЕРА
+window.applyMapper2Logic = function() {
+    const state = window.mapper2State;
+    
+    if (state.colMap['qty'] === undefined || state.colMap['price'] === undefined) {
+        return alert("Обязательно привяжите колонки «Количество» и «Цена закупа»!");
+    }
+
+    window.parsedInvoiceData = [];
+    window.invoiceGroups = {}; 
+    window.invoiceGroups[state.docNo] = { 
+        supplier: state.supplier, 
+        items: [], 
+        originalFiles: [{ fileName: state.fileName, fileBase64: state.originalBase64 }] 
+    };
+
+    const regex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,]/g;
+
+    state.invoiceRows.forEach(row => {
+        if (!row || row.length === 0) return;
+
+        const getValue = (sysKey) => {
+            if (state.dictValues[sysKey]) return state.dictValues[sysKey];
+            let colIdx = state.colMap[sysKey];
+            if (colIdx === undefined) return '';
+            
+            let rawVal = String(row[colIdx] || '').trim();
+            
+            // Если для колонки есть правило сплиттера - нарезаем и клеим
+            if (state.splitRules[sysKey]) {
+                const tokens = rawVal.match(regex) || [];
+                let result = [];
+                state.splitRules[sysKey].forEach(idx => {
+                    if (tokens[idx] !== undefined) result.push(tokens[idx]);
                 });
-            });
-        }
+                return result.join('');
+            }
+            return rawVal;
+        };
 
-        function showMapperArea() {
-            document.getElementById('dataMapperArea').style.display = 'flex';
-            document.getElementById('invoicePreviewArea').style.display = 'none';
-        }
+        let qty = parseFloat(getValue('qty'));
+        let price = parseFloat(getValue('price'));
+        
+        if (isNaN(qty) || isNaN(price)) return;
+
+        let barcode = getValue('barcode');
+        let name = getValue('name') || barcode;
+        
+        // Упаковываем специфику Kaspi в JSON
+        let attributesObj = {};
+        const baseKeys = ['barcode', 'name', 'qty', 'price'];
+        
+        Object.keys(state.colMap).forEach(key => {
+            if (!baseKeys.includes(key)) attributesObj[key] = getValue(key);
+        });
+        Object.keys(state.dictValues).forEach(key => {
+            if (!baseKeys.includes(key)) attributesObj[key] = getValue(key);
+        });
+
+        let finalAttributes = Object.keys(attributesObj).length > 0 ? JSON.stringify(attributesObj) : "";
+
+        const itemData = {
+            doc_no: state.docNo,
+            category: state.docNo,
+            supplier: state.supplier,
+            item_id: barcode, // Бэкенд сгенерирует EAN13, если пусто
+            barcode: barcode,
+            item_name: name,
+            qty: qty,
+            cost: price,
+            cbm: 0,
+            weight: 0,
+            attributes: finalAttributes,
+            staff_id: (typeof currentUser !== 'undefined' && currentUser) ? currentUser.uid : 'Auto-Import'
+        };
+
+        window.parsedInvoiceData.push(itemData);
+        window.invoiceGroups[state.docNo].items.push(itemData);
+    });
+
+    if (window.parsedInvoiceData.length === 0) {
+        return alert("Не найдено ни одного валидного товара (проверьте колонки Цена и Количество).");
+    }
+
+    // Рендер итоговой таблицы для проверки перед отправкой
+    document.getElementById('invoiceMetadata').innerHTML = `
+        <span style="color:var(--text-muted); font-size:13px;">Поставщик:</span> 
+        <span style="color:var(--accent-yellow); font-weight:bold; font-size:14px;">${state.supplier}</span> 
+        <span style="color:var(--border-light); margin:0 10px;">|</span> 
+        <span style="color:var(--text-muted); font-size:13px;">Документ:</span> 
+        <span style="color:var(--accent-yellow); font-weight:bold;">${state.docNo}</span> 
+        <span style="color:var(--border-light); margin:0 10px;">|</span> 
+        <span style="color:var(--text-muted); font-size:13px;">Позиций:</span> 
+        <span style="color:var(--accent-yellow); font-weight:bold; font-size:14px;">${window.parsedInvoiceData.length}</span>
+    `;
+    
+    document.getElementById('invoiceTableBody').innerHTML = window.parsedInvoiceData.map(item => `
+        <tr style="border-bottom:1px solid var(--border-light); color:var(--text-main);">
+            <td style="padding:5px;">${item.item_id || 'AUTO (EAN13)'}</td>
+            <td style="padding:5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 150px;">
+                ${item.item_name}
+                ${item.attributes ? `<br><span style="font-size:10px; color:var(--text-muted);">+ ${Object.keys(JSON.parse(item.attributes)).length} атрибутов Kaspi</span>` : ''}
+            </td>
+            <td style="padding:5px; text-align:right;">${Number(item.qty).toLocaleString('ru-RU')}</td>
+            <td style="padding:5px; text-align:right;">-</td>
+            <td style="padding:5px; text-align:right;">-</td>
+            <td style="padding:5px; text-align:right; font-weight:bold;">${Number(item.cost).toLocaleString('ru-RU')}</td>
+        </tr>`).join('');
+    
+    document.getElementById('mapper2Area').style.display = 'none';
+    document.getElementById('invoicePreviewArea').style.display = 'flex';
+};
+
+// Функция возврата к настройкам маппера (переопределяем старую)
+window.showMapperArea = function() {
+    document.getElementById('mapper2Area').style.display = 'flex';
+    document.getElementById('invoicePreviewArea').style.display = 'none';
+};
 
         async function sendInvoiceToBackend() {
             if (parsedInvoiceData.length === 0) return alert(translations[currentLang].inc_empty_cart);
@@ -7684,8 +7633,3 @@ window.loadKaspiTemplatesFromServer = async function(isSilent = false) {
         }
     }
 };
-
-// window.renderTemplateSelect = async function() {
-//     // Просто перенаправляем запрос в нашу новую исправленную функцию
-//     await window.loadKaspiTemplatesFromServer();
-// };

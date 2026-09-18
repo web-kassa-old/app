@@ -576,14 +576,33 @@
                 
                 <div id="debug-container" style="display: none; margin-top: 15px; flex-direction: column; overflow-y: auto; max-height: 40vh;"></div>
 
-                <!-- НОВЫЙ БЛОК: DATA MAPPER (Скрыт по умолчанию) -->
-                <div id="dataMapperArea" style="display: none; margin-top: 20px; flex-direction: column;">
-                    <div style="font-weight: bold; margin-bottom: 15px; color: var(--accent-yellow); font-size: 14px; text-align: center;" data-i18n="mapper_title">Настройка колонок</div>
-                    <!-- Сюда JavaScript будет динамически вставлять вертикальные блоки маппинга -->
-                    <div id="mapperRowsContainer" style="overflow-y: auto; max-height: 40vh; margin-bottom: 15px; padding-right: 5px;"></div>
-                    
-                    <button id="applyMappingBtn" onclick="applyUserMapping()" class="btn-primary" data-i18n="mapper_btn_apply">ПРИМЕНИТЬ НАСТРОЙКИ</button>
-                </div>
+                <!-- === НОВЫЙ БЛОК: МАППЕР 2.0 (ТРЕБОВАНИЯ KASPI) === -->
+<div id="mapper2Area" style="display: none; margin-top: 20px; flex-direction: column;">
+    <div style="font-weight: bold; margin-bottom: 15px; color: var(--accent-yellow); font-size: 14px; text-align: center;">ЗАПОЛНИТЕ ТРЕБОВАНИЯ KASPI</div>
+    
+    <!-- Контейнер для карточек-требований (генерируется JS) -->
+    <div id="mapper2CardsContainer" style="overflow-y: auto; max-height: 40vh; margin-bottom: 15px; padding-right: 5px;"></div>
+    
+    <button id="applyMapper2Btn" onclick="applyMapper2Logic()" class="btn-primary" style="display: none;">✅ СОБРАТЬ НАКЛАДНУЮ</button>
+</div>
+
+<!-- === BOTTOM SHEET (ШТОРКА ВЫБОРА КОЛОНКИ) === -->
+<div class="sheet-overlay" id="sheet-overlay" onclick="closeSheet()"></div>
+<div class="bottom-sheet" id="bottom-sheet">
+    <div class="sheet-drag-handle"></div>
+    <div class="sheet-header">
+        <span class="sheet-title" id="sheet-title">Выбор колонки</span>
+        <span class="close-btn" onclick="closeSheet()">×</span>
+    </div>
+
+    <!-- Кнопка вызова словаря -->
+    <div class="btn-global" id="btn-global-dict" style="display: none;" onclick="openGlobalDictionary()">
+        🔍 Задать единое значение из словаря
+    </div>
+
+    <!-- Список колонок из файла (генерируется JS) -->
+    <div class="col-list" id="sheet-col-list"></div>
+</div>
 
                 <!-- БЛОК ПРЕДПРОСМОТРА И ФИНАЛИЗАЦИИ -->
                 <div id="invoicePreviewArea" style="display: none; margin-top: 20px; flex-direction: column; overflow: hidden; max-height: 45vh; width: 100%; max-width: 100%; min-width: 0; box-sizing: border-box;">
