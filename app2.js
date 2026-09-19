@@ -4443,32 +4443,28 @@ for (let sName of workbook.SheetNames) {
         }
         if (rows.length === 0) throw new Error("Пустой файл");
 
-        // === УМНЫЙ ПОИСК ШАПКИ НАКЛАДНОЙ ===
+        // === УМНЫЙ ПОИСК ШАПКИ НАКЛАДНОЙ (ОРИГИНАЛ) ===
         let file_doc_no = 'UNKNOWN';
         let file_supplier = 'UNKNOWN';
 
-        // Функция проверки синонимов (адаптированная под ключи из твоей базы)
-        const isSynonymLocal = (cellValue, targetKey) => {
+        const markers = (typeof invoiceSynonyms !== 'undefined' && invoiceSynonyms['supplier_keywords']) 
+            ? invoiceSynonyms['supplier_keywords'] 
+            : ["the seller", "vendor", "supplier", "поставщик"];
+        
+        function isSynonymLocal(cellValue, targetKey) {
             if (!cellValue) return false;
             const cleanCell = String(cellValue).replace(/\s+/g, '').toLowerCase();
-            // Подтягиваем словарь синонимов (из state Маппера или старой переменной)
-            let dict = window.mapper2State?.dictValues || (typeof invoiceSynonyms !== 'undefined' ? invoiceSynonyms : {});
-            const synonymsList = (dict[targetKey] || []).map(s => String(s).replace(/\s+/g, '').toLowerCase());
+            const synDict = typeof invoiceSynonyms !== 'undefined' ? invoiceSynonyms : {};
+            const synonymsList = (synDict[targetKey] || []).map(s => s.replace(/\s+/g, '').toLowerCase());
             return synonymsList.some(syn => syn !== "" && cleanCell.includes(syn));
-        };
+        }
 
-        // Забираем маркеры поставщика по русскому ключу из справочника или английскому
-        let dictObj = window.mapper2State?.dictValues || (typeof invoiceSynonyms !== 'undefined' ? invoiceSynonyms : {});
-        let supplierMarkers = dictObj['Поиск имени поставщика'] || dictObj['supplier_keywords'] || ["the seller", "vendor", "supplier", "поставщик"];
-
-        // Сканируем первые 15 строк
         for (let i = 0; i < Math.min(15, rows.length); i++) {
             let row = rows[i] || [];
             for (let j = 0; j < row.length; j++) {
                 let cellVal = String(row[j] || "").toLowerCase();
                 
-                // 1. Поиск поставщика
-                if (supplierMarkers.some(m => cellVal.includes(String(m).toLowerCase()))) {
+                if (markers.some(m => cellVal.includes(m.toLowerCase()))) {
                     for (let k = j + 1; k < row.length; k++) {
                         if (row[k] && String(row[k]).trim() !== '') {
                             file_supplier = String(row[k]).trim().replace(/^"|"$/g, ''); 
@@ -4477,23 +4473,24 @@ for (let sName of workbook.SheetNames) {
                     }
                 }
                 
-                // 2. Поиск номера накладной
-                if (isSynonymLocal(row[j], 'Номер накладной') || isSynonymLocal(row[j], 'invoice_no')) {
+                if (isSynonymLocal(row[j], 'invoice_no')) {
                     let val = String(row[j+1] || '').trim();
                     if (val && val !== 'UNKNOWN') file_doc_no = val;
                 }
             }
         }
 
-        // Записываем результат в стейт Маппера
-        window.mapper2State.supplier = (file_supplier !== 'UNKNOWN') ? file_supplier : "Не указан";
+        // Запись в стейт
+        if (!window.mapper2State) window.mapper2State = {};
         
-        if (file_doc_no !== 'UNKNOWN' && file_doc_no !== '') {
-            window.mapper2State.docNo = file_doc_no;
-        } else {
+        if (file_supplier === 'UNKNOWN') file_supplier = 'Не указан'; 
+        if (file_doc_no === 'UNKNOWN' || file_doc_no === '') {
             let now = new Date();
-            window.mapper2State.docNo = `IN-${String(now.getDate()).padStart(2, '0')}.${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
+            file_doc_no = `IN-${String(now.getDate()).padStart(2, '0')}.${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
         }
+
+        window.mapper2State.supplier = file_supplier;
+        window.mapper2State.docNo = file_doc_no;
         // === КОНЕЦ ПОИСКА ШАПКИ ===
 
         let firstDataRowIdx = -1;
@@ -4805,6 +4802,44 @@ window.applyMapper2Logic = function() {
         return alert("⚠️ Обязательно привяжите колонки:\n1. Наименование (или model)\n2. Количество (qty)\n3. Цена (price)");
     }
 
+    // === ДИНАМИЧЕСКИЙ ПОИСК ЦЕЛЕВЫХ КОЛОНОК (ДЛЯ ЛЮБЫХ ТОВАРОВ) ===
+    let autoLogisticsIndices = [];
+    let dictObj = state.dictValues || (typeof invoiceSynonyms !== 'undefined' ? invoiceSynonyms : {});
+    
+    // Системные колонки, которые НЕ нужно подклеивать в строку для поиска габаритов
+    const coreKeys = [
+        'qty', 'price', 'cost', 'name', 'model', 'barcode', 'merchant_sku', 
+        'brand', 'cbm', 'weight', 'category', 'поиск имени поставщика', 
+        'номер накладной', 'исключить строку', 'игнорировать при создании id'
+    ];
+
+    // 1. Ищем целевые колонки автоматически по справочнику синонимов
+    (state.headerRow || []).forEach((headerVal, idx) => {
+        if (!headerVal) return;
+        let cleanHeader = String(headerVal).replace(/\s+/g, '').toLowerCase();
+        
+        Object.keys(dictObj).forEach(dictKey => {
+            // Пропускаем базовые системные ключи
+            if (coreKeys.some(core => dictKey.toLowerCase().includes(core))) return; 
+            
+            let synonymsList = (dictObj[dictKey] || []).map(s => String(s).replace(/\s+/g, '').toLowerCase());
+            if (synonymsList.some(syn => syn !== "" && cleanHeader.includes(syn))) {
+                if (!autoLogisticsIndices.includes(idx)) autoLogisticsIndices.push(idx);
+            }
+        });
+    });
+
+    // 2. Добавляем колонки, которые кассир привязал вручную как атрибуты
+    Object.keys(state.colMap).forEach(key => {
+        if (!coreKeys.includes(key.toLowerCase())) {
+            let idx = state.colMap[key];
+            if (idx !== undefined && !autoLogisticsIndices.includes(idx)) {
+                autoLogisticsIndices.push(idx);
+            }
+        }
+    });
+    // ===================================================
+
     window.parsedInvoiceData = [];
     window.invoiceGroups = {}; 
     window.invoiceGroups[state.docNo] = { 
@@ -4824,11 +4859,9 @@ window.applyMapper2Logic = function() {
 
             let colIdx = state.colMap[primaryKey];
             if (colIdx === undefined && kaspiKey) colIdx = state.colMap[kaspiKey];
-            
             if (colIdx === undefined) return '';
             
             let rawVal = String(row[colIdx] || '').trim();
-            
             if (state.splitRules[primaryKey]) {
                 const tokens = rawVal.match(regex) || [];
                 let result = [];
@@ -4840,86 +4873,68 @@ window.applyMapper2Logic = function() {
             return rawVal;
         };
 
-        let rawQty = getValue('qty');
-        let rawPrice = getValue('price', 'cost');
-
-        let qty = parseFloat(rawQty);
-        let price = parseFloat(String(rawPrice).replace(',', '.'));
-        
+        let qty = parseFloat(getValue('qty'));
+        let price = parseFloat(String(getValue('price', 'cost')).replace(',', '.'));
         if (isNaN(qty) || isNaN(price)) return;
 
-        // Архитектура идентификаторов
         let rawId = getValue('barcode', 'merchant_sku');
-        let itemId = rawId; 
-        let barcode = "";
-        if (/^\d{8,13}$/.test(rawId)) {
-            barcode = rawId; 
-        }
+        let barcode = /^\d{8,13}$/.test(rawId) ? rawId : "";
 
         let name = getValue('name', 'model') || rawId || "Без названия";
-        
         let brand = getValue('brand');
         if (brand && name && !name.toLowerCase().includes(brand.toLowerCase())) {
             name = brand + ' ' + name;
         }
         
-        // === ИСПРАВЛЕНИЕ ЛОГИСТИКИ ===
         let rawCbm = getValue('cbm');
         let cbm = rawCbm ? parseFloat(String(rawCbm).replace(',', '.')) : "";
-        
         let rawWeight = getValue('weight');
         let weight = rawWeight ? parseFloat(String(rawWeight).replace(',', '.')) : "";
         
-        // === ИЗВЛЕЧЕНИЕ И ОЧИСТКА АТРИБУТОВ (KASPI vs ЛОГИСТИКА) ===
+        // === 1. АТРИБУТЫ ДЛЯ KASPI (ТОЛЬКО ТО, ЧТО ВЫБРАЛ ПОЛЬЗОВАТЕЛЬ) ===
         let attributesObj = {};
-        const excludeKeys = ['barcode', 'merchant_sku', 'name', 'model', 'qty', 'price', 'cost', 'cbm', 'weight'];
-        
-        // Поля, из которых нужно удалить буквы R, C, р, с для выгрузки в Kaspi
+        const excludeKeys = ['barcode', 'merchant_sku', 'name', 'model', 'qty', 'price', 'cost', 'cbm', 'weight', 'brand', 'category'];
         const kaspiNumericFields = ['size', 'diameter', 'radius', 'ширина', 'профиль', 'размер'];
-        let rawAttributesForLogistics = "";
 
         const processAttribute = (key) => {
             if (excludeKeys.includes(key)) return;
-            
             let rawValue = getValue(key);
             if (!rawValue) return;
-
-            let finalValue = rawValue;
-
-            // Очищаем значение для Kaspi
             if (kaspiNumericFields.includes(key.toLowerCase())) {
-                finalValue = String(rawValue).replace(/[rRcCрРсС]/g, '').trim();
+                rawValue = String(rawValue).replace(/[rRcCрРсС]/g, '').trim(); // Чистим для Каспи
             }
-            
-            attributesObj[key] = finalValue;
-            
-            // Сохраняем сырое значение (с буквами) для сервера логистики
-            rawAttributesForLogistics += " " + rawValue; 
+            attributesObj[key] = rawValue;
         };
 
         Object.keys(state.colMap).forEach(processAttribute);
         Object.keys(state.dictValues).forEach(processAttribute);
-
         let finalAttributes = Object.keys(attributesObj).length > 0 ? JSON.stringify(attributesObj) : "";
 
-        // Приклеиваем сырые атрибуты к имени, чтобы серверная логистика нашла радиусы и размеры
-        if (rawAttributesForLogistics.trim() !== "") {
-            name = name + " " + rawAttributesForLogistics.trim();
+        // === 2. ДАННЫЕ ДЛЯ ЛОГИСТИКИ (АВТОМАТИЧЕСКИ ИЗ ЦЕЛЕВЫХ КОЛОНОК) ===
+        let hiddenLogisticsData = "";
+        autoLogisticsIndices.forEach(idx => {
+            let val = String(row[idx] || '').trim();
+            if (val) hiddenLogisticsData += " " + val;
+        });
+
+        // Склеиваем чистое имя и извлеченные размеры, чтобы сервер смог найти их в справочнике
+        let nameForBackend = name;
+        if (hiddenLogisticsData.trim() !== "") {
+            nameForBackend = name + " " + hiddenLogisticsData.trim();
         }
-        // ==========================================================
 
         const itemData = {
             doc_no: state.docNo,
             category: state.docNo,
             supplier: state.supplier,
-            item_id: itemId,
+            item_id: rawId,
             barcode: barcode,
-            item_name: name,
+            item_name: nameForBackend, // На сервер уходит строка с радиусом (для логистики)
             qty: qty,
             cost: price,
             cbm: cbm,
             weight: weight,
-            attributes: finalAttributes,
+            attributes: finalAttributes, // На Каспи уходят очищенные цифры (без R)
             staff_id: (typeof currentUser !== 'undefined' && currentUser) ? currentUser.uid : 'Auto-Import'
         };
 
