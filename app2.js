@@ -3850,6 +3850,14 @@ async function handleTemplateUpload(event) {
                         }
 
                         // 3. Запрос категории и сохранение на сервер
+                        // === ЖЕСТКАЯ ПРОВЕРКА ДАННЫХ ===
+console.log("=== ДАННЫЕ ИЗ ШАБЛОНА KASPI ===");
+console.log("Системные ключи (systemKeys):", systemKeys);
+console.log("Человеческие названия (humanNames):", humanNames);
+console.log("Обязательность (requirements):", requirements);
+
+alert(`Парсер отработал!\nНайдено системных ключей: ${systemKeys.length}\nНайдено названий: ${humanNames.length}\n\nНажми F12 и открой Console, чтобы посмотреть сам список.`);
+// ===============================
                         const defaultCategory = file.name.replace('.xlsx', '').replace('.xls', '').trim();
                         const categoryName = prompt("Укажите категорию для этого шаблона (например, Шины):", defaultCategory);
                         
