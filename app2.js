@@ -4799,16 +4799,12 @@ window.applyMapper2Logic = function() {
         
         if (isNaN(qty) || isNaN(price)) return;
 
-        // === АРХИТЕКТУРА ИДЕНТИФИКАТОРОВ ===
+        // Архитектура идентификаторов
         let rawId = getValue('barcode', 'merchant_sku');
-        
-        // 1. Для базы: всегда сохраняем сырой артикул поставщика для синхронизации
         let itemId = rawId; 
-        
-        // 2. Для маркета: фильтруем штрихкод
         let barcode = "";
         if (/^\d{8,13}$/.test(rawId)) {
-            barcode = rawId; // Если поставщик дал нормальный штрихкод — используем его
+            barcode = rawId; 
         }
 
         let name = getValue('name', 'model') || rawId || "Без названия";
@@ -4818,12 +4814,15 @@ window.applyMapper2Logic = function() {
             name = brand + ' ' + name;
         }
         
-        let cbm = parseFloat(String(getValue('cbm')).replace(',', '.')) || 0;
-        let weight = parseFloat(String(getValue('weight')).replace(',', '.')) || 0;
+        // === ИСПРАВЛЕНИЕ ЛОГИСТИКИ ===
+        // Если значение есть - парсим его. Если нет - оставляем пустую строку (чтобы сервер взял из БД)
+        let rawCbm = getValue('cbm');
+        let cbm = rawCbm ? parseFloat(String(rawCbm).replace(',', '.')) : "";
+        
+        let rawWeight = getValue('weight');
+        let weight = rawWeight ? parseFloat(String(rawWeight).replace(',', '.')) : "";
         
         let attributesObj = {};
-        
-        // Исключаем базовые ключи, чтобы они не дублировались в JSON
         const excludeKeys = ['barcode', 'merchant_sku', 'name', 'model', 'qty', 'price', 'cost', 'cbm', 'weight'];
         
         Object.keys(state.colMap).forEach(key => {
@@ -4839,8 +4838,8 @@ window.applyMapper2Logic = function() {
             doc_no: state.docNo,
             category: state.docNo,
             supplier: state.supplier,
-            item_id: itemId,      // <-- Уходит в колонку "ID товара" (например, 2EFW349F)
-            barcode: barcode,     // <-- Пустота (для автогенерации) ИЛИ чистые цифры
+            item_id: itemId,
+            barcode: barcode,
             item_name: name,
             qty: qty,
             cost: price,
@@ -4869,7 +4868,7 @@ window.applyMapper2Logic = function() {
         <span style="color:var(--accent-yellow); font-weight:bold; font-size:14px;">${window.parsedInvoiceData.length}</span>
     `;
     
-    // В предпросмотре показываем ID поставщика, а если штрихкод пуст — подсвечиваем, что будет сгенерирован EAN-13
+    // В рендере теперь показываем бейдж "из БД", если вес и объем пустые
     document.getElementById('invoiceTableBody').innerHTML = window.parsedInvoiceData.map(item => `
         <tr style="border-bottom:1px solid var(--border-light); color:var(--text-main);">
             <td style="padding:5px;">
@@ -4881,8 +4880,8 @@ window.applyMapper2Logic = function() {
                 ${item.attributes ? `<br><span style="font-size:10px; color:var(--text-muted);">+ ${Object.keys(JSON.parse(item.attributes)).length} атрибутов Kaspi</span>` : ''}
             </td>
             <td style="padding:5px; text-align:right;">${Number(item.qty).toLocaleString('ru-RU')}</td>
-            <td style="padding:5px; text-align:right;">${item.cbm || '-'}</td>
-            <td style="padding:5px; text-align:right;">${item.weight || '-'}</td>
+            <td style="padding:5px; text-align:right;">${item.cbm !== "" ? item.cbm : '<span style="color:var(--text-muted); font-size:11px;">из БД</span>'}</td>
+            <td style="padding:5px; text-align:right;">${item.weight !== "" ? item.weight : '<span style="color:var(--text-muted); font-size:11px;">из БД</span>'}</td>
             <td style="padding:5px; text-align:right; font-weight:bold;">${Number(item.cost).toLocaleString('ru-RU')}</td>
         </tr>`).join('');
     
