@@ -4399,12 +4399,14 @@ window.processInvoiceFile = async function() {
             const headersRaw = res.headersJson || res.headers_json || res.headers;
 
             if (res && res.success && headersRaw) {
-                // Если данные пришли как строка — парсим, если уже объект — оставляем
-                templateData = typeof headersRaw === 'string' ? JSON.parse(headersRaw) : headersRaw;
-                
-                // МАЯЧОК 3: Выводим на экран то, что ты просил!
-                alert(`✅ Шаблон "${templateName}" скачан с сервера!\nНайдено системных полей: ${templateData.systemKeys ? templateData.systemKeys.length : 'ошибка'}\nОткрываем Маппер...`);
-            } else {
+    // Если данные пришли как строка — парсим, если уже объект — оставляем
+    templateData = typeof headersRaw === 'string' ? JSON.parse(headersRaw) : headersRaw;
+    
+    // Ищем массив по любым возможным названиям ключа
+    const keysArray = templateData.systemKeys || templateData.system_keys || templateData.keys || templateData.fields || Object.keys(templateData);
+    
+    alert(`✅ Шаблон "${templateName}" скачан с сервера!\nНайдено полей: ${keysArray ? keysArray.length : 0}\nОткрываем Маппер...`);
+} else {
                 throw new Error("Сервер ответил, но структура шапок (headersJson) пустая или отсутствует");
             }
         } catch (err) {
