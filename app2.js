@@ -4443,54 +4443,51 @@ for (let sName of workbook.SheetNames) {
         }
         if (rows.length === 0) throw new Error("Пустой файл");
 
-        // === УМНЫЙ ПОИСК ШАПКИ НАКЛАДНОЙ (ОРИГИНАЛ) ===
+        // === УЛЬТРА-ПОИСК ШАПКИ НАКЛАДНОЙ ===
         let file_doc_no = 'UNKNOWN';
         let file_supplier = 'UNKNOWN';
 
-        const markers = (typeof invoiceSynonyms !== 'undefined' && invoiceSynonyms['supplier_keywords']) 
-            ? invoiceSynonyms['supplier_keywords'] 
-            : ["the seller", "vendor", "supplier", "поставщик"];
+        // Собираем все синонимы в единые массивы, независимо от ключей
+        let dict = window.mapper2State?.dictValues || (typeof invoiceSynonyms !== 'undefined' ? invoiceSynonyms : {});
+        let supSyns = [].concat(dict['Поиск имени поставщика'] || [], dict['supplier_keywords'] || [], ['the seller', 'vendor', 'supplier', 'поставщик', 'buyer']);
+        let docSyns = [].concat(dict['Номер накладной'] || [], dict['invoice_no'] || [], ['invoice no', 'invoice', 'инвойс', '№ накл']);
         
-        function isSynonymLocal(cellValue, targetKey) {
-            if (!cellValue) return false;
-            const cleanCell = String(cellValue).replace(/\s+/g, '').toLowerCase();
-            const synDict = typeof invoiceSynonyms !== 'undefined' ? invoiceSynonyms : {};
-            const synonymsList = (synDict[targetKey] || []).map(s => s.replace(/\s+/g, '').toLowerCase());
-            return synonymsList.some(syn => syn !== "" && cleanCell.includes(syn));
-        }
+        // Очищаем от пробелов для 100% совпадения
+        supSyns = supSyns.map(s => String(s).replace(/\s+/g, '').toLowerCase()).filter(Boolean);
+        docSyns = docSyns.map(s => String(s).replace(/\s+/g, '').toLowerCase()).filter(Boolean);
 
         for (let i = 0; i < Math.min(15, rows.length); i++) {
             let row = rows[i] || [];
             for (let j = 0; j < row.length; j++) {
                 let cellVal = String(row[j] || "").toLowerCase();
-                
-                if (markers.some(m => cellVal.includes(m.toLowerCase()))) {
+                let cleanCell = cellVal.replace(/\s+/g, '');
+                if (!cleanCell) continue;
+
+                // 1. Поставщик (первое непустое значение справа)
+                if (supSyns.some(syn => cleanCell.includes(syn))) {
                     for (let k = j + 1; k < row.length; k++) {
                         if (row[k] && String(row[k]).trim() !== '') {
-                            file_supplier = String(row[k]).trim().replace(/^"|"$/g, ''); 
+                            file_supplier = String(row[k]).trim().replace(/^"|"$/g, '');
                             break;
                         }
                     }
                 }
                 
-                if (isSynonymLocal(row[j], 'invoice_no')) {
+                // 2. Инвойс (строго соседняя ячейка справа)
+                if (docSyns.some(syn => cleanCell.includes(syn))) {
                     let val = String(row[j+1] || '').trim();
                     if (val && val !== 'UNKNOWN') file_doc_no = val;
                 }
             }
         }
 
-        // Запись в стейт
-        if (!window.mapper2State) window.mapper2State = {};
-        
-        if (file_supplier === 'UNKNOWN') file_supplier = 'Не указан'; 
-        if (file_doc_no === 'UNKNOWN' || file_doc_no === '') {
+        window.mapper2State.supplier = (file_supplier !== 'UNKNOWN') ? file_supplier : "Не указан";
+        if (file_doc_no !== 'UNKNOWN' && file_doc_no !== '') {
+            window.mapper2State.docNo = file_doc_no;
+        } else {
             let now = new Date();
-            file_doc_no = `IN-${String(now.getDate()).padStart(2, '0')}.${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
+            window.mapper2State.docNo = `IN-${String(now.getDate()).padStart(2, '0')}.${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
         }
-
-        window.mapper2State.supplier = file_supplier;
-        window.mapper2State.docNo = file_doc_no;
         // === КОНЕЦ ПОИСКА ШАПКИ ===
 
         let firstDataRowIdx = -1;
@@ -4881,11 +4878,6 @@ window.applyMapper2Logic = function() {
         let barcode = /^\d{8,13}$/.test(rawId) ? rawId : "";
 
         let name = getValue('name', 'model') || rawId || "Без названия";
-        let brand = getValue('brand');
-        if (brand && name && !name.toLowerCase().includes(brand.toLowerCase())) {
-            name = brand + ' ' + name;
-        }
-        
         let rawCbm = getValue('cbm');
         let cbm = rawCbm ? parseFloat(String(rawCbm).replace(',', '.')) : "";
         let rawWeight = getValue('weight');
@@ -4925,16 +4917,17 @@ window.applyMapper2Logic = function() {
 
         const itemData = {
             doc_no: state.docNo,
-            category: state.docNo,
+            category: state.category || "", // ИСПРАВЛЕНО: было state.docNo
             supplier: state.supplier,
             item_id: rawId,
             barcode: barcode,
-            item_name: nameForBackend, // На сервер уходит строка с радиусом (для логистики)
+            item_name: nameForBackend, // Для инвойсов
+            name: nameForBackend,      // ДОБАВЛЕНО: для записи в лист Items
             qty: qty,
             cost: price,
             cbm: cbm,
             weight: weight,
-            attributes: finalAttributes, // На Каспи уходят очищенные цифры (без R)
+            attributes: finalAttributes,
             staff_id: (typeof currentUser !== 'undefined' && currentUser) ? currentUser.uid : 'Auto-Import'
         };
 
