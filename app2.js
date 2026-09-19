@@ -4799,44 +4799,6 @@ window.applyMapper2Logic = function() {
         return alert("⚠️ Обязательно привяжите колонки:\n1. Наименование (или model)\n2. Количество (qty)\n3. Цена (price)");
     }
 
-    // === ДИНАМИЧЕСКИЙ ПОИСК ЦЕЛЕВЫХ КОЛОНОК (ДЛЯ ЛЮБЫХ ТОВАРОВ) ===
-    let autoLogisticsIndices = [];
-    let dictObj = state.dictValues || (typeof invoiceSynonyms !== 'undefined' ? invoiceSynonyms : {});
-    
-    // Системные колонки, которые НЕ нужно подклеивать в строку для поиска габаритов
-    const coreKeys = [
-        'qty', 'price', 'cost', 'name', 'model', 'barcode', 'merchant_sku', 
-        'brand', 'cbm', 'weight', 'category', 'поиск имени поставщика', 
-        'номер накладной', 'исключить строку', 'игнорировать при создании id'
-    ];
-
-    // 1. Ищем целевые колонки автоматически по справочнику синонимов
-    (state.headerRow || []).forEach((headerVal, idx) => {
-        if (!headerVal) return;
-        let cleanHeader = String(headerVal).replace(/\s+/g, '').toLowerCase();
-        
-        Object.keys(dictObj).forEach(dictKey => {
-            // Пропускаем базовые системные ключи
-            if (coreKeys.some(core => dictKey.toLowerCase().includes(core))) return; 
-            
-            let synonymsList = (dictObj[dictKey] || []).map(s => String(s).replace(/\s+/g, '').toLowerCase());
-            if (synonymsList.some(syn => syn !== "" && cleanHeader.includes(syn))) {
-                if (!autoLogisticsIndices.includes(idx)) autoLogisticsIndices.push(idx);
-            }
-        });
-    });
-
-    // 2. Добавляем колонки, которые кассир привязал вручную как атрибуты
-    Object.keys(state.colMap).forEach(key => {
-        if (!coreKeys.includes(key.toLowerCase())) {
-            let idx = state.colMap[key];
-            if (idx !== undefined && !autoLogisticsIndices.includes(idx)) {
-                autoLogisticsIndices.push(idx);
-            }
-        }
-    });
-    // ===================================================
-
     window.parsedInvoiceData = [];
     window.invoiceGroups = {}; 
     window.invoiceGroups[state.docNo] = { 
@@ -4846,6 +4808,36 @@ window.applyMapper2Logic = function() {
     };
 
     const regex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,]/g;
+
+    // === УМНЫЙ ПОИСК КОЛОНОК АТРИБУТОВ (ДЛЯ РАДИУСОВ) ===
+    let autoLogisticsIndices = [];
+    let dictObj = state.dictValues || (typeof invoiceSynonyms !== 'undefined' ? invoiceSynonyms : {});
+    const coreKeys = ['qty', 'price', 'cost', 'name', 'model', 'barcode', 'merchant_sku', 'brand', 'cbm', 'weight', 'category', 'поиск имени поставщика', 'номер накладной'];
+
+    // 1. Пытаемся найти по шапке (если она сохранилась в стейте)
+    if (state.headerRow && state.headerRow.length > 0) {
+        state.headerRow.forEach((headerVal, idx) => {
+            if (!headerVal) return;
+            let cleanHeader = String(headerVal).replace(/\s+/g, '').toLowerCase();
+            Object.keys(dictObj).forEach(dictKey => {
+                if (coreKeys.some(core => dictKey.toLowerCase().includes(core))) return;
+                let synonymsList = (dictObj[dictKey] || []).map(s => String(s).replace(/\s+/g, '').toLowerCase());
+                if (synonymsList.some(syn => syn !== "" && cleanHeader.includes(syn))) {
+                    if (!autoLogisticsIndices.includes(idx)) autoLogisticsIndices.push(idx);
+                }
+            });
+        });
+    }
+
+    // 2. Железный фоллбэк: добавляем то, что привязал сам Маппер
+    Object.keys(state.colMap).forEach(key => {
+        if (!coreKeys.includes(key.toLowerCase())) {
+            let idx = state.colMap[key];
+            if (idx !== undefined && !autoLogisticsIndices.includes(idx)) {
+                autoLogisticsIndices.push(idx);
+            }
+        }
+    });
 
     state.invoiceRows.forEach((row, index) => {
         if (!row || row.length === 0) return;
@@ -4876,60 +4868,62 @@ window.applyMapper2Logic = function() {
 
         let rawId = getValue('barcode', 'merchant_sku');
         let barcode = /^\d{8,13}$/.test(rawId) ? rawId : "";
-
         let name = getValue('name', 'model') || rawId || "Без названия";
-        let rawCbm = getValue('cbm');
-        let cbm = rawCbm ? parseFloat(String(rawCbm).replace(',', '.')) : "";
-        let rawWeight = getValue('weight');
-        let weight = rawWeight ? parseFloat(String(rawWeight).replace(',', '.')) : "";
-        
-        // === 1. АТРИБУТЫ ДЛЯ KASPI (ТОЛЬКО ТО, ЧТО ВЫБРАЛ ПОЛЬЗОВАТЕЛЬ) ===
-        let attributesObj = {};
-        const excludeKeys = ['barcode', 'merchant_sku', 'name', 'model', 'qty', 'price', 'cost', 'cbm', 'weight', 'brand', 'category'];
-        const kaspiNumericFields = ['size', 'diameter', 'radius', 'ширина', 'профиль', 'размер'];
 
-        const processAttribute = (key) => {
-            if (excludeKeys.includes(key)) return;
-            let rawValue = getValue(key);
-            if (!rawValue) return;
-            if (kaspiNumericFields.includes(key.toLowerCase())) {
-                rawValue = String(rawValue).replace(/[rRcCрРсС]/g, '').trim(); // Чистим для Каспи
-            }
-            attributesObj[key] = rawValue;
-        };
-
-        Object.keys(state.colMap).forEach(processAttribute);
-        Object.keys(state.dictValues).forEach(processAttribute);
-        let finalAttributes = Object.keys(attributesObj).length > 0 ? JSON.stringify(attributesObj) : "";
-
-        // === 2. ДАННЫЕ ДЛЯ ЛОГИСТИКИ (АВТОМАТИЧЕСКИ ИЗ ЦЕЛЕВЫХ КОЛОНОК) ===
+        // Собираем сырые атрибуты в строку
         let hiddenLogisticsData = "";
         autoLogisticsIndices.forEach(idx => {
             let val = String(row[idx] || '').trim();
             if (val) hiddenLogisticsData += " " + val;
         });
 
-        // Склеиваем чистое имя и извлеченные размеры, чтобы сервер смог найти их в справочнике
+        // Формируем финальное имя (Базовое название + Атрибуты)
         let nameForBackend = name;
         if (hiddenLogisticsData.trim() !== "") {
             nameForBackend = name + " " + hiddenLogisticsData.trim();
         }
 
+        let rawCbm = getValue('cbm');
+        let cbm = rawCbm ? parseFloat(String(rawCbm).replace(',', '.')) : "";
+        let rawWeight = getValue('weight');
+        let weight = rawWeight ? parseFloat(String(rawWeight).replace(',', '.')) : "";
+
+        // Очищаем атрибуты для Kaspi
+        let attributesObj = {};
+        const kaspiNumericFields = ['size', 'diameter', 'radius', 'ширина', 'профиль', 'размер'];
+        const processAttribute = (key) => {
+            if (coreKeys.includes(key.toLowerCase())) return;
+            let rawValue = getValue(key);
+            if (!rawValue) return;
+            if (kaspiNumericFields.includes(key.toLowerCase())) {
+                rawValue = String(rawValue).replace(/[rRcCрРсС]/g, '').trim();
+            }
+            attributesObj[key] = rawValue;
+        };
+        Object.keys(state.colMap).forEach(processAttribute);
+        Object.keys(state.dictValues).forEach(processAttribute);
+        let finalAttributes = Object.keys(attributesObj).length > 0 ? JSON.stringify(attributesObj) : "";
+
         const itemData = {
+            // Данные для Incomes
             doc_no: state.docNo,
-            category: state.docNo, // ВЕРНУЛИ КАК БЫЛО: сервер требует категорию
             supplier: state.supplier,
             item_id: rawId,
-            id: rawId,             // Дублируем ID для листа Items
-            barcode: barcode,
-            item_name: nameForBackend,
-            name: nameForBackend,  // Дублируем имя, чтобы сервер точно его записал
+            item_name: nameForBackend, // На сервер уходит склеенная строка для логистики
             qty: qty,
             cost: price,
             cbm: cbm,
             weight: weight,
             attributes: finalAttributes,
-            staff_id: (typeof currentUser !== 'undefined' && currentUser) ? currentUser.uid : 'Auto-Import'
+            staff_id: (typeof currentUser !== 'undefined' && currentUser) ? currentUser.uid : 'Auto-Import',
+
+            // Legacy-данные для создания карточки в Items
+            id: rawId,
+            name: nameForBackend,
+            desc: nameForBackend,
+            description: nameForBackend,
+            barcode: barcode,
+            category: "Новые товары"
         };
 
         window.parsedInvoiceData.push(itemData);
@@ -4940,6 +4934,7 @@ window.applyMapper2Logic = function() {
         return alert("Не удалось сформировать товары. Убедитесь, что в колонках «Количество» и «Цена» находятся ТОЛЬКО цифры.");
     }
 
+    // Рендер UI
     document.getElementById('invoiceMetadata').innerHTML = `
         <span style="color:var(--text-muted); font-size:13px;">Поставщик:</span> 
         <span style="color:var(--accent-yellow); font-weight:bold; font-size:14px;">${state.supplier}</span> 
@@ -4959,7 +4954,7 @@ window.applyMapper2Logic = function() {
             </td>
             <td style="padding:5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 150px;">
                 ${item.item_name}
-                ${item.attributes ? `<br><span style="font-size:10px; color:var(--text-muted);">+ ${Object.keys(JSON.parse(item.attributes)).length} атрибутов Kaspi</span>` : ''}
+                ${item.attributes ? `<br><span style="font-size:10px; color:var(--text-muted);">+ ${Object.keys(JSON.parse(item.attributes)).length} атрибутов</span>` : ''}
             </td>
             <td style="padding:5px; text-align:right;">${Number(item.qty).toLocaleString('ru-RU')}</td>
             <td style="padding:5px; text-align:right;">${item.cbm !== "" ? item.cbm : '<span style="color:var(--text-muted); font-size:11px;">из БД</span>'}</td>
