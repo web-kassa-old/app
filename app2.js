@@ -3850,14 +3850,6 @@ async function handleTemplateUpload(event) {
                         }
 
                         // 3. Запрос категории и сохранение на сервер
-                        // === ЖЕСТКАЯ ПРОВЕРКА ДАННЫХ ===
-console.log("=== ДАННЫЕ ИЗ ШАБЛОНА KASPI ===");
-console.log("Системные ключи (systemKeys):", systemKeys);
-console.log("Человеческие названия (humanNames):", humanNames);
-console.log("Обязательность (requirements):", requirements);
-
-alert(`Парсер отработал!\nНайдено системных ключей: ${systemKeys.length}\nНайдено названий: ${humanNames.length}\n\nНажми F12 и открой Console, чтобы посмотреть сам список.`);
-// ===============================
                         const defaultCategory = file.name.replace('.xlsx', '').replace('.xls', '').trim();
                         const categoryName = prompt("Укажите категорию для этого шаблона (например, Шины):", defaultCategory);
                         
@@ -3872,7 +3864,19 @@ alert(`Парсер отработал!\nНайдено системных кл�
                         
                         await saveKaspiTemplateBackend(categoryName, window.rawKaspiTemplateBuffer, { systemKeys, humanNames, requirements });
                         
-                        // 4. Подтягиваем динамические ключи из базы (твоя оригинальная логика)
+                        // ==========================================================
+                        // === НОВЫЙ БЛОК: ДОБАВЛЕНИЕ ШАБЛОНА В СПИСОК ===
+                        const templateSelect = document.getElementById('kaspiTemplateSelect');
+                        if (templateSelect) {
+                            const newOption = document.createElement('option');
+                            newOption.value = categoryName;
+                            newOption.text = categoryName;
+                            templateSelect.appendChild(newOption);
+                            templateSelect.value = categoryName; // Автоматически выбираем его
+                        }
+                        // ==========================================================
+
+                        // 4. Подтягиваем динамические ключи из базы 
                         fileNameSpan.innerText = `⏳ Подключение к БД...`;
                         const dbResponse = await window.smartFetch(APPS_SCRIPT_URL, { 
                             action: 'getKaspiExportData', 
@@ -3884,7 +3888,7 @@ alert(`Парсер отработал!\nНайдено системных кл�
                         fileNameSpan.innerText = `✅ Шаблон готов (${categoryName})`;
                         fileNameSpan.style.color = "var(--accent-green)";
                         
-                        // 5. ОТРИСОВКА ИНТЕРФЕЙСА МАППЕРА (Возвращаем визуал!)
+                        // 5. ОТРИСОВКА ИНТЕРФЕЙСА МАППЕРА
                         if (typeof renderMapperUI === 'function') {
                             renderMapperUI(systemKeys, humanNames, valuesData, requirements, dynKeys);
                         }
@@ -4375,7 +4379,9 @@ window.processInvoiceFile = async function() {
 
     let templateData = null;
 
-    // ВЕТВЛЕНИЕ ЛОГИКИ: Если выбран умный режим, жестко требуем шаблон
+    // МАЯЧОК 1: Проверяем, понимает ли скрипт, что мы в режиме Kaspi
+    console.log("=== ТЕКУЩИЙ РЕЖИМ ИМПОРТА ===", window.currentImportMode);
+
     if (window.currentImportMode === 'kaspi') {
         const templateSelect = document.getElementById('kaspiTemplateSelect');
         const templateName = templateSelect ? templateSelect.value : "";
@@ -4385,22 +4391,33 @@ window.processInvoiceFile = async function() {
         try {
             const payload = { action: 'getKaspiTemplate', api_key: CLIENT_API_KEY, category: templateName };
             const res = await window.smartFetch(GATEWAY_URL, payload);
-            if (res && res.success && res.headersJson) {
-                templateData = JSON.parse(res.headersJson);
+            
+            // МАЯЧОК 2: Смотрим, что реально отдал сервер
+            console.log("=== ОТВЕТ СЕРВЕРА С ШАБЛОНОМ ===", res);
+
+            // Умный поиск ключа (защита от несовпадений регистра)
+            const headersRaw = res.headersJson || res.headers_json || res.headers;
+
+            if (res && res.success && headersRaw) {
+                // Если данные пришли как строка — парсим, если уже объект — оставляем
+                templateData = typeof headersRaw === 'string' ? JSON.parse(headersRaw) : headersRaw;
+                
+                // МАЯЧОК 3: Выводим на экран то, что ты просил!
+                alert(`✅ Шаблон "${templateName}" скачан с сервера!\nНайдено системных полей: ${templateData.systemKeys ? templateData.systemKeys.length : 'ошибка'}\nОткрываем Маппер...`);
             } else {
-                throw new Error("Шаблон не найден на сервере");
+                throw new Error("Сервер ответил, но структура шапок (headersJson) пустая или отсутствует");
             }
         } catch (err) {
             window.hideLoading();
             return alert("Ошибка загрузки шаблона: " + err.message);
         }
     } else {
-        // Обычный режим
+        // Если флаг сбит, выводим предупреждение
+        alert(`Внимание: скрипт думает, что режим = "${window.currentImportMode}", а не "kaspi". Скачивание шаблона пропущено.`);
         window.showLoading("Чтение накладной...");
     }
 
     try {
-        // --- ДАЛЬШЕ ИДЕТ ЧТЕНИЕ EXCEL (как было) ---
         const file = fileInput.files[0];
         window.mapper2State.fileName = file.name;
 
@@ -4447,7 +4464,9 @@ window.processInvoiceFile = async function() {
             window.mapper2State.invoiceRows = rows.slice(firstDataRowIdx);
             
             window.hideLoading();
-            // В режиме Internal сюда передастся null, и Маппер отрисует только базовые поля (Кол-во, Цена и т.д.)
+            
+            // МАЯЧОК 4: Проверяем, что передается в отрисовщик
+            console.log("=== ДАННЫЕ ДЛЯ ОТРИСОВКИ ===", templateData);
             window.renderMapper2Cards(templateData); 
         } else {
             throw new Error("Не удалось найти таблицу с товарами");
