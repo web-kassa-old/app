@@ -4449,7 +4449,7 @@ for (let sName of workbook.SheetNames) {
 
         // Собираем все синонимы в единые массивы, независимо от ключей
         let dict = window.mapper2State?.dictValues || (typeof invoiceSynonyms !== 'undefined' ? invoiceSynonyms : {});
-        let supSyns = [].concat(dict['Поиск имени поставщика'] || [], dict['supplier_keywords'] || [], ['the seller', 'vendor', 'supplier', 'поставщик', 'buyer']);
+        let supSyns = [].concat(dict['Поиск имени поставщика'] || [], dict['supplier_keywords'] || [], ['the seller', 'vendor', 'supplier', 'поставщик']);
         let docSyns = [].concat(dict['Номер накладной'] || [], dict['invoice_no'] || [], ['invoice no', 'invoice', 'инвойс', '№ накл']);
         
         // Очищаем от пробелов для 100% совпадения
@@ -4917,12 +4917,13 @@ window.applyMapper2Logic = function() {
 
         const itemData = {
             doc_no: state.docNo,
-            category: state.category || "", // ИСПРАВЛЕНО: было state.docNo
+            category: state.docNo, // ВЕРНУЛИ КАК БЫЛО: сервер требует категорию
             supplier: state.supplier,
             item_id: rawId,
+            id: rawId,             // Дублируем ID для листа Items
             barcode: barcode,
-            item_name: nameForBackend, // Для инвойсов
-            name: nameForBackend,      // ДОБАВЛЕНО: для записи в лист Items
+            item_name: nameForBackend,
+            name: nameForBackend,  // Дублируем имя, чтобы сервер точно его записал
             qty: qty,
             cost: price,
             cbm: cbm,
