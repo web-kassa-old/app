@@ -4885,127 +4885,118 @@ window.showMapperArea = function() {
     document.getElementById('invoicePreviewArea').style.display = 'none';
 };
 
-        async function sendInvoiceToBackend() {
-            if (parsedInvoiceData.length === 0) return alert(translations[currentLang].inc_empty_cart);
+async function sendInvoiceToBackend() {
+    // ЯВНО обращаемся к глобальным массивам Маппера
+    if (!window.parsedInvoiceData || window.parsedInvoiceData.length === 0) return alert(translations[currentLang].inc_empty_cart);
 
-            const docKeys = Object.keys(invoiceGroups);
-            const docInput = document.getElementById('ui-doc-no');
-            
-            if (docKeys.length === 1 && docInput) {
-                const finalDocNo = docInput.value.trim();
-                if (!finalDocNo) return alert(translations[currentLang].inc_doc_empty);
-                if (finalDocNo !== docKeys[0]) {
-                    invoiceGroups[finalDocNo] = invoiceGroups[docKeys[0]];
-                    delete invoiceGroups[docKeys[0]];
-                    invoiceGroups[finalDocNo].items.forEach(i => i.doc_no = finalDocNo);
-                }
-            }
-
-            const btn = document.getElementById('sendInvoiceBtn');
-            const statusContainer = document.getElementById('status-container');
-            const statusBar = document.getElementById('status-bar');
-            const statusText = document.getElementById('status-text');
-            const statusPercent = document.getElementById('status-percent');
-
-            btn.disabled = true; btn.style.opacity = '0.5';
-            statusContainer.style.display = 'block';
-            
-            // Стартуем с 5%
-            let currentDisplayPct = 5;
-            statusBar.style.width = '5%'; statusPercent.innerText = '5%';
-
-            const totalSteps = Object.keys(invoiceGroups).length;
-            let currentStep = 0;
-
-            for (let docNo of Object.keys(invoiceGroups)) {
-                currentStep++;
-                let group = invoiceGroups[docNo];
-                
-                // Высчитываем целевой процент для этого шага (но оставим 5% на финализацию)
-                let targetPct = Math.round((currentStep / totalSteps) * 95);
-
-                statusText.innerText = translations[currentLang].inc_status_db;
-                
-                // ЗАПУСКАЕМ АНИМАЦИЮ ОЖИДАНИЯ СЕРВЕРА
-                let fakeProgress = setInterval(() => {
-                    let remaining = targetPct - currentDisplayPct;
-                    if (remaining > 0) {
-                        // Полоска замедляется по мере приближения к концу
-                        let step = Math.max(1, Math.floor(remaining / 10)); 
-                        currentDisplayPct += step;
-                        statusBar.style.width = currentDisplayPct + '%';
-                        statusPercent.innerText = currentDisplayPct + '%';
-
-                        // Меняем текст, чтобы развлекать и информировать пользователя
-                        if (currentDisplayPct > 20 && currentDisplayPct < 50) statusText.innerText = translations[currentLang].inc_status_write;
-                        if (currentDisplayPct >= 50 && currentDisplayPct < 85) statusText.innerText = translations[currentLang].inc_status_drive;
-                        if (currentDisplayPct >= 85) statusText.innerText = translations[currentLang].inc_status_almost;
-                    }
-                }, 600);
-
-                try {
-                    // НОВОЕ: Генерируем уникальный слепок содержимого инвойса
-                    let fp = "FP_" + group.items.length + "шт_" + group.items.reduce((sum, i) => sum + (Number(i.qty) || 0), 0) + "кол_" + (group.items[0].item_name || "").replace(/\s/g, '').substring(0, 10);
-
-                    group.items.forEach(item => item.file_code = fp);
-
-                    const response = await fetch(GATEWAY_URL, { // 1. Меняем адрес отправки на шлюз
-    method: 'POST',
-    body: JSON.stringify({ 
-        master_url: APPS_SCRIPT_URL, // 2. Передаем шлюзу адрес Мастер-сервера, куда переслать цифры
-        api_key: CLIENT_API_KEY,
-        action: 'income', 
-        data: group.items,
-        files: group.originalFiles, 
-        docNo: docNo, 
-        currency: document.getElementById('invoiceCurrency').value,
-        fingerprint: fp 
-    })
-});
-                    
-                    const res = await response.json();
-                    
-                    clearInterval(fakeProgress); // Останавливаем анимацию
-                    
-                    if (!res.success) {
-                        throw new Error(res.error);
-                    }
-                } catch (err) {
-                    clearInterval(fakeProgress); // Останавливаем анимацию при ошибке
-                    statusText.innerText = translations[currentLang].inc_server_err; 
-                    statusText.style.color = "var(--accent-red)";
-                    
-                    let errorMsg = err.message;
-                    
-                    let dupMatch = errorMsg.match(/Накладная с номером (.*?) уже была/i);
-                    if (dupMatch && dupMatch[1]) {
-                        errorMsg = translations[currentLang].server_dup.replace('{0}', dupMatch[1].trim());
-                    } else if (errorMsg.includes("База не привязана")) {
-                        errorMsg = translations[currentLang].server_no_db;
-                    } else if (errorMsg.includes("с точно таким же составом")) {
-                        // НОВОЕ: Перехватываем ошибку цифрового слепка
-                        errorMsg = translations[currentLang].server_dup_fp;
-                    }
-
-                    alert(translations[currentLang].inc_send_err + errorMsg);
-                    btn.disabled = false; btn.style.opacity = '1';
-                    return;
-                }
-            }
-
-            // Жестко ставим 100% только когда сервер ответил УСПЕХОМ
-            statusBar.style.width = '100%'; statusPercent.innerText = '100%';
-            statusText.innerText = translations[currentLang].inc_status_done;
-            statusText.style.color = "var(--accent-green)";
-            
-            setTimeout(() => { 
-                alert(translations[currentLang].inc_all_done); 
-                toggleIncomeModule(); 
-                if (typeof load === 'function') load(); 
-            }, 800);
-            
-            btn.disabled = false; btn.style.opacity = '1';
+    const docKeys = Object.keys(window.invoiceGroups);
+    const docInput = document.getElementById('ui-doc-no');
+    
+    if (docKeys.length === 1 && docInput) {
+        const finalDocNo = docInput.value.trim();
+        if (!finalDocNo) return alert(translations[currentLang].inc_doc_empty);
+        if (finalDocNo !== docKeys[0]) {
+            window.invoiceGroups[finalDocNo] = window.invoiceGroups[docKeys[0]];
+            delete window.invoiceGroups[docKeys[0]];
+            window.invoiceGroups[finalDocNo].items.forEach(i => i.doc_no = finalDocNo);
         }
+    }
+
+    const btn = document.getElementById('sendInvoiceBtn');
+    const statusContainer = document.getElementById('status-container');
+    const statusBar = document.getElementById('status-bar');
+    const statusText = document.getElementById('status-text');
+    const statusPercent = document.getElementById('status-percent');
+
+    btn.disabled = true; btn.style.opacity = '0.5';
+    statusContainer.style.display = 'block';
+    
+    let currentDisplayPct = 5;
+    statusBar.style.width = '5%'; statusPercent.innerText = '5%';
+
+    const totalSteps = Object.keys(window.invoiceGroups).length;
+    let currentStep = 0;
+
+    for (let docNo of Object.keys(window.invoiceGroups)) {
+        currentStep++;
+        let group = window.invoiceGroups[docNo];
+        
+        let targetPct = Math.round((currentStep / totalSteps) * 95);
+
+        statusText.innerText = translations[currentLang].inc_status_db;
+        
+        let fakeProgress = setInterval(() => {
+            let remaining = targetPct - currentDisplayPct;
+            if (remaining > 0) {
+                let step = Math.max(1, Math.floor(remaining / 10)); 
+                currentDisplayPct += step;
+                statusBar.style.width = currentDisplayPct + '%';
+                statusPercent.innerText = currentDisplayPct + '%';
+
+                if (currentDisplayPct > 20 && currentDisplayPct < 50) statusText.innerText = translations[currentLang].inc_status_write;
+                if (currentDisplayPct >= 50 && currentDisplayPct < 85) statusText.innerText = translations[currentLang].inc_status_drive;
+                if (currentDisplayPct >= 85) statusText.innerText = translations[currentLang].inc_status_almost;
+            }
+        }, 600);
+
+        try {
+            let fp = "FP_" + group.items.length + "шт_" + group.items.reduce((sum, i) => sum + (Number(i.qty) || 0), 0) + "кол_" + (group.items[0].item_name || "").replace(/\s/g, '').substring(0, 10);
+            group.items.forEach(item => item.file_code = fp);
+
+            const response = await fetch(GATEWAY_URL, { 
+                method: 'POST',
+                body: JSON.stringify({ 
+                    master_url: APPS_SCRIPT_URL, 
+                    api_key: CLIENT_API_KEY,
+                    action: 'income', 
+                    data: group.items,
+                    files: group.originalFiles, 
+                    docNo: docNo, 
+                    currency: document.getElementById('invoiceCurrency').value,
+                    fingerprint: fp 
+                })
+            });
+            
+            const res = await response.json();
+            clearInterval(fakeProgress); 
+            
+            if (!res.success) {
+                throw new Error(res.error);
+            }
+        } catch (err) {
+            clearInterval(fakeProgress); 
+            statusText.innerText = translations[currentLang].inc_server_err; 
+            statusText.style.color = "var(--accent-red)";
+            
+            let errorMsg = err.message;
+            
+            let dupMatch = errorMsg.match(/Накладная с номером (.*?) уже была/i);
+            if (dupMatch && dupMatch[1]) {
+                errorMsg = translations[currentLang].server_dup.replace('{0}', dupMatch[1].trim());
+            } else if (errorMsg.includes("База не привязана")) {
+                errorMsg = translations[currentLang].server_no_db;
+            } else if (errorMsg.includes("с точно таким же составом")) {
+                errorMsg = translations[currentLang].server_dup_fp;
+            }
+
+            alert(translations[currentLang].inc_send_err + errorMsg);
+            btn.disabled = false; btn.style.opacity = '1';
+            return;
+        }
+    }
+
+    statusBar.style.width = '100%'; statusPercent.innerText = '100%';
+    statusText.innerText = translations[currentLang].inc_status_done;
+    statusText.style.color = "var(--accent-green)";
+    
+    setTimeout(() => { 
+        alert(translations[currentLang].inc_all_done); 
+        toggleIncomeModule(); 
+        if (typeof load === 'function') load(); 
+    }, 800);
+    
+    btn.disabled = false; btn.style.opacity = '1';
+}
 
         // =======================================================
 // УДЕРЖАНИЕ КНОПКИ "С" (Сброс кэша / Очистка ввода)
