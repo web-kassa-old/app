@@ -4748,7 +4748,6 @@ window.selectDictionaryValue = function(value, isCustom) {
 window.applyMapper2Logic = function() {
     const state = window.mapper2State;
     
-    // 1. Умная маршрутизация: ищем как базовые ключи, так и их Kaspi-аналоги
     const qtyIdx = state.colMap['qty']; 
     const priceIdx = state.colMap['price'] !== undefined ? state.colMap['price'] : state.colMap['cost'];
     const nameIdx = state.colMap['name'] !== undefined ? state.colMap['name'] : state.colMap['model'];
@@ -4781,7 +4780,6 @@ window.applyMapper2Logic = function() {
             
             let rawVal = String(row[colIdx] || '').trim();
             
-            // Применяем алгоритм Сплиттера (Умные токены) для разбивки сложных строк[cite: 4]
             if (state.splitRules[primaryKey]) {
                 const tokens = rawVal.match(regex) || [];
                 let result = [];
@@ -4799,13 +4797,22 @@ window.applyMapper2Logic = function() {
         let qty = parseFloat(rawQty);
         let price = parseFloat(String(rawPrice).replace(',', '.'));
         
-        // Защита от тихих пропусков: если попалась шапка или пустая строка
         if (isNaN(qty) || isNaN(price)) return;
 
-        let barcode = getValue('barcode', 'merchant_sku');
-        let name = getValue('name', 'model') || barcode;
+        // === АРХИТЕКТУРА ИДЕНТИФИКАТОРОВ ===
+        let rawId = getValue('barcode', 'merchant_sku');
         
-        // Склейка бренда с названием для красивого отображения в базе
+        // 1. Для базы: всегда сохраняем сырой артикул поставщика для синхронизации
+        let itemId = rawId; 
+        
+        // 2. Для маркета: фильтруем штрихкод
+        let barcode = "";
+        if (/^\d{8,13}$/.test(rawId)) {
+            barcode = rawId; // Если поставщик дал нормальный штрихкод — используем его
+        }
+
+        let name = getValue('name', 'model') || rawId || "Без названия";
+        
         let brand = getValue('brand');
         if (brand && name && !name.toLowerCase().includes(brand.toLowerCase())) {
             name = brand + ' ' + name;
@@ -4814,8 +4821,9 @@ window.applyMapper2Logic = function() {
         let cbm = parseFloat(String(getValue('cbm')).replace(',', '.')) || 0;
         let weight = parseFloat(String(getValue('weight')).replace(',', '.')) || 0;
         
-        // Упаковываем специфику Kaspi в единый JSON-объект attributes[cite: 6]
         let attributesObj = {};
+        
+        // Исключаем базовые ключи, чтобы они не дублировались в JSON
         const excludeKeys = ['barcode', 'merchant_sku', 'name', 'model', 'qty', 'price', 'cost', 'cbm', 'weight'];
         
         Object.keys(state.colMap).forEach(key => {
@@ -4831,8 +4839,8 @@ window.applyMapper2Logic = function() {
             doc_no: state.docNo,
             category: state.docNo,
             supplier: state.supplier,
-            item_id: barcode,
-            barcode: barcode,
+            item_id: itemId,      // <-- Уходит в колонку "ID товара" (например, 2EFW349F)
+            barcode: barcode,     // <-- Пустота (для автогенерации) ИЛИ чистые цифры
             item_name: name,
             qty: qty,
             cost: price,
@@ -4850,7 +4858,6 @@ window.applyMapper2Logic = function() {
         return alert("Не удалось сформировать товары. Убедитесь, что в колонках «Количество» и «Цена» находятся ТОЛЬКО цифры.");
     }
 
-    // Рендер итоговой таблицы для буферной зоны предпросмотра[cite: 6]
     document.getElementById('invoiceMetadata').innerHTML = `
         <span style="color:var(--text-muted); font-size:13px;">Поставщик:</span> 
         <span style="color:var(--accent-yellow); font-weight:bold; font-size:14px;">${state.supplier}</span> 
@@ -4862,9 +4869,13 @@ window.applyMapper2Logic = function() {
         <span style="color:var(--accent-yellow); font-weight:bold; font-size:14px;">${window.parsedInvoiceData.length}</span>
     `;
     
+    // В предпросмотре показываем ID поставщика, а если штрихкод пуст — подсвечиваем, что будет сгенерирован EAN-13
     document.getElementById('invoiceTableBody').innerHTML = window.parsedInvoiceData.map(item => `
         <tr style="border-bottom:1px solid var(--border-light); color:var(--text-main);">
-            <td style="padding:5px;">${item.item_id || 'AUTO (EAN13)'}</td>
+            <td style="padding:5px;">
+                <span style="color:var(--accent-blue); font-weight:bold;">${item.item_id || 'AUTO'}</span>
+                ${!item.barcode ? `<br><span style="font-size:10px; color:var(--accent-green);">+ EAN-13 (Авто)</span>` : ''}
+            </td>
             <td style="padding:5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 150px;">
                 ${item.item_name}
                 ${item.attributes ? `<br><span style="font-size:10px; color:var(--text-muted);">+ ${Object.keys(JSON.parse(item.attributes)).length} атрибутов Kaspi</span>` : ''}
