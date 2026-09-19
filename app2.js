@@ -4748,8 +4748,13 @@ window.selectDictionaryValue = function(value, isCustom) {
 window.applyMapper2Logic = function() {
     const state = window.mapper2State;
     
-    if (state.colMap['qty'] === undefined || state.colMap['price'] === undefined || state.colMap['name'] === undefined) {
-        return alert("Обязательно привяжите колонки «Наименование», «Количество» и «Цена закупа»!");
+    // 1. Умная маршрутизация: ищем как базовые ключи, так и их Kaspi-аналоги
+    const qtyIdx = state.colMap['qty']; 
+    const priceIdx = state.colMap['price'] !== undefined ? state.colMap['price'] : state.colMap['cost'];
+    const nameIdx = state.colMap['name'] !== undefined ? state.colMap['name'] : state.colMap['model'];
+
+    if (qtyIdx === undefined || priceIdx === undefined || nameIdx === undefined) {
+        return alert("⚠️ Обязательно привяжите колонки:\n1. Наименование (или model)\n2. Количество (qty)\n3. Цена (price)");
     }
 
     window.parsedInvoiceData = [];
@@ -4762,20 +4767,25 @@ window.applyMapper2Logic = function() {
 
     const regex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,]/g;
 
-    state.invoiceRows.forEach(row => {
+    state.invoiceRows.forEach((row, index) => {
         if (!row || row.length === 0) return;
 
-        const getValue = (sysKey) => {
-            if (state.dictValues[sysKey]) return state.dictValues[sysKey];
-            let colIdx = state.colMap[sysKey];
+        const getValue = (primaryKey, kaspiKey) => {
+            if (state.dictValues[primaryKey]) return state.dictValues[primaryKey];
+            if (kaspiKey && state.dictValues[kaspiKey]) return state.dictValues[kaspiKey];
+
+            let colIdx = state.colMap[primaryKey];
+            if (colIdx === undefined && kaspiKey) colIdx = state.colMap[kaspiKey];
+            
             if (colIdx === undefined) return '';
             
             let rawVal = String(row[colIdx] || '').trim();
             
-            if (state.splitRules[sysKey]) {
+            // Применяем алгоритм Сплиттера (Умные токены) для разбивки сложных строк[cite: 4]
+            if (state.splitRules[primaryKey]) {
                 const tokens = rawVal.match(regex) || [];
                 let result = [];
-                state.splitRules[sysKey].forEach(idx => {
+                state.splitRules[primaryKey].forEach(idx => {
                     if (tokens[idx] !== undefined) result.push(tokens[idx]);
                 });
                 return result.join('');
@@ -4783,27 +4793,36 @@ window.applyMapper2Logic = function() {
             return rawVal;
         };
 
-        let qty = parseFloat(getValue('qty'));
-        let price = parseFloat(String(getValue('price')).replace(',', '.'));
+        let rawQty = getValue('qty');
+        let rawPrice = getValue('price', 'cost');
+
+        let qty = parseFloat(rawQty);
+        let price = parseFloat(String(rawPrice).replace(',', '.'));
         
+        // Защита от тихих пропусков: если попалась шапка или пустая строка
         if (isNaN(qty) || isNaN(price)) return;
 
-        let barcode = getValue('barcode');
-        let name = getValue('name') || barcode;
+        let barcode = getValue('barcode', 'merchant_sku');
+        let name = getValue('name', 'model') || barcode;
         
-        // Парсим вес и объем (заменяем запятые на точки для правильной математики)
+        // Склейка бренда с названием для красивого отображения в базе
+        let brand = getValue('brand');
+        if (brand && name && !name.toLowerCase().includes(brand.toLowerCase())) {
+            name = brand + ' ' + name;
+        }
+        
         let cbm = parseFloat(String(getValue('cbm')).replace(',', '.')) || 0;
         let weight = parseFloat(String(getValue('weight')).replace(',', '.')) || 0;
         
-        // Упаковываем специфику Kaspi в JSON
+        // Упаковываем специфику Kaspi в единый JSON-объект attributes[cite: 6]
         let attributesObj = {};
-        const baseKeys = ['barcode', 'name', 'qty', 'price', 'cbm', 'weight'];
+        const excludeKeys = ['barcode', 'merchant_sku', 'name', 'model', 'qty', 'price', 'cost', 'cbm', 'weight'];
         
         Object.keys(state.colMap).forEach(key => {
-            if (!baseKeys.includes(key)) attributesObj[key] = getValue(key);
+            if (!excludeKeys.includes(key)) attributesObj[key] = getValue(key);
         });
         Object.keys(state.dictValues).forEach(key => {
-            if (!baseKeys.includes(key)) attributesObj[key] = getValue(key);
+            if (!excludeKeys.includes(key)) attributesObj[key] = getValue(key);
         });
 
         let finalAttributes = Object.keys(attributesObj).length > 0 ? JSON.stringify(attributesObj) : "";
@@ -4828,10 +4847,10 @@ window.applyMapper2Logic = function() {
     });
 
     if (window.parsedInvoiceData.length === 0) {
-        return alert("Не найдено ни одного валидного товара (проверьте колонки Цена и Количество).");
+        return alert("Не удалось сформировать товары. Убедитесь, что в колонках «Количество» и «Цена» находятся ТОЛЬКО цифры.");
     }
 
-    // Рендер итоговой таблицы для предпросмотра
+    // Рендер итоговой таблицы для буферной зоны предпросмотра[cite: 6]
     document.getElementById('invoiceMetadata').innerHTML = `
         <span style="color:var(--text-muted); font-size:13px;">Поставщик:</span> 
         <span style="color:var(--accent-yellow); font-weight:bold; font-size:14px;">${state.supplier}</span> 
