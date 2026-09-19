@@ -4437,15 +4437,64 @@ window.processInvoiceFile = async function() {
 
         const workbook = XLSX.read(arrayBuffer, {type: 'array'});
         let rows = [];
-        for (let sName of workbook.SheetNames) {
+for (let sName of workbook.SheetNames) {
             let sRows = XLSX.utils.sheet_to_json(workbook.Sheets[sName], {header: 1});
             if (sRows && sRows.length > 0) { rows = sRows; break; }
         }
         if (rows.length === 0) throw new Error("Пустой файл");
 
-        window.mapper2State.supplier = "Не указан";
-        let now = new Date();
-        window.mapper2State.docNo = `IN-${String(now.getDate()).padStart(2, '0')}.${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
+        // === УМНЫЙ ПОИСК ШАПКИ НАКЛАДНОЙ ===
+        let file_doc_no = 'UNKNOWN';
+        let file_supplier = 'UNKNOWN';
+
+        // Функция проверки синонимов (адаптированная под ключи из твоей базы)
+        const isSynonymLocal = (cellValue, targetKey) => {
+            if (!cellValue) return false;
+            const cleanCell = String(cellValue).replace(/\s+/g, '').toLowerCase();
+            // Подтягиваем словарь синонимов (из state Маппера или старой переменной)
+            let dict = window.mapper2State?.dictValues || (typeof invoiceSynonyms !== 'undefined' ? invoiceSynonyms : {});
+            const synonymsList = (dict[targetKey] || []).map(s => String(s).replace(/\s+/g, '').toLowerCase());
+            return synonymsList.some(syn => syn !== "" && cleanCell.includes(syn));
+        };
+
+        // Забираем маркеры поставщика по русскому ключу из справочника или английскому
+        let dictObj = window.mapper2State?.dictValues || (typeof invoiceSynonyms !== 'undefined' ? invoiceSynonyms : {});
+        let supplierMarkers = dictObj['Поиск имени поставщика'] || dictObj['supplier_keywords'] || ["the seller", "vendor", "supplier", "поставщик"];
+
+        // Сканируем первые 15 строк
+        for (let i = 0; i < Math.min(15, rows.length); i++) {
+            let row = rows[i] || [];
+            for (let j = 0; j < row.length; j++) {
+                let cellVal = String(row[j] || "").toLowerCase();
+                
+                // 1. Поиск поставщика
+                if (supplierMarkers.some(m => cellVal.includes(String(m).toLowerCase()))) {
+                    for (let k = j + 1; k < row.length; k++) {
+                        if (row[k] && String(row[k]).trim() !== '') {
+                            file_supplier = String(row[k]).trim().replace(/^"|"$/g, ''); 
+                            break;
+                        }
+                    }
+                }
+                
+                // 2. Поиск номера накладной
+                if (isSynonymLocal(row[j], 'Номер накладной') || isSynonymLocal(row[j], 'invoice_no')) {
+                    let val = String(row[j+1] || '').trim();
+                    if (val && val !== 'UNKNOWN') file_doc_no = val;
+                }
+            }
+        }
+
+        // Записываем результат в стейт Маппера
+        window.mapper2State.supplier = (file_supplier !== 'UNKNOWN') ? file_supplier : "Не указан";
+        
+        if (file_doc_no !== 'UNKNOWN' && file_doc_no !== '') {
+            window.mapper2State.docNo = file_doc_no;
+        } else {
+            let now = new Date();
+            window.mapper2State.docNo = `IN-${String(now.getDate()).padStart(2, '0')}.${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
+        }
+        // === КОНЕЦ ПОИСКА ШАПКИ ===
 
         let firstDataRowIdx = -1;
         for (let i = 0; i < Math.min(50, rows.length); i++) {
@@ -4815,24 +4864,49 @@ window.applyMapper2Logic = function() {
         }
         
         // === ИСПРАВЛЕНИЕ ЛОГИСТИКИ ===
-        // Если значение есть - парсим его. Если нет - оставляем пустую строку (чтобы сервер взял из БД)
         let rawCbm = getValue('cbm');
         let cbm = rawCbm ? parseFloat(String(rawCbm).replace(',', '.')) : "";
         
         let rawWeight = getValue('weight');
         let weight = rawWeight ? parseFloat(String(rawWeight).replace(',', '.')) : "";
         
+        // === ИЗВЛЕЧЕНИЕ И ОЧИСТКА АТРИБУТОВ (KASPI vs ЛОГИСТИКА) ===
         let attributesObj = {};
         const excludeKeys = ['barcode', 'merchant_sku', 'name', 'model', 'qty', 'price', 'cost', 'cbm', 'weight'];
         
-        Object.keys(state.colMap).forEach(key => {
-            if (!excludeKeys.includes(key)) attributesObj[key] = getValue(key);
-        });
-        Object.keys(state.dictValues).forEach(key => {
-            if (!excludeKeys.includes(key)) attributesObj[key] = getValue(key);
-        });
+        // Поля, из которых нужно удалить буквы R, C, р, с для выгрузки в Kaspi
+        const kaspiNumericFields = ['size', 'diameter', 'radius', 'ширина', 'профиль', 'размер'];
+        let rawAttributesForLogistics = "";
+
+        const processAttribute = (key) => {
+            if (excludeKeys.includes(key)) return;
+            
+            let rawValue = getValue(key);
+            if (!rawValue) return;
+
+            let finalValue = rawValue;
+
+            // Очищаем значение для Kaspi
+            if (kaspiNumericFields.includes(key.toLowerCase())) {
+                finalValue = String(rawValue).replace(/[rRcCрРсС]/g, '').trim();
+            }
+            
+            attributesObj[key] = finalValue;
+            
+            // Сохраняем сырое значение (с буквами) для сервера логистики
+            rawAttributesForLogistics += " " + rawValue; 
+        };
+
+        Object.keys(state.colMap).forEach(processAttribute);
+        Object.keys(state.dictValues).forEach(processAttribute);
 
         let finalAttributes = Object.keys(attributesObj).length > 0 ? JSON.stringify(attributesObj) : "";
+
+        // Приклеиваем сырые атрибуты к имени, чтобы серверная логистика нашла радиусы и размеры
+        if (rawAttributesForLogistics.trim() !== "") {
+            name = name + " " + rawAttributesForLogistics.trim();
+        }
+        // ==========================================================
 
         const itemData = {
             doc_no: state.docNo,
@@ -4868,7 +4942,6 @@ window.applyMapper2Logic = function() {
         <span style="color:var(--accent-yellow); font-weight:bold; font-size:14px;">${window.parsedInvoiceData.length}</span>
     `;
     
-    // В рендере теперь показываем бейдж "из БД", если вес и объем пустые
     document.getElementById('invoiceTableBody').innerHTML = window.parsedInvoiceData.map(item => `
         <tr style="border-bottom:1px solid var(--border-light); color:var(--text-main);">
             <td style="padding:5px;">
