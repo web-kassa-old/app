@@ -4810,30 +4810,30 @@ window.applyMapper2Logic = function() {
 
     const regex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,]/g;
 
-    // === УМНЫЙ ПОИСК КОЛОНОК АТРИБУТОВ (ДЛЯ РАДИУСОВ) ===
+    // === УМНЫЙ ПОИСК СЫРЫХ ПАРАМЕТРОВ ПО БАЗЕ SYNONYMS ===
     let autoLogisticsIndices = [];
-    let dictObj = state.dictValues || (typeof invoiceSynonyms !== 'undefined' ? invoiceSynonyms : {});
-    const coreKeys = ['qty', 'price', 'cost', 'name', 'model', 'barcode', 'merchant_sku', 'brand', 'cbm', 'weight', 'category', 'поиск имени поставщика', 'номер накладной'];
+    let baseDict = (typeof invoiceSynonyms !== 'undefined') ? invoiceSynonyms : {};
+    let kaspiDict = state.dictValues || {};
+    let combinedDict = { ...baseDict, ...kaspiDict };
+    
+    // Исключаем системные колонки
+    const coreKeys = [
+        'qty', 'количество', 'price', 'розничная цена', 'cost', 'закупочная цена', 
+        'name', 'наименование товара', 'model', 'barcode', 'штрихкод', 'артикул', 'код товара',
+        'merchant_sku', 'brand', 'бренд', 'cbm', 'объем', 'weight', 'вес', 'category', 
+        'поиск имени поставщика', 'номер накладной', 'исключить строку', 'игнорировать при создании id', 'номер контракта'
+    ];
 
-    // Встроенный список маркеров габаритов (работает всегда, даже без Kaspi)
-    const sizeSynonyms = ['размер', 'габарит', 'size', 'ширина', 'профиль', 'диаметр', 'радиус', 'pr', 'слойность', 'индекс', 'et', 'вылет', 'pcd', 'сверловка'];
-
-    // 1. Пытаемся найти по шапке
     if (state.headerRow && state.headerRow.length > 0) {
         state.headerRow.forEach((headerVal, idx) => {
             if (!headerVal) return;
             let cleanHeader = String(headerVal).replace(/\s+/g, '').toLowerCase();
-            
-            // Проверка по встроенному списку габаритов
-            if (sizeSynonyms.some(syn => cleanHeader.includes(syn))) {
-                if (!autoLogisticsIndices.includes(idx)) autoLogisticsIndices.push(idx);
-                return;
-            }
 
-            // Проверка по загруженному словарю (если есть)
-            Object.keys(dictObj).forEach(dictKey => {
-                if (coreKeys.some(core => dictKey.toLowerCase().includes(core))) return;
-                let synonymsList = (dictObj[dictKey] || []).map(s => String(s).replace(/\s+/g, '').toLowerCase());
+            Object.keys(combinedDict).forEach(dictKey => {
+                let lowerDictKey = dictKey.toLowerCase();
+                if (coreKeys.some(core => lowerDictKey.includes(core) || core.includes(lowerDictKey))) return;
+                
+                let synonymsList = (combinedDict[dictKey] || []).map(s => String(s).replace(/\s+/g, '').toLowerCase());
                 if (synonymsList.some(syn => syn !== "" && cleanHeader.includes(syn))) {
                     if (!autoLogisticsIndices.includes(idx)) autoLogisticsIndices.push(idx);
                 }
@@ -4841,9 +4841,9 @@ window.applyMapper2Logic = function() {
         });
     }
 
-    // 2. Железный фоллбэк: добавляем то, что привязал сам Маппер
     Object.keys(state.colMap).forEach(key => {
-        if (!coreKeys.includes(key.toLowerCase())) {
+        let lowerKey = key.toLowerCase();
+        if (!coreKeys.some(core => lowerKey.includes(core) || core.includes(lowerKey))) {
             let idx = state.colMap[key];
             if (idx !== undefined && !autoLogisticsIndices.includes(idx)) {
                 autoLogisticsIndices.push(idx);
@@ -4855,8 +4855,8 @@ window.applyMapper2Logic = function() {
         if (!row || row.length === 0) return;
 
         const getValue = (primaryKey, kaspiKey) => {
-            if (state.dictValues[primaryKey]) return state.dictValues[primaryKey];
-            if (kaspiKey && state.dictValues[kaspiKey]) return state.dictValues[kaspiKey];
+            if (combinedDict[primaryKey]) return combinedDict[primaryKey];
+            if (kaspiKey && combinedDict[kaspiKey]) return combinedDict[kaspiKey];
 
             let colIdx = state.colMap[primaryKey];
             if (colIdx === undefined && kaspiKey) colIdx = state.colMap[kaspiKey];
@@ -4882,58 +4882,53 @@ window.applyMapper2Logic = function() {
         let barcode = /^\d{8,13}$/.test(rawId) ? rawId : "";
         let name = getValue('name', 'model') || rawId || "Без названия";
 
-        // Собираем сырые атрибуты в строку
-        let hiddenLogisticsData = "";
+        // Собираем сырые параметры ТОЛЬКО из найденных колонок
+        let rawLogisticsStr = "";
         autoLogisticsIndices.forEach(idx => {
             let val = String(row[idx] || '').trim();
-            if (val) hiddenLogisticsData += " " + val;
+            if (val) rawLogisticsStr += " " + val;
         });
-
-        // Формируем финальное имя (Базовое название + Атрибуты)
-        let nameForBackend = name;
-        if (hiddenLogisticsData.trim() !== "") {
-            nameForBackend = name + " " + hiddenLogisticsData.trim();
-        }
 
         let rawCbm = getValue('cbm');
         let cbm = rawCbm ? parseFloat(String(rawCbm).replace(',', '.')) : "";
         let rawWeight = getValue('weight');
         let weight = rawWeight ? parseFloat(String(rawWeight).replace(',', '.')) : "";
 
-        // Очищаем атрибуты для Kaspi
+        // Сборка JSON-атрибутов для Каспи (строгий формат)
         let attributesObj = {};
         const kaspiNumericFields = ['size', 'diameter', 'radius', 'ширина', 'профиль', 'размер'];
         const processAttribute = (key) => {
-            if (coreKeys.includes(key.toLowerCase())) return;
+            let lowerKey = key.toLowerCase();
+            if (coreKeys.some(core => lowerKey.includes(core) || core.includes(lowerKey))) return;
+            
             let rawValue = getValue(key);
             if (!rawValue) return;
-            if (kaspiNumericFields.includes(key.toLowerCase())) {
+            if (kaspiNumericFields.includes(lowerKey)) {
                 rawValue = String(rawValue).replace(/[rRcCрРсС]/g, '').trim();
             }
             attributesObj[key] = rawValue;
         };
         Object.keys(state.colMap).forEach(processAttribute);
-        Object.keys(state.dictValues).forEach(processAttribute);
+        Object.keys(combinedDict).forEach(processAttribute);
         let finalAttributes = Object.keys(attributesObj).length > 0 ? JSON.stringify(attributesObj) : "";
 
         const itemData = {
-            // Данные для Incomes
             doc_no: state.docNo,
             supplier: state.supplier,
             item_id: rawId,
-            item_name: nameForBackend, // На сервер уходит склеенная строка для логистики
+            item_name: name, // ИМЯ ОСТАЕТСЯ ИДЕАЛЬНО ЧИСТЫМ
             qty: qty,
             cost: price,
             cbm: cbm,
             weight: weight,
             attributes: finalAttributes,
+            raw_logistics: rawLogisticsStr.trim(), // НОВАЯ ПЕРЕМЕННАЯ
             staff_id: (typeof currentUser !== 'undefined' && currentUser) ? currentUser.uid : 'Auto-Import',
-
-            // Legacy-данные для создания карточки в Items
+            
             id: rawId,
-            name: nameForBackend,
-            desc: nameForBackend,
-            description: nameForBackend,
+            name: name,
+            desc: name,
+            description: name,
             barcode: barcode,
             category: "Новые товары"
         };
@@ -4946,7 +4941,6 @@ window.applyMapper2Logic = function() {
         return alert("Не удалось сформировать товары. Убедитесь, что в колонках «Количество» и «Цена» находятся ТОЛЬКО цифры.");
     }
 
-    // Рендер UI
     document.getElementById('invoiceMetadata').innerHTML = `
         <span style="color:var(--text-muted); font-size:13px;">Поставщик:</span> 
         <span style="color:var(--accent-yellow); font-weight:bold; font-size:14px;">${state.supplier}</span> 
@@ -4966,7 +4960,7 @@ window.applyMapper2Logic = function() {
             </td>
             <td style="padding:5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 150px;">
                 ${item.item_name}
-                ${item.attributes ? `<br><span style="font-size:10px; color:var(--text-muted);">+ ${Object.keys(JSON.parse(item.attributes)).length} атрибутов</span>` : ''}
+                ${item.raw_logistics ? `<br><span style="font-size:10px; color:var(--text-muted);">Параметры: ${item.raw_logistics}</span>` : ''}
             </td>
             <td style="padding:5px; text-align:right;">${Number(item.qty).toLocaleString('ru-RU')}</td>
             <td style="padding:5px; text-align:right;">${item.cbm !== "" ? item.cbm : '<span style="color:var(--text-muted); font-size:11px;">из БД</span>'}</td>
