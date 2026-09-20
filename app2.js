@@ -7963,13 +7963,20 @@ window.lockInvoiceUpload = function() {
     wrapper.style.opacity = '0.5';
     wrapper.style.pointerEvents = 'none';
 
-    // Ищем span строго внутри рабочей обертки
-    const fileNameText = wrapper.querySelector('.file-placeholder-text') || wrapper.querySelector('span[data-i18n]') || document.getElementById('fileNameTextCompact');
+    // Жестко цепляемся к ID, чтобы скрипт не промахнулся
+    const fileNameText = document.getElementById('fileNameTextCompact');
+    
     if (fileNameText) {
         fileNameText.setAttribute('data-i18n', 'upload_invoice_locked');
+        
+        // Обязательно возвращаем класс плейсхолдера (мы удаляли его при загрузке реального файла)
+        fileNameText.classList.add('file-placeholder-text');
+        
+        // Подставляем текст из словаря или дефолтный, как на скриншоте
         fileNameText.innerText = (typeof translations !== 'undefined' && translations[currentLang] && translations[currentLang].upload_invoice_locked) 
             ? translations[currentLang].upload_invoice_locked 
-            : 'Сначала выберите шаблон';
+            : 'Выберите шаблон из списка';
+        
         fileNameText.style.color = 'var(--text-main)';
         
         const iconSpan = fileNameText.previousElementSibling;
@@ -7985,16 +7992,22 @@ window.unlockInvoiceUpload = function() {
     wrapper.style.opacity = '1';
     wrapper.style.pointerEvents = 'auto';
 
-    const fileNameText = wrapper.querySelector('.file-placeholder-text') || wrapper.querySelector('span[data-i18n]') || document.getElementById('fileNameTextCompact');
+    // Жестко цепляемся к ID
+    const fileNameText = document.getElementById('fileNameTextCompact');
+    
     if (fileNameText) {
         fileNameText.setAttribute('data-i18n', 'inc_file_placeholder');
+        
+        fileNameText.classList.add('file-placeholder-text');
+        
         fileNameText.innerText = (typeof translations !== 'undefined' && translations[currentLang] && translations[currentLang].inc_file_placeholder) 
             ? translations[currentLang].inc_file_placeholder 
-            : 'Нажмите для выбора Excel';
+            : 'Загрузите файл Excel';
+            
         fileNameText.style.color = 'var(--text-main)';
         
         const iconSpan = fileNameText.previousElementSibling;
-        if (iconSpan) iconSpan.innerText = '📄';
+        if (iconSpan) iconSpan.innerText = '📁';
     }
 };
 
