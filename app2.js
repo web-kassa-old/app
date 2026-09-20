@@ -3894,13 +3894,36 @@ async function handleTemplateUpload(event) {
                 // 3. Запрос категории (через кастомное модальное окно с автовыделением)
                 const defaultCategory = file.name.replace('.xlsx', '').replace('.xls', '').trim();
                 const categoryName = await window.askCategoryName(defaultCategory);
-                
+
                 if (!categoryName) {
+                    window.hideLoading();
                     if (fileNameSpan) {
                         fileNameSpan.innerText = 'Загрузка отменена';
                         fileNameSpan.style.color = "var(--text-main)";
                     }
                     return;
+                }
+
+                // === ПРОВЕРКА НА ДУБЛИКАТ ===
+                const templateSelect = document.getElementById('kaspiTemplateSelect');
+                let isDuplicate = false;
+
+                if (templateSelect) {
+                    isDuplicate = Array.from(templateSelect.options).some(opt => opt.value.toLowerCase() === categoryName.toLowerCase());
+                    
+                    if (isDuplicate) {
+                        window.hideLoading(); 
+                        
+                        const overwrite = confirm(`Шаблон "${categoryName}" уже существует.\nВы хотите перезаписать его?`);
+                        
+                        if (!overwrite) {
+                            if (fileNameSpan) {
+                                fileNameSpan.innerText = 'Загрузка отменена';
+                                fileNameSpan.style.color = "var(--text-main)";
+                            }
+                            return; 
+                        }
+                    }
                 }
 
                 // Снова показываем лоадер для отправки на сервер
@@ -3910,16 +3933,17 @@ async function handleTemplateUpload(event) {
                     fileNameSpan.innerText = `⏳ Сохранение на сервер...`;
                     fileNameSpan.style.color = "var(--accent-blue)";
                 }
-                
+
                 await saveKaspiTemplateBackend(categoryName, window.rawKaspiTemplateBuffer, { systemKeys, humanNames, requirements });
-                
-                // === ДОБАВЛЕНИЕ ШАБЛОНА В СПИСОК ===
-                const templateSelect = document.getElementById('kaspiTemplateSelect');
+
+                // === ДОБАВЛЕНИЕ ШАБЛОНА В СПИСОК (ТОЛЬКО ЕСЛИ НЕ ДУБЛИКАТ) ===
                 if (templateSelect) {
-                    const newOption = document.createElement('option');
-                    newOption.value = categoryName;
-                    newOption.text = categoryName;
-                    templateSelect.appendChild(newOption);
+                    if (!isDuplicate) {
+                        const newOption = document.createElement('option');
+                        newOption.value = categoryName;
+                        newOption.text = categoryName;
+                        templateSelect.appendChild(newOption);
+                    }
                     templateSelect.value = categoryName; 
                 }
 
