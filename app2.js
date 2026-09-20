@@ -3893,7 +3893,7 @@ async function handleTemplateUpload(event) {
 
                 // 3. Запрос категории (через кастомное модальное окно с автовыделением)
                 const defaultCategory = file.name.replace('.xlsx', '').replace('.xls', '').trim();
-                const categoryName = await window.askCategoryName(defaultCategory);
+                let categoryName = await window.askCategoryName(defaultCategory); // ВАЖНО: теперь здесь let
 
                 if (!categoryName) {
                     window.hideLoading();
@@ -3909,12 +3909,14 @@ async function handleTemplateUpload(event) {
                 let isDuplicate = false;
 
                 if (templateSelect) {
-                    isDuplicate = Array.from(templateSelect.options).some(opt => opt.value.toLowerCase() === categoryName.toLowerCase());
+                    // Ищем существующий шаблон без учета регистра
+                    const existingOption = Array.from(templateSelect.options).find(opt => opt.value.toLowerCase() === categoryName.toLowerCase());
                     
-                    if (isDuplicate) {
+                    if (existingOption) {
+                        isDuplicate = true;
                         window.hideLoading(); 
                         
-                        const overwrite = confirm(`Шаблон "${categoryName}" уже существует.\nВы хотите перезаписать его?`);
+                        const overwrite = confirm(`Шаблон "${existingOption.value}" уже существует.\nВы хотите перезаписать его?`);
                         
                         if (!overwrite) {
                             if (fileNameSpan) {
@@ -3923,6 +3925,10 @@ async function handleTemplateUpload(event) {
                             }
                             return; 
                         }
+                        
+                        // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: принудительно используем старое имя с его оригинальным регистром,
+                        // чтобы сервер не создал дубликат (например, меняем "Шины" на существующие "шины")
+                        categoryName = existingOption.value;
                     }
                 }
 
