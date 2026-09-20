@@ -4815,11 +4815,22 @@ window.applyMapper2Logic = function() {
     let dictObj = state.dictValues || (typeof invoiceSynonyms !== 'undefined' ? invoiceSynonyms : {});
     const coreKeys = ['qty', 'price', 'cost', 'name', 'model', 'barcode', 'merchant_sku', 'brand', 'cbm', 'weight', 'category', 'поиск имени поставщика', 'номер накладной'];
 
-    // 1. Пытаемся найти по шапке (если она сохранилась в стейте)
+    // Встроенный список маркеров габаритов (работает всегда, даже без Kaspi)
+    const sizeSynonyms = ['размер', 'габарит', 'size', 'ширина', 'профиль', 'диаметр', 'радиус', 'pr', 'слойность', 'индекс', 'et', 'вылет', 'pcd', 'сверловка'];
+
+    // 1. Пытаемся найти по шапке
     if (state.headerRow && state.headerRow.length > 0) {
         state.headerRow.forEach((headerVal, idx) => {
             if (!headerVal) return;
             let cleanHeader = String(headerVal).replace(/\s+/g, '').toLowerCase();
+            
+            // Проверка по встроенному списку габаритов
+            if (sizeSynonyms.some(syn => cleanHeader.includes(syn))) {
+                if (!autoLogisticsIndices.includes(idx)) autoLogisticsIndices.push(idx);
+                return;
+            }
+
+            // Проверка по загруженному словарю (если есть)
             Object.keys(dictObj).forEach(dictKey => {
                 if (coreKeys.some(core => dictKey.toLowerCase().includes(core))) return;
                 let synonymsList = (dictObj[dictKey] || []).map(s => String(s).replace(/\s+/g, '').toLowerCase());
