@@ -737,7 +737,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // === БРОНИРОВАННЫЙ ДВИЖОК ЗАПРОСОВ (smartFetch) ===
         window.smartFetch = async function(url, payload, cacheKey, maxRetries = 3) {
-            const TIMEOUT_MS = 15000; // Ждем максимум 8 секунд на одну попытку
+            const TIMEOUT_MS = 30000; // Ждем максимум 8 секунд на одну попытку
 
             for (let i = 0; i < maxRetries; i++) {
                 // Создаем контроллер для прерывания зависших запросов
@@ -7989,12 +7989,20 @@ window.updateFileNameCompactUI = function(input) {
 // 3. Исправленный перехватчик (ТЕПЕРЬ ОН ВЫЗЫВАЕТ БЛОКИРОВКУ)
 window.handleTemplateChange = function(event) {
     const selectedValue = event.target.value;
+    
+    // ПРИНУДИТЕЛЬНО снимаем фокус, чтобы iOS убрал системный барабан выбора
+    event.target.blur(); 
 
     if (selectedValue === 'new' || selectedValue === 'new_template') {
         window.lockInvoiceUpload();
-        const modal = document.getElementById('newTemplateModal');
-        if (modal) modal.style.display = 'flex';
-        setTimeout(() => { event.target.selectedIndex = 0; }, 50);
+        
+        // Даем браузеру 150мс, чтобы спокойно закрыть системный UI
+        setTimeout(() => {
+            const modal = document.getElementById('newTemplateModal');
+            if (modal) modal.style.display = 'flex';
+            event.target.selectedIndex = 0;
+        }, 150); 
+        
     } else if (selectedValue !== '') {
         setTimeout(() => { window.unlockInvoiceUpload(); }, 150);
     } else {
