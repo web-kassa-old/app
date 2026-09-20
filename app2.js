@@ -4810,59 +4810,8 @@ window.applyMapper2Logic = function() {
 
     const regex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,]/g;
 
-    // === УМНЫЙ ПОИСК СЫРЫХ ПАРАМЕТРОВ СТРОГО ПО СЛОВАРЮ ===
-    let autoLogisticsIndices = [];
-    
-    // Исключаем системные ключи
-    const coreKeys = [
-        'qty', 'количество', 'price', 'розничная цена', 'cost', 'закупочная цена', 
-        'name', 'наименование товара', 'model', 'barcode', 'штрихкод', 'артикул', 'код товара',
-        'merchant_sku', 'brand', 'бренд', 'cbm', 'объем', 'weight', 'вес', 'category', 
-        'поиск имени поставщика', 'номер накладной', 'исключить строку', 'игнорировать при создании id', 'номер контракта'
-    ];
-
-    // Берем справочник синонимов (из глобальной переменной или Kaspi)
-    let searchDict = (typeof invoiceSynonyms !== 'undefined') ? invoiceSynonyms : {};
-    if (state.dictValues && Object.keys(state.dictValues).length > 0) {
-        searchDict = { ...searchDict, ...state.dictValues };
-    }
-
-    // 1. Ищем колонки с параметрами по шапке
-    if (state.headerRow && state.headerRow.length > 0) {
-        state.headerRow.forEach((headerVal, idx) => {
-            if (!headerVal) return;
-            let cleanHeader = String(headerVal).replace(/\s+/g, '').toLowerCase();
-
-            Object.keys(searchDict).forEach(dictKey => {
-                let lowerDictKey = String(dictKey).toLowerCase();
-                
-                // Пропускаем системные ключи (чтобы не приклеить цену или штрихкод)
-                if (coreKeys.some(core => lowerDictKey === core || lowerDictKey.includes(core))) return;
-                
-                // БЕЗОПАСНОЕ ЧТЕНИЕ СЛОВАРЯ (учитываем, что синонимы могут быть строкой с запятыми)
-                let rawSynonyms = searchDict[dictKey];
-                let synArray = Array.isArray(rawSynonyms) ? rawSynonyms : String(rawSynonyms).split(',');
-                
-                let synonymsList = synArray.map(s => String(s).replace(/\s+/g, '').toLowerCase());
-                
-                // Если заголовок совпадает с синонимом из твоей таблицы
-                if (synonymsList.some(syn => syn !== "" && (cleanHeader === syn || cleanHeader.includes(syn))) || cleanHeader === lowerDictKey) {
-                    if (!autoLogisticsIndices.includes(idx)) autoLogisticsIndices.push(idx);
-                }
-            });
-        });
-    }
-
-    // 2. Добавляем то, что ты привязал в Маппере вручную
-    Object.keys(state.colMap).forEach(key => {
-        let lowerKey = String(key).toLowerCase();
-        if (!coreKeys.some(core => lowerKey === core || lowerKey.includes(core))) {
-            let idx = state.colMap[key];
-            if (idx !== undefined && !autoLogisticsIndices.includes(idx)) {
-                autoLogisticsIndices.push(idx);
-            }
-        }
-    });
+    // Получаем индексы колонок, которые уже привязаны (Имя, Цена, Кол-во, Штрихкод и т.д.)
+    let mappedIndices = Object.values(state.colMap).filter(v => v !== undefined);
 
     state.invoiceRows.forEach((row, index) => {
         if (!row || row.length === 0) return;
@@ -4895,11 +4844,17 @@ window.applyMapper2Logic = function() {
         let barcode = /^\d{8,13}$/.test(rawId) ? rawId : "";
         let name = getValue('name', 'model') || rawId || "Без названия";
 
-        // Собираем сырые параметры ТОЛЬКО из найденных (разрешенных) колонок
+        // === БЕЗОПАСНЫЙ СБОР ДЛЯ СКРЫТОЙ КОЛОНКИ ===
+        // Берем все данные из непривязанных колонок (габариты, индексы, доп. параметры)
         let rawLogisticsStr = "";
-        autoLogisticsIndices.forEach(idx => {
-            let val = String(row[idx] || '').trim();
-            if (val) rawLogisticsStr += " " + val;
+        row.forEach((cellVal, idx) => {
+            if (mappedIndices.includes(idx)) return; // Пропускаем то, что уже ушло в Имя или Цену
+            
+            let val = String(cellVal || '').trim();
+            // Берем любые значения короче 30 символов, игнорируем длинные штрихкоды
+            if (val && val.length < 30 && !/^\d{8,15}$/.test(val)) {
+                rawLogisticsStr += " " + val;
+            }
         });
 
         let rawCbm = getValue('cbm');
@@ -4907,12 +4862,12 @@ window.applyMapper2Logic = function() {
         let rawWeight = getValue('weight');
         let weight = rawWeight ? parseFloat(String(rawWeight).replace(',', '.')) : "";
 
-        // Сборка JSON-атрибутов для Каспи
+        // Сборка JSON-атрибутов для Каспи (если они переданы из шаблона)
         let attributesObj = {};
         const kaspiNumericFields = ['size', 'diameter', 'radius', 'ширина', 'профиль', 'размер'];
         const processAttribute = (key) => {
             let lowerKey = String(key).toLowerCase();
-            if (coreKeys.some(core => lowerKey === core || lowerKey.includes(core))) return;
+            if (['qty', 'price', 'cost', 'name', 'model', 'barcode', 'cbm', 'weight'].includes(lowerKey)) return;
             
             let rawValue = getValue(key);
             if (!rawValue) return;
@@ -4929,13 +4884,13 @@ window.applyMapper2Logic = function() {
             doc_no: state.docNo,
             supplier: state.supplier,
             item_id: rawId,
-            item_name: name, // Оставляем имя чистым
+            item_name: name, // Имя остается абсолютно чистым
             qty: qty,
             cost: price,
             cbm: cbm,
             weight: weight,
             attributes: finalAttributes,
-            raw_logistics: rawLogisticsStr.trim(), // Габариты ложатся сюда
+            raw_logistics: rawLogisticsStr.trim(), // Габариты ложатся в скрытый буфер
             staff_id: (typeof currentUser !== 'undefined' && currentUser) ? currentUser.uid : 'Auto-Import',
             
             id: rawId,
@@ -4954,6 +4909,7 @@ window.applyMapper2Logic = function() {
         return alert("Не удалось сформировать товары. Убедитесь, что в колонках «Количество» и «Цена» находятся ТОЛЬКО цифры.");
     }
 
+    // Рендер интерфейса
     document.getElementById('invoiceMetadata').innerHTML = `
         <span style="color:var(--text-muted); font-size:13px;">Поставщик:</span> 
         <span style="color:var(--accent-yellow); font-weight:bold; font-size:14px;">${state.supplier}</span> 
@@ -4973,7 +4929,7 @@ window.applyMapper2Logic = function() {
             </td>
             <td style="padding:5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 150px;">
                 ${item.item_name}
-                ${item.raw_logistics ? `<br><span style="font-size:10px; color:var(--text-muted);">Параметры: ${item.raw_logistics}</span>` : ''}
+                ${item.raw_logistics ? `<br><span style="font-size:10px; color:var(--text-muted);">Скрытые параметры: ${item.raw_logistics}</span>` : ''}
             </td>
             <td style="padding:5px; text-align:right;">${Number(item.qty).toLocaleString('ru-RU')}</td>
             <td style="padding:5px; text-align:right;">${item.cbm !== "" ? item.cbm : '<span style="color:var(--text-muted); font-size:11px;">из БД</span>'}</td>
