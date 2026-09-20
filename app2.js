@@ -3705,23 +3705,14 @@ async function confirmUpload() {
                 }
         });
 
-        function toggleIncomeModule() {
-            const modal = document.getElementById('income-modal');
-            if (modal.style.display === 'none' || modal.style.display === '') {
-                modal.style.display = 'flex';
-            } else {
-                modal.style.display = 'none';
-                document.getElementById('invoicePreviewArea').style.display = 'none';
-                document.getElementById('debug-container').style.display = 'none';
-                document.getElementById('debug-container').innerHTML = '';
-                document.getElementById('parseInvoiceBtn').style.display = 'block'; 
-                
-                const fileInput = document.getElementById('invoiceFileInput');
-                fileInput.value = '';
-                updateFileNameCompactUI(fileInput); 
-                parsedInvoiceData = [];
-            }
-        }
+function toggleIncomeModule() {
+    const modal = document.getElementById('income-modal');
+    if (modal.style.display === 'none' || modal.style.display === '') {
+        modal.style.display = 'flex'; // Просто показываем окно как есть
+    } else {
+        modal.style.display = 'none'; // Просто прячем окно, ничего внутри не трогая
+    }
+}
 
         function toggleExportModule() {
             const modal = document.getElementById('export-modal');

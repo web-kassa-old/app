@@ -583,7 +583,12 @@
     <!-- Контейнер для карточек-требований (генерируется JS) -->
     <div id="mapper2CardsContainer" style="overflow-y: auto; max-height: 40vh; margin-bottom: 15px; padding-right: 5px;"></div>
     
-    <button id="applyMapper2Btn" onclick="applyMapper2Logic()" class="btn-primary" style="display: none;">✅ СОБРАТЬ НАКЛАДНУЮ</button>
+    <!-- НИЖНИЙ БЛОК КНОПОК -->
+    <div style="display: flex; gap: 15px; margin-top: 5px;">
+        <button type="button" onclick="navigateIncomeStep(1)" style="flex: 1; padding: 12px; background: var(--bg-secondary); border: 1px solid var(--border-light); color: var(--text-main); border-radius: 4px; font-weight: bold; cursor: pointer;" data-i18n="back">⬅ НАЗАД</button>
+        
+        <button id="applyMapper2Btn" onclick="applyMapper2Logic()" class="btn-primary" style="flex: 2; padding: 12px; display: none;">✅ СОБРАТЬ НАКЛАДНУЮ</button>
+    </div>
 </div>
 
 <!-- === BOTTOM SHEET (ШТОРКА ВЫБОРА КОЛОНКИ) === -->
