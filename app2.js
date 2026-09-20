@@ -7955,53 +7955,17 @@ function setUploadButtonState(isActive, textHTML) {
     }
 }
 
-// 1. Блокировка кнопки 
 window.lockInvoiceUpload = function() {
-    const wrapper = document.getElementById('invoiceUploadWrapper');
-    if (!wrapper) return;
-
-    wrapper.style.opacity = '0.5';
-    wrapper.style.pointerEvents = 'none';
-
-    const fileNameText = document.getElementById('fileNameTextCompact');
-    if (fileNameText) {
-        fileNameText.setAttribute('data-i18n', 'upload_invoice_locked');
-        fileNameText.classList.add('file-placeholder-text');
-        
-        const fallbackText = 'Выберите шаблон из списка';
-        fileNameText.innerText = (typeof translations !== 'undefined' && typeof currentLang !== 'undefined' && translations[currentLang]?.[fileNameText.getAttribute('data-i18n')]) 
-            ? translations[currentLang][fileNameText.getAttribute('data-i18n')] 
-            : fallbackText;
-        
-        fileNameText.style.color = 'var(--text-main)';
-        
-        const iconSpan = fileNameText.previousElementSibling;
-        if (iconSpan) iconSpan.innerText = '🔒';
+    if (typeof setUploadButtonState === 'function') {
+        // Передаем false (заблокировано) и нужный текст с иконкой
+        setUploadButtonState(false, '🔒 Выберите шаблон из списка');
     }
 };
 
-// 2. Разблокировка кнопки 
 window.unlockInvoiceUpload = function() {
-    const wrapper = document.getElementById('invoiceUploadWrapper');
-    if (!wrapper) return;
-
-    wrapper.style.opacity = '1';
-    wrapper.style.pointerEvents = 'auto';
-
-    const fileNameText = document.getElementById('fileNameTextCompact');
-    if (fileNameText) {
-        fileNameText.setAttribute('data-i18n', 'inc_file_placeholder');
-        fileNameText.classList.add('file-placeholder-text');
-        
-        const fallbackText = 'Загрузите файл Excel';
-        fileNameText.innerText = (typeof translations !== 'undefined' && typeof currentLang !== 'undefined' && translations[currentLang]?.[fileNameText.getAttribute('data-i18n')]) 
-            ? translations[currentLang][fileNameText.getAttribute('data-i18n')] 
-            : fallbackText;
-            
-        fileNameText.style.color = 'var(--text-main)';
-        
-        const iconSpan = fileNameText.previousElementSibling;
-        if (iconSpan) iconSpan.innerText = '📁';
+    if (typeof setUploadButtonState === 'function') {
+        // Передаем true (разблокировано) и нужный текст с иконкой
+        setUploadButtonState(true, '📁 Загрузите файл Excel');
     }
 };
 
