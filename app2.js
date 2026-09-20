@@ -7963,19 +7963,15 @@ window.lockInvoiceUpload = function() {
     wrapper.style.opacity = '0.5';
     wrapper.style.pointerEvents = 'none';
 
-    // Жестко цепляемся к ID, чтобы скрипт не промахнулся
     const fileNameText = document.getElementById('fileNameTextCompact');
-    
     if (fileNameText) {
         fileNameText.setAttribute('data-i18n', 'upload_invoice_locked');
-        
-        // Обязательно возвращаем класс плейсхолдера (мы удаляли его при загрузке реального файла)
         fileNameText.classList.add('file-placeholder-text');
         
-        // Подставляем текст из словаря или дефолтный, как на скриншоте
-        fileNameText.innerText = (typeof translations !== 'undefined' && translations[currentLang] && translations[currentLang].upload_invoice_locked) 
-            ? translations[currentLang].upload_invoice_locked 
-            : 'Выберите шаблон из списка';
+        const fallbackText = 'Выберите шаблон из списка';
+        fileNameText.innerText = (typeof translations !== 'undefined' && typeof currentLang !== 'undefined' && translations[currentLang]?.[fileNameText.getAttribute('data-i18n')]) 
+            ? translations[currentLang][fileNameText.getAttribute('data-i18n')] 
+            : fallbackText;
         
         fileNameText.style.color = 'var(--text-main)';
         
@@ -7992,17 +7988,15 @@ window.unlockInvoiceUpload = function() {
     wrapper.style.opacity = '1';
     wrapper.style.pointerEvents = 'auto';
 
-    // Жестко цепляемся к ID
     const fileNameText = document.getElementById('fileNameTextCompact');
-    
     if (fileNameText) {
         fileNameText.setAttribute('data-i18n', 'inc_file_placeholder');
-        
         fileNameText.classList.add('file-placeholder-text');
         
-        fileNameText.innerText = (typeof translations !== 'undefined' && translations[currentLang] && translations[currentLang].inc_file_placeholder) 
-            ? translations[currentLang].inc_file_placeholder 
-            : 'Загрузите файл Excel';
+        const fallbackText = 'Загрузите файл Excel';
+        fileNameText.innerText = (typeof translations !== 'undefined' && typeof currentLang !== 'undefined' && translations[currentLang]?.[fileNameText.getAttribute('data-i18n')]) 
+            ? translations[currentLang][fileNameText.getAttribute('data-i18n')] 
+            : fallbackText;
             
         fileNameText.style.color = 'var(--text-main)';
         
