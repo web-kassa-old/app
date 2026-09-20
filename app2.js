@@ -4810,13 +4810,12 @@ window.applyMapper2Logic = function() {
 
     const regex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,]/g;
 
-    // === УМНЫЙ ПОИСК СЫРЫХ ПАРАМЕТРОВ ПО БАЗЕ SYNONYMS ===
+    // === УМНЫЙ ПОИСК СЫРЫХ ПАРАМЕТРОВ ===
     let autoLogisticsIndices = [];
-    let baseDict = (typeof invoiceSynonyms !== 'undefined') ? invoiceSynonyms : {};
-    let kaspiDict = state.dictValues || {};
-    let combinedDict = { ...baseDict, ...kaspiDict };
+    // Используем ТОЛЬКО справочник синонимов для поиска колонок в шапке
+    let searchDict = (typeof invoiceSynonyms !== 'undefined') ? invoiceSynonyms : {};
     
-    // Исключаем системные колонки
+    // Исключаем системные ключи
     const coreKeys = [
         'qty', 'количество', 'price', 'розничная цена', 'cost', 'закупочная цена', 
         'name', 'наименование товара', 'model', 'barcode', 'штрихкод', 'артикул', 'код товара',
@@ -4829,11 +4828,11 @@ window.applyMapper2Logic = function() {
             if (!headerVal) return;
             let cleanHeader = String(headerVal).replace(/\s+/g, '').toLowerCase();
 
-            Object.keys(combinedDict).forEach(dictKey => {
+            Object.keys(searchDict).forEach(dictKey => {
                 let lowerDictKey = dictKey.toLowerCase();
                 if (coreKeys.some(core => lowerDictKey.includes(core) || core.includes(lowerDictKey))) return;
                 
-                let synonymsList = (combinedDict[dictKey] || []).map(s => String(s).replace(/\s+/g, '').toLowerCase());
+                let synonymsList = (searchDict[dictKey] || []).map(s => String(s).replace(/\s+/g, '').toLowerCase());
                 if (synonymsList.some(syn => syn !== "" && cleanHeader.includes(syn))) {
                     if (!autoLogisticsIndices.includes(idx)) autoLogisticsIndices.push(idx);
                 }
@@ -4854,9 +4853,10 @@ window.applyMapper2Logic = function() {
     state.invoiceRows.forEach((row, index) => {
         if (!row || row.length === 0) return;
 
+        // ВАЖНО: Оригинальный getValue, который работает безупречно
         const getValue = (primaryKey, kaspiKey) => {
-            if (combinedDict[primaryKey]) return combinedDict[primaryKey];
-            if (kaspiKey && combinedDict[kaspiKey]) return combinedDict[kaspiKey];
+            if (state.dictValues[primaryKey]) return state.dictValues[primaryKey];
+            if (kaspiKey && state.dictValues[kaspiKey]) return state.dictValues[kaspiKey];
 
             let colIdx = state.colMap[primaryKey];
             if (colIdx === undefined && kaspiKey) colIdx = state.colMap[kaspiKey];
@@ -4876,6 +4876,8 @@ window.applyMapper2Logic = function() {
 
         let qty = parseFloat(getValue('qty'));
         let price = parseFloat(String(getValue('price', 'cost')).replace(',', '.'));
+        
+        // Теперь здесь действительно числа, ошибки не будет
         if (isNaN(qty) || isNaN(price)) return;
 
         let rawId = getValue('barcode', 'merchant_sku');
@@ -4894,7 +4896,7 @@ window.applyMapper2Logic = function() {
         let rawWeight = getValue('weight');
         let weight = rawWeight ? parseFloat(String(rawWeight).replace(',', '.')) : "";
 
-        // Сборка JSON-атрибутов для Каспи (строгий формат)
+        // Сборка JSON-атрибутов для Каспи
         let attributesObj = {};
         const kaspiNumericFields = ['size', 'diameter', 'radius', 'ширина', 'профиль', 'размер'];
         const processAttribute = (key) => {
@@ -4909,20 +4911,20 @@ window.applyMapper2Logic = function() {
             attributesObj[key] = rawValue;
         };
         Object.keys(state.colMap).forEach(processAttribute);
-        Object.keys(combinedDict).forEach(processAttribute);
+        Object.keys(state.dictValues).forEach(processAttribute);
         let finalAttributes = Object.keys(attributesObj).length > 0 ? JSON.stringify(attributesObj) : "";
 
         const itemData = {
             doc_no: state.docNo,
             supplier: state.supplier,
             item_id: rawId,
-            item_name: name, // ИМЯ ОСТАЕТСЯ ИДЕАЛЬНО ЧИСТЫМ
+            item_name: name, // Имя остается чистым
             qty: qty,
             cost: price,
             cbm: cbm,
             weight: weight,
             attributes: finalAttributes,
-            raw_logistics: rawLogisticsStr.trim(), // НОВАЯ ПЕРЕМЕННАЯ
+            raw_logistics: rawLogisticsStr.trim(), // Габариты лежат здесь
             staff_id: (typeof currentUser !== 'undefined' && currentUser) ? currentUser.uid : 'Auto-Import',
             
             id: rawId,
