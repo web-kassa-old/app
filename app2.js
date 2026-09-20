@@ -5083,8 +5083,37 @@ async function sendInvoiceToBackend() {
     
     setTimeout(() => { 
         alert(translations[currentLang].inc_all_done); 
+        
+        // === ПОЛНАЯ ОЧИСТКА СОСТОЯНИЯ ===
+        // 1. Очищаем глобальные массивы
+        window.parsedInvoiceData = [];
+        window.invoiceGroups = {};
+        
+        // 2. Сбрасываем input файла и его UI
+        const fileInput = document.getElementById('invoiceFileInput');
+        if (fileInput) {
+            fileInput.value = '';
+            if (typeof updateFileNameCompactUI === 'function') updateFileNameCompactUI(fileInput); 
+        }
+        
+        // 3. Очищаем сгенерированные таблицы предпросмотра
+        const tbody = document.getElementById('invoiceTableBody');
+        if (tbody) tbody.innerHTML = '';
+        const metadata = document.getElementById('invoiceMetadata');
+        if (metadata) metadata.innerHTML = '';
+        
+        // 4. Прячем и сбрасываем прогресс-бар для следующего раза
+        statusContainer.style.display = 'none';
+        statusBar.style.width = '0%';
+        statusPercent.innerText = '0%';
+        
+        // 5. Возвращаем модалку на первый экран (невидимо для пользователя)
+        if (typeof window.navigateIncomeStep === 'function') window.navigateIncomeStep(1);
+        
+        // Закрываем окно и обновляем главную таблицу
         toggleIncomeModule(); 
         if (typeof load === 'function') load(); 
+        
     }, 800);
     
     btn.disabled = false; btn.style.opacity = '1';
