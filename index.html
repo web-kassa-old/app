@@ -814,7 +814,7 @@
         <h3 data-i18n="prompt_category_title" style="margin-top: 0; margin-bottom: 15px; color: var(--text-main); font-size: 16px; text-align: center;">Укажите категорию шаблона</h3>
         
         <!-- Само поле ввода -->
-        <input type="text" id="custom-prompt-input" style="width: 100%; font-size: 16px; background: var(--bg-body); border: 1px solid var(--border-main); color: var(--text-main); padding: 12px; border-radius: 4px; box-sizing: border-box; margin-bottom: 20px;">
+        <input type="text" id="custom-prompt-input" onfocus="this.select()" onclick="this.select()" style="width: 100%; font-size: 16px; background: var(--bg-body); border: 1px solid var(--border-main); color: var(--text-main); padding: 12px; border-radius: 4px; box-sizing: border-box; margin-bottom: 20px;">
         
         <div style="display: flex; gap: 10px;">
             <button type="button" id="custom-prompt-cancel" style="flex: 1; padding: 10px; background: transparent; border: 1px solid var(--text-muted); color: var(--text-main); border-radius: 4px; cursor: pointer;" data-i18n="btn_cancel">Отмена</button>
