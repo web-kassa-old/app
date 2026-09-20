@@ -4414,8 +4414,7 @@ window.processInvoiceFile = async function() {
             return alert("Ошибка загрузки шаблона: " + err.message);
         }
     } else {
-        // Если флаг сбит, выводим предупреждение
-        alert(`Внимание: скрипт думает, что режим = "${window.currentImportMode}", а не "kaspi". Скачивание шаблона пропущено.`);
+        // Запускаем экран загрузки без всяких предупреждений
         window.showLoading("Чтение накладной...");
     }
 
