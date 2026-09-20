@@ -8003,10 +8003,19 @@ window.updateFileNameCompactUI = function(input) {
     const fileNameText = document.getElementById('fileNameTextCompact');
     if (!fileNameText) return;
 
+    let fileName = "";
+    
+    // Проверяем: нам передали DOM-элемент (input.files) или готовую строку?
     if (input && input.files && input.files.length > 0) {
+        fileName = input.files[0].name;
+    } else if (typeof input === 'string' && input.trim() !== '') {
+        fileName = input;
+    }
+
+    if (fileName) {
         // УДАЛЯЕМ ЯКОРЬ, чтобы переводчик не стер реальное имя файла
         fileNameText.removeAttribute('data-i18n');
-        fileNameText.innerText = input.files[0].name;
+        fileNameText.innerText = fileName;
         fileNameText.classList.remove('file-placeholder-text');
         
         const iconSpan = fileNameText.previousElementSibling;
