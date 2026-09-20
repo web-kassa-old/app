@@ -3765,146 +3765,171 @@ async function handleTemplateUpload(event) {
     const fileInput = document.getElementById('templateFileInput');
     const fileNameSpan = document.getElementById('templateFileName');
     
-    fileNameSpan.removeAttribute('data-i18n');
+    // Закрываем модалку выбора файла сразу после выбора
+    const modal = document.getElementById('newTemplateModal');
+    if (modal) modal.style.display = 'none';
+    
+    // Включаем оригинальный лоадер POS Noir
+    window.showLoading('Анализ шаблона...');
+
+    if (fileNameSpan) {
+        fileNameSpan.removeAttribute('data-i18n');
+        fileNameSpan.innerText = `⏳ Анализ шаблона...`;
+        fileNameSpan.style.color = "var(--accent-blue)";
+    }
     fileInput.disabled = true; 
-    fileNameSpan.innerText = `⏳ Анализ шаблона...`;
-    fileNameSpan.style.color = "var(--accent-blue)";
 
-    requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-            setTimeout(() => {
+    // Используем setTimeout, чтобы дать интерфейсу время отрисовать лоадер
+    setTimeout(() => {
+        const reader = new FileReader();
+        reader.onload = async function(e) {
+            try {
+                window.rawKaspiTemplateBuffer = e.target.result;
                 
-                const reader = new FileReader();
-                reader.onload = async function(e) {
-                    try {
-                        window.rawKaspiTemplateBuffer = e.target.result;
-                        
-                        const workbook = new ExcelJS.Workbook();
-                        await workbook.xlsx.load(e.target.result);
+                const workbook = new ExcelJS.Workbook();
+                await workbook.xlsx.load(e.target.result);
 
-                        // 1. Читаем основной лист attributes
-                        let targetSheet = workbook.worksheets.find(s => s.name.toLowerCase() === 'attributes');
-                        if (!targetSheet) targetSheet = workbook.worksheets.length > 1 ? workbook.worksheets[1] : workbook.worksheets[0];
-                        window.kaspiTargetSheetName = targetSheet.name;
+                // 1. Читаем основной лист attributes
+                let targetSheet = workbook.worksheets.find(s => s.name.toLowerCase() === 'attributes');
+                if (!targetSheet) targetSheet = workbook.worksheets.length > 1 ? workbook.worksheets[1] : workbook.worksheets[0];
+                window.kaspiTargetSheetName = targetSheet.name;
 
-                        const jsonData = [];
-                        targetSheet.eachRow((row, rowNumber) => {
-                            if (rowNumber > 20) return; 
-                            let rowData = [];
-                            const maxCols = targetSheet.columnCount > 0 ? targetSheet.columnCount : 100;
-                            for (let i = 1; i <= maxCols; i++) {
-                                const cell = row.getCell(i);
-                                rowData.push(cell.text ? cell.text.toString().trim() : '');
-                            }
-                            jsonData.push(rowData);
-                        });
+                const jsonData = [];
+                targetSheet.eachRow((row, rowNumber) => {
+                    if (rowNumber > 20) return; 
+                    let rowData = [];
+                    const maxCols = targetSheet.columnCount > 0 ? targetSheet.columnCount : 100;
+                    for (let i = 1; i <= maxCols; i++) {
+                        const cell = row.getCell(i);
+                        rowData.push(cell.text ? cell.text.toString().trim() : '');
+                    }
+                    jsonData.push(rowData);
+                });
 
-                        let requirements = [], systemKeys = [], humanNames = [];
-                        const humMarkers = ["артикул", "модель", "бренд", "цена"];
-                        const sysMarkers = ["merchant_sku", "model", "brand", "price"];
+                let requirements = [], systemKeys = [], humanNames = [];
+                const humMarkers = ["артикул", "модель", "бренд", "цена"];
+                const sysMarkers = ["merchant_sku", "model", "brand", "price"];
 
-                        for (let i = 0; i < Math.min(jsonData.length, 20); i++) {
-                            const rowText = jsonData[i].join(" ").toLowerCase();
-                            if (!rowText.trim()) continue;
+                for (let i = 0; i < Math.min(jsonData.length, 20); i++) {
+                    const rowText = jsonData[i].join(" ").toLowerCase();
+                    if (!rowText.trim()) continue;
 
-                            let humMatch = 0; humMarkers.forEach(m => { if (rowText.includes(m)) humMatch++; });
-                            if (humMatch >= 2) { humanNames = jsonData[i]; continue; }
+                    let humMatch = 0; humMarkers.forEach(m => { if (rowText.includes(m)) humMatch++; });
+                    if (humMatch >= 2) { humanNames = jsonData[i]; continue; }
 
-                            let sysMatch = 0; sysMarkers.forEach(m => { if (rowText.includes(m)) sysMatch++; });
-                            if (sysMatch >= 2) { systemKeys = jsonData[i]; continue; }
+                    let sysMatch = 0; sysMarkers.forEach(m => { if (rowText.includes(m)) sysMatch++; });
+                    if (sysMatch >= 2) { systemKeys = jsonData[i]; continue; }
 
-                            if (rowText.includes("обязательное") || rowText.includes("обязат.")) {
-                                requirements = jsonData[i]; continue;
-                            }
-                        }
+                    if (rowText.includes("обязательное") || rowText.includes("обязат.")) {
+                        requirements = jsonData[i]; continue;
+                    }
+                }
 
-                        if (humanNames.length === 0 || systemKeys.length === 0) {
-                            alert("Ошибка: Не удалось распознать структуру шаблона Kaspi.");
-                            fileNameSpan.innerText = '📄 Загрузить пустой шаблон (.xml, .xlsx)';
-                            fileNameSpan.style.color = "var(--text-main)";
-                            return;
-                        }
-
-                        // 2. Читаем лист values (Справочники Kaspi) через ExcelJS
-                        let valuesData = [];
-                        let valuesSheet = workbook.worksheets.find(s => s.name.toLowerCase() === 'values');
-                        if (valuesSheet) {
-                            valuesSheet.eachRow((row) => {
-                                let rData = [];
-                                const maxCols = valuesSheet.columnCount > 0 ? valuesSheet.columnCount : 50;
-                                for (let i = 1; i <= maxCols; i++) {
-                                    let cell = row.getCell(i);
-                                    rData.push(cell.text ? cell.text.toString().trim() : '');
-                                }
-                                valuesData.push(rData);
-                            });
-                        }
-
-                        // 3. Запрос категории и сохранение на сервер
-                        const defaultCategory = file.name.replace('.xlsx', '').replace('.xls', '').trim();
-                        const categoryName = prompt("Укажите категорию для этого шаблона (например, Шины):", defaultCategory);
-                        
-                        if (!categoryName) {
-                            fileNameSpan.innerText = 'Загрузка отменена';
-                            fileNameSpan.style.color = "var(--text-main)";
-                            return;
-                        }
-
-                        fileNameSpan.innerText = `⏳ Сохранение на сервер...`;
-                        fileNameSpan.style.color = "var(--accent-blue)";
-                        
-                        await saveKaspiTemplateBackend(categoryName, window.rawKaspiTemplateBuffer, { systemKeys, humanNames, requirements });
-                        
-                        // ==========================================================
-                        // === НОВЫЙ БЛОК: ДОБАВЛЕНИЕ ШАБЛОНА В СПИСОК ===
-                        const templateSelect = document.getElementById('kaspiTemplateSelect');
-                        if (templateSelect) {
-                            const newOption = document.createElement('option');
-                            newOption.value = categoryName;
-                            newOption.text = categoryName;
-                            templateSelect.appendChild(newOption);
-                            templateSelect.value = categoryName; // Автоматически выбираем его
-                        }
-                        // ==========================================================
-
-                        // 4. Подтягиваем динамические ключи из базы 
-                        fileNameSpan.innerText = `⏳ Подключение к БД...`;
-                        const dbResponse = await window.smartFetch(APPS_SCRIPT_URL, { 
-                            action: 'getKaspiExportData', 
-                            api_key: typeof CLIENT_API_KEY !== 'undefined' ? CLIENT_API_KEY : '' 
-                        }, 'kaspi_dynamic_keys_cache', 3);
-                        
-                        const dynKeys = (dbResponse && dbResponse.success) ? dbResponse.dynamicKeys : [];
-
-                        fileNameSpan.innerText = `✅ Шаблон готов (${categoryName})`;
-                        fileNameSpan.style.color = "var(--accent-green)";
-                        
-                        // 5. ОТРИСОВКА ИНТЕРФЕЙСА МАППЕРА
-                        if (typeof renderMapperUI === 'function') {
-                            renderMapperUI(systemKeys, humanNames, valuesData, requirements, dynKeys);
-                        }
-
-                        // Разблокируем нижнюю кнопку экспорта
-                        if (typeof updateFileNameCompactUI === 'function') {
-                            updateFileNameCompactUI(file.name);
-                        }
-
-                    } catch (err) {
-                        console.error(err);
-                        alert("Ошибка чтения файла: " + err.message);
+                if (humanNames.length === 0 || systemKeys.length === 0) {
+                    window.hideLoading();
+                    alert("Ошибка: Не удалось распознать структуру шаблона Kaspi.");
+                    if (fileNameSpan) {
                         fileNameSpan.innerText = '📄 Загрузить пустой шаблон (.xml, .xlsx)';
                         fileNameSpan.style.color = "var(--text-main)";
-                    } finally {
-                        fileInput.disabled = false;
                     }
-                };
+                    return;
+                }
+
+                // 2. Читаем лист values (Справочники Kaspi) через ExcelJS
+                let valuesData = [];
+                let valuesSheet = workbook.worksheets.find(s => s.name.toLowerCase() === 'values');
+                if (valuesSheet) {
+                    valuesSheet.eachRow((row) => {
+                        let rData = [];
+                        const maxCols = valuesSheet.columnCount > 0 ? valuesSheet.columnCount : 50;
+                        for (let i = 1; i <= maxCols; i++) {
+                            let cell = row.getCell(i);
+                            rData.push(cell.text ? cell.text.toString().trim() : '');
+                        }
+                        valuesData.push(rData);
+                    });
+                }
+
+                // Временно прячем лоадер, чтобы показать prompt
+                window.hideLoading();
+
+                // 3. Запрос категории и сохранение на сервер
+                const defaultCategory = file.name.replace('.xlsx', '').replace('.xls', '').trim();
+                const categoryName = prompt("Укажите категорию для этого шаблона (например, Шины):", defaultCategory);
                 
-                event.target.value = '';
-                reader.readAsArrayBuffer(file);
+                if (!categoryName) {
+                    if (fileNameSpan) {
+                        fileNameSpan.innerText = 'Загрузка отменена';
+                        fileNameSpan.style.color = "var(--text-main)";
+                    }
+                    return;
+                }
+
+                // Снова показываем лоадер для отправки на сервер
+                window.showLoading('Сохранение на сервер...');
+
+                if (fileNameSpan) {
+                    fileNameSpan.innerText = `⏳ Сохранение на сервер...`;
+                    fileNameSpan.style.color = "var(--accent-blue)";
+                }
                 
-            }, 150); 
-        }); 
-    }); 
+                await saveKaspiTemplateBackend(categoryName, window.rawKaspiTemplateBuffer, { systemKeys, humanNames, requirements });
+                
+                // === ДОБАВЛЕНИЕ ШАБЛОНА В СПИСОК ===
+                const templateSelect = document.getElementById('kaspiTemplateSelect');
+                if (templateSelect) {
+                    const newOption = document.createElement('option');
+                    newOption.value = categoryName;
+                    newOption.text = categoryName;
+                    templateSelect.appendChild(newOption);
+                    templateSelect.value = categoryName; 
+                }
+
+                // 4. Подтягиваем динамические ключи из базы 
+                window.showLoading('Подключение к БД...');
+
+                if (fileNameSpan) {
+                    fileNameSpan.innerText = `⏳ Подключение к БД...`;
+                }
+                const dbResponse = await window.smartFetch(APPS_SCRIPT_URL, { 
+                    action: 'getKaspiExportData', 
+                    api_key: typeof CLIENT_API_KEY !== 'undefined' ? CLIENT_API_KEY : '' 
+                }, 'kaspi_dynamic_keys_cache', 3);
+                
+                const dynKeys = (dbResponse && dbResponse.success) ? dbResponse.dynamicKeys : [];
+
+                if (fileNameSpan) {
+                    fileNameSpan.innerText = `✅ Шаблон готов (${categoryName})`;
+                    fileNameSpan.style.color = "var(--accent-green)";
+                }
+                
+                // 5. ОТРИСОВКА ИНТЕРФЕЙСА МАППЕРА
+                if (typeof renderMapperUI === 'function') {
+                    renderMapperUI(systemKeys, humanNames, valuesData, requirements, dynKeys);
+                }
+
+                // Разблокируем нижнюю кнопку экспорта
+                if (typeof updateFileNameCompactUI === 'function') {
+                    updateFileNameCompactUI(file.name);
+                }
+
+            } catch (err) {
+                console.error(err);
+                alert("Ошибка чтения файла: " + err.message);
+                if (fileNameSpan) {
+                    fileNameSpan.innerText = '📄 Загрузить пустой шаблон (.xml, .xlsx)';
+                    fileNameSpan.style.color = "var(--text-main)";
+                }
+            } finally {
+                fileInput.disabled = false;
+                window.hideLoading();
+            }
+        };
+        
+        event.target.value = '';
+        reader.readAsArrayBuffer(file);
+        
+    }, 50); 
 }
 
 // Глобальный объект для хранения словарей Каспи
