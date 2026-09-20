@@ -4363,6 +4363,30 @@ window.mapper2State = {
     currentReqName: ""
 };
 
+// === РОУТЕР ШАГОВ ПРИЕМКИ ===
+window.navigateIncomeStep = function(stepNumber) {
+    // Получаем элементы (убедись, что ID первого шага у тебя называется именно 'uploadStepArea' или замени на свой)
+    const step1 = document.getElementById('uploadStepArea'); // Блок с загрузкой файла
+    const step2 = document.getElementById('mapper2Area');    // Блок маппинга
+    const step3 = document.getElementById('invoicePreviewArea'); // Блок предпросмотра таблиц
+
+    // Скрываем всё
+    if (step1) step1.style.display = 'none';
+    if (step2) step2.style.display = 'none';
+    if (step3) step3.style.display = 'none';
+
+    // Показываем только нужный шаг
+    if (stepNumber === 1 && step1) {
+        step1.style.display = 'block'; // или 'flex', в зависимости от твоей верстки первого окна
+    } 
+    else if (stepNumber === 2 && step2) {
+        step2.style.display = 'flex'; // Маппер у нас на flex
+    } 
+    else if (stepNumber === 3 && step3) {
+        step3.style.display = 'flex'; // Предпросмотр тоже на flex
+    }
+};
+
 // 1. ЧТЕНИЕ ФАЙЛА И ПОИСК ТАБЛИЦЫ
 window.processInvoiceFile = async function() {
     const fileInput = document.getElementById('invoiceFileInput');

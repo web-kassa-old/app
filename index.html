@@ -479,150 +479,123 @@
             </div>
 
             <!-- ВКЛАДКА 1: ОРИГИНАЛЬНЫЙ ИМПОРТ -->
-           <div id="tab-import" style="display: block; width: 100%; min-width: 0; max-width: 100%; box-sizing: border-box;">
+           <div id="tab-import" style="display: flex; flex-direction: column; width: 100%; min-width: 0; max-width: 100%; box-sizing: border-box;">
                 
-                <div class="minimal-input-container" style="display: flex; flex-direction: column; gap: 15px; margin-bottom: 20px;">
-    
-    <!-- 1. Выбор валюты (С поясняющим текстом на одной линии) -->
-    <div style="display: flex; align-items: center; justify-content: space-between; background: var(--bg-body, rgba(0,0,0,0.03)); padding: 10px 15px; border-radius: 8px; border: 1px dashed var(--border-main);">
-        <label style="font-size: 13px; font-weight: bold; color: var(--text-main); margin: 0; display: flex; align-items: center; gap: 8px;" data-i18n="invoice_currency_label">
-            💵 <span>Валюта цен в накладной:</span>
-        </label>
+                <!-- === ШАГ 1: БЛОК НАСТРОЕК И ЗАГРУЗКИ ФАЙЛА === -->
+                <div id="uploadStepArea" style="display: block;">
+                    <div class="minimal-input-container" style="display: flex; flex-direction: column; gap: 15px; margin-bottom: 20px;">
         
-        <div class="currency-minimal-container" style="position: relative; width: 90px;">
-            <div class="currency-minimal-header" id="dropdownHeader" onclick="toggleDropdown()" style="font-size: 15px; padding: 8px 12px; background: var(--bg-modal, #fff); border: 1px solid var(--border-main); border-radius: 4px; display: flex; justify-content: space-between; align-items: center; cursor: pointer;">
-                <span id="dropdownSelectedCode" style="color: var(--accent-yellow, #FFD700); font-weight: bold;">USD</span>
-                <span class="curr-arrow-mini" style="color: var(--text-muted); font-size: 10px;">▼</span>
-            </div>
-            <div class="currency-minimal-list" id="dropdownList" style="position: absolute; top: calc(100% + 4px); left: 0; width: 100%; z-index: 9999; background: var(--bg-modal); border: 1px solid var(--border-light); border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
-                <div class="currency-minimal-item" onclick="selectCurrency('KZT')">KZT</div>
-                <div class="currency-minimal-item selected" onclick="selectCurrency('USD')">USD</div>
-                <div class="currency-minimal-item" onclick="selectCurrency('CNY')">CNY</div>
-                <div class="currency-minimal-item" onclick="selectCurrency('EUR')">EUR</div>
-                <div class="currency-minimal-item" onclick="selectCurrency('RUB')">RUB</div>
-            </div>
-            <input type="hidden" id="invoiceCurrency" value="USD">
-        </div>
-    </div>
+                        <!-- 1. Выбор валюты (С поясняющим текстом на одной линии) -->
+                        <div style="display: flex; align-items: center; justify-content: space-between; background: var(--bg-body, rgba(0,0,0,0.03)); padding: 10px 15px; border-radius: 8px; border: 1px dashed var(--border-main);">
+                            <label style="font-size: 13px; font-weight: bold; color: var(--text-main); margin: 0; display: flex; align-items: center; gap: 8px;" data-i18n="invoice_currency_label">
+                                💵 <span>Валюта цен в накладной:</span>
+                            </label>
+                            
+                            <div class="currency-minimal-container" style="position: relative; width: 90px;">
+                                <div class="currency-minimal-header" id="dropdownHeader" onclick="toggleDropdown()" style="font-size: 15px; padding: 8px 12px; background: var(--bg-modal, #fff); border: 1px solid var(--border-main); border-radius: 4px; display: flex; justify-content: space-between; align-items: center; cursor: pointer;">
+                                    <span id="dropdownSelectedCode" style="color: var(--accent-yellow, #FFD700); font-weight: bold;">USD</span>
+                                    <span class="curr-arrow-mini" style="color: var(--text-muted); font-size: 10px;">▼</span>
+                                </div>
+                                <div class="currency-minimal-list" id="dropdownList" style="position: absolute; top: calc(100% + 4px); left: 0; width: 100%; z-index: 9999; background: var(--bg-modal); border: 1px solid var(--border-light); border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+                                    <div class="currency-minimal-item" onclick="selectCurrency('KZT')">KZT</div>
+                                    <div class="currency-minimal-item selected" onclick="selectCurrency('USD')">USD</div>
+                                    <div class="currency-minimal-item" onclick="selectCurrency('CNY')">CNY</div>
+                                    <div class="currency-minimal-item" onclick="selectCurrency('EUR')">EUR</div>
+                                    <div class="currency-minimal-item" onclick="selectCurrency('RUB')">RUB</div>
+                                </div>
+                                <input type="hidden" id="invoiceCurrency" value="USD">
+                            </div>
+                        </div>
 
-    <!-- 2. ФАЗА 1: Блок выбора режима импорта -->
-    <div id="importModeContainer">
-        <!-- Заголовок и кнопка справки -->
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-            <label style="font-size: 14px; font-weight: bold; color: var(--text-main);" data-i18n="import_mode_title">⚙️ Выберите режим приёмки:</label>
-            <button type="button" onclick="showImportHelp()" style="background: none; border: none; color: #3498db; cursor: pointer; font-size: 16px;" title="Справка">
-                [?]
-            </button>
-        </div>
-        
-        <!-- Плитки выбора режима (Симметричный текст) -->
-        <div style="display: flex; gap: 10px; margin-bottom: 15px; overflow: hidden;">
-            <div id="btnModeInternal" onclick="selectImportMode('internal')" style="flex: 1; min-width: 0; padding: 12px 2px; border: 2px solid var(--border-main); border-radius: 8px; text-align: center; cursor: pointer; background: var(--bg-body); transition: 0.2s;">
-                <div style="font-size: 24px; margin-bottom: 5px;">📥</div>
-                <div style="font-size: 12px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" data-i18n="mode_internal_title">Только в базу</div>
-                <div style="font-size: 10px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" data-i18n="mode_internal_desc">Быстрая приёмка</div>
-            </div>
-            
-            <div id="btnModeKaspi" onclick="selectImportMode('kaspi')" style="flex: 1; min-width: 0; padding: 12px 2px; border: 2px solid var(--border-main); border-radius: 8px; text-align: center; cursor: pointer; background: var(--bg-body); transition: 0.2s;">
-                <div style="font-size: 24px; margin-bottom: 5px;">🛒</div>
-                <div style="font-size: 12px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" data-i18n="mode_kaspi_title">База + Kaspi</div>
-                <div style="font-size: 10px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" data-i18n="mode_kaspi_desc">Умный импорт</div>
-            </div>
-        </div>
+                        <!-- 2. ФАЗА 1: Блок выбора режима импорта -->
+                        <div id="importModeContainer">
+                            <!-- Заголовок и кнопка справки -->
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                <label style="font-size: 14px; font-weight: bold; color: var(--text-main);" data-i18n="import_mode_title">⚙️ Выберите режим приёмки:</label>
+                                <button type="button" onclick="showImportHelp()" style="background: none; border: none; color: #3498db; cursor: pointer; font-size: 16px;" title="Справка">
+                                    [?]
+                                </button>
+                            </div>
+                            
+                            <!-- Плитки выбора режима (Симметричный текст) -->
+                            <div style="display: flex; gap: 10px; margin-bottom: 15px; overflow: hidden;">
+                                <div id="btnModeInternal" onclick="selectImportMode('internal')" style="flex: 1; min-width: 0; padding: 12px 2px; border: 2px solid var(--border-main); border-radius: 8px; text-align: center; cursor: pointer; background: var(--bg-body); transition: 0.2s;">
+                                    <div style="font-size: 24px; margin-bottom: 5px;">📥</div>
+                                    <div style="font-size: 12px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" data-i18n="mode_internal_title">Только в базу</div>
+                                    <div style="font-size: 10px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" data-i18n="mode_internal_desc">Быстрая приёмка</div>
+                                </div>
+                                
+                                <div id="btnModeKaspi" onclick="selectImportMode('kaspi')" style="flex: 1; min-width: 0; padding: 12px 2px; border: 2px solid var(--border-main); border-radius: 8px; text-align: center; cursor: pointer; background: var(--bg-body); transition: 0.2s;">
+                                    <div style="font-size: 24px; margin-bottom: 5px;">🛒</div>
+                                    <div style="font-size: 12px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" data-i18n="mode_kaspi_title">База + Kaspi</div>
+                                    <div style="font-size: 10px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" data-i18n="mode_kaspi_desc">Умный импорт</div>
+                                </div>
+                            </div>
 
-        <!-- Скрытый блок выбора шаблона (Адаптирован для iOS) -->
-        <div id="kaspiTemplateBlock" style="display: none; margin-bottom: 15px;">
-            <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 5px;" data-i18n="select_template_label">Шаблон маркетплейса:</label>
-            
-            <select id="kaspiTemplateSelect" onchange="handleTemplateChange(event)" style="width: 100%; padding: 12px; min-height: 46px; font-size: 15px; border-radius: 4px; border: 1px solid var(--border-main); background: var(--bg-body); color: var(--text-main);">
-            </select>
+                            <!-- Скрытый блок выбора шаблона -->
+                            <div id="kaspiTemplateBlock" style="display: none; margin-bottom: 15px;">
+                                <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 5px;" data-i18n="select_template_label">Шаблон маркетплейса:</label>
+                                <select id="kaspiTemplateSelect" onchange="handleTemplateChange(event)" style="width: 100%; padding: 12px; min-height: 46px; font-size: 15px; border-radius: 4px; border: 1px solid var(--border-main); background: var(--bg-body); color: var(--text-main);">
+                                </select>
+                                <input type="file" id="templateFileInput" accept=".xlsx" class="visually-hidden" onchange="handleTemplateUpload(event)">
+                            </div>
+                        </div>
 
-            <!-- ИЗМЕНИЛИ: вместо style="display: none;" поставили class="visually-hidden" -->
-            <input type="file" id="templateFileInput" accept=".xlsx" class="visually-hidden" onchange="handleTemplateUpload(event)">
-        </div>
+                        <!-- 3. Кнопка загрузки накладной -->
+                        <div class="file-input-wrapper" id="invoiceUploadWrapper" style="width: 100%; opacity: 0.5; pointer-events: none; transition: opacity 0.3s;">
+                            <label for="invoiceFileInput" id="fileInputLabel" class="file-upload-label" style="padding: 12px; border: 1px solid var(--border-main) !important; border-radius: 4px; display: flex; align-items: center; justify-content: center; cursor: pointer; background: var(--bg-body, rgba(0,0,0,0.03)); transition: background-color 0.2s; width: 100%; box-sizing: border-box;">
+                                <div class="file-content" style="display: flex; gap: 8px; align-items: center; max-width: 100%; overflow: hidden;">
+                                    <span style="color: var(--text-muted); font-size: 16px; flex-shrink: 0;">🔒</span>
+                                    <span id="fileNameTextCompact" class="file-placeholder-text" style="font-size: 14px; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" data-i18n="upload_invoice_locked">Сначала выберите режим</span>
+                                </div>
+                            </label>
+                            <input type="file" id="invoiceFileInput" accept=".csv, .xls, .xlsx" style="display: none;" multiple onchange="updateFileNameCompactUI(this)">
+                        </div>
+                    </div>
+                    
+                    <button id="parseInvoiceBtn" onclick="processInvoiceFile()" class="btn-primary green" data-i18n="income_parse">ОБРАБОТАТЬ ФАЙЛ</button>
+                    
+                    <div id="debug-container" style="display: none; margin-top: 15px; flex-direction: column; overflow-y: auto; max-height: 40vh;"></div>
+                </div> <!-- Конец uploadStepArea -->
 
-        <!-- ДОБАВИЛИ: Наше новое модальное окно для iOS (оно скрыто по умолчанию) -->
-        <div id="newTemplateModal" class="modal-overlay" style="display: none;">
-            <div class="modal-content">
-                <h3 data-i18n="modal_template_title">Новый шаблон</h3>
-                <p data-i18n="modal_template_desc">Выберите Excel-файл для загрузки</p>
-                
-                <!-- Кнопка-ярлык для вызова файла -->
-                <label for="templateFileInput" class="btn-upload" data-i18n="btn_choose_excel">
-                    Выбрать Excel-файл
-                </label>
-                
-                <button type="button" class="btn-cancel" onclick="window.closeTemplateModal()" data-i18n="btn_cancel">
-                    Отмена
-                </button>
-            </div>
-        </div>
-    </div>
+                <!-- === ШАГ 2: МАППЕР 2.0 === -->
+                <div id="mapper2Area" style="display: none; margin-top: 20px; flex-direction: column;">
+                    <div style="font-weight: bold; margin-bottom: 15px; color: var(--accent-yellow); font-size: 14px; text-align: center;">ЗАПОЛНИТЕ ТРЕБОВАНИЯ KASPI</div>
+                    
+                    <div id="mapper2CardsContainer" style="overflow-y: auto; max-height: 40vh; margin-bottom: 15px; padding-right: 5px;"></div>
+                    
+                    <div style="display: flex; gap: 15px; margin-top: 5px;">
+                        <button type="button" onclick="navigateIncomeStep(1)" style="flex: 1; padding: 12px; background: var(--bg-secondary); border: 1px solid var(--border-light); color: var(--text-main); border-radius: 4px; font-weight: bold; cursor: pointer;" data-i18n="back">⬅ НАЗАД</button>
+                        
+                        <button id="applyMapper2Btn" onclick="applyMapper2Logic()" class="btn-primary" style="flex: 2; padding: 12px; display: none;">✅ СОБРАТЬ НАКЛАДНУЮ</button>
+                    </div>
+                </div>
 
-    <!-- 3. Кнопка загрузки накладной (С исправленной шириной) -->
-    <div class="file-input-wrapper" id="invoiceUploadWrapper" style="width: 100%; opacity: 0.5; pointer-events: none; transition: opacity 0.3s;">
-        <label for="invoiceFileInput" id="fileInputLabel" class="file-upload-label" style="padding: 12px; border: 1px solid var(--border-main) !important; border-radius: 4px; display: flex; align-items: center; justify-content: center; cursor: pointer; background: var(--bg-body, rgba(0,0,0,0.03)); transition: background-color 0.2s; width: 100%; box-sizing: border-box;">
-            <div class="file-content" style="display: flex; gap: 8px; align-items: center; max-width: 100%; overflow: hidden;">
-                <span style="color: var(--text-muted); font-size: 16px; flex-shrink: 0;">🔒</span>
-                <!-- Задаем временный жесткий текст через HTML, чтобы не было пустых мест до клика -->
-                <span id="fileNameTextCompact" class="file-placeholder-text" style="font-size: 14px; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" data-i18n="upload_invoice_locked">Сначала выберите режим</span>
-            </div>
-        </label>
-        <input type="file" id="invoiceFileInput" accept=".csv, .xls, .xlsx" style="display: none;" multiple onchange="updateFileNameCompactUI(this)">
-    </div>
-</div>
-                
-                <button id="parseInvoiceBtn" onclick="processInvoiceFile()" class="btn-primary green" style="margin-top: 15px;" data-i18n="income_parse">ОБРАБОТАТЬ ФАЙЛ</button>
-                
-                <div id="debug-container" style="display: none; margin-top: 15px; flex-direction: column; overflow-y: auto; max-height: 40vh;"></div>
+                <!-- === BOTTOM SHEET (ШТОРКА ВЫБОРА КОЛОНКИ) === -->
+                <!-- Шторки оставляем на месте, они работают поверх всего -->
+                <div class="sheet-overlay" id="sheet-overlay" onclick="closeSheet()"></div>
+                <div class="bottom-sheet" id="bottom-sheet">
+                    <div class="sheet-drag-handle"></div>
+                    <div class="sheet-header">
+                        <span class="sheet-title" id="sheet-title">Выбор колонки</span>
+                        <span class="close-btn" onclick="closeSheet()">×</span>
+                    </div>
+                    <div class="btn-global" id="btn-global-dict" style="display: none;" onclick="openGlobalDictionary()">
+                        🔍 Задать единое значение из словаря
+                    </div>
+                    <div class="col-list" id="sheet-col-list"></div>
+                </div>
 
-                <!-- === НОВЫЙ БЛОК: МАППЕР 2.0 (ТРЕБОВАНИЯ KASPI) === -->
-<div id="mapper2Area" style="display: none; margin-top: 20px; flex-direction: column;">
-    <div style="font-weight: bold; margin-bottom: 15px; color: var(--accent-yellow); font-size: 14px; text-align: center;">ЗАПОЛНИТЕ ТРЕБОВАНИЯ KASPI</div>
-    
-    <!-- Контейнер для карточек-требований (генерируется JS) -->
-    <div id="mapper2CardsContainer" style="overflow-y: auto; max-height: 40vh; margin-bottom: 15px; padding-right: 5px;"></div>
-    
-    <!-- НИЖНИЙ БЛОК КНОПОК -->
-    <div style="display: flex; gap: 15px; margin-top: 5px;">
-        <button type="button" onclick="navigateIncomeStep(1)" style="flex: 1; padding: 12px; background: var(--bg-secondary); border: 1px solid var(--border-light); color: var(--text-main); border-radius: 4px; font-weight: bold; cursor: pointer;" data-i18n="back">⬅ НАЗАД</button>
-        
-        <button id="applyMapper2Btn" onclick="applyMapper2Logic()" class="btn-primary" style="flex: 2; padding: 12px; display: none;">✅ СОБРАТЬ НАКЛАДНУЮ</button>
-    </div>
-</div>
-
-<!-- === BOTTOM SHEET (ШТОРКА ВЫБОРА КОЛОНКИ) === -->
-<div class="sheet-overlay" id="sheet-overlay" onclick="closeSheet()"></div>
-<div class="bottom-sheet" id="bottom-sheet">
-    <div class="sheet-drag-handle"></div>
-    <div class="sheet-header">
-        <span class="sheet-title" id="sheet-title">Выбор колонки</span>
-        <span class="close-btn" onclick="closeSheet()">×</span>
-    </div>
-
-    <!-- Кнопка вызова словаря -->
-    <div class="btn-global" id="btn-global-dict" style="display: none;" onclick="openGlobalDictionary()">
-        🔍 Задать единое значение из словаря
-    </div>
-
-    <!-- Список колонок из файла (генерируется JS) -->
-    <div class="col-list" id="sheet-col-list"></div>
-</div>
-
-                <!-- БЛОК ПРЕДПРОСМОТРА И ФИНАЛИЗАЦИИ -->
+                <!-- === ШАГ 3: ПРЕДПРОСМОТР === -->
                 <div id="invoicePreviewArea" style="display: none; margin-top: 20px; flex-direction: column; overflow: hidden; max-height: 45vh; width: 100%; max-width: 100%; min-width: 0; box-sizing: border-box;">
                     <div id="invoiceMetadata" style="margin-bottom: 10px; font-weight: bold; color: var(--accent-yellow); font-size: 14px; text-align: center;"></div>
                     
-                    <!-- Кнопка возврата к маппингу, если пользователь заметил ошибку -->
-                    <button onclick="showMapperArea()" style="background: transparent; border: none; color: var(--text-muted); text-decoration: underline; cursor: pointer; font-size: 12px; margin-bottom: 10px; text-align: right;" data-i18n="mapper_edit">⚙️ Изменить привязку</button>
-
                     <div style="overflow: auto; border: 1px solid var(--border-light); margin-bottom: 15px; flex-grow: 1; width: 100%; min-width: 0; box-sizing: border-box; -webkit-overflow-scrolling: touch; overscroll-behavior: none;">
                         <table style="min-width: 100%; width: max-content; border-collapse: collapse; font-size: 13px; color: var(--text-main);">
                             <thead style="background: var(--border-main); position: sticky; top: 0; z-index: 10;">
                                 <tr style="border-bottom: 1px solid var(--text-muted); text-align: left;">
                                     <th style="padding: 10px 8px;" data-i18n="income_code">Код</th>
                                     <th style="padding: 10px 8px;" data-i18n="income_name">Наименование</th>
-                                    <!-- Числовые колонки выровнены по правому краю -->
                                     <th style="padding: 10px 8px; text-align: right;" data-i18n="income_qty">Кол-во</th>
                                     <th style="padding: 10px 8px; text-align: right;" data-i18n="income_cbm">Объем (CBM)</th>
                                     <th style="padding: 10px 8px; text-align: right;" data-i18n="income_weight">Вес (кг)</th>
@@ -645,86 +618,14 @@
                         </div>
                     </div>
                     
-                    <button id="sendInvoiceBtn" onclick="sendInvoiceToBackend()" class="btn-primary blue" data-i18n="income_confirm">✅ ОПРИХОДОВАТЬ НА СКЛАД</button>
+                    <!-- НИЖНИЙ БЛОК КНОПОК ШАГА 3 (С КНОПКОЙ НАЗАД) -->
+                    <div style="display: flex; gap: 15px; margin-top: 5px;">
+                        <button type="button" onclick="navigateIncomeStep(2)" style="flex: 1; padding: 12px; background: var(--bg-secondary); border: 1px solid var(--border-light); color: var(--text-main); border-radius: 4px; font-weight: bold; cursor: pointer;" data-i18n="back">⬅ НАЗАД</button>
+                        
+                        <button id="sendInvoiceBtn" onclick="sendInvoiceToBackend()" class="btn-primary blue" style="flex: 2; padding: 12px;" data-i18n="income_confirm">✅ ОПРИХОДОВАТЬ НА СКЛАД</button>
+                    </div>
                 </div>
-            </div>
-
-            <!-- ВКЛАДКА 2: НОВЫЙ ТОВАР -->
-        <div id="tab-new-product" style="display: none; width: 100%; position: relative;">
-            
-            <!-- Штрихкод и сканер -->
-            <div style="display: flex; gap: 10px; margin-bottom: 8px;">
-                <input type="text" id="nt-barcode" placeholder="Штрихкод..." data-i18n-placeholder="ph_barcode" onpointerdown="window.setNtActive(this, event)" oninput="window.formatNtInput(this)" inputmode="none" style="flex: 1; font-size: 15px; background: var(--bg-body, rgba(0,0,0,0.03)); border: 1px solid var(--border-main); color: var(--text-main); padding: 10px 12px; border-radius: 4px; box-sizing: border-box; transition: background-color 0.2s, border-color 0.2s;">
-                <button onpointerdown="window.startNtScanner()" style="background: var(--bg-body, rgba(0,0,0,0.03)); border: 1px solid var(--border-main); padding: 0 15px; border-radius: 4px; color: var(--text-muted); cursor: pointer; font-size: 16px; transition: all 0.2s;">📷</button>
-            </div>
-
-            <!-- Наименование -->
-            <input type="text" id="nt-name" placeholder="Наименование товара..." data-i18n-placeholder="ph_name" style="width: 100%; font-size: 15px; background: var(--bg-body, rgba(0,0,0,0.03)); border: 1px solid var(--border-main); color: var(--text-main); padding: 10px 12px; border-radius: 4px; margin-bottom: 8px; box-sizing: border-box;">
-
-            <!-- Поставщик и Категория -->
-            <div style="display: flex; gap: 10px; margin-bottom: 10px;">
-                <div style="position: relative; flex: 1;">
-                    <input type="text" id="nt-supplier-input" placeholder="Поставщик..." data-i18n-placeholder="ph_supplier" onclick="window.openFullscreenSupplier()" readonly style="width: 100%; font-size: 14px; background: var(--bg-body, rgba(0,0,0,0.03)); border: 1px solid var(--border-main); color: var(--text-main); padding: 10px 25px 10px 12px; border-radius: 4px; cursor: pointer; box-sizing: border-box;">
-                    <span style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-size: 10px; pointer-events: none;">▼</span>
-                </div>
-                <div style="position: relative; flex: 1;">
-                    <input type="text" id="nt-category-input" placeholder="Категория..." data-i18n-placeholder="ph_category" onclick="if(this.readOnly) toggleNtCategoryDropdown(event)" readonly style="width: 100%; font-size: 14px; background: var(--bg-body, rgba(0,0,0,0.03)); border: 1px solid var(--border-main); color: var(--text-main); padding: 10px 25px 10px 12px; border-radius: 4px; box-sizing: border-box;">
-                    <span id="nt-category-arrow" onclick="toggleNtCategoryDropdown(event)" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%) rotate(0deg); color: var(--text-muted); font-size: 10px; cursor: pointer; padding: 5px; transition: transform 0.2s ease;">▼</span>
-                    <div id="nt-category-dropdown" style="display: none; position: absolute; top: calc(100% + 4px); left: 0; width: 100%; max-height: 250px; overflow-y: auto; background: var(--bg-modal); border: 1px solid var(--border-light); border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 9999;"></div>
-                </div>
-            </div>
-
-            <!-- Цифры -->
-            <div style="display: flex; gap: 10px; margin-bottom: 10px;">
-                <div style="flex: 1; text-align: center;">
-                    <div style="color: var(--text-muted); font-size: 12px; margin-bottom: 3px;" data-i18n="nt_qty">Количество</div>
-                    <input type="text" id="nt-qty" value="0" onpointerdown="window.setNtActive(this, event)" oninput="window.formatNtInput(this)" inputmode="none" style="width: 100%; font-size: 15px; background: var(--bg-body); border: 1px solid var(--border-light); color: var(--text-main); padding: 10px; border-radius: 4px; text-align: center; box-sizing: border-box;">
-                </div>
-                <div style="flex: 1; text-align: center;">
-                    <div style="color: var(--text-muted); font-size: 12px; margin-bottom: 3px;" data-i18n="nt_price_in">Цена закупа</div>
-                    <input type="text" id="nt-price-in" value="0" onpointerdown="window.setNtActive(this, event)" oninput="window.formatNtInput(this)" inputmode="none" style="width: 100%; font-size: 15px; background: var(--bg-body); border: 1px solid var(--border-light); color: var(--text-main); padding: 10px; border-radius: 4px; text-align: center; box-sizing: border-box;">
-                </div>
-                <div style="flex: 1; text-align: center;">
-                    <div style="color: var(--text-muted); font-size: 12px; margin-bottom: 3px;" data-i18n="nt_price_out">Розница</div>
-                    <input type="text" id="nt-price-out" value="0" onpointerdown="window.setNtActive(this, event)" oninput="window.formatNtInput(this)" inputmode="none" style="width: 100%; font-size: 15px; background: var(--bg-body); border: 1px solid var(--border-light); color: var(--text-main); padding: 10px; border-radius: 4px; text-align: center; box-sizing: border-box;">
-                </div>
-            </div>
-
-            <!-- Встроенный сканер (Без изменений) -->
-            <div id="nt-scanner-container" style="display: none; position: absolute; top: 45px; left: 5px; right: 5px; height: 220px; z-index: 1000; border-radius: 8px; overflow: hidden; background: #000; border: 2px solid var(--accent-green, #4CAF50); box-shadow: 0 8px 24px rgba(0,0,0,0.6);">
-                <div id="nt-video-target" style="width: 100%; height: 100%;"></div>
-                <div style="position: absolute; top: 50%; left: 10%; right: 10%; height: 2px; background: rgba(255, 0, 0, 0.8); box-shadow: 0 0 10px red; transform: translateY(-50%); z-index: 5; pointer-events: none;"></div>
-                <button onclick="window.stopNtScanner()" style="position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.6); color: #fff; border: 1px solid rgba(255,255,255,0.5); padding: 6px 12px; border-radius: 4px; font-weight: bold; cursor: pointer; z-index: 10;">✖</button>
-            </div>
-
-            <!-- Встроенная клавиатура -->
-            <style>
-                #nt-custom-numpad { gap: 6px !important; margin-bottom: 12px !important; padding: 4px !important; }
-                #nt-custom-numpad .np-btn { height: 50px !important; font-size: 22px !important; font-weight: bold !important; border-radius: 6px !important; display: flex !important; align-items: center !important; justify-content: center !important; margin: 0 !important; box-shadow: 0 1px 3px rgba(0,0,0,0.1) !important; }
-            </style>
-            
-            <div id="nt-custom-numpad" style="display: none; grid-template-columns: repeat(3, 1fr);">
-                <button type="button" class="np-btn" onpointerdown="event.preventDefault(); window.qeNumpad('1', event)">1</button>
-                <button type="button" class="np-btn" onpointerdown="event.preventDefault(); window.qeNumpad('2', event)">2</button>
-                <button type="button" class="np-btn" onpointerdown="event.preventDefault(); window.qeNumpad('3', event)">3</button>
-                <button type="button" class="np-btn" onpointerdown="event.preventDefault(); window.qeNumpad('4', event)">4</button>
-                <button type="button" class="np-btn" onpointerdown="event.preventDefault(); window.qeNumpad('5', event)">5</button>
-                <button type="button" class="np-btn" onpointerdown="event.preventDefault(); window.qeNumpad('6', event)">6</button>
-                <button type="button" class="np-btn" onpointerdown="event.preventDefault(); window.qeNumpad('7', event)">7</button>
-                <button type="button" class="np-btn" onpointerdown="event.preventDefault(); window.qeNumpad('8', event)">8</button>
-                <button type="button" class="np-btn" onpointerdown="event.preventDefault(); window.qeNumpad('9', event)">9</button>
-                <button type="button" class="np-btn" style="background: #ff4d4d !important; color: #fff !important; border: none !important;" onpointerdown="event.preventDefault(); window.qeNumpad('C', event)">C</button>
-                <button type="button" class="np-btn" onpointerdown="event.preventDefault(); window.qeNumpad('0', event)">0</button>
-                <button type="button" class="np-btn" style="background: #ff4d4d !important; color: #fff !important; border: none !important;" onpointerdown="event.preventDefault(); window.qeNumpad('DEL', event)">⌫</button>
-            </div>
-
-            <!-- Кнопка сохранения -->
-            <button id="saveNewProductBtn" onclick="saveNewProduct()" class="btn-primary green" style="margin-top: 15px;" data-i18n="income_confirm">✅ ОПРИХОДОВАТЬ НА СКЛАД</button>
-            
-        </div>
-            
-        </div>
-    </div>
+            </div> <!-- Конец вкладки tab-import -->
 
 <!-- ========================================= -->
 <!-- ОКНО БЫСТРОГО РЕДАКТИРОВАНИЯ (QUICK EDIT) -->
