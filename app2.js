@@ -3727,7 +3727,45 @@ function toggleIncomeModule() {
             }
         }
 
-// Функция отправки шаблона Kaspi на сервер
+window.askCategoryName = function(defaultText) {
+    return new Promise((resolve) => {
+        const modal = document.getElementById('custom-prompt-modal');
+        const input = document.getElementById('custom-prompt-input');
+        const btnOk = document.getElementById('custom-prompt-ok');
+        const btnCancel = document.getElementById('custom-prompt-cancel');
+
+        // Сбрасываем старые обработчики кликов, чтобы они не дублировались
+        btnOk.onclick = null;
+        btnCancel.onclick = null;
+        input.onkeydown = null;
+
+        // Вставляем дефолтное название (имя файла)
+        input.value = defaultText || '';
+        
+        modal.style.display = 'flex';
+
+        // Задержка 100мс нужна, чтобы iOS Safari успел отрендерить окно перед фокусом
+        setTimeout(() => {
+            input.focus();
+            input.select(); // Тот самый магический метод выделения текста!
+        }, 100);
+
+        const closeModal = (result) => {
+            modal.style.display = 'none';
+            resolve(result); // Отдаем результат обратно в код
+        };
+
+        btnOk.onclick = () => closeModal(input.value.trim() || null);
+        btnCancel.onclick = () => closeModal(null);
+        
+        // Позволяем нажать Enter на клавиатуре вместо кнопки ОК
+        input.onkeydown = (e) => {
+            if (e.key === 'Enter') closeModal(input.value.trim() || null);
+        };
+    });
+};
+
+        // Функция отправки шаблона Kaspi на сервер
 async function saveKaspiTemplateBackend(categoryName, buffer, headersObj) {
     // 1. Конвертируем сырой ArrayBuffer в строку Base64
     let binary = '';
@@ -3853,9 +3891,9 @@ async function handleTemplateUpload(event) {
                 // Временно прячем лоадер, чтобы показать prompt
                 window.hideLoading();
 
-                // 3. Запрос категории и сохранение на сервер
+                // 3. Запрос категории (через кастомное модальное окно с автовыделением)
                 const defaultCategory = file.name.replace('.xlsx', '').replace('.xls', '').trim();
-                const categoryName = prompt("Укажите категорию для этого шаблона (например, Шины):", defaultCategory);
+                const categoryName = await window.askCategoryName(defaultCategory);
                 
                 if (!categoryName) {
                     if (fileNameSpan) {
