@@ -4363,27 +4363,42 @@ window.mapper2State = {
     currentReqName: ""
 };
 
-// === РОУТЕР ШАГОВ ПРИЕМКИ ===
+// === РОУТЕР ШАГОВ ПРИЕМКИ (ОБНОВЛЕННЫЙ) ===
 window.navigateIncomeStep = function(stepNumber) {
-    // Получаем элементы (убедись, что ID первого шага у тебя называется именно 'uploadStepArea' или замени на свой)
-    const step1 = document.getElementById('uploadStepArea'); // Блок с загрузкой файла
-    const step2 = document.getElementById('mapper2Area');    // Блок маппинга
-    const step3 = document.getElementById('invoicePreviewArea'); // Блок предпросмотра таблиц
+    const step1 = document.getElementById('uploadStepArea'); 
+    const step2 = document.getElementById('mapper2Area');    
+    const step3 = document.getElementById('invoicePreviewArea'); 
 
     // Скрываем всё
     if (step1) step1.style.display = 'none';
     if (step2) step2.style.display = 'none';
     if (step3) step3.style.display = 'none';
 
-    // Показываем только нужный шаг
+    // Показываем нужный шаг
     if (stepNumber === 1 && step1) {
-        step1.style.display = 'block'; // или 'flex', в зависимости от твоей верстки первого окна
+        step1.style.display = 'block'; 
+        
+        // ФИКС: Принудительно возвращаем видимость внутренним блокам, 
+        // которые мог спрятать старый скрипт при обработке файла
+        const importMode = document.getElementById('importModeContainer');
+        if (importMode) importMode.style.display = 'block';
+        
+        const parseBtn = document.getElementById('parseInvoiceBtn');
+        if (parseBtn) parseBtn.style.display = 'block';
+        
+        const uploadWrapper = document.getElementById('invoiceUploadWrapper');
+        if (uploadWrapper) {
+            // Восстанавливаем оригинальные стили обертки загрузки
+            uploadWrapper.style.display = 'block'; 
+            uploadWrapper.style.opacity = '1'; 
+            uploadWrapper.style.pointerEvents = 'auto';
+        }
     } 
     else if (stepNumber === 2 && step2) {
-        step2.style.display = 'flex'; // Маппер у нас на flex
+        step2.style.display = 'flex'; 
     } 
     else if (stepNumber === 3 && step3) {
-        step3.style.display = 'flex'; // Предпросмотр тоже на flex
+        step3.style.display = 'flex'; 
     }
 };
 
