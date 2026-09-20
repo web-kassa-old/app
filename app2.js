@@ -4810,10 +4810,8 @@ window.applyMapper2Logic = function() {
 
     const regex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,]/g;
 
-    // === УМНЫЙ ПОИСК СЫРЫХ ПАРАМЕТРОВ ===
+    // === УМНЫЙ ПОИСК СЫРЫХ ПАРАМЕТРОВ СТРОГО ПО СЛОВАРЮ ===
     let autoLogisticsIndices = [];
-    // Используем ТОЛЬКО справочник синонимов для поиска колонок в шапке
-    let searchDict = (typeof invoiceSynonyms !== 'undefined') ? invoiceSynonyms : {};
     
     // Исключаем системные ключи
     const coreKeys = [
@@ -4823,26 +4821,42 @@ window.applyMapper2Logic = function() {
         'поиск имени поставщика', 'номер накладной', 'исключить строку', 'игнорировать при создании id', 'номер контракта'
     ];
 
+    // Берем справочник синонимов (из глобальной переменной или Kaspi)
+    let searchDict = (typeof invoiceSynonyms !== 'undefined') ? invoiceSynonyms : {};
+    if (state.dictValues && Object.keys(state.dictValues).length > 0) {
+        searchDict = { ...searchDict, ...state.dictValues };
+    }
+
+    // 1. Ищем колонки с параметрами по шапке
     if (state.headerRow && state.headerRow.length > 0) {
         state.headerRow.forEach((headerVal, idx) => {
             if (!headerVal) return;
             let cleanHeader = String(headerVal).replace(/\s+/g, '').toLowerCase();
 
             Object.keys(searchDict).forEach(dictKey => {
-                let lowerDictKey = dictKey.toLowerCase();
-                if (coreKeys.some(core => lowerDictKey.includes(core) || core.includes(lowerDictKey))) return;
+                let lowerDictKey = String(dictKey).toLowerCase();
                 
-                let synonymsList = (searchDict[dictKey] || []).map(s => String(s).replace(/\s+/g, '').toLowerCase());
-                if (synonymsList.some(syn => syn !== "" && cleanHeader.includes(syn))) {
+                // Пропускаем системные ключи (чтобы не приклеить цену или штрихкод)
+                if (coreKeys.some(core => lowerDictKey === core || lowerDictKey.includes(core))) return;
+                
+                // БЕЗОПАСНОЕ ЧТЕНИЕ СЛОВАРЯ (учитываем, что синонимы могут быть строкой с запятыми)
+                let rawSynonyms = searchDict[dictKey];
+                let synArray = Array.isArray(rawSynonyms) ? rawSynonyms : String(rawSynonyms).split(',');
+                
+                let synonymsList = synArray.map(s => String(s).replace(/\s+/g, '').toLowerCase());
+                
+                // Если заголовок совпадает с синонимом из твоей таблицы
+                if (synonymsList.some(syn => syn !== "" && (cleanHeader === syn || cleanHeader.includes(syn))) || cleanHeader === lowerDictKey) {
                     if (!autoLogisticsIndices.includes(idx)) autoLogisticsIndices.push(idx);
                 }
             });
         });
     }
 
+    // 2. Добавляем то, что ты привязал в Маппере вручную
     Object.keys(state.colMap).forEach(key => {
-        let lowerKey = key.toLowerCase();
-        if (!coreKeys.some(core => lowerKey.includes(core) || core.includes(lowerKey))) {
+        let lowerKey = String(key).toLowerCase();
+        if (!coreKeys.some(core => lowerKey === core || lowerKey.includes(core))) {
             let idx = state.colMap[key];
             if (idx !== undefined && !autoLogisticsIndices.includes(idx)) {
                 autoLogisticsIndices.push(idx);
@@ -4853,17 +4867,16 @@ window.applyMapper2Logic = function() {
     state.invoiceRows.forEach((row, index) => {
         if (!row || row.length === 0) return;
 
-        // ВАЖНО: Оригинальный getValue, который работает безупречно
         const getValue = (primaryKey, kaspiKey) => {
-            if (state.dictValues[primaryKey]) return state.dictValues[primaryKey];
-            if (kaspiKey && state.dictValues[kaspiKey]) return state.dictValues[kaspiKey];
+            if (state.dictValues && state.dictValues[primaryKey]) return state.dictValues[primaryKey];
+            if (kaspiKey && state.dictValues && state.dictValues[kaspiKey]) return state.dictValues[kaspiKey];
 
             let colIdx = state.colMap[primaryKey];
             if (colIdx === undefined && kaspiKey) colIdx = state.colMap[kaspiKey];
             if (colIdx === undefined) return '';
             
             let rawVal = String(row[colIdx] || '').trim();
-            if (state.splitRules[primaryKey]) {
+            if (state.splitRules && state.splitRules[primaryKey]) {
                 const tokens = rawVal.match(regex) || [];
                 let result = [];
                 state.splitRules[primaryKey].forEach(idx => {
@@ -4876,15 +4889,13 @@ window.applyMapper2Logic = function() {
 
         let qty = parseFloat(getValue('qty'));
         let price = parseFloat(String(getValue('price', 'cost')).replace(',', '.'));
-        
-        // Теперь здесь действительно числа, ошибки не будет
         if (isNaN(qty) || isNaN(price)) return;
 
         let rawId = getValue('barcode', 'merchant_sku');
         let barcode = /^\d{8,13}$/.test(rawId) ? rawId : "";
         let name = getValue('name', 'model') || rawId || "Без названия";
 
-        // Собираем сырые параметры ТОЛЬКО из найденных колонок
+        // Собираем сырые параметры ТОЛЬКО из найденных (разрешенных) колонок
         let rawLogisticsStr = "";
         autoLogisticsIndices.forEach(idx => {
             let val = String(row[idx] || '').trim();
@@ -4900,8 +4911,8 @@ window.applyMapper2Logic = function() {
         let attributesObj = {};
         const kaspiNumericFields = ['size', 'diameter', 'radius', 'ширина', 'профиль', 'размер'];
         const processAttribute = (key) => {
-            let lowerKey = key.toLowerCase();
-            if (coreKeys.some(core => lowerKey.includes(core) || core.includes(lowerKey))) return;
+            let lowerKey = String(key).toLowerCase();
+            if (coreKeys.some(core => lowerKey === core || lowerKey.includes(core))) return;
             
             let rawValue = getValue(key);
             if (!rawValue) return;
@@ -4911,20 +4922,20 @@ window.applyMapper2Logic = function() {
             attributesObj[key] = rawValue;
         };
         Object.keys(state.colMap).forEach(processAttribute);
-        Object.keys(state.dictValues).forEach(processAttribute);
+        if (state.dictValues) Object.keys(state.dictValues).forEach(processAttribute);
         let finalAttributes = Object.keys(attributesObj).length > 0 ? JSON.stringify(attributesObj) : "";
 
         const itemData = {
             doc_no: state.docNo,
             supplier: state.supplier,
             item_id: rawId,
-            item_name: name, // Имя остается чистым
+            item_name: name, // Оставляем имя чистым
             qty: qty,
             cost: price,
             cbm: cbm,
             weight: weight,
             attributes: finalAttributes,
-            raw_logistics: rawLogisticsStr.trim(), // Габариты лежат здесь
+            raw_logistics: rawLogisticsStr.trim(), // Габариты ложатся сюда
             staff_id: (typeof currentUser !== 'undefined' && currentUser) ? currentUser.uid : 'Auto-Import',
             
             id: rawId,
