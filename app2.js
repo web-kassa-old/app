@@ -7119,14 +7119,11 @@ window.processKaspiTemplate = async function() {
     if (!nameInput.value.trim() || !fileInput.files[0]) {
         if (!nameInput.value.trim()) nameInput.style.borderColor = 'red';
         if (!fileInput.files[0]) fileInput.style.borderColor = 'red';
-        setTimeout(() => {
-            nameInput.style.borderColor = '#555';
-            fileInput.style.borderColor = '#555';
-        }, 2000);
+        setTimeout(() => { nameInput.style.borderColor = '#555'; fileInput.style.borderColor = '#555'; }, 2000);
         return;
     }
 
-    statusDiv.innerText = '⏳ Парсинг...';
+    statusDiv.innerText = '⏳ Анализ...';
     saveBtn.disabled = true;
 
     try {
@@ -7135,7 +7132,6 @@ window.processKaspiTemplate = async function() {
         
         reader.onload = async function(e) {
             try {
-                // === ПАРСИНГ ЧЕРЕЗ SHEETJS ===
                 const data = new Uint8Array(e.target.result);
                 const workbook = XLSX.read(data, { type: 'array' });
 
@@ -7146,9 +7142,7 @@ window.processKaspiTemplate = async function() {
                 const sheet = workbook.Sheets[targetSheet];
                 const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
 
-                let requirements = [];
-                let systemKeys = [];
-                let humanNames = [];
+                let requirements = []; let systemKeys = []; let humanNames = [];
                 const humMarkers = ["артикул", "модель", "бренд", "цена"];
                 const sysMarkers = ["merchant_sku", "model", "brand", "price"];
 
@@ -7156,24 +7150,19 @@ window.processKaspiTemplate = async function() {
                     const rowText = jsonData[i].join(" ").toLowerCase();
                     if (!rowText.trim()) continue;
 
-                    let humMatch = 0;
-                    humMarkers.forEach(m => { if (rowText.includes(m)) humMatch++; });
+                    let humMatch = 0; humMarkers.forEach(m => { if (rowText.includes(m)) humMatch++; });
                     if (humMatch >= 2) { humanNames = jsonData[i]; continue; }
 
-                    let sysMatch = 0;
-                    sysMarkers.forEach(m => { if (rowText.includes(m)) sysMatch++; });
+                    let sysMatch = 0; sysMarkers.forEach(m => { if (rowText.includes(m)) sysMatch++; });
                     if (sysMatch >= 2) { systemKeys = jsonData[i]; continue; }
 
-                    if (rowText.includes("обязательное") || rowText.includes("обязат.")) {
-                        requirements = jsonData[i]; continue;
-                    }
+                    if (rowText.includes("обязательное") || rowText.includes("обязат.")) { requirements = jsonData[i]; continue; }
                 }
 
                 if (humanNames.length === 0 || systemKeys.length === 0) {
                     throw new Error("Не удалось распознать структуру шаблона Kaspi.");
                 }
 
-                // === ГЕНЕРАЦИЯ УНИКАЛЬНОГО ХЭША (ДНК ШАБЛОНА) ===
                 const hashData = new TextEncoder().encode(systemKeys.join("|"));
                 const hashBuffer = await crypto.subtle.digest('SHA-256', hashData);
                 const hashArray = Array.from(new Uint8Array(hashBuffer));
@@ -7183,98 +7172,93 @@ window.processKaspiTemplate = async function() {
                     templateHash: templateHash,
                     humanNames: humanNames,
                     systemKeys: systemKeys,
-                    requirements: requirements
+                    requirements: requirements,
+                    isPreflight: true // 👈 Секретный флаг для быстрой проверки
                 };
 
-                // === 1. ПРЕДВАРИТЕЛЬНАЯ ПРОВЕРКА (PRE-FLIGHT CHECK) ===
-                statusDiv.innerText = '🔍 Проверка базы...';
-                const newKeysStr = systemKeys.join('|');
+                // === 1. МГНОВЕННАЯ ПРОВЕРКА БЕЗ BASE64 ===
+                statusDiv.innerText = '🔍 Поиск дубликатов...';
                 
-                try {
-                    const checkRes = await window.smartFetch(APPS_SCRIPT_URL, {
-                        action: 'checkKaspiHash',
-                        api_key: CLIENT_API_KEY,
-                        keysStr: newKeysStr
-                    });
+                const checkPayload = {
+                    action: 'saveKaspiTemplate',
+                    api_key: CLIENT_API_KEY,
+                    category: nameInput.value.trim(),
+                    headersJson: JSON.stringify(extractedHeaders),
+                    fileBase64: "dummy" // Пустышка, чтобы шлюз пропустил
+                };
 
-                    if (checkRes && checkRes.exists) {
-                        // Блокируем загрузку и мгновенно спрашиваем пользователя
-                        const wantsToRename = confirm(`⚠️ Шаблон с такой структурой уже есть в базе!\n\nТекущее имя: "${checkRes.existingName}".\n\nХотите переименовать его в "${nameInput.value.trim()}"?`);
+                const checkRes = await window.smartFetch(APPS_SCRIPT_URL, checkPayload);
+
+                if (checkRes && checkRes.error === 'DUPLICATE_HASH') {
+                    // НАШЛИ ДУБЛИКАТ! Вызываем окно переименования
+                    const wantsToRename = confirm(`⚠️ Шаблон с такой структурой уже существует!\n\nОн называется: "${checkRes.existingName}".\n\nХотите переименовать его в "${nameInput.value.trim()}"?`);
+                    
+                    if (wantsToRename) {
+                        statusDiv.innerText = '✏️ Переименование...';
+                        extractedHeaders.isPreflight = false;
+                        extractedHeaders.isRename = true; // Секретный флаг переименования
+                        extractedHeaders.oldName = checkRes.existingName;
                         
-                        if (wantsToRename) {
-                            statusDiv.innerText = '✏️ Переименование...';
-                            const renameRes = await window.smartFetch(APPS_SCRIPT_URL, {
-                                action: 'renameKaspiTemplate',
-                                api_key: CLIENT_API_KEY,
-                                rowIndex: checkRes.rowIndex,
-                                newName: nameInput.value.trim()
-                            });
-                            
-                            if (renameRes && renameRes.success) {
-                                alert("✅ Шаблон успешно переименован!");
-                                statusDiv.innerText = '✅';
-                                setTimeout(closeKaspiManager, 1500);
-                            } else {
-                                alert("❌ Ошибка переименования.");
-                                statusDiv.innerText = '❌';
-                            }
+                        const renamePayload = {
+                            action: 'saveKaspiTemplate',
+                            api_key: CLIENT_API_KEY,
+                            category: nameInput.value.trim(),
+                            headersJson: JSON.stringify(extractedHeaders),
+                            fileBase64: "dummy"
+                        };
+                        
+                        const renameRes = await window.smartFetch(APPS_SCRIPT_URL, renamePayload);
+                        if (renameRes && renameRes.success) {
+                            alert("✅ Шаблон переименован!");
+                            statusDiv.innerText = '✅';
+                            setTimeout(closeKaspiManager, 1500);
                         } else {
-                            statusDiv.innerText = 'Отменено';
+                            alert("❌ Ошибка переименования.");
+                            statusDiv.innerText = '❌';
                         }
-                        
-                        saveBtn.disabled = false;
-                        return; // 🛑 ЖЕСТКАЯ ОСТАНОВКА: Тяжелый Base64 файл не читаем и не отправляем
+                    } else {
+                        statusDiv.innerText = 'Отменено';
                     }
-                } catch (checkErr) {
-                    console.warn("Тихая ошибка проверки дубликатов, продолжаем:", checkErr);
+                    saveBtn.disabled = false;
+                    return; // 🛑 ЖЕСТКАЯ ОСТАНОВКА: Тяжелый файл не грузим
                 }
 
-                // === 2. КОДИРОВАНИЕ И ОТПРАВКА (Если дубликатов нет) ===
+                // === 2. ЕСЛИ ДУБЛИКАТОВ НЕТ -> ГРУЗИМ ТЯЖЕЛЫЙ ФАЙЛ ===
                 statusDiv.innerText = '⏳ Загрузка файла...';
+                extractedHeaders.isPreflight = false; // Отключаем флаг
+                
                 const base64Reader = new FileReader();
                 base64Reader.readAsDataURL(file);
                 
                 base64Reader.onload = async function() {
                     try {
                         const base64String = base64Reader.result.split(',')[1]; 
-
-                        const payload = {
+                        const finalPayload = {
                             action: 'saveKaspiTemplate',
                             api_key: CLIENT_API_KEY,
                             category: nameInput.value.trim(),
-                            templateHash: templateHash,
                             headersJson: JSON.stringify(extractedHeaders),
                             fileBase64: base64String
                         };
 
-                        const res = await window.smartFetch(APPS_SCRIPT_URL, payload);
+                        const res = await window.smartFetch(APPS_SCRIPT_URL, finalPayload);
 
                         if (res && res.success) {
                             statusDiv.innerText = '✅';
                             setTimeout(closeKaspiManager, 1500);
-                        } 
-                        // Оставляем как резервный предохранитель на случай гонки запросов
-                        else if (res && res.error === 'DUPLICATE_HASH') {
-                            alert(`⚠️ Шаблон был создан кем-то другим только что под именем: "${res.existingName}".`);
-                            statusDiv.innerText = '⚠️';
-                        } 
-                        else {
+                        } else {
                             throw new Error(res ? res.error : "Пустой ответ");
                         }
                     } catch (err) {
                         statusDiv.innerText = '❌';
-                        console.error("Ошибка отправки:", err);
+                        console.error("Ошибка загрузки:", err);
                     } finally {
-                        if (statusDiv.innerText !== '⚠️') saveBtn.disabled = false;
+                        saveBtn.disabled = false;
                     }
                 };
                 
-                base64Reader.onerror = function() {
-                    throw new Error("Ошибка чтения Base64");
-                };
-
             } catch (err) {
-                console.error("Ошибка парсинга XLSX:", err);
+                console.error("Ошибка парсинга:", err);
                 statusDiv.innerText = '❌';
                 saveBtn.disabled = false;
             }
