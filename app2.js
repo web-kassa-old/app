@@ -7971,12 +7971,9 @@ window.unlockInvoiceUpload = function() {
 
 // 3. Вывод имени файла (когда файл уже выбран)
 window.updateFileNameCompactUI = function(input) {
-    const fileNameText = document.getElementById('fileNameTextCompact');
-    if (!fileNameText) return;
-
     let fileName = "";
     
-    // Проверяем: нам передали DOM-элемент (input.files) или готовую строку?
+    // Достаем имя файла (из инпута или переданной строки)
     if (input && input.files && input.files.length > 0) {
         fileName = input.files[0].name;
     } else if (typeof input === 'string' && input.trim() !== '') {
@@ -7984,15 +7981,13 @@ window.updateFileNameCompactUI = function(input) {
     }
 
     if (fileName) {
-        // УДАЛЯЕМ ЯКОРЬ, чтобы переводчик не стер реальное имя файла
-        fileNameText.removeAttribute('data-i18n');
-        fileNameText.innerText = fileName;
-        fileNameText.classList.remove('file-placeholder-text');
-        
-        const iconSpan = fileNameText.previousElementSibling;
-        if (iconSpan) iconSpan.innerText = '✅';
+        // Отдаем имя файла с галочкой нашему главному дирижеру
+        if (typeof setUploadButtonState === 'function') {
+            setUploadButtonState(true, '✅ ' + fileName);
+        }
     } else {
-        window.unlockInvoiceUpload(); // Если сбросили файл, возвращаем состояние разблокировки
+        // Если пользователь отменил выбор файла, возвращаем дефолтный текст
+        window.unlockInvoiceUpload(); 
     }
 };
 
