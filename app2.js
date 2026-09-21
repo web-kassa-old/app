@@ -7135,7 +7135,7 @@ window.processKaspiTemplate = async function() {
         
         reader.onload = async function(e) {
             try {
-                // === ПАРСИНГ ЧЕРЕЗ SHEETJS (БЕЗ ТЯЖЕЛЫХ СПРАВОЧНИКОВ) ===
+                // === ПАРСИНГ ЧЕРЕЗ SHEETJS ===
                 const data = new Uint8Array(e.target.result);
                 const workbook = XLSX.read(data, { type: 'array' });
 
@@ -7173,8 +7173,16 @@ window.processKaspiTemplate = async function() {
                     throw new Error("Не удалось распознать структуру шаблона Kaspi.");
                 }
 
-                // Облегченный JSON (только структура, без справочника values!)
+                // === ГЕНЕРАЦИЯ УНИКАЛЬНОГО ХЭША (ДНК ШАБЛОНА) ===
+                // Склеиваем системные ключи и получаем из них SHA-256 хэш
+                const hashData = new TextEncoder().encode(systemKeys.join("|"));
+                const hashBuffer = await crypto.subtle.digest('SHA-256', hashData);
+                const hashArray = Array.from(new Uint8Array(hashBuffer));
+                const templateHash = 'hash_' + hashArray.map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 12);
+
+                // Облегченный JSON + Хэш
                 const extractedHeaders = {
+                    templateHash: templateHash, // Вшиваем ДНК внутрь JSON
                     humanNames: humanNames,
                     systemKeys: systemKeys,
                     requirements: requirements
@@ -7192,6 +7200,7 @@ window.processKaspiTemplate = async function() {
                             action: 'saveKaspiTemplate',
                             api_key: CLIENT_API_KEY,
                             category: nameInput.value.trim(),
+                            templateHash: templateHash, // 👈 Передаем хэш отдельным параметром для быстрого поиска на сервере
                             headersJson: JSON.stringify(extractedHeaders),
                             fileBase64: base64String
                         };
@@ -7199,19 +7208,24 @@ window.processKaspiTemplate = async function() {
                         const res = await window.smartFetch(APPS_SCRIPT_URL, payload);
 
                         if (res && res.success) {
-                            // 👇 НАШ МАЯЧОК
                             console.log(`🎉 Успешно! Файл базы: "${res.dbName}", Строка: ${res.row}`);
-                            
                             statusDiv.innerText = '✅';
                             setTimeout(closeKaspiManager, 1500);
-                        } else {
+                        } 
+                        // 👇 БЛОК ЗАЩИТЫ ОТ ДУБЛИКАТОВ
+                        else if (res && res.error === 'DUPLICATE_HASH') {
+                            alert(`⚠️ Шаблон с такой структурой уже существует!\n\nОн был сохранен ранее под именем: "${res.existingName}".\n\nПожалуйста, выберите его из списка при импорте. Создание дубликатов заблокировано для корректной работы умной памяти.`);
+                            statusDiv.innerText = '⚠️';
+                            saveBtn.disabled = false;
+                        } 
+                        else {
                             throw new Error(res ? res.error : "Пустой ответ от сервера");
                         }
                     } catch (err) {
                         statusDiv.innerText = '❌';
                         console.error("Ошибка отправки на сервер:", err);
                     } finally {
-                        saveBtn.disabled = false;
+                        if (statusDiv.innerText !== '⚠️') saveBtn.disabled = false;
                     }
                 };
                 
