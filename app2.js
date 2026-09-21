@@ -8015,8 +8015,13 @@ window.handleTemplateChange = function(event) {
         
         // Даем браузеру 150мс, чтобы спокойно закрыть системный UI
         setTimeout(() => {
-            const modal = document.getElementById('newTemplateModal');
-            if (modal) modal.style.display = 'flex';
+            // 👇 ТЕПЕРЬ ВЫЗЫВАЕМ ЕДИНУЮ ФУНКЦИЮ ШАБЛОНОВ
+            if (typeof openKaspiManager === 'function') {
+                openKaspiManager();
+            } else {
+                const modal = document.getElementById('kaspi-modal');
+                if (modal) modal.style.display = 'flex';
+            }
             event.target.selectedIndex = 0;
         }, 150); 
         
