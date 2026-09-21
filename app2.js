@@ -7126,7 +7126,7 @@ window.processKaspiTemplate = async function() {
         return;
     }
 
-    statusDiv.innerText = '⏳';
+    statusDiv.innerText = '⏳ Парсинг...';
     saveBtn.disabled = true;
 
     try {
@@ -7174,21 +7174,63 @@ window.processKaspiTemplate = async function() {
                 }
 
                 // === ГЕНЕРАЦИЯ УНИКАЛЬНОГО ХЭША (ДНК ШАБЛОНА) ===
-                // Склеиваем системные ключи и получаем из них SHA-256 хэш
                 const hashData = new TextEncoder().encode(systemKeys.join("|"));
                 const hashBuffer = await crypto.subtle.digest('SHA-256', hashData);
                 const hashArray = Array.from(new Uint8Array(hashBuffer));
                 const templateHash = 'hash_' + hashArray.map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 12);
 
-                // Облегченный JSON + Хэш
                 const extractedHeaders = {
-                    templateHash: templateHash, // Вшиваем ДНК внутрь JSON
+                    templateHash: templateHash,
                     humanNames: humanNames,
                     systemKeys: systemKeys,
                     requirements: requirements
                 };
 
-                // === КОДИРОВАНИЕ И ОТПРАВКА ===
+                // === 1. ПРЕДВАРИТЕЛЬНАЯ ПРОВЕРКА (PRE-FLIGHT CHECK) ===
+                statusDiv.innerText = '🔍 Проверка базы...';
+                const newKeysStr = systemKeys.join('|');
+                
+                try {
+                    const checkRes = await window.smartFetch(APPS_SCRIPT_URL, {
+                        action: 'checkKaspiHash',
+                        api_key: CLIENT_API_KEY,
+                        keysStr: newKeysStr
+                    });
+
+                    if (checkRes && checkRes.exists) {
+                        // Блокируем загрузку и мгновенно спрашиваем пользователя
+                        const wantsToRename = confirm(`⚠️ Шаблон с такой структурой уже есть в базе!\n\nТекущее имя: "${checkRes.existingName}".\n\nХотите переименовать его в "${nameInput.value.trim()}"?`);
+                        
+                        if (wantsToRename) {
+                            statusDiv.innerText = '✏️ Переименование...';
+                            const renameRes = await window.smartFetch(APPS_SCRIPT_URL, {
+                                action: 'renameKaspiTemplate',
+                                api_key: CLIENT_API_KEY,
+                                rowIndex: checkRes.rowIndex,
+                                newName: nameInput.value.trim()
+                            });
+                            
+                            if (renameRes && renameRes.success) {
+                                alert("✅ Шаблон успешно переименован!");
+                                statusDiv.innerText = '✅';
+                                setTimeout(closeKaspiManager, 1500);
+                            } else {
+                                alert("❌ Ошибка переименования.");
+                                statusDiv.innerText = '❌';
+                            }
+                        } else {
+                            statusDiv.innerText = 'Отменено';
+                        }
+                        
+                        saveBtn.disabled = false;
+                        return; // 🛑 ЖЕСТКАЯ ОСТАНОВКА: Тяжелый Base64 файл не читаем и не отправляем
+                    }
+                } catch (checkErr) {
+                    console.warn("Тихая ошибка проверки дубликатов, продолжаем:", checkErr);
+                }
+
+                // === 2. КОДИРОВАНИЕ И ОТПРАВКА (Если дубликатов нет) ===
+                statusDiv.innerText = '⏳ Загрузка файла...';
                 const base64Reader = new FileReader();
                 base64Reader.readAsDataURL(file);
                 
@@ -7200,7 +7242,7 @@ window.processKaspiTemplate = async function() {
                             action: 'saveKaspiTemplate',
                             api_key: CLIENT_API_KEY,
                             category: nameInput.value.trim(),
-                            templateHash: templateHash, // 👈 Передаем хэш отдельным параметром для быстрого поиска на сервере
+                            templateHash: templateHash,
                             headersJson: JSON.stringify(extractedHeaders),
                             fileBase64: base64String
                         };
@@ -7208,22 +7250,20 @@ window.processKaspiTemplate = async function() {
                         const res = await window.smartFetch(APPS_SCRIPT_URL, payload);
 
                         if (res && res.success) {
-                            console.log(`🎉 Успешно! Файл базы: "${res.dbName}", Строка: ${res.row}`);
                             statusDiv.innerText = '✅';
                             setTimeout(closeKaspiManager, 1500);
                         } 
-                        // 👇 БЛОК ЗАЩИТЫ ОТ ДУБЛИКАТОВ
+                        // Оставляем как резервный предохранитель на случай гонки запросов
                         else if (res && res.error === 'DUPLICATE_HASH') {
-                            alert(`⚠️ Шаблон с такой структурой уже существует!\n\nОн был сохранен ранее под именем: "${res.existingName}".\n\nПожалуйста, выберите его из списка при импорте. Создание дубликатов заблокировано для корректной работы умной памяти.`);
+                            alert(`⚠️ Шаблон был создан кем-то другим только что под именем: "${res.existingName}".`);
                             statusDiv.innerText = '⚠️';
-                            saveBtn.disabled = false;
                         } 
                         else {
-                            throw new Error(res ? res.error : "Пустой ответ от сервера");
+                            throw new Error(res ? res.error : "Пустой ответ");
                         }
                     } catch (err) {
                         statusDiv.innerText = '❌';
-                        console.error("Ошибка отправки на сервер:", err);
+                        console.error("Ошибка отправки:", err);
                     } finally {
                         if (statusDiv.innerText !== '⚠️') saveBtn.disabled = false;
                     }
