@@ -7095,29 +7095,60 @@ function openDriveBase() {
 }
 
 // Открывает окно менеджера шаблонов
-function openKaspiManager() {
+// === ГЛОБАЛЬНЫЙ ФЛАГ ИСТОЧНИКА ===
+window.kaspiModalSource = ''; 
+
+window.openKaspiManager = function() {
+    window.kaspiModalSource = 'settings'; // Запоминаем, что пришли из Настроек
+    
     // Очищаем поля при каждом новом открытии
     document.getElementById('kaspi-category-name').value = '';
     document.getElementById('kaspi-template-file').value = '';
     document.getElementById('kaspi-status').innerText = '';
     
-    // Показываем окно (используем flex, чтобы содержимое центрировалось, как у вас)
+    // Показываем окно
     document.getElementById('kaspi-modal').style.display = 'flex';
 }
 
-// Закрывает окно менеджера шаблонов
-function closeKaspiManager() {
-    document.getElementById('kaspi-modal').style.display = 'none';
-}
+window.handleTemplateChange = function(event) {
+    const selectedValue = event.target.value;
+
+    if (selectedValue === 'new' || selectedValue === 'new_template') {
+        window.kaspiModalSource = 'income'; // Запоминаем, что пришли из Приемки
+        window.lockInvoiceUpload();
+        
+        // Очищаем поля нашей родной модалки
+        document.getElementById('kaspi-category-name').value = '';
+        document.getElementById('kaspi-template-file').value = '';
+        document.getElementById('kaspi-status').innerText = '';
+        
+        // Открываем единую модалку Kaspi!
+        const modal = document.getElementById('kaspi-modal');
+        if (modal) modal.style.display = 'flex';
+        
+        setTimeout(() => { event.target.selectedIndex = 0; }, 50);
+    } else if (selectedValue !== '') {
+        setTimeout(() => { window.unlockInvoiceUpload(); }, 150);
+    } else {
+        window.lockInvoiceUpload();
+    }
+};
+
+// 3. Закрытие модалки
+window.closeKaspiManager = function() {
+    const modal = document.getElementById('kaspi-modal');
+    if (modal) modal.style.display = 'none';
+};
 
 window.processKaspiTemplate = async function() {
     const nameInput = document.getElementById('kaspi-category-name');
     const fileInput = document.getElementById('kaspi-template-file');
     const statusDiv = document.getElementById('kaspi-status');
     const saveBtn = document.getElementById('btn-save-kaspi');
+    const categoryName = nameInput.value.trim();
 
-    if (!nameInput.value.trim() || !fileInput.files[0]) {
-        if (!nameInput.value.trim()) nameInput.style.borderColor = 'red';
+    if (!categoryName || !fileInput.files[0]) {
+        if (!categoryName) nameInput.style.borderColor = 'red';
         if (!fileInput.files[0]) fileInput.style.borderColor = 'red';
         setTimeout(() => {
             nameInput.style.borderColor = '#555';
@@ -7126,7 +7157,25 @@ window.processKaspiTemplate = async function() {
         return;
     }
 
-    statusDiv.innerText = '⏳';
+    // === ФРОНТЕНД ЗАЩИТА ОТ ДУБЛИКАТОВ ===
+    const templateSelect = document.getElementById('kaspiTemplateSelect');
+    if (templateSelect) {
+        const existingOptions = Array.from(templateSelect.options).map(opt => opt.text.trim().toLowerCase());
+        if (existingOptions.includes(categoryName.toLowerCase())) {
+            Swal.fire({ icon: 'warning', title: 'Дубликат', text: `Шаблон "${categoryName}" уже существует. Придумайте другое имя.` });
+            return;
+        }
+    }
+
+    // === ГЛОБАЛЬНАЯ ИНДИКАЦИЯ ПРОЦЕССА (Блокировка экрана) ===
+    Swal.fire({
+        title: 'Анализ и сохранение...',
+        html: 'Пожалуйста, подождите...',
+        allowOutsideClick: false,
+        showConfirmButton: false,
+        willOpen: () => { Swal.showLoading(); }
+    });
+
     saveBtn.disabled = true;
 
     try {
@@ -7135,7 +7184,6 @@ window.processKaspiTemplate = async function() {
         
         reader.onload = async function(e) {
             try {
-                // === ПАРСИНГ ЧЕРЕЗ SHEETJS (БЕЗ ТЯЖЕЛЫХ СПРАВОЧНИКОВ) ===
                 const data = new Uint8Array(e.target.result);
                 const workbook = XLSX.read(data, { type: 'array' });
 
@@ -7173,14 +7221,19 @@ window.processKaspiTemplate = async function() {
                     throw new Error("Не удалось распознать структуру шаблона Kaspi.");
                 }
 
-                // Облегченный JSON (только структура, без справочника values!)
+                // === ГЕНЕРАЦИЯ ХЭША (Для гибридной памяти) ===
+                const hashData = new TextEncoder().encode(systemKeys.join("|"));
+                const hashBuffer = await crypto.subtle.digest('SHA-256', hashData);
+                const hashArray = Array.from(new Uint8Array(hashBuffer));
+                const templateHash = 'hash_' + hashArray.map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 12);
+
                 const extractedHeaders = {
+                    templateHash: templateHash, // Записываем сигнатуру
                     humanNames: humanNames,
                     systemKeys: systemKeys,
                     requirements: requirements
                 };
 
-                // === КОДИРОВАНИЕ И ОТПРАВКА ===
                 const base64Reader = new FileReader();
                 base64Reader.readAsDataURL(file);
                 
@@ -7199,17 +7252,38 @@ window.processKaspiTemplate = async function() {
                         const res = await window.smartFetch(APPS_SCRIPT_URL, payload);
 
                         if (res && res.success) {
-                            // 👇 НАШ МАЯЧОК
                             console.log(`🎉 Успешно! Файл базы: "${res.dbName}", Строка: ${res.row}`);
                             
-                            statusDiv.innerText = '✅';
-                            setTimeout(closeKaspiManager, 1500);
+                            // Уведомление об успехе
+                            Swal.fire({ icon: 'success', title: 'Готово!', text: 'Шаблон успешно сохранен', timer: 1500, showConfirmButton: false });
+                            
+                            // Закрываем окно ввода
+                            if (typeof closeKaspiManager === 'function') closeKaspiManager();
+
+                            // === МАРШРУТИЗАТОР ===
+                            if (window.kaspiModalSource === 'income') {
+                                // Если пришли из Приемки: обновляем список и выбираем шаблон
+                                if (typeof window.loadKaspiTemplates === 'function') {
+                                    await window.loadKaspiTemplates();
+                                    if (templateSelect) {
+                                        for (let i = 0; i < templateSelect.options.length; i++) {
+                                            if (templateSelect.options[i].text.trim().toLowerCase() === categoryName.toLowerCase()) {
+                                                templateSelect.selectedIndex = i;
+                                                templateSelect.dispatchEvent(new Event('change'));
+                                                break;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            // Если пришли из Настроек — скрипт завершается, пользователь остается в Настройках
+                            
                         } else {
                             throw new Error(res ? res.error : "Пустой ответ от сервера");
                         }
                     } catch (err) {
-                        statusDiv.innerText = '❌';
                         console.error("Ошибка отправки на сервер:", err);
+                        Swal.fire({ icon: 'error', title: 'Ошибка отправки', text: err.message });
                     } finally {
                         saveBtn.disabled = false;
                     }
@@ -7221,7 +7295,7 @@ window.processKaspiTemplate = async function() {
 
             } catch (err) {
                 console.error("Ошибка парсинга XLSX:", err);
-                statusDiv.innerText = '❌';
+                Swal.fire({ icon: 'error', title: 'Ошибка файла', text: err.message });
                 saveBtn.disabled = false;
             }
         };
@@ -7230,7 +7304,7 @@ window.processKaspiTemplate = async function() {
 
     } catch (error) {
         console.error("Критическая ошибка:", error);
-        statusDiv.innerText = '❌';
+        Swal.fire({ icon: 'error', title: 'Критическая ошибка', text: error.message });
         saveBtn.disabled = false;
     }
 };
@@ -8000,35 +8074,6 @@ window.updateFileNameCompactUI = function(input) {
     } else {
         // Если пользователь отменил выбор файла, возвращаем дефолтный текст
         window.unlockInvoiceUpload(); 
-    }
-};
-
-// 3. Исправленный перехватчик (ТЕПЕРЬ ОН ВЫЗЫВАЕТ БЛОКИРОВКУ)
-window.handleTemplateChange = function(event) {
-    const selectedValue = event.target.value;
-    
-    // ПРИНУДИТЕЛЬНО снимаем фокус, чтобы iOS убрал системный барабан выбора
-    event.target.blur(); 
-
-    if (selectedValue === 'new' || selectedValue === 'new_template') {
-        window.lockInvoiceUpload();
-        
-        // Даем браузеру 150мс, чтобы спокойно закрыть системный UI
-        setTimeout(() => {
-            // 👇 ТЕПЕРЬ ВЫЗЫВАЕМ ЕДИНУЮ ФУНКЦИЮ ШАБЛОНОВ
-            if (typeof openKaspiManager === 'function') {
-                openKaspiManager();
-            } else {
-                const modal = document.getElementById('kaspi-modal');
-                if (modal) modal.style.display = 'flex';
-            }
-            event.target.selectedIndex = 0;
-        }, 150); 
-        
-    } else if (selectedValue !== '') {
-        setTimeout(() => { window.unlockInvoiceUpload(); }, 150);
-    } else {
-        window.lockInvoiceUpload();
     }
 };
 
