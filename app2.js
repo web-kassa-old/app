@@ -287,7 +287,13 @@
                 loading_templates: "Обновляем список шаблонов...",
                 loading_save: "Сохраняем на сервер...",
                 loading_wait: "Подождите...",
-                loading_error: "Ошибка загрузки..."
+                loading_error: "Ошибка загрузки...",
+                help_modal_title: "Режимы приёмки",
+                help_modal_internal_title: "📥 ТОЛЬКО В БАЗУ (Быстрая приёмка):",
+                help_modal_internal_desc: "Товар не пойдет на маркетплейс. Отличный вариант для обычных продаж.",
+                help_modal_kaspi_title: "🛒 БАЗА + KASPI (Умный импорт):",
+                help_modal_kaspi_desc: "Умная приёмка. Потребуется указать Бренд, Размеры и другие обязательные атрибуты.",
+                help_modal_close: "Понятно"
             },
             kz: {
                 btn_sale: "САТУ", btn_return: "ҚАЙТАРУ", search_placeholder: "ІЗДЕУ...",
@@ -577,7 +583,13 @@
                 loading_templates: "Шаблондар тізімі жаңартылуда...",
                 loading_save: "Серверге сақталуда...",
                 loading_wait: "Күте тұрыңыз...",
-                loading_error: "Жүктеу қатесі..."
+                loading_error: "Жүктеу қатесі...",
+                help_modal_title: "Қабылдау режимдері",
+                help_modal_internal_title: "📥 ТЕК БАЗАҒА (Жылдам қабылдау):",
+                help_modal_internal_desc: "Тауар маркетплейске шығарылмайды. Қарапайым сатылымдар үшін оңтайлы нұсқа.",
+                help_modal_kaspi_title: "🛒 БАЗА + KASPI (Ақылды импорт):",
+                help_modal_kaspi_desc: "Ақылды қабылдау. Бренд, Өлшемдер және басқа да міндетті атрибуттарды көрсету талап етіледі.",
+                help_modal_close: "Түсінікті"
             }
         };
 
@@ -8034,12 +8046,43 @@ if (templateFileInput) {
     });
 }
 
-// Справка
 window.showImportHelp = function() {
-    alert(
-        "📥 ТОЛЬКО В БАЗУ:\nБыстрая приёмка. Товар не пойдет на маркетплейс.\n\n" +
-        "🛒 БАЗА + KASPI:\nУмная приёмка. Потребуется указать Бренд, Размеры и т.д."
-    );
+    // Удаляем старое окно, если оно есть
+    if (document.getElementById('custom-help-modal')) {
+        document.getElementById('custom-help-modal').remove();
+    }
+
+    // Создаем HTML с твоими атрибутами data-i18n и дефолтным русским текстом
+    const modalHTML = `
+        <div id="custom-help-modal" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 100000; display: flex; justify-content: center; align-items: center; backdrop-filter: blur(3px); padding: 20px;">
+            <div style="background: var(--bg-modal, #1e1e1e); color: var(--text-main, #ffffff); padding: 25px; border-radius: 12px; width: 100%; max-width: 350px; border: 1px solid var(--border-light, #333); box-shadow: 0 10px 25px rgba(0,0,0,0.5); box-sizing: border-box; font-family: sans-serif;">
+                
+                <h3 style="margin-top: 0; margin-bottom: 20px; font-size: 18px; text-align: center; color: var(--accent-blue, #3498db);" data-i18n="help_modal_title">Режимы приёмки</h3>
+                
+                <div style="margin-bottom: 15px;">
+                    <strong style="display: block; margin-bottom: 5px; font-size: 15px;" data-i18n="help_modal_internal_title">📥 ТОЛЬКО В БАЗУ (Быстрая приёмка):</strong>
+                    <span style="font-size: 13px; color: var(--text-muted, #aaa); line-height: 1.4; display: block;" data-i18n="help_modal_internal_desc">Товар не пойдет на маркетплейс. Отличный вариант для обычных продаж.</span>
+                </div>
+                
+                <div style="margin-bottom: 25px;">
+                    <strong style="display: block; margin-bottom: 5px; font-size: 15px; color: var(--accent-green, #2ecc71);" data-i18n="help_modal_kaspi_title">🛒 БАЗА + KASPI (Умный импорт):</strong>
+                    <span style="font-size: 13px; color: var(--text-muted, #aaa); line-height: 1.4; display: block;" data-i18n="help_modal_kaspi_desc">Умная приёмка. Потребуется указать Бренд, Размеры и другие обязательные атрибуты.</span>
+                </div>
+                
+                <button onclick="document.getElementById('custom-help-modal').remove()" style="width: 100%; padding: 12px; border: none; border-radius: 8px; background: var(--accent-blue, #3498db); color: white; font-size: 15px; font-weight: bold; cursor: pointer; transition: opacity 0.2s;" data-i18n="help_modal_close">
+                    Понятно
+                </button>
+            </div>
+        </div>
+    `;
+
+    // Вставляем окно в конец body
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+
+    // Вызываем твою системную функцию перевода, чтобы она нашла новые атрибуты data-i18n и перевела их
+    if (typeof applyLanguage === 'function' && typeof currentLang !== 'undefined') {
+        applyLanguage(currentLang);
+    }
 };
 
 // --- ФАЙЛ app.js (КЛИЕНТСКАЯ ЧАСТЬ) ---
