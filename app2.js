@@ -4529,8 +4529,6 @@ window.processInvoiceFile = async function() {
     if (!fileInput || !fileInput.files.length) return alert(translations[currentLang].inc_no_file || "Выберите файл");
 
     let templateData = null;
-
-    // МАЯЧОК 1: Проверяем, понимает ли скрипт, что мы в режиме Kaspi
     console.log("=== ТЕКУЩИЙ РЕЖИМ ИМПОРТА ===", window.currentImportMode);
 
     if (window.currentImportMode === 'kaspi') {
@@ -4543,21 +4541,19 @@ window.processInvoiceFile = async function() {
             const payload = { action: 'getKaspiTemplate', api_key: CLIENT_API_KEY, category: templateName };
             const res = await window.smartFetch(GATEWAY_URL, payload);
             
-            // МАЯЧОК 2: Смотрим, что реально отдал сервер
             console.log("=== ОТВЕТ СЕРВЕРА С ШАБЛОНОМ ===", res);
 
-            // Умный поиск ключа (защита от несовпадений регистра)
             const headersRaw = res.headersJson || res.headers_json || res.headers;
 
             if (res && res.success && headersRaw) {
-    // Если данные пришли как строка — парсим, если уже объект — оставляем
-    templateData = typeof headersRaw === 'string' ? JSON.parse(headersRaw) : headersRaw;
-    
-    // Ищем массив по любым возможным названиям ключа
-    const keysArray = templateData.systemKeys || templateData.system_keys || templateData.keys || templateData.fields || Object.keys(templateData);
-    
-    alert(`✅ Шаблон "${templateName}" скачан с сервера!\nНайдено полей: ${keysArray ? keysArray.length : 0}\nОткрываем Маппер...`);
-} else {
+                templateData = typeof headersRaw === 'string' ? JSON.parse(headersRaw) : headersRaw;
+                
+                // === ПЕРЕДАЕМ ПАМЯТЬ С СЕРВЕРА ===
+                if (res.memoryJson) templateData.memoryJson = res.memoryJson;
+                
+                const keysArray = templateData.systemKeys || templateData.system_keys || templateData.keys || templateData.fields || Object.keys(templateData);
+                alert(`✅ Шаблон "${templateName}" скачан!\nНайдено полей: ${keysArray ? keysArray.length : 0}\nОткрываем Маппер...`);
+            } else {
                 throw new Error("Сервер ответил, но структура шапок (headersJson) пустая или отсутствует");
             }
         } catch (err) {
@@ -4565,7 +4561,6 @@ window.processInvoiceFile = async function() {
             return alert("Ошибка загрузки шаблона: " + err.message);
         }
     } else {
-        // Запускаем экран загрузки без всяких предупреждений
         window.showLoading("Чтение накладной...");
     }
 
@@ -4589,24 +4584,18 @@ window.processInvoiceFile = async function() {
 
         const workbook = XLSX.read(arrayBuffer, {type: 'array'});
         let rows = [];
-for (let sName of workbook.SheetNames) {
+        for (let sName of workbook.SheetNames) {
             let sRows = XLSX.utils.sheet_to_json(workbook.Sheets[sName], {header: 1});
             if (sRows && sRows.length > 0) { rows = sRows; break; }
         }
         if (rows.length === 0) throw new Error("Пустой файл");
 
-        // === УЛЬТРА-ПОИСК ШАПКИ НАКЛАДНОЙ ===
         let file_doc_no = 'UNKNOWN';
         let file_supplier = 'UNKNOWN';
 
-        // Собираем все синонимы в единые массивы, независимо от ключей
         let dict = window.mapper2State?.dictValues || (typeof invoiceSynonyms !== 'undefined' ? invoiceSynonyms : {});
-        let supSyns = [].concat(dict['Поиск имени поставщика'] || [], dict['supplier_keywords'] || [], ['the seller', 'vendor', 'supplier', 'поставщик']);
-        let docSyns = [].concat(dict['Номер накладной'] || [], dict['invoice_no'] || [], ['invoice no', 'invoice', 'инвойс', '№ накл']);
-        
-        // Очищаем от пробелов для 100% совпадения
-        supSyns = supSyns.map(s => String(s).replace(/\s+/g, '').toLowerCase()).filter(Boolean);
-        docSyns = docSyns.map(s => String(s).replace(/\s+/g, '').toLowerCase()).filter(Boolean);
+        let supSyns = [].concat(dict['Поиск имени поставщика'] || [], dict['supplier_keywords'] || [], ['the seller', 'vendor', 'supplier', 'поставщик']).map(s => String(s).replace(/\s+/g, '').toLowerCase()).filter(Boolean);
+        let docSyns = [].concat(dict['Номер накладной'] || [], dict['invoice_no'] || [], ['invoice no', 'invoice', 'инвойс', '№ накл']).map(s => String(s).replace(/\s+/g, '').toLowerCase()).filter(Boolean);
 
         for (let i = 0; i < Math.min(15, rows.length); i++) {
             let row = rows[i] || [];
@@ -4615,7 +4604,6 @@ for (let sName of workbook.SheetNames) {
                 let cleanCell = cellVal.replace(/\s+/g, '');
                 if (!cleanCell) continue;
 
-                // 1. Поставщик (первое непустое значение справа)
                 if (supSyns.some(syn => cleanCell.includes(syn))) {
                     for (let k = j + 1; k < row.length; k++) {
                         if (row[k] && String(row[k]).trim() !== '') {
@@ -4625,7 +4613,6 @@ for (let sName of workbook.SheetNames) {
                     }
                 }
                 
-                // 2. Инвойс (строго соседняя ячейка справа)
                 if (docSyns.some(syn => cleanCell.includes(syn))) {
                     let val = String(row[j+1] || '').trim();
                     if (val && val !== 'UNKNOWN') file_doc_no = val;
@@ -4640,7 +4627,6 @@ for (let sName of workbook.SheetNames) {
             let now = new Date();
             window.mapper2State.docNo = `IN-${String(now.getDate()).padStart(2, '0')}.${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
         }
-        // === КОНЕЦ ПОИСКА ШАПКИ ===
 
         let firstDataRowIdx = -1;
         for (let i = 0; i < Math.min(50, rows.length); i++) {
@@ -4655,13 +4641,15 @@ for (let sName of workbook.SheetNames) {
         }
 
         if (firstDataRowIdx > 0) {
-            window.mapper2State.invoiceHeaders = rows[firstDataRowIdx - 1] || [];
+            let rawHeaders = rows[firstDataRowIdx - 1] || [];
+            window.mapper2State.invoiceHeaders = rawHeaders.map(h => String(h || '').replace(/[\r\n]+/g, ' ').trim());
             window.mapper2State.invoiceRows = rows.slice(firstDataRowIdx);
             
-            window.hideLoading();
+            // === ГЕНЕРАЦИЯ ХЭША НАКЛАДНОЙ ===
+            let cleanString = rawHeaders.map(h => String(h||'').replace(/\s+/g, '').toLowerCase()).join('|');
+            window.mapper2State.fileHash = "hash_" + btoa(encodeURIComponent(cleanString)).replace(/[^a-zA-Z0-9]/g, '').substring(0, 25);
             
-            // МАЯЧОК 4: Проверяем, что передается в отрисовщик
-            console.log("=== ДАННЫЕ ДЛЯ ОТРИСОВКИ ===", templateData);
+            window.hideLoading();
             window.renderMapper2Cards(templateData); 
         } else {
             throw new Error("Не удалось найти таблицу с товарами");
@@ -4680,10 +4668,27 @@ window.renderMapper2Cards = function(templateData) {
 
     let allReqs = [];
     
-    // 1. Динамическая сборка карточек из JSON Kaspi (если включен умный режим)
+    // === ЧТЕНИЕ ПАМЯТИ ===
+    let memoryBlock = {};
+    if (templateData && templateData.memoryJson) {
+        try {
+            let parsedMemory = typeof templateData.memoryJson === 'string' ? JSON.parse(templateData.memoryJson) : templateData.memoryJson;
+            // Сохраняем сырую базу памяти, чтобы потом обновить ее
+            window.mapper2State.rawMemoryJson = typeof templateData.memoryJson === 'string' ? templateData.memoryJson : JSON.stringify(templateData.memoryJson);
+            
+            // Ищем наш текущий файл в памяти
+            if (parsedMemory[window.mapper2State.fileHash]) {
+                memoryBlock = parsedMemory[window.mapper2State.fileHash];
+                window.mapper2State.colMap = memoryBlock.colMap || {};
+                window.mapper2State.dictValues = memoryBlock.dictValues || {};
+                window.mapper2State.splitRules = memoryBlock.splitRules || {};
+                console.log("✅ Память загружена для хэша:", window.mapper2State.fileHash);
+            }
+        } catch(e) { console.error("Ошибка парсинга памяти", e); }
+    }
+    
     if (templateData && templateData.systemKeys) {
         const { humanNames, systemKeys, requirements } = templateData;
-        
         for (let i = 0; i < systemKeys.length; i++) {
             let sysKey = systemKeys[i];
             let humName = humanNames[i];
@@ -4693,48 +4698,51 @@ window.renderMapper2Cards = function(templateData) {
             let isReq = reqText.includes('обязательн') && !reqText.includes('необязательн');
             let isDict = sysKey.toLowerCase().includes('brand') || humName.toLowerCase().includes('бренд');
 
-            allReqs.push({
-                sysKey: sysKey,
-                name: humName,
-                req: isReq,
-                desc: isDict ? 'Словарь Kaspi' : 'Текст или Сплиттер',
-                isDict: isDict
-            });
+            allReqs.push({ sysKey, name: humName, req: isReq, desc: isDict ? 'Словарь Kaspi' : 'Текст или Сплиттер', isDict });
         }
     }
 
-    // 2. Базовые системные поля POS Noir. 
-    // Добавляем их, если их еще нет в списке (чтобы не было дубликатов)
     const posBaseFields = [
         { sysKey: 'name', name: 'Наименование', req: true, desc: 'Обязательно', isDict: false },
         { sysKey: 'qty', name: 'Количество', req: true, desc: 'На складе (POS)', isDict: false },
         { sysKey: 'price', name: 'Цена закупа', req: true, desc: 'В валюте накладной', isDict: false },
         { sysKey: 'barcode', name: 'Код / Штрихкод', req: false, desc: 'Если пусто — авто EAN13', isDict: false },
-        { sysKey: 'cbm', name: 'Объем (CBM)', req: false, desc: 'Для расчета логистики', isDict: false },
-        { sysKey: 'weight', name: 'Вес (кг)', req: false, desc: 'Для расчета логистики', isDict: false }
+        { sysKey: 'cbm', name: 'Объем (CBM)', req: false, desc: 'Для расчета', isDict: false },
+        { sysKey: 'weight', name: 'Вес (кг)', req: false, desc: 'Для расчета', isDict: false }
     ];
 
     posBaseFields.forEach(field => {
-        if (!allReqs.some(r => r.sysKey === field.sysKey)) {
-            allReqs.push(field);
-        }
+        if (!allReqs.some(r => r.sysKey === field.sysKey)) allReqs.push(field);
     });
 
-    // 3. Отрисовка
     let html = '';
     allReqs.forEach(req => {
+        let mappedIndex = window.mapper2State.colMap[req.sysKey];
+        let dictValue = window.mapper2State.dictValues && window.mapper2State.dictValues[req.sysKey];
+        
+        let statusClass = 'status-empty';
+        let statusText = 'Выбрать';
+        
+        if (dictValue) {
+            statusClass = 'status-dict';
+            statusText = `[Словарь] ${dictValue}`;
+        } else if (mappedIndex !== undefined) {
+            statusClass = 'status-filled';
+            let colName = window.mapper2State.invoiceHeaders[mappedIndex] || `Колонка ${mappedIndex + 1}`;
+            statusText = `✅ ${colName}`;
+        }
+
         html += `
         <div class="req-card" onclick="openColumnSelector('${req.sysKey}', '${req.name}', ${req.isDict})">
             <div class="req-info">
                 <span class="req-title ${req.req ? 'required' : ''}">${req.name}</span>
                 <span class="req-subtitle" id="subtitle-${req.sysKey}">${req.desc}</span>
             </div>
-            <div class="req-status status-empty" id="status-${req.sysKey}">Выбрать</div>
+            <div class="req-status ${statusClass}" id="status-${req.sysKey}">${statusText}</div>
         </div>`;
     });
     container.innerHTML = html;
 
-    // Переключение интерфейса
     document.getElementById('parseInvoiceBtn').style.display = 'none';
     const importModeContainer = document.getElementById('importModeContainer');
     if (importModeContainer) importModeContainer.style.display = 'none';
@@ -4752,30 +4760,39 @@ window.openColumnSelector = function(sysKey, reqName, isDict) {
     
     document.getElementById('sheet-title').innerText = 'Источник: ' + reqName;
     
-    // Кнопка глобального значения появляется только для словарных полей (например, Бренд)
     const dictBtn = document.getElementById('btn-global-dict');
     if (dictBtn) dictBtn.style.display = isDict ? 'block' : 'none';
 
     const colList = document.getElementById('sheet-col-list');
     colList.innerHTML = '<div style="font-size: 11px; color: var(--text-muted); margin-bottom: 10px; text-transform: uppercase; font-weight: bold;">Колонки из накладной</div>';
 
-    window.mapper2State.invoiceHeaders.forEach((colName, index) => {
-        if (!colName || String(colName).trim() === '') return;
+    window.mapper2State.invoiceHeaders.forEach((rawColName, index) => {
+        // 1. БЕЗОПАСНОЕ ИМЯ: Захватываем даже колонки без заголовков
+        let colName = String(rawColName || '').trim();
+        if (!colName) colName = `[Колонка ${index + 1} - Пустой заголовок]`;
+
+        // 2. БРОНЕЖИЛЕТ ОТ ПЕРЕНОСОВ И КАВЫЧЕК (Фикс бага "Quantity pcs")
+        let displayColName = colName.replace(/[\r\n]+/g, ' '); 
+        let safeColName = displayColName.replace(/'/g, "\\'").replace(/"/g, '\\"');
 
         let previews = [];
         for (let i = 0; i < Math.min(10, window.mapper2State.invoiceRows.length); i++) {
             let val = String(window.mapper2State.invoiceRows[i][index] || '').trim();
             if (val && previews.indexOf(val) === -1 && previews.length < 3) previews.push(val);
         }
-        let previewText = previews.length > 0 ? '- ' + previews.join('<br>- ') : 'Пустая колонка';
-        let safeColName = String(colName).replace(/'/g, "\\'");
-        let safePreview = previews[0] ? String(previews[0]).replace(/'/g, "\\'") : '';
+        
+        // Скрываем только абсолютно пустые столбцы (нет ни заголовка, ни данных)
+        if (rawColName === '' && previews.length === 0) return;
+
+        let previewText = previews.length > 0 ? '- ' + previews.join('<br>- ') : 'Пустая колонка (нет данных)';
+        // Экранируем переносы и кавычки и в превью для сплиттера
+        let safePreview = previews[0] ? String(previews[0]).replace(/[\r\n]+/g, ' ').replace(/'/g, "\\'").replace(/"/g, '\\"') : '';
 
         colList.innerHTML += `
         <div class="col-item">
             <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
                 <div class="col-content" onclick="selectMapper2Col(${index}, '${safeColName}')">
-                    <div class="col-name">${colName}</div>
+                    <div class="col-name">${displayColName}</div>
                     <div class="col-examples">${previewText}</div>
                 </div>
                 <button class="btn-split" onclick="toggleSplitter(this, ${index}, '${safePreview}')">✂️</button>
@@ -4951,6 +4968,34 @@ window.applyMapper2Logic = function() {
         return alert("⚠️ Обязательно привяжите колонки:\n1. Наименование (или model)\n2. Количество (qty)\n3. Цена (price)");
     }
 
+    // === ФОНОВОЕ СОХРАНЕНИЕ ПАМЯТИ ===
+    if (window.currentImportMode === 'kaspi') {
+        const templateSelect = document.getElementById('kaspiTemplateSelect');
+        const templateName = templateSelect ? templateSelect.value : "";
+        
+        if (templateName && state.fileHash) {
+            let currentMemory = {};
+            try { currentMemory = JSON.parse(window.mapper2State.rawMemoryJson || "{}"); } catch(e) {}
+            
+            // Обновляем память конкретно для этого хэша
+            currentMemory[state.fileHash] = {
+                colMap: state.colMap,
+                dictValues: state.dictValues || {},
+                splitRules: state.splitRules || {}
+            };
+            
+            const payload = {
+                action: 'updateKaspiMemory',
+                api_key: CLIENT_API_KEY,
+                category: templateName,
+                memoryJson: JSON.stringify(currentMemory)
+            };
+            window.smartFetch(GATEWAY_URL, payload).then(res => {
+                console.log("Память маппера успешно сохранена в фоне", res);
+            }).catch(e => console.error("Ошибка фонового сохранения памяти", e));
+        }
+    }
+
     window.parsedInvoiceData = [];
     window.invoiceGroups = {}; 
     window.invoiceGroups[state.docNo] = { 
@@ -4960,8 +5005,6 @@ window.applyMapper2Logic = function() {
     };
 
     const regex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,]/g;
-
-    // Получаем индексы колонок, которые уже привязаны (Имя, Цена, Кол-во, Штрихкод и т.д.)
     let mappedIndices = Object.values(state.colMap).filter(v => v !== undefined);
 
     state.invoiceRows.forEach((row, index) => {
@@ -4995,14 +5038,10 @@ window.applyMapper2Logic = function() {
         let barcode = /^\d{8,13}$/.test(rawId) ? rawId : "";
         let name = getValue('name', 'model') || rawId || "Без названия";
 
-        // === БЕЗОПАСНЫЙ СБОР ДЛЯ СКРЫТОЙ КОЛОНКИ ===
-        // Берем все данные из непривязанных колонок (габариты, индексы, доп. параметры)
         let rawLogisticsStr = "";
         row.forEach((cellVal, idx) => {
-            if (mappedIndices.includes(idx)) return; // Пропускаем то, что уже ушло в Имя или Цену
-            
+            if (mappedIndices.includes(idx)) return;
             let val = String(cellVal || '').trim();
-            // Берем любые значения короче 30 символов, игнорируем длинные штрихкоды
             if (val && val.length < 30 && !/^\d{8,15}$/.test(val)) {
                 rawLogisticsStr += " " + val;
             }
@@ -5013,7 +5052,6 @@ window.applyMapper2Logic = function() {
         let rawWeight = getValue('weight');
         let weight = rawWeight ? parseFloat(String(rawWeight).replace(',', '.')) : "";
 
-        // Сборка JSON-атрибутов для Каспи (если они переданы из шаблона)
         let attributesObj = {};
         const kaspiNumericFields = ['size', 'diameter', 'radius', 'ширина', 'профиль', 'размер'];
         const processAttribute = (key) => {
@@ -5035,13 +5073,13 @@ window.applyMapper2Logic = function() {
             doc_no: state.docNo,
             supplier: state.supplier,
             item_id: rawId,
-            item_name: name, // Имя остается абсолютно чистым
+            item_name: name,
             qty: qty,
             cost: price,
             cbm: cbm,
             weight: weight,
             attributes: finalAttributes,
-            raw_logistics: rawLogisticsStr.trim(), // Габариты ложатся в скрытый буфер
+            raw_logistics: rawLogisticsStr.trim(),
             staff_id: (typeof currentUser !== 'undefined' && currentUser) ? currentUser.uid : 'Auto-Import',
             
             id: rawId,
@@ -5060,7 +5098,6 @@ window.applyMapper2Logic = function() {
         return alert("Не удалось сформировать товары. Убедитесь, что в колонках «Количество» и «Цена» находятся ТОЛЬКО цифры.");
     }
 
-    // Рендер интерфейса
     document.getElementById('invoiceMetadata').innerHTML = `
         <span style="color:var(--text-muted); font-size:13px;">Поставщик:</span> 
         <span style="color:var(--accent-yellow); font-weight:bold; font-size:14px;">${state.supplier}</span> 
