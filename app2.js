@@ -293,7 +293,13 @@
                 help_modal_internal_desc: "Товар не пойдет на маркетплейс. Отличный вариант для обычных продаж.",
                 help_modal_kaspi_title: "🛒 БАЗА + KASPI (Умный импорт):",
                 help_modal_kaspi_desc: "Умная приёмка. Потребуется указать Бренд, Размеры и другие обязательные атрибуты.",
-                help_modal_close: "Понятно"
+                help_modal_close: "Понятно",
+                kaspi_dup_error: "Такое имя уже существует!",
+                kaspi_saving: "Сохранение шаблона...",
+                kaspi_success: "Успешно!",
+                kaspi_err_net: "Ошибка сети",
+                kaspi_err_file: "Ошибка файла",
+                kaspi_err_sys: "Системная ошибка"
             },
             kz: {
                 btn_sale: "САТУ", btn_return: "ҚАЙТАРУ", search_placeholder: "ІЗДЕУ...",
@@ -589,7 +595,13 @@
                 help_modal_internal_desc: "Тауар маркетплейске шығарылмайды. Қарапайым сатылымдар үшін оңтайлы нұсқа.",
                 help_modal_kaspi_title: "🛒 БАЗА + KASPI (Ақылды импорт):",
                 help_modal_kaspi_desc: "Ақылды қабылдау. Бренд, Өлшемдер және басқа да міндетті атрибуттарды көрсету талап етіледі.",
-                help_modal_close: "Түсінікті"
+                help_modal_close: "Түсінікті",
+                kaspi_dup_error: "Бұл атау қазірдің өзінде бар!",
+                kaspi_saving: "Шаблонды сақтау...",
+                kaspi_success: "Сәтті сақталды!",
+                kaspi_err_net: "Желі қатесі",
+                kaspi_err_file: "Файл қатесі",
+                kaspi_err_sys: "Жүйе қатесі"
             }
         };
 
@@ -7167,7 +7179,7 @@ window.processKaspiTemplate = async function() {
         const existingOptions = Array.from(templateSelect.options).map(opt => opt.text.trim().toLowerCase());
         if (existingOptions.includes(categoryName.toLowerCase())) {
             // Выводим ошибку прямо в статус модалки
-            statusDiv.innerText = '⚠️ Такое имя уже существует!';
+            statusDiv.innerText = '⚠️ ' + translations[currentLang]['kaspi_dup_error'];
             statusDiv.style.color = '#ff4444';
             nameInput.style.borderColor = '#ff4444';
             setTimeout(() => {
@@ -7179,7 +7191,7 @@ window.processKaspiTemplate = async function() {
 
     // === ГЛОБАЛЬНЫЙ ЛОАДЕР (ПО ДОКУМЕНТАЦИИ POS NOIR) ===
     if (typeof window.showLoading === 'function') {
-        window.showLoading('Сохранение шаблона...');
+        window.showLoading(null, 'kaspi_saving');
     }
     saveBtn.disabled = true;
 
@@ -7261,7 +7273,7 @@ window.processKaspiTemplate = async function() {
                             
                             // Скрываем глобальный лоадер и показываем зеленую галочку
                             if (typeof window.hideLoading === 'function') window.hideLoading();
-                            statusDiv.innerText = '✅ Успешно!';
+                            statusDiv.innerText = '✅ ' + translations[currentLang]['kaspi_success'];
                             
                             // Ждем 1 секунду, чтобы юзер увидел галочку, и закрываем
                             setTimeout(async () => {
@@ -7290,7 +7302,7 @@ window.processKaspiTemplate = async function() {
                     } catch (err) {
                         console.error("Ошибка отправки:", err);
                         if (typeof window.hideLoading === 'function') window.hideLoading();
-                        statusDiv.innerText = '❌ Ошибка сети';
+                        statusDiv.innerText = '❌ ' + translations[currentLang]['kaspi_err_net'];
                         statusDiv.style.color = '#ff4444';
                     } finally {
                         saveBtn.disabled = false;
@@ -7304,7 +7316,7 @@ window.processKaspiTemplate = async function() {
             } catch (err) {
                 console.error("Ошибка парсинга XLSX:", err);
                 if (typeof window.hideLoading === 'function') window.hideLoading();
-                statusDiv.innerText = '❌ Ошибка файла';
+                statusDiv.innerText = '❌ ' + translations[currentLang]['kaspi_err_file'];
                 statusDiv.style.color = '#ff4444';
                 saveBtn.disabled = false;
             }
@@ -7315,7 +7327,7 @@ window.processKaspiTemplate = async function() {
     } catch (error) {
         console.error("Критическая ошибка:", error);
         if (typeof window.hideLoading === 'function') window.hideLoading();
-        statusDiv.innerText = '❌ Ошибка';
+        statusDiv.innerText = '❌ ' + translations[currentLang]['kaspi_err_sys'];
         statusDiv.style.color = '#ff4444';
         saveBtn.disabled = false;
     }
