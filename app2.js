@@ -4668,6 +4668,11 @@ window.renderMapper2Cards = function(templateData) {
 
     let allReqs = [];
     
+    // === ПРИНУДИТЕЛЬНАЯ ОЧИСТКА СОСТОЯНИЯ (Убиваем "зомби-память") ===
+    window.mapper2State.colMap = {};
+    window.mapper2State.dictValues = {};
+    window.mapper2State.splitRules = {};
+    
     // === ЧТЕНИЕ ПАМЯТИ ===
     let memoryBlock = {};
     if (templateData && templateData.memoryJson) {
