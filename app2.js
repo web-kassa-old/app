@@ -4671,13 +4671,12 @@ window.renderMapper2Cards = function(templateData) {
     const container = document.getElementById('mapper2CardsContainer');
     container.innerHTML = '';
 
-    // Принудительно очищаем старые связи
     window.mapper2State.colMap = {};
     window.mapper2State.dictValues = {};
     window.mapper2State.splitRules = {};
 
     let allReqs = [];
-    let learnedSynonyms = {}; // Наша таблица синонимов из базы
+    let learnedSynonyms = {}; 
 
     if (templateData && templateData.memoryJson) {
         try {
@@ -4714,7 +4713,6 @@ window.renderMapper2Cards = function(templateData) {
         if (!allReqs.some(r => r.sysKey === field.sysKey)) allReqs.push(field);
     });
 
-    // Базовый зашитый словарь синонимов для старта
     const baseSynonyms = {
         'qty': ['qty', 'quantity', 'кол-во', 'количество'],
         'price': ['price', 'цена', 'cost', 'unit price', 'amount'],
@@ -4724,49 +4722,29 @@ window.renderMapper2Cards = function(templateData) {
         'cbm': ['cbm', 'объем', 'volume']
     };
 
-    // Приводим все заголовки инвойса к нижнему регистру для поиска
     const headersLower = (window.mapper2State.invoiceHeaders || []).map(h => String(h||'').trim().toLowerCase());
 
     let html = '';
     allReqs.forEach(req => {
-        // === УМНЫЙ АВТО-МАППИНГ ПО СИНОНИМАМ (С ПРИОРИТЕТАМИ) ===
         if (!req.isDict) {
             let learned = learnedSynonyms[req.sysKey] || [];
             let base = baseSynonyms[req.sysKey] || [];
             let foundIndex = -1;
             
-            // Приоритет 1: ТОЧНОЕ совпадение из твоей обученной памяти
             foundIndex = headersLower.findIndex(h => h && learned.includes(h));
             
-            // Приоритет 2: ТОЧНОЕ совпадение из базовых синонимов
             if (foundIndex === -1) {
                 foundIndex = headersLower.findIndex(h => h && base.includes(h));
             }
-            
-            // Приоритет 3: ЧАСТИЧНОЕ совпадение из твоей обученной памяти (слова длиннее 2 букв)
             if (foundIndex === -1) {
                 foundIndex = headersLower.findIndex(h => h && learned.some(w => w.length > 2 && h.includes(w)));
             }
-            
-            // Приоритет 4: ЧАСТИЧНОЕ совпадение из базовых синонимов
             if (foundIndex === -1) {
                 foundIndex = headersLower.findIndex(h => h && base.some(w => w.length > 2 && h.includes(w)));
             }
             
             if (foundIndex !== -1) {
                 window.mapper2State.colMap[req.sysKey] = foundIndex;
-            }
-        }
-            
-            // Ищем колонку, которая содержит любое из слов синонимов
-            for (let i = 0; i < headersLower.length; i++) {
-                let hText = headersLower[i];
-                if (!hText) continue;
-                
-                if (searchWords.some(word => hText.includes(word))) {
-                    window.mapper2State.colMap[req.sysKey] = i;
-                    break; 
-                }
             }
         }
 
@@ -4794,6 +4772,7 @@ window.renderMapper2Cards = function(templateData) {
             <div class="req-status ${statusClass}" id="status-${req.sysKey}">${statusText}</div>
         </div>`;
     });
+    
     container.innerHTML = html;
 
     document.getElementById('parseInvoiceBtn').style.display = 'none';
@@ -4818,7 +4797,6 @@ window.openColumnSelector = function(sysKey, reqName, isDict) {
 
     const colList = document.getElementById('sheet-col-list');
     
-    // === СТАТИЧНАЯ ШАПКА + КНОПКА ОЧИСТКИ ===
     colList.innerHTML = `
     <div style="position: sticky; top: -10px; background: var(--bg-panel, #1e1e1e); z-index: 10; padding: 15px 0 10px 0; margin-top: -10px; margin-bottom: 10px; border-bottom: 1px solid var(--border-light, #333); display: flex; justify-content: space-between; align-items: center;">
         <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; font-weight: bold;">Колонки из накладной</div>
@@ -4846,7 +4824,7 @@ window.openColumnSelector = function(sysKey, reqName, isDict) {
         colList.innerHTML += `
         <div class="col-item">
             <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
-                <div class="col-content" onclick="selectMapper2Col('${sysKey}', ${index})">
+                <div class="col-content" onclick="selectMapper2Col(${index}, '${safeColName}')">
                     <div class="col-name">${displayColName}</div>
                     <div class="col-examples">${previewText}</div>
                 </div>
@@ -4859,7 +4837,7 @@ window.openColumnSelector = function(sysKey, reqName, isDict) {
                 <div style="margin-top: 10px; font-size: 13px; color: var(--accent-yellow);">
                     Результат: <b id="split-result-${index}">...</b>
                 </div>
-                <button class="btn-apply-split" onclick="applySplitRule('${sysKey}', ${index})">Применить правило</button>
+                <button class="btn-apply-split" onclick="applySplitRule(${index}, '${safeColName}')">Применить правило</button>
             </div>
         </div>`;
     });
@@ -4870,19 +4848,22 @@ window.openColumnSelector = function(sysKey, reqName, isDict) {
 };
 
 window.clearMapper2Col = function(sysKey) {
-    // Удаляем из состояния
-    delete window.mapper2State.colMap[sysKey];
-    delete window.mapper2State.dictValues[sysKey];
-    delete window.mapper2State.splitRules[sysKey];
+    if (window.mapper2State && window.mapper2State.colMap) {
+        delete window.mapper2State.colMap[sysKey];
+    }
+    if (window.mapper2State && window.mapper2State.dictValues) {
+        delete window.mapper2State.dictValues[sysKey];
+    }
+    if (window.mapper2State && window.mapper2State.splitRules) {
+        delete window.mapper2State.splitRules[sysKey];
+    }
     
-    // Обновляем карточку на экране
     const statusEl = document.getElementById('status-' + sysKey);
     if (statusEl) {
         statusEl.className = 'req-status status-empty';
         statusEl.innerText = 'Выбрать';
     }
     
-    // Закрываем шторку
     if (typeof window.closeSheet === 'function') {
         window.closeSheet();
     }
