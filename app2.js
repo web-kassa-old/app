@@ -4645,9 +4645,14 @@ window.processInvoiceFile = async function() {
             window.mapper2State.invoiceHeaders = rawHeaders.map(h => String(h || '').replace(/[\r\n]+/g, ' ').trim());
             window.mapper2State.invoiceRows = rows.slice(firstDataRowIdx);
             
-            // === ГЕНЕРАЦИЯ ХЭША НАКЛАДНОЙ ===
+            // === ГЕНЕРАЦИЯ УНИКАЛЬНОГО ХЭША НАКЛАДНОЙ (ИСПРАВЛЕНО) ===
             let cleanString = rawHeaders.map(h => String(h||'').replace(/\s+/g, '').toLowerCase()).join('|');
-            window.mapper2State.fileHash = "hash_" + btoa(encodeURIComponent(cleanString)).replace(/[^a-zA-Z0-9]/g, '').substring(0, 25);
+            let hashNum = 0;
+            for (let i = 0; i < cleanString.length; i++) {
+                hashNum = ((hashNum << 5) - hashNum) + cleanString.charCodeAt(i);
+                hashNum |= 0; // Конвертируем в 32-битное целое число
+            }
+            window.mapper2State.fileHash = "hash_" + Math.abs(hashNum).toString(16) + "_" + cleanString.length;
             
             window.hideLoading();
             window.renderMapper2Cards(templateData); 
