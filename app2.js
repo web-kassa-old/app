@@ -294,6 +294,8 @@
                 help_modal_kaspi_title: "🛒 БАЗА + KASPI (Умный импорт):",
                 help_modal_kaspi_desc: "Умная приёмка. Потребуется указать Бренд, Размеры и другие обязательные атрибуты.",
                 help_modal_close: "Понятно",
+                kaspi_dup_hash_front: "Структура уже сохранена как «{name}»!",
+                kaspi_dup_hash_back: "Структура уже есть под именем «{name}»!",
                 kaspi_dup_error: "Такое имя уже существует!",
                 kaspi_saving: "Сохранение шаблона...",
                 kaspi_success: "Успешно!",
@@ -596,6 +598,8 @@
                 help_modal_kaspi_title: "🛒 БАЗА + KASPI (Ақылды импорт):",
                 help_modal_kaspi_desc: "Ақылды қабылдау. Бренд, Өлшемдер және басқа да міндетті атрибуттарды көрсету талап етіледі.",
                 help_modal_close: "Түсінікті",
+                kaspi_dup_hash_front: "Құрылым «{name}» ретінде сақталған!",
+                kaspi_dup_hash_back: "Бұл құрылым «{name}» ретінде бар!",
                 kaspi_dup_error: "Бұл атау қазірдің өзінде бар!",
                 kaspi_saving: "Шаблонды сақтау...",
                 kaspi_success: "Сәтті сақталды!",
@@ -7249,9 +7253,7 @@ window.processKaspiTemplate = async function() {
                     const matchingOption = Array.from(templateSelect.options).find(opt => opt.getAttribute('data-hash') === templateHash);
                     if (matchingOption) {
                         if (typeof window.hideLoading === 'function') window.hideLoading();
-                        statusDiv.innerText = (typeof currentLang !== 'undefined' && currentLang === 'kz') 
-                            ? `⚠️ Құрылым "${matchingOption.text}" ретінде сақталған!` 
-                            : `⚠️ Структура уже сохранена как "${matchingOption.text}"`;
+                        statusDiv.innerText = '⚠️ ' + translations[currentLang]['kaspi_dup_hash_front'].replace('{name}', matchingOption.text);
                         statusDiv.style.color = '#ff4444';
                         saveBtn.disabled = false;
                         return; // Мгновенный стоп без отправки на сервер!
@@ -7313,10 +7315,8 @@ window.processKaspiTemplate = async function() {
                         } else {
                             // Проверка на срабатывание серверной защиты (Сейф)
                             if (res && res.error === 'kaspi_dup_hash') {
-                                throw new Error((typeof currentLang !== 'undefined' && currentLang === 'kz') 
-                                    ? `⚠️ Бұл құрылым "${res.existingName}" ретінде бар!` 
-                                    : `⚠️ Структура уже есть под именем "${res.existingName}"`);
-                            }
+                            throw new Error('⚠️ ' + translations[currentLang]['kaspi_dup_hash_back'].replace('{name}', res.existingName));
+                        }
                             throw new Error(res ? res.error : "Пустой ответ");
                         }
                     } catch (err) {
