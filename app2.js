@@ -4534,11 +4534,21 @@ window.processInvoiceFile = async function() {
     console.log("=== ТЕКУЩИЙ РЕЖИМ ИМПОРТА ===", window.currentImportMode);
 
     if (window.currentImportMode === 'kaspi') {
-        const templateSelect = document.getElementById('kaspiTemplateSelect');
-        const templateName = templateSelect ? templateSelect.value : "";
-        if (!templateName) return alert("Пожалуйста, выберите шаблон Kaspi из списка!");
+    const templateSelect = document.getElementById('kaspiTemplateSelect');
+    const templateName = templateSelect ? templateSelect.value : "";
+    
+    // === ИСПРАВЛЕНИЕ БАГА ЗДЕСЬ ===
+    if (templateName === 'new_template') {
+        if (typeof openKaspiManager === 'function') {
+            openKaspiManager('income'); // Открываем модалку
+        }
+        templateSelect.value = ''; // Сбрасываем список, чтобы не зависал на этом пункте
+        return; // Тормозим функцию, скачивать ничего не нужно
+    }
+    
+    if (!templateName) return alert("Пожалуйста, выберите шаблон Kaspi из списка!");
 
-        window.showLoading("Скачивание структуры шаблона...");
+    window.showLoading("Скачивание структуры шаблона...");
         try {
             const payload = { action: 'getKaspiTemplate', api_key: CLIENT_API_KEY, category: templateName };
             const res = await window.smartFetch(GATEWAY_URL, payload);
