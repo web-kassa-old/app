@@ -7130,25 +7130,20 @@ window.handleTemplateChange = function(event) {
     const selectedValue = event.target.value;
 
     if (selectedValue === 'new' || selectedValue === 'new_template') {
-        window.kaspiModalSource = 'income'; 
+        window.kaspiModalSource = 'income'; // Запоминаем, что пришли из Приемки
         window.lockInvoiceUpload();
         
-        // 1. Сбрасываем значение синхронно (до таймаутов), чтобы iOS не открывал Picker заново
-        event.target.value = ''; 
+        // Очищаем поля нашей родной модалки
+        document.getElementById('kaspi-category-name').value = '';
+        document.getElementById('kaspi-template-file').value = '';
+        document.getElementById('kaspi-status').innerText = '';
         
-        // 2. Открываем модалку через наш умный менеджер (или фолбэк, если его нет)
-        if (typeof window.openKaspiManager === 'function') {
-            window.openKaspiManager('income');
-        } else {
-            document.getElementById('kaspi-category-name').value = '';
-            document.getElementById('kaspi-template-file').value = '';
-            document.getElementById('kaspi-status').innerText = '';
-            
-            const modal = document.getElementById('kaspi-modal');
-            if (modal) modal.style.display = 'flex';
-        }
+        // Открываем единую модалку Kaspi!
+        const modal = document.getElementById('kaspi-modal');
+        if (modal) modal.style.display = 'flex';
+        
+        setTimeout(() => { event.target.selectedIndex = 0; }, 50);
     } else if (selectedValue !== '') {
-        // Оставляем твою задержку для плавной анимации разблокировки
         setTimeout(() => { window.unlockInvoiceUpload(); }, 150);
     } else {
         window.lockInvoiceUpload();
