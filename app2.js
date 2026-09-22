@@ -7173,7 +7173,7 @@ window.processKaspiTemplate = async function() {
         return;
     }
 
-    // === ФРОНТЕНД ЗАЩИТА ОТ ДУБЛИКАТОВ (РОДНАЯ) ===
+    // === ФРОНТЕНД ЗАЩИТА ОТ ДУБЛИКАТОВ ПО ИМЕНИ (РОДНАЯ) ===
     const templateSelect = document.getElementById('kaspiTemplateSelect');
     if (templateSelect) {
         const existingOptions = Array.from(templateSelect.options).map(opt => opt.text.trim().toLowerCase());
@@ -7244,6 +7244,20 @@ window.processKaspiTemplate = async function() {
                 const hashArray = Array.from(new Uint8Array(hashBuffer));
                 const templateHash = 'hash_' + hashArray.map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 12);
 
+                // === НОВАЯ: ФРОНТЕНД ЗАЩИТА ОТ ДУБЛИКАТОВ ПО ХЭШУ (ЩИТ) ===
+                if (templateSelect) {
+                    const matchingOption = Array.from(templateSelect.options).find(opt => opt.getAttribute('data-hash') === templateHash);
+                    if (matchingOption) {
+                        if (typeof window.hideLoading === 'function') window.hideLoading();
+                        statusDiv.innerText = (typeof currentLang !== 'undefined' && currentLang === 'kz') 
+                            ? `⚠️ Құрылым "${matchingOption.text}" ретінде сақталған!` 
+                            : `⚠️ Структура уже сохранена как "${matchingOption.text}"`;
+                        statusDiv.style.color = '#ff4444';
+                        saveBtn.disabled = false;
+                        return; // Мгновенный стоп без отправки на сервер!
+                    }
+                }
+
                 const extractedHeaders = {
                     templateHash: templateHash,
                     humanNames: humanNames,
@@ -7281,8 +7295,8 @@ window.processKaspiTemplate = async function() {
 
                                 // === МАРШРУТИЗАТОР ===
                                 if (window.kaspiModalSource === 'income') {
-                                    if (typeof window.loadKaspiTemplates === 'function') {
-                                        await window.loadKaspiTemplates();
+                                    if (typeof window.loadKaspiTemplatesFromServer === 'function') {
+                                        await window.loadKaspiTemplatesFromServer();
                                         if (templateSelect) {
                                             for (let i = 0; i < templateSelect.options.length; i++) {
                                                 if (templateSelect.options[i].text.trim().toLowerCase() === categoryName.toLowerCase()) {
@@ -7297,12 +7311,24 @@ window.processKaspiTemplate = async function() {
                             }, 1000);
                             
                         } else {
+                            // Проверка на срабатывание серверной защиты (Сейф)
+                            if (res && res.error === 'kaspi_dup_hash') {
+                                throw new Error((typeof currentLang !== 'undefined' && currentLang === 'kz') 
+                                    ? `⚠️ Бұл құрылым "${res.existingName}" ретінде бар!` 
+                                    : `⚠️ Структура уже есть под именем "${res.existingName}"`);
+                            }
                             throw new Error(res ? res.error : "Пустой ответ");
                         }
                     } catch (err) {
                         console.error("Ошибка отправки:", err);
                         if (typeof window.hideLoading === 'function') window.hideLoading();
-                        statusDiv.innerText = '❌ ' + translations[currentLang]['kaspi_err_net'];
+                        
+                        // Если сработала защита по хэшу - выводим её текст, иначе стандартную ошибку сети
+                        if (err.message && err.message.includes('⚠️')) {
+                            statusDiv.innerText = err.message;
+                        } else {
+                            statusDiv.innerText = '❌ ' + translations[currentLang]['kaspi_err_net'];
+                        }
                         statusDiv.style.color = '#ff4444';
                     } finally {
                         saveBtn.disabled = false;
@@ -8197,7 +8223,12 @@ window.loadKaspiTemplatesFromServer = async function(isSilent = false) {
 
         if (result && result.success && result.templates && result.templates.length > 0) {
             result.templates.forEach(tpl => {
-                optionsHTML += `<option value="${tpl}">${tpl}</option>`;
+                // Если пришел новый формат (объект), прячем хэш в data-атрибут
+                if (typeof tpl === 'object' && tpl !== null) {
+                    optionsHTML += `<option value="${tpl.name}" data-hash="${tpl.hash}">${tpl.name}</option>`;
+                } else {
+                    optionsHTML += `<option value="${tpl}">${tpl}</option>`; // Фолбэк для старого кэша
+                }
             });
         } else if (!result || !result.success) {
             throw new Error("Пустой ответ или ошибка от сервера/кэша");
