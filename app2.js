@@ -7127,32 +7127,28 @@ window.openKaspiManager = function() {
 }
 
 window.handleTemplateChange = function(event) {
-    // === ДОБАВИТЬ ЭТОТ БЛОК В НАЧАЛО ===
-    if (event && event.target && event.target.value === 'new_template') {
-        if (typeof openKaspiManager === 'function') {
-            openKaspiManager('income'); // Открываем окно настройки
-        }
-        event.target.value = ''; // Сбрасываем селект обратно, чтобы пункт не залипал
-        return; // Останавливаем старую логику
-    }
-    // ===================================
     const selectedValue = event.target.value;
 
     if (selectedValue === 'new' || selectedValue === 'new_template') {
-        window.kaspiModalSource = 'income'; // Запоминаем, что пришли из Приемки
+        window.kaspiModalSource = 'income'; 
         window.lockInvoiceUpload();
         
-        // Очищаем поля нашей родной модалки
-        document.getElementById('kaspi-category-name').value = '';
-        document.getElementById('kaspi-template-file').value = '';
-        document.getElementById('kaspi-status').innerText = '';
+        // 1. Сбрасываем значение синхронно (до таймаутов), чтобы iOS не открывал Picker заново
+        event.target.value = ''; 
         
-        // Открываем единую модалку Kaspi!
-        const modal = document.getElementById('kaspi-modal');
-        if (modal) modal.style.display = 'flex';
-        
-        setTimeout(() => { event.target.selectedIndex = 0; }, 50);
+        // 2. Открываем модалку через наш умный менеджер (или фолбэк, если его нет)
+        if (typeof window.openKaspiManager === 'function') {
+            window.openKaspiManager('income');
+        } else {
+            document.getElementById('kaspi-category-name').value = '';
+            document.getElementById('kaspi-template-file').value = '';
+            document.getElementById('kaspi-status').innerText = '';
+            
+            const modal = document.getElementById('kaspi-modal');
+            if (modal) modal.style.display = 'flex';
+        }
     } else if (selectedValue !== '') {
+        // Оставляем твою задержку для плавной анимации разблокировки
         setTimeout(() => { window.unlockInvoiceUpload(); }, 150);
     } else {
         window.lockInvoiceUpload();
