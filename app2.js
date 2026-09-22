@@ -4729,12 +4729,34 @@ window.renderMapper2Cards = function(templateData) {
 
     let html = '';
     allReqs.forEach(req => {
-        // === АВТО-МАППИНГ ПО СИНОНИМАМ ===
+        // === УМНЫЙ АВТО-МАППИНГ ПО СИНОНИМАМ (С ПРИОРИТЕТАМИ) ===
         if (!req.isDict) {
-            let searchWords = baseSynonyms[req.sysKey] || [];
-            if (learnedSynonyms[req.sysKey]) {
-                searchWords = searchWords.concat(learnedSynonyms[req.sysKey]); // Добавляем обученные слова
+            let learned = learnedSynonyms[req.sysKey] || [];
+            let base = baseSynonyms[req.sysKey] || [];
+            let foundIndex = -1;
+            
+            // Приоритет 1: ТОЧНОЕ совпадение из твоей обученной памяти
+            foundIndex = headersLower.findIndex(h => h && learned.includes(h));
+            
+            // Приоритет 2: ТОЧНОЕ совпадение из базовых синонимов
+            if (foundIndex === -1) {
+                foundIndex = headersLower.findIndex(h => h && base.includes(h));
             }
+            
+            // Приоритет 3: ЧАСТИЧНОЕ совпадение из твоей обученной памяти (слова длиннее 2 букв)
+            if (foundIndex === -1) {
+                foundIndex = headersLower.findIndex(h => h && learned.some(w => w.length > 2 && h.includes(w)));
+            }
+            
+            // Приоритет 4: ЧАСТИЧНОЕ совпадение из базовых синонимов
+            if (foundIndex === -1) {
+                foundIndex = headersLower.findIndex(h => h && base.some(w => w.length > 2 && h.includes(w)));
+            }
+            
+            if (foundIndex !== -1) {
+                window.mapper2State.colMap[req.sysKey] = foundIndex;
+            }
+        }
             
             // Ищем колонку, которая содержит любое из слов синонимов
             for (let i = 0; i < headersLower.length; i++) {
@@ -4795,14 +4817,18 @@ window.openColumnSelector = function(sysKey, reqName, isDict) {
     if (dictBtn) dictBtn.style.display = isDict ? 'block' : 'none';
 
     const colList = document.getElementById('sheet-col-list');
-    colList.innerHTML = '<div style="font-size: 11px; color: var(--text-muted); margin-bottom: 10px; text-transform: uppercase; font-weight: bold;">Колонки из накладной</div>';
+    
+    // === СТАТИЧНАЯ ШАПКА + КНОПКА ОЧИСТКИ ===
+    colList.innerHTML = `
+    <div style="position: sticky; top: -10px; background: var(--bg-panel, #1e1e1e); z-index: 10; padding: 15px 0 10px 0; margin-top: -10px; margin-bottom: 10px; border-bottom: 1px solid var(--border-light, #333); display: flex; justify-content: space-between; align-items: center;">
+        <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; font-weight: bold;">Колонки из накладной</div>
+        <button onclick="clearMapper2Col('${sysKey}')" style="background: transparent; border: 1px solid #ff4444; color: #ff4444; padding: 4px 10px; border-radius: 4px; font-size: 11px; cursor: pointer;">❌ Очистить связь</button>
+    </div>`;
 
     window.mapper2State.invoiceHeaders.forEach((rawColName, index) => {
-        // 1. БЕЗОПАСНОЕ ИМЯ: Захватываем даже колонки без заголовков
         let colName = String(rawColName || '').trim();
         if (!colName) colName = `[Колонка ${index + 1} - Пустой заголовок]`;
 
-        // 2. БРОНЕЖИЛЕТ ОТ ПЕРЕНОСОВ И КАВЫЧЕК (Фикс бага "Quantity pcs")
         let displayColName = colName.replace(/[\r\n]+/g, ' '); 
         let safeColName = displayColName.replace(/'/g, "\\'").replace(/"/g, '\\"');
 
@@ -4812,17 +4838,15 @@ window.openColumnSelector = function(sysKey, reqName, isDict) {
             if (val && previews.indexOf(val) === -1 && previews.length < 3) previews.push(val);
         }
         
-        // Скрываем только абсолютно пустые столбцы (нет ни заголовка, ни данных)
         if (rawColName === '' && previews.length === 0) return;
 
         let previewText = previews.length > 0 ? '- ' + previews.join('<br>- ') : 'Пустая колонка (нет данных)';
-        // Экранируем переносы и кавычки и в превью для сплиттера
         let safePreview = previews[0] ? String(previews[0]).replace(/[\r\n]+/g, ' ').replace(/'/g, "\\'").replace(/"/g, '\\"') : '';
 
         colList.innerHTML += `
         <div class="col-item">
             <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
-                <div class="col-content" onclick="selectMapper2Col(${index}, '${safeColName}')">
+                <div class="col-content" onclick="selectMapper2Col('${sysKey}', ${index})">
                     <div class="col-name">${displayColName}</div>
                     <div class="col-examples">${previewText}</div>
                 </div>
@@ -4830,12 +4854,12 @@ window.openColumnSelector = function(sysKey, reqName, isDict) {
             </div>
             
             <div class="splitter-zone" id="splitter-zone-${index}">
-                <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 8px;">Выберите фрагменты, чтобы собрать значение:</div>
+                <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 8px;">Выберите фрагменты:</div>
                 <div id="token-container-${index}"></div>
                 <div style="margin-top: 10px; font-size: 13px; color: var(--accent-yellow);">
                     Результат: <b id="split-result-${index}">...</b>
                 </div>
-                <button class="btn-apply-split" onclick="applySplitRule(${index}, '${safeColName}')">Применить правило</button>
+                <button class="btn-apply-split" onclick="applySplitRule('${sysKey}', ${index})">Применить правило</button>
             </div>
         </div>`;
     });
@@ -4843,6 +4867,25 @@ window.openColumnSelector = function(sysKey, reqName, isDict) {
     document.getElementById('sheet-overlay').style.display = 'block';
     setTimeout(() => document.getElementById('sheet-overlay').style.opacity = '1', 10);
     document.getElementById('bottom-sheet').style.transform = 'translateY(0)';
+};
+
+window.clearMapper2Col = function(sysKey) {
+    // Удаляем из состояния
+    delete window.mapper2State.colMap[sysKey];
+    delete window.mapper2State.dictValues[sysKey];
+    delete window.mapper2State.splitRules[sysKey];
+    
+    // Обновляем карточку на экране
+    const statusEl = document.getElementById('status-' + sysKey);
+    if (statusEl) {
+        statusEl.className = 'req-status status-empty';
+        statusEl.innerText = 'Выбрать';
+    }
+    
+    // Закрываем шторку
+    if (typeof window.closeSheet === 'function') {
+        window.closeSheet();
+    }
 };
 
 window.closeSheet = function() {
