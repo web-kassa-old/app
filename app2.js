@@ -4671,32 +4671,21 @@ window.renderMapper2Cards = function(templateData) {
     const container = document.getElementById('mapper2CardsContainer');
     container.innerHTML = '';
 
-    let allReqs = [];
-    
-    // === ПРИНУДИТЕЛЬНАЯ ОЧИСТКА СОСТОЯНИЯ (Убиваем "зомби-память") ===
+    // Принудительно очищаем старые связи
     window.mapper2State.colMap = {};
     window.mapper2State.dictValues = {};
     window.mapper2State.splitRules = {};
-    
-    // === ЧТЕНИЕ ПАМЯТИ ===
-    let memoryBlock = {};
+
+    let allReqs = [];
+    let learnedSynonyms = {}; // Наша таблица синонимов из базы
+
     if (templateData && templateData.memoryJson) {
         try {
-            let parsedMemory = typeof templateData.memoryJson === 'string' ? JSON.parse(templateData.memoryJson) : templateData.memoryJson;
-            // Сохраняем сырую базу памяти, чтобы потом обновить ее
-            window.mapper2State.rawMemoryJson = typeof templateData.memoryJson === 'string' ? templateData.memoryJson : JSON.stringify(templateData.memoryJson);
-            
-            // Ищем наш текущий файл в памяти
-            if (parsedMemory[window.mapper2State.fileHash]) {
-                memoryBlock = parsedMemory[window.mapper2State.fileHash];
-                window.mapper2State.colMap = memoryBlock.colMap || {};
-                window.mapper2State.dictValues = memoryBlock.dictValues || {};
-                window.mapper2State.splitRules = memoryBlock.splitRules || {};
-                console.log("✅ Память загружена для хэша:", window.mapper2State.fileHash);
-            }
-        } catch(e) { console.error("Ошибка парсинга памяти", e); }
+            learnedSynonyms = typeof templateData.memoryJson === 'string' ? JSON.parse(templateData.memoryJson) : templateData.memoryJson;
+            window.mapper2State.rawMemoryJson = JSON.stringify(learnedSynonyms);
+        } catch(e) { console.error("Ошибка парсинга словаря", e); }
     }
-    
+
     if (templateData && templateData.systemKeys) {
         const { humanNames, systemKeys, requirements } = templateData;
         for (let i = 0; i < systemKeys.length; i++) {
@@ -4725,8 +4714,40 @@ window.renderMapper2Cards = function(templateData) {
         if (!allReqs.some(r => r.sysKey === field.sysKey)) allReqs.push(field);
     });
 
+    // Базовый зашитый словарь синонимов для старта
+    const baseSynonyms = {
+        'qty': ['qty', 'quantity', 'кол-во', 'количество'],
+        'price': ['price', 'цена', 'cost', 'unit price', 'amount'],
+        'name': ['name', 'наименование', 'description', 'описание', 'модель', 'model', 'товар', 'pattern'],
+        'barcode': ['barcode', 'штрихкод', 'code', 'артикул', 'item code'],
+        'weight': ['weight', 'вес', 'kg', 'кг'],
+        'cbm': ['cbm', 'объем', 'volume']
+    };
+
+    // Приводим все заголовки инвойса к нижнему регистру для поиска
+    const headersLower = (window.mapper2State.invoiceHeaders || []).map(h => String(h||'').trim().toLowerCase());
+
     let html = '';
     allReqs.forEach(req => {
+        // === АВТО-МАППИНГ ПО СИНОНИМАМ ===
+        if (!req.isDict) {
+            let searchWords = baseSynonyms[req.sysKey] || [];
+            if (learnedSynonyms[req.sysKey]) {
+                searchWords = searchWords.concat(learnedSynonyms[req.sysKey]); // Добавляем обученные слова
+            }
+            
+            // Ищем колонку, которая содержит любое из слов синонимов
+            for (let i = 0; i < headersLower.length; i++) {
+                let hText = headersLower[i];
+                if (!hText) continue;
+                
+                if (searchWords.some(word => hText.includes(word))) {
+                    window.mapper2State.colMap[req.sysKey] = i;
+                    break; 
+                }
+            }
+        }
+
         let mappedIndex = window.mapper2State.colMap[req.sysKey];
         let dictValue = window.mapper2State.dictValues && window.mapper2State.dictValues[req.sysKey];
         
@@ -4978,33 +4999,55 @@ window.applyMapper2Logic = function() {
         return alert("⚠️ Обязательно привяжите колонки:\n1. Наименование (или model)\n2. Количество (qty)\n3. Цена (price)");
     }
 
-    // === ФОНОВОЕ СОХРАНЕНИЕ ПАМЯТИ ===
+    // === ФОНОВОЕ ОБУЧЕНИЕ СЛОВАРЯ СИНОНИМОВ ===
     if (window.currentImportMode === 'kaspi') {
         const templateSelect = document.getElementById('kaspiTemplateSelect');
         const templateName = templateSelect ? templateSelect.value : "";
         
-        if (templateName && state.fileHash) {
+        if (templateName) {
             let currentMemory = {};
             try { currentMemory = JSON.parse(window.mapper2State.rawMemoryJson || "{}"); } catch(e) {}
             
-            // Обновляем память конкретно для этого хэша
-            currentMemory[state.fileHash] = {
-                colMap: state.colMap,
-                dictValues: state.dictValues || {},
-                splitRules: state.splitRules || {}
-            };
+            let memoryUpdated = false;
             
-            const payload = {
-                action: 'updateKaspiMemory',
-                api_key: CLIENT_API_KEY,
-                category: templateName,
-                memoryJson: JSON.stringify(currentMemory)
-            };
-            window.smartFetch(GATEWAY_URL, payload).then(res => {
-                console.log("Память маппера успешно сохранена в фоне", res);
-            }).catch(e => console.error("Ошибка фонового сохранения памяти", e));
+            // Пробегаемся по всем связанным колонкам и запоминаем их заголовки
+            Object.keys(state.colMap).forEach(sysKey => {
+                let colIndex = state.colMap[sysKey];
+                let headerText = state.invoiceHeaders[colIndex];
+                
+                if (headerText) {
+                    let cleanWord = String(headerText).trim().toLowerCase();
+                    if (!currentMemory[sysKey]) currentMemory[sysKey] = [];
+                    
+                    // Если такого слова еще нет в памяти для этого поля - добавляем
+                    if (!currentMemory[sysKey].includes(cleanWord)) {
+                        currentMemory[sysKey].push(cleanWord);
+                        memoryUpdated = true;
+                    }
+                }
+            });
+            
+            if (memoryUpdated) {
+                const payload = {
+                    action: 'updateKaspiMemory',
+                    api_key: CLIENT_API_KEY,
+                    category: templateName,
+                    memoryJson: JSON.stringify(currentMemory)
+                };
+                window.smartFetch(GATEWAY_URL, payload).then(res => {
+                    console.log("Словарь синонимов дополнен новыми заголовками");
+                }).catch(e => console.error("Ошибка обновления словаря", e));
+            }
         }
     }
+
+    window.parsedInvoiceData = [];
+    window.invoiceGroups = {}; 
+    window.invoiceGroups[state.docNo] = { 
+        supplier: state.supplier, 
+        items: [], 
+        originalFiles: [{ fileName: state.fileName, fileBase64: state.originalBase64 }] 
+    };
 
     window.parsedInvoiceData = [];
     window.invoiceGroups = {}; 
