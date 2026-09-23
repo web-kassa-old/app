@@ -4528,6 +4528,7 @@ window.processInvoiceFile = async function() {
 
 // 2. ОТРИСОВКА КАРТОЧЕК НА ГЛАВНОМ ЭКРАНЕ
 window.renderMapper2Cards = function(templateData) {
+    window.kaspiDicts = templateData.dictionary || {};
     const container = document.getElementById('mapper2CardsContainer');
     container.innerHTML = '';
 
@@ -4823,158 +4824,159 @@ window.openColumnSelector = function(sysKey, reqName, isKaspi) {
     document.getElementById('bottom-sheet').style.transform = 'translateY(0)';
 };
 
-window.openKaspiDictSearch = async function() {
+window.openKaspiDictSearch = function() {
     let sysKey = window.mapper2State.currentSysKey;
     let reqName = window.mapper2State.currentReqName;
+    
+    // Ищем словарь по человеческому имени колонки (например, "Бренд")
+    let dict = window.kaspiDicts[reqName] || [];
+    
+    if (dict.length === 0) {
+        return alert(`Справочник для поля "${reqName}" пуст или не найден.`);
+    }
 
-    // Прячем нижнюю шторку
+    // Прячем нижнюю шторку маппера
     document.getElementById('bottom-sheet').style.transform = 'translateY(100%)';
     setTimeout(() => {
         let overlay = document.getElementById('sheet-overlay');
         if(overlay) overlay.style.display = 'none';
     }, 300);
 
-    window.showLoading(`Чтение справочника: ${reqName}...`);
-
-    try {
-        // Ищем input с файлом (замени селектор, если у тебя input называется иначе)
-        const fileInput = document.querySelector('input[type="file"]'); 
-        if (!fileInput || !fileInput.files[0]) {
-            window.hideLoading();
-            return alert("Не найден загруженный файл накладной.");
-        }
-
-        const file = fileInput.files[0];
-        const arrayBuffer = await file.arrayBuffer();
-        
-        // Читаем через ExcelJS
-        const workbook = new ExcelJS.Workbook();
-        await workbook.xlsx.load(arrayBuffer);
-
-        // Ищем лист values (нечувствительно к регистру)
-        const worksheet = workbook.worksheets.find(ws => ws.name.toLowerCase().includes('value') || ws.name.toLowerCase().includes('значения'));
-        
-        if (!worksheet) {
-            window.hideLoading();
-            return alert("В файле не найден лист 'values'.");
-        }
-
-        // Ищем индекс нужной колонки в первой строке
-        let targetCol = -1;
-        const headerRow = worksheet.getRow(1);
-        headerRow.eachCell((cell, colNumber) => {
-            let cellText = cell.value ? String(cell.value).trim().toLowerCase() : '';
-            if (cellText === reqName.toLowerCase()) {
-                targetCol = colNumber;
-            }
-        });
-
-        if (targetCol === -1) {
-            window.hideLoading();
-            return alert(`Колонка "${reqName}" не найдена на листе справочника.`);
-        }
-
-        // Собираем данные, исключая пустые
-        let rawValues = [];
-        worksheet.eachRow((row, rowNumber) => {
-            if (rowNumber === 1) return; // Пропуск шапки
-            let cell = row.getCell(targetCol);
-            let val = cell.value;
-            
-            if (val !== null && val !== undefined && val !== '') {
-                // Если ячейка содержит объект (rich text или формулу)
-                if (typeof val === 'object') {
-                    val = val.richText ? val.richText.map(rt => rt.text).join('') : (val.result !== undefined ? val.result : val.text || val.toString());
-                }
-                rawValues.push(String(val).trim());
-            }
-        });
-
-        // Удаляем дубликаты
-        let dictArray = [...new Set(rawValues)];
-        window.hideLoading();
-
-        if (dictArray.length === 0) return alert(`Справочник для "${reqName}" пуст.`);
-
-        // === СОЗДАНИЕ ИНТЕРФЕЙСА МОДАЛКИ ===
-        let modal = document.createElement('div');
-        modal.id = 'dict-search-modal';
-        modal.style.cssText = 'position:fixed; top:0; left:0; width:100%; height:100%; background:var(--bg-dark, #121212); z-index:9999; display:flex; flex-direction:column; padding: 20px; box-sizing:border-box;';
+    // Создаем красивую модалку, если ее еще нет
+    if (!document.getElementById('kaspiDictModal')) {
+        const modal = document.createElement('div');
+        modal.id = 'kaspiDictModal';
+        modal.style.cssText = 'display:flex; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:999999; flex-direction:column; align-items:center; justify-content:flex-start; padding-top:env(safe-area-inset-top, 20px); padding-left:10px; padding-right:10px; box-sizing:border-box; backdrop-filter:blur(3px);';
         
         modal.innerHTML = `
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px;">
-                <h3 style="margin:0; color:#fff; font-size:16px;">Словарь: ${reqName} <span style="font-size:12px; color:#888;">(${dictArray.length})</span></h3>
-                <button onclick="document.body.removeChild(this.parentElement.parentElement)" style="background:none; border:none; color:#ff4444; font-size:28px; cursor:pointer; line-height:1;">&times;</button>
+            <div id="dictModalContent" style="background:var(--bg-body, #1e1e1e); color:var(--text-main, #fff); width:100%; max-width:400px; border-radius:10px; display:flex; flex-direction:column; max-height:90vh; margin-top:10px; box-sizing:border-box;">
+                <div style="padding:12px 15px; border-bottom:1px solid var(--border-main, #444); display:flex; justify-content:space-between; align-items:center;">
+                    <b id="dictModalTitle" style="font-size:15px;">Справочник</b>
+                    <span onclick="document.getElementById('kaspiDictModal').style.display = 'none';" style="font-size:24px; cursor:pointer; color:#888; line-height:1;">&times;</span>
+                </div>
+                <div style="padding:10px 15px; padding-bottom:5px; border-bottom:1px solid var(--border-main, #444);">
+                    <input type="text" id="dictModalSearch" placeholder="Поиск..." oninput="window.filterDictionary()" style="width:100%; padding:10px; border:1px solid var(--accent-blue, #3b82f6); background:var(--bg-panel, #2a2a2a); color:var(--text-main, #fff); border-radius:6px; font-size:15px; outline:none; box-sizing:border-box;">
+                    <div id="dictModalCountInfo" style="font-size:11px; color:var(--text-muted, #888); margin-top:6px; margin-bottom:4px; text-align:right;">
+                        <span id="dictModalCountText">Всего:</span> <span id="dictTotalCount">0</span>
+                    </div>
+                </div>
+                <ul id="dictModalList" style="list-style:none; padding:0; margin:0; overflow-y:auto; flex:1; max-height:none; overscroll-behavior:contain;"></ul>
             </div>
-            <input type="text" id="dict-search-input" placeholder="Поиск..." autocomplete="off" style="width:100%; padding:14px; border-radius:8px; border:1px solid #444; background:#222; color:#fff; margin-bottom:15px; font-size:16px; box-sizing:border-box;">
-            <div id="dict-list-container" style="flex:1; overflow-y:auto; border:1px solid #333; border-radius:8px; background:#1a1a1a;"></div>
         `;
+        
+        modal.onclick = (e) => {
+            if (e.target.id === 'kaspiDictModal') document.getElementById('kaspiDictModal').style.display = 'none';
+        };
+        
         document.body.appendChild(modal);
 
-        const inputEl = document.getElementById('dict-search-input');
-        const listEl = document.getElementById('dict-list-container');
-        inputEl.focus();
-        
-        // === АЛГОРИТМ ПОРЦИОННОЙ ОТРИСОВКИ ===
-        let filteredData = [...dictArray];
-        let currentIndex = 0;
-        const CHUNK_SIZE = 100;
-
-        function renderChunk(reset = false) {
-            if (reset) {
-                listEl.innerHTML = '';
-                currentIndex = 0;
-            }
-            let html = '';
-            let end = Math.min(currentIndex + CHUNK_SIZE, filteredData.length);
-            
-            for (let i = currentIndex; i < end; i++) {
-                let val = String(filteredData[i]);
-                let safeVal = val.replace(/'/g, "\\'").replace(/"/g, "&quot;");
-                html += `<div onclick="window.selectDictValue('${sysKey}', '${safeVal}')" style="padding: 14px 15px; border-bottom: 1px solid #2a2a2a; cursor: pointer; color: #ddd; font-size: 15px;">${val}</div>`;
-            }
-            
-            listEl.insertAdjacentHTML('beforeend', html);
-            currentIndex = end;
-        }
-
-        renderChunk(true);
-
-        // Бесконечный скролл
-        listEl.addEventListener('scroll', function() {
-            if (listEl.scrollTop + listEl.clientHeight >= listEl.scrollHeight - 50) {
-                if (currentIndex < filteredData.length) renderChunk();
-            }
-        });
-
-        // === 3-УРОВНЕВАЯ СОРТИРОВКА ПО РЕЛЕВАНТНОСТИ ===
-        inputEl.addEventListener('input', function(e) {
-            let q = e.target.value.toLowerCase().trim();
-            if (q.length === 0) {
-                filteredData = [...dictArray];
-            } else {
-                let p1 = [], p2 = [], p3 = [];
-                for (let i = 0; i < dictArray.length; i++) {
-                    let item = dictArray[i];
-                    let str = String(item).toLowerCase();
-                    
-                    if (str.startsWith(q)) {
-                        p1.push(item); // Приоритет 1: Начало строки
-                    } else if (str.includes(' ' + q) || str.includes('-' + q) || str.includes('"' + q) || str.includes('(' + q)) {
-                        p2.push(item); // Приоритет 2: Начало составного слова
-                    } else if (str.includes(q)) {
-                        p3.push(item); // Приоритет 3: Внутри слова
-                    }
-                }
-                filteredData = [...p1, ...p2, ...p3];
-            }
-            renderChunk(true);
-        });
-
-    } catch (err) {
-        window.hideLoading();
-        alert("Ошибка работы со справочником: " + err.message);
+        const listElem = document.getElementById('dictModalList');
+        listElem.addEventListener('touchstart', () => {
+            document.getElementById('dictModalSearch').blur();
+        }, { passive: true });
+    } else {
+        document.getElementById('kaspiDictModal').style.display = 'flex';
     }
+
+    // Передаем данные в модалку
+    window.currentModalSysKey = sysKey;
+    window.currentModalDict = dict;
+    
+    document.getElementById('dictModalTitle').innerText = reqName;
+    document.getElementById('dictModalSearch').value = '';
+    
+    window.filterDictionary(); // Рендерим первый раз
+};
+
+window.filterDictionary = function() {
+    const query = document.getElementById('dictModalSearch').value.toLowerCase().trim();
+    const list = document.getElementById('dictModalList');
+    const countText = document.getElementById('dictModalCountText');
+    const totalCount = document.getElementById('dictTotalCount');
+    const dict = window.currentModalDict || [];
+    
+    list.innerHTML = '';
+    
+    if (countText && totalCount) {
+        countText.innerText = query === '' ? 'Всего:' : 'Найдено:';
+        totalCount.innerText = dict.length;
+    }
+    
+    let allFiltered = dict;
+
+    if (query !== '') {
+        allFiltered = dict.filter(val => String(val).toLowerCase().includes(query));
+        allFiltered.sort((a, b) => {
+            const strA = String(a).toLowerCase();
+            const strB = String(b).toLowerCase();
+            const getScore = (str) => {
+                if (str.startsWith(query)) return 1; 
+                if (new RegExp(`(^|\\s|_|-)${query}`).test(str)) return 2; 
+                return 3; 
+            };
+            const scoreA = getScore(strA);
+            const scoreB = getScore(strB);
+            if (scoreA !== scoreB) return scoreA - scoreB;
+            return strA.localeCompare(strB);
+        });
+    }
+
+    const displayLimit = 100;
+    const filteredToDisplay = allFiltered.slice(0, displayLimit);
+    
+    if (filteredToDisplay.length === 0) {
+        if (query.length > 0) {
+            let safeQuery = query.replace(/'/g, "\\'");
+            list.innerHTML = `
+                <li style="padding:15px; text-align:center; color:#888;">
+                    <div style="margin-bottom: 10px;">Ничего не найдено</div>
+                    <button onclick="window.selectDictionaryValue('${safeQuery}', true)" style="padding:10px 15px; background:#eab308; color:#854d0e; border:none; border-radius:6px; font-weight:bold; width:100%; font-size:14px; cursor:pointer;">
+                        ✏️ Использовать "${query}"
+                    </button>
+                </li>`;
+        }
+        return;
+    }
+
+    filteredToDisplay.forEach(val => {
+        const regex = new RegExp(`(${query})`, "gi");
+        const highlighted = query ? String(val).replace(regex, "<mark style='background:#fef08a; color:#854d0e;'>$1</mark>") : val;
+        
+        let safeVal = String(val).replace(/'/g, "\\'");
+        
+        const li = document.createElement('li');
+        li.style.cssText = 'padding:15px; border-bottom:1px solid var(--border-light, #333); cursor:pointer; font-size:14px;';
+        li.innerHTML = highlighted;
+        li.onclick = () => window.selectDictionaryValue(safeVal, false);
+        list.appendChild(li);
+    });
+
+    if (allFiltered.length > displayLimit) {
+        list.insertAdjacentHTML('beforeend', `<li style="padding:15px; text-align:center; color:var(--text-muted, #888); font-size:13px; font-style:italic; background:rgba(0,0,0,0.2);">И еще ${allFiltered.length - displayLimit} вариантов...</li>`);
+    }
+};
+
+window.selectDictionaryValue = function(value, isCustom) {
+    let sysKey = window.currentModalSysKey;
+    
+    // Очищаем старые привязки (если были)
+    if (window.mapper2State.colMap) delete window.mapper2State.colMap[sysKey];
+    if (window.mapper2State.splitRules) delete window.mapper2State.splitRules[sysKey];
+    
+    if (!window.mapper2State.dictValues) window.mapper2State.dictValues = {};
+    
+    // Записываем новое значение
+    window.mapper2State.dictValues[sysKey] = value;
+    
+    // Окрашиваем карточку в зеленый
+    const statusEl = document.getElementById('status-' + sysKey);
+    if (statusEl) {
+        statusEl.className = 'req-status status-dict';
+        statusEl.innerText = `[Словарь] ${value}`;
+    }
+    
+    // Закрываем модалку
+    document.getElementById('kaspiDictModal').style.display = 'none';
 };
 
 // Функция выбора и сохранения
