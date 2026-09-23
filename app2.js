@@ -4689,7 +4689,6 @@ window.renderMapper2Cards = function(templateData) {
             learnedSynonyms = typeof templateData.memoryJson === 'string' ? JSON.parse(templateData.memoryJson) : templateData.memoryJson;
             window.mapper2State.rawMemoryJson = JSON.stringify(learnedSynonyms);
             
-            // === ВОССТАНАВЛИВАЕМ ПРАВИЛА СПЛИТТЕРА ИЗ ПАМЯТИ ===
             if (learnedSynonyms._splitRules) {
                 window.mapper2State.splitRules = JSON.parse(JSON.stringify(learnedSynonyms._splitRules));
             }
@@ -4733,7 +4732,10 @@ window.renderMapper2Cards = function(templateData) {
         if (isKaspiSku) {
             html += `
             <div class="req-card" style="opacity: 0.6; filter: grayscale(1); cursor: not-allowed; background: #1a1a1a; border-color: #333;">
-                <div class="req-info"><span class="req-title required">${req.name}</span><span class="req-subtitle">Заполняется автоматически</span></div>
+                <div class="req-info">
+                    <span class="req-title required">${req.name}</span>
+                    <span class="req-subtitle">Заполняется автоматически</span>
+                </div>
                 <div class="req-status status-dict" style="background: #2a2a2a; border-color: #444; color: #888;">🔒 Штрихкод БД</div>
             </div>`;
             return; 
@@ -4760,6 +4762,7 @@ window.renderMapper2Cards = function(templateData) {
         
         let statusClass = 'status-empty';
         let statusText = 'Выбрать';
+        let extraPreviewHtml = ''; // Контейнер для наглядного примера
         
         if (dictValue) {
             statusClass = 'status-dict';
@@ -4768,11 +4771,34 @@ window.renderMapper2Cards = function(templateData) {
             statusClass = 'status-filled';
             let colName = window.mapper2State.invoiceHeaders[mappedIndex] || `Колонка ${mappedIndex + 1}`;
             
-            // === ЕСЛИ ЕСТЬ СПЛИТ-ПРАВИЛО, ПОКАЗЫВАЕМ ЭТО ===
             let hasSplit = window.mapper2State.splitRules && window.mapper2State.splitRules[req.sysKey] && window.mapper2State.splitRules[req.sysKey].length > 0;
+            
             if (hasSplit) {
-                statusText = `✅ ${colName} ✂️ (Фрагмент)`;
-                statusClass += ' status-split'; // Можно добавить свой CSS для желтого свечения, если нужно
+                statusText = `✅ ${colName} ✂️`;
+                
+                // Ищем первый попавшийся непустой текст для примера
+                let sampleText = '';
+                for (let i = 0; i < Math.min(10, window.mapper2State.invoiceRows.length); i++) {
+                    let val = String(window.mapper2State.invoiceRows[i][mappedIndex] || '').trim();
+                    if (val) { sampleText = val; break; }
+                }
+                
+                // Если нашли пример, формируем красивую подсветку результата
+                if (sampleText) {
+                    const regex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,]/g;
+                    let tokens = sampleText.match(regex) || [];
+                    let splitRule = window.mapper2State.splitRules[req.sysKey];
+                    
+                    let highlighted = tokens.map((tok, i) => {
+                        if (splitRule.includes(i)) {
+                            return `<b style="color:#000; background:var(--accent-green, #4CAF50); padding:0 3px; border-radius:3px;">${tok}</b>`;
+                        } else {
+                            return `<span style="color:#666; text-decoration:line-through;">${tok}</span>`;
+                        }
+                    }).join('');
+                    
+                    extraPreviewHtml = `<div style="margin-top: 6px; font-size: 11px; background: rgba(255,255,255,0.05); padding: 4px 8px; border-radius: 4px; display: inline-block;">Пример: ${highlighted}</div>`;
+                }
             } else {
                 statusText = `✅ ${colName}`;
             }
@@ -4783,19 +4809,20 @@ window.renderMapper2Cards = function(templateData) {
             <div class="req-info">
                 <span class="req-title ${req.req ? 'required' : ''}">${req.name}</span>
                 <span class="req-subtitle" id="subtitle-${req.sysKey}">${req.desc}</span>
+                ${extraPreviewHtml}
             </div>
             <div class="req-status ${statusClass}" id="status-${req.sysKey}">${statusText}</div>
         </div>`;
     });
     
     container.innerHTML = html;
+
     document.getElementById('parseInvoiceBtn').style.display = 'none';
     const importModeContainer = document.getElementById('importModeContainer');
     if (importModeContainer) importModeContainer.style.display = 'none';
     const invoiceUploadWrapper = document.getElementById('invoiceUploadWrapper');
     if (invoiceUploadWrapper) invoiceUploadWrapper.style.display = 'none';
     
-    // Показываем интерфейс маппера
     document.getElementById('mapper2Area').style.display = 'flex';
     document.getElementById('applyMapper2Btn').style.display = 'block';
 };
