@@ -7515,12 +7515,44 @@ window.processKaspiTemplate = async function() {
                     }
                 }
 
-                const extractedHeaders = {
-                    templateHash: templateHash,
-                    humanNames: humanNames,
-                    systemKeys: systemKeys,
-                    requirements: requirements
-                };
+                let dictionary = {};
+const valueSheetName = workbook.SheetNames.find(name => 
+    name.toLowerCase() === 'values' || name.toLowerCase() === 'value' || name.toLowerCase() === 'значения'
+);
+
+if (valueSheetName) {
+    const valueSheet = workbook.Sheets[valueSheetName];
+    const rowsData = XLSX.utils.sheet_to_json(valueSheet, { header: 1, defval: "" });
+    
+    if (rowsData.length > 0) {
+        const headersRow = rowsData[0]; 
+        headersRow.forEach((header, colIndex) => {
+            if (!header) return;
+            let colName = String(header).trim();
+            let colValues = [];
+            for (let i = 1; i < rowsData.length; i++) {
+                let cellValue = rowsData[i][colIndex];
+                if (cellValue !== undefined && cellValue !== null && cellValue !== "") {
+                    colValues.push(String(cellValue).trim());
+                }
+            }
+            let uniqueValues = [...new Set(colValues)];
+            if (uniqueValues.length > 0) {
+                dictionary[colName] = uniqueValues;
+            }
+        });
+    }
+}
+// ==================================
+
+// === 2. ОБНОВЛЯЕШЬ ЭТОТ БЛОК ===
+const extractedHeaders = {
+    templateHash: templateHash,
+    humanNames: humanNames,
+    systemKeys: systemKeys,
+    requirements: requirements,
+    dictionary: dictionary // <--- добавляем наш собранный объект
+};
 
                 const base64Reader = new FileReader();
                 base64Reader.readAsDataURL(file);
