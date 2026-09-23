@@ -4674,11 +4674,12 @@ window.renderMapper2Cards = function(templateData) {
     let allReqs = [];
     let learnedSynonyms = {}; 
 
+    // 1. Память конкретно этого шаблона (то, что мы уже спарили руками)
     if (templateData && templateData.memoryJson) {
         try {
             learnedSynonyms = typeof templateData.memoryJson === 'string' ? JSON.parse(templateData.memoryJson) : templateData.memoryJson;
             window.mapper2State.rawMemoryJson = JSON.stringify(learnedSynonyms);
-        } catch(e) { console.error("Ошибка парсинга словаря", e); }
+        } catch(e) { console.error("Ошибка парсинга памяти", e); }
     }
 
     if (templateData && templateData.systemKeys) {
@@ -4700,7 +4701,7 @@ window.renderMapper2Cards = function(templateData) {
         { sysKey: 'name', name: 'Наименование', req: true, desc: 'Обязательно', isDict: false },
         { sysKey: 'qty', name: 'Количество', req: true, desc: 'На складе (POS)', isDict: false },
         { sysKey: 'price', name: 'Цена закупа', req: true, desc: 'В валюте накладной', isDict: false },
-        { sysKey: 'barcode', name: 'Код / Штрихкод', req: false, desc: 'Если пусто — авто EAN13', isDict: false },
+        { sysKey: 'barcode', name: 'Код / Штрихкод', req: false, desc: 'Связь с ID товара в POS', isDict: false },
         { sysKey: 'cbm', name: 'Объем (CBM)', req: false, desc: 'Для расчета', isDict: false },
         { sysKey: 'weight', name: 'Вес (кг)', req: false, desc: 'Для расчета', isDict: false }
     ];
@@ -4709,39 +4710,60 @@ window.renderMapper2Cards = function(templateData) {
         if (!allReqs.some(r => r.sysKey === field.sysKey)) allReqs.push(field);
     });
 
-    const baseSynonyms = {
-        'qty': ['qty', 'quantity', 'кол-во', 'количество'],
-        'price': ['price', 'цена', 'cost', 'unit price', 'amount'],
-        'name': ['name', 'наименование', 'description', 'описание', 'модель', 'model', 'товар', 'pattern'],
-        'barcode': ['barcode', 'штрихкод', 'code', 'артикул', 'item code'],
-        'weight': ['weight', 'вес', 'kg', 'кг'],
-        'cbm': ['cbm', 'объем', 'volume']
-    };
-
+    // 2. Подключаем ГЛОБАЛЬНЫЙ словарь синонимов из базы (вместо хардкода)
+    const globalSynonyms = (typeof invoiceSynonyms !== 'undefined') ? invoiceSynonyms : {};
     const headersLower = (window.mapper2State.invoiceHeaders || []).map(h => String(h||'').trim().toLowerCase());
 
     let html = '';
     allReqs.forEach(req => {
-        if (!req.isDict) {
-            let learned = learnedSynonyms[req.sysKey] || [];
-            let base = baseSynonyms[req.sysKey] || [];
-            let foundIndex = -1;
-            
-            foundIndex = headersLower.findIndex(h => h && learned.includes(h));
-            
-            if (foundIndex === -1) {
-                foundIndex = headersLower.findIndex(h => h && base.includes(h));
-            }
-            if (foundIndex === -1) {
-                foundIndex = headersLower.findIndex(h => h && learned.some(w => w.length > 2 && h.includes(w)));
-            }
-            if (foundIndex === -1) {
-                foundIndex = headersLower.findIndex(h => h && base.some(w => w.length > 2 && h.includes(w)));
-            }
-            
-            if (foundIndex !== -1) {
-                window.mapper2State.colMap[req.sysKey] = foundIndex;
-            }
+        
+        // Жесткая блокировка поля "Артикул" (merchant_sku) для Kaspi
+        let isKaspiSku = req.sysKey.toLowerCase().includes('sku') || req.name.toLowerCase().includes('артикул');
+        
+        if (isKaspiSku) {
+            html += `
+            <div class="req-card" style="opacity: 0.6; filter: grayscale(1); cursor: not-allowed; background: #1a1a1a; border-color: #333;">
+                <div class="req-info">
+                    <span class="req-title required">${req.name}</span>
+                    <span class="req-subtitle">Заполняется автоматически</span>
+                </div>
+                <div class="req-status status-dict" style="background: #2a2a2a; border-color: #444; color: #888;">🔒 Штрихкод БД</div>
+            </div>`;
+            return; 
+        }
+
+        // === ПОИСК СВЯЗЕЙ (Память шаблона + Глобальный словарь из таблицы) ===
+        let learned = learnedSynonyms[req.sysKey] || [];
+        
+        // Собираем синонимы из глобальной таблицы по ключу (например 'qty') и по имени (например 'Количество')
+        let baseRaw = [];
+        if (globalSynonyms[req.sysKey]) baseRaw = baseRaw.concat(globalSynonyms[req.sysKey]);
+        if (globalSynonyms[req.name]) baseRaw = baseRaw.concat(globalSynonyms[req.name]);
+        // Если это Бренд, ищем еще и по слову Brand (для страховки словарных полей)
+        if (req.isDict && globalSynonyms['Brand']) baseRaw = baseRaw.concat(globalSynonyms['Brand']);
+        
+        let base = baseRaw.map(w => String(w).trim().toLowerCase()).filter(Boolean);
+        
+        let foundIndex = -1;
+        
+        // Приоритет 1: Обученная память именно для этого шаблона
+        foundIndex = headersLower.findIndex(h => h && learned.includes(h));
+        
+        // Приоритет 2: Точное совпадение из листа Синонимов
+        if (foundIndex === -1) {
+            foundIndex = headersLower.findIndex(h => h && base.includes(h));
+        }
+        // Приоритет 3: Частичное совпадение по памяти
+        if (foundIndex === -1) {
+            foundIndex = headersLower.findIndex(h => h && learned.some(w => w.length > 2 && h.includes(w)));
+        }
+        // Приоритет 4: Частичное совпадение из листа Синонимов
+        if (foundIndex === -1) {
+            foundIndex = headersLower.findIndex(h => h && base.some(w => w.length > 2 && h.includes(w)));
+        }
+        
+        if (foundIndex !== -1) {
+            window.mapper2State.colMap[req.sysKey] = foundIndex;
         }
 
         let mappedIndex = window.mapper2State.colMap[req.sysKey];
@@ -4793,11 +4815,11 @@ window.openColumnSelector = function(sysKey, reqName, isDict) {
 
     const colList = document.getElementById('sheet-col-list');
     
-    // 2. Убираем пустое пространство сверху (за счет отрицательных отступов)
+    // 1. Отрицательные отступы (margin: -20px -20px...) убирают пустую область сверху
     colList.innerHTML = `
-    <div style="position: sticky; top: -20px; background: var(--bg-panel, #1e1e1e); z-index: 10; padding: 20px 0 10px 0; margin: -20px 0 10px 0; border-bottom: 1px solid var(--border-light, #333); display: flex; justify-content: space-between; align-items: center;">
+    <div style="position: sticky; top: 0; background: var(--bg-panel, #1e1e1e); z-index: 10; padding: 15px 20px; margin: -20px -20px 15px -20px; border-bottom: 1px solid var(--border-light, #333); display: flex; justify-content: space-between; align-items: center;">
         <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; font-weight: bold;">Колонки из накладной</div>
-        <button onclick="clearMapper2Col('${sysKey}')" style="background: transparent; border: 1px solid #ff4444; color: #ff4444; padding: 4px 10px; border-radius: 4px; font-size: 11px; cursor: pointer;">❌ Очистить связь</button>
+        <button onclick="clearMapper2Col('${sysKey}')" style="background: rgba(255, 68, 68, 0.1); border: 1px solid #ff4444; color: #ff4444; padding: 5px 12px; border-radius: 4px; font-size: 11px; font-weight: bold; cursor: pointer;">❌ Очистить связь</button>
     </div>`;
 
     let currentlyMappedIndex = window.mapper2State.colMap ? window.mapper2State.colMap[sysKey] : undefined;
@@ -4806,7 +4828,6 @@ window.openColumnSelector = function(sysKey, reqName, isDict) {
     let splitRules = window.mapper2State.splitRules || {};
     let usedByOthers = {}; 
     
-    // Собираем индексы колонок, которые заняты ДРУГИМИ полями
     if (window.mapper2State.colMap) {
         Object.keys(window.mapper2State.colMap).forEach(k => {
             if (k !== sysKey) {
@@ -4839,7 +4860,6 @@ window.openColumnSelector = function(sysKey, reqName, isDict) {
         let isSelected = (currentlyMappedIndex === index);
         let isUsedByOther = (usedByOthers[index] !== undefined && usedByOthers[index].length > 0);
 
-        // Анализируем, какие ИМЕННО фрагменты заняты другими полями
         let takenTokens = new Set();
         let isFullyTaken = false;
         
@@ -4847,14 +4867,13 @@ window.openColumnSelector = function(sysKey, reqName, isDict) {
             usedByOthers[index].forEach(otherSysKey => {
                 let rule = splitRules[otherSysKey];
                 if (rule && rule.length > 0) {
-                    rule.forEach(t => takenTokens.add(t)); // Поле забрало только часть
+                    rule.forEach(t => takenTokens.add(t));
                 } else {
-                    isFullyTaken = true; // Поле забрало колонку целиком без сплиттера
+                    isFullyTaken = true; 
                 }
             });
         }
 
-        // === 1 и 4. ПОДСВЕТКА ФРАГМЕНТОВ В ПРЕВЬЮ ===
         let previewHtmlArr = [];
         previews.forEach(p => {
             let text = p.orig;
@@ -4865,17 +4884,14 @@ window.openColumnSelector = function(sysKey, reqName, isDict) {
                 let isTakenByOther = isFullyTaken || takenTokens.has(i);
                 
                 if (isCurrentSplit) {
-                    // 1. Выделяем зеленым фоном то, что выбрано нами для текущего поля
                     return `<b style="color:#000; background:var(--accent-green, #4CAF50); padding:0 3px; border-radius:3px;">${tok}</b>`;
                 } else if (isTakenByOther) {
-                    // 4. Зачеркиваем и гасим фрагменты, которые уже забрали другие поля
                     return `<span style="color:#555; text-decoration:line-through; background:rgba(255,255,255,0.05); padding:0 2px; border-radius:2px;" title="Уже занято">${tok}</span>`;
                 } else {
                     return tok;
                 }
             }).join('');
             
-            // Если мы выбрали колонку целиком (без сплит-правил), просто красим весь текст в зеленый
             if (isSelected && (!currentSplitRule || currentSplitRule.length === 0)) {
                 highlightedHtml = `<b style="color:var(--accent-green, #4CAF50);">${text}</b>`;
             }
@@ -4886,20 +4902,18 @@ window.openColumnSelector = function(sysKey, reqName, isDict) {
         let previewText = previewHtmlArr.length > 0 ? previewHtmlArr.join('<br>') : 'Пустая колонка (нет данных)';
         let safePreview = previews[0] ? String(previews[0].orig).replace(/[\r\n]+/g, ' ').replace(/'/g, "\\'").replace(/"/g, '\\"') : '';
 
-        // === 3. НОВЫЕ СТИЛИ (ГРАДАЦИЯ СЕРОГО ДЛЯ ЗАНЯТЫХ) ===
-        let itemStyle = 'background: var(--bg-card, #252525); border: 1px solid var(--border-light, #333); border-radius: 6px; padding: 8px; margin-bottom: 8px; transition: 0.2s;';
+        let itemStyle = 'background: var(--bg-card, #252525); border: 1px solid var(--border-light, #333); border-radius: 6px; padding: 10px; margin-bottom: 10px; transition: 0.2s;';
         let badgeHtml = '';
 
         if (isSelected) {
-            // Выделение текущего выбора
-            itemStyle = 'border: 2px solid var(--accent-green, #4CAF50); background: rgba(76, 175, 80, 0.05); border-radius: 6px; padding: 8px; margin-bottom: 8px;';
+            itemStyle = 'border: 2px solid var(--accent-green, #4CAF50); background: rgba(76, 175, 80, 0.05); border-radius: 6px; padding: 10px; margin-bottom: 10px;';
             let splitNote = (currentSplitRule && currentSplitRule.length > 0) ? ' (Часть)' : ' (Целиком)';
-            badgeHtml = `<div style="font-size: 10px; color: var(--accent-green, #4CAF50); font-weight: bold; margin-bottom: 6px;">📌 Выбрано${splitNote}</div>`;
+            badgeHtml = `<div style="font-size: 10px; margin-bottom: 8px;"><span style="background: var(--accent-green, #4CAF50); color: #000; padding: 3px 8px; border-radius: 4px; font-weight: bold;">📌 ВЫБРАНО${splitNote.toUpperCase()}</span></div>`;
         } else if (isUsedByOther) {
-            // Градация серого для занятых колонок (глухой темный фон без пунктиров)
-            itemStyle = 'background: #181818; border: 1px solid #2a2a2a; border-radius: 6px; padding: 8px; margin-bottom: 8px; opacity: 0.85;';
-            let usedLabel = isFullyTaken ? '⚠️ Занято целиком' : '⚠️ Частично занято (остались свободные части)';
-            badgeHtml = `<div style="font-size: 10px; color: #888; font-style: italic; margin-bottom: 6px;">${usedLabel}</div>`;
+            itemStyle = 'background: #151515; border: 1px solid #222; border-radius: 6px; padding: 10px; margin-bottom: 10px; opacity: 0.9;';
+            // 2. Яркие оранжевые плашки для занятых полей
+            let usedLabel = isFullyTaken ? '⚠️ ЗАНЯТО ЦЕЛИКОМ' : '⚠️ ЧАСТИЧНО ЗАНЯТО';
+            badgeHtml = `<div style="font-size: 10px; margin-bottom: 8px;"><span style="background: rgba(255, 152, 0, 0.15); border: 1px solid rgba(255, 152, 0, 0.4); color: #ff9800; padding: 3px 8px; border-radius: 4px; font-weight: bold;">${usedLabel}</span></div>`;
         }
 
         colList.innerHTML += `
