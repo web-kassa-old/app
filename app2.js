@@ -4684,11 +4684,15 @@ window.renderMapper2Cards = function(templateData) {
     let allReqs = [];
     let learnedSynonyms = {}; 
 
-    // 1. Память конкретно этого шаблона (то, что мы уже спарили руками)
     if (templateData && templateData.memoryJson) {
         try {
             learnedSynonyms = typeof templateData.memoryJson === 'string' ? JSON.parse(templateData.memoryJson) : templateData.memoryJson;
             window.mapper2State.rawMemoryJson = JSON.stringify(learnedSynonyms);
+            
+            // === ВОССТАНАВЛИВАЕМ ПРАВИЛА СПЛИТТЕРА ИЗ ПАМЯТИ ===
+            if (learnedSynonyms._splitRules) {
+                window.mapper2State.splitRules = JSON.parse(JSON.stringify(learnedSynonyms._splitRules));
+            }
         } catch(e) { console.error("Ошибка парсинга памяти", e); }
     }
 
@@ -4720,61 +4724,36 @@ window.renderMapper2Cards = function(templateData) {
         if (!allReqs.some(r => r.sysKey === field.sysKey)) allReqs.push(field);
     });
 
-    // 2. Подключаем ГЛОБАЛЬНЫЙ словарь синонимов из базы (вместо хардкода)
     const globalSynonyms = (typeof invoiceSynonyms !== 'undefined') ? invoiceSynonyms : {};
     const headersLower = (window.mapper2State.invoiceHeaders || []).map(h => String(h||'').trim().toLowerCase());
 
     let html = '';
     allReqs.forEach(req => {
-        
-        // Жесткая блокировка поля "Артикул" (merchant_sku) для Kaspi
         let isKaspiSku = req.sysKey.toLowerCase().includes('sku') || req.name.toLowerCase().includes('артикул');
-        
         if (isKaspiSku) {
             html += `
             <div class="req-card" style="opacity: 0.6; filter: grayscale(1); cursor: not-allowed; background: #1a1a1a; border-color: #333;">
-                <div class="req-info">
-                    <span class="req-title required">${req.name}</span>
-                    <span class="req-subtitle">Заполняется автоматически</span>
-                </div>
+                <div class="req-info"><span class="req-title required">${req.name}</span><span class="req-subtitle">Заполняется автоматически</span></div>
                 <div class="req-status status-dict" style="background: #2a2a2a; border-color: #444; color: #888;">🔒 Штрихкод БД</div>
             </div>`;
             return; 
         }
 
-        // === ПОИСК СВЯЗЕЙ (Память шаблона + Глобальный словарь из таблицы) ===
         let learned = learnedSynonyms[req.sysKey] || [];
-        
-        // Собираем синонимы из глобальной таблицы по ключу (например 'qty') и по имени (например 'Количество')
         let baseRaw = [];
         if (globalSynonyms[req.sysKey]) baseRaw = baseRaw.concat(globalSynonyms[req.sysKey]);
         if (globalSynonyms[req.name]) baseRaw = baseRaw.concat(globalSynonyms[req.name]);
-        // Если это Бренд, ищем еще и по слову Brand (для страховки словарных полей)
         if (req.isDict && globalSynonyms['Brand']) baseRaw = baseRaw.concat(globalSynonyms['Brand']);
         
         let base = baseRaw.map(w => String(w).trim().toLowerCase()).filter(Boolean);
-        
         let foundIndex = -1;
         
-        // Приоритет 1: Обученная память именно для этого шаблона
         foundIndex = headersLower.findIndex(h => h && learned.includes(h));
+        if (foundIndex === -1) foundIndex = headersLower.findIndex(h => h && base.includes(h));
+        if (foundIndex === -1) foundIndex = headersLower.findIndex(h => h && learned.some(w => w.length > 2 && h.includes(w)));
+        if (foundIndex === -1) foundIndex = headersLower.findIndex(h => h && base.some(w => w.length > 2 && h.includes(w)));
         
-        // Приоритет 2: Точное совпадение из листа Синонимов
-        if (foundIndex === -1) {
-            foundIndex = headersLower.findIndex(h => h && base.includes(h));
-        }
-        // Приоритет 3: Частичное совпадение по памяти
-        if (foundIndex === -1) {
-            foundIndex = headersLower.findIndex(h => h && learned.some(w => w.length > 2 && h.includes(w)));
-        }
-        // Приоритет 4: Частичное совпадение из листа Синонимов
-        if (foundIndex === -1) {
-            foundIndex = headersLower.findIndex(h => h && base.some(w => w.length > 2 && h.includes(w)));
-        }
-        
-        if (foundIndex !== -1) {
-            window.mapper2State.colMap[req.sysKey] = foundIndex;
-        }
+        if (foundIndex !== -1) window.mapper2State.colMap[req.sysKey] = foundIndex;
 
         let mappedIndex = window.mapper2State.colMap[req.sysKey];
         let dictValue = window.mapper2State.dictValues && window.mapper2State.dictValues[req.sysKey];
@@ -4788,7 +4767,15 @@ window.renderMapper2Cards = function(templateData) {
         } else if (mappedIndex !== undefined) {
             statusClass = 'status-filled';
             let colName = window.mapper2State.invoiceHeaders[mappedIndex] || `Колонка ${mappedIndex + 1}`;
-            statusText = `✅ ${colName}`;
+            
+            // === ЕСЛИ ЕСТЬ СПЛИТ-ПРАВИЛО, ПОКАЗЫВАЕМ ЭТО ===
+            let hasSplit = window.mapper2State.splitRules && window.mapper2State.splitRules[req.sysKey] && window.mapper2State.splitRules[req.sysKey].length > 0;
+            if (hasSplit) {
+                statusText = `✅ ${colName} ✂️ (Фрагмент)`;
+                statusClass += ' status-split'; // Можно добавить свой CSS для желтого свечения, если нужно
+            } else {
+                statusText = `✅ ${colName}`;
+            }
         }
 
         html += `
@@ -4802,13 +4789,7 @@ window.renderMapper2Cards = function(templateData) {
     });
     
     container.innerHTML = html;
-
     document.getElementById('parseInvoiceBtn').style.display = 'none';
-    const importModeContainer = document.getElementById('importModeContainer');
-    if (importModeContainer) importModeContainer.style.display = 'none';
-    const invoiceUploadWrapper = document.getElementById('invoiceUploadWrapper');
-    if (invoiceUploadWrapper) invoiceUploadWrapper.style.display = 'none';
-    
     document.getElementById('mapper2Area').style.display = 'flex';
     document.getElementById('applyMapper2Btn').style.display = 'block';
 };
@@ -5156,6 +5137,13 @@ window.applyMapper2Logic = function() {
                     }
                 }
             });
+
+            // === ДОБАВЛЯЕМ СОХРАНЕНИЕ ПРАВИЛ СПЛИТТЕРА ===
+            if (state.splitRules && Object.keys(state.splitRules).length > 0) {
+                currentMemory._splitRules = state.splitRules;
+                memoryUpdated = true;
+            }
+            // =============================================
             
             if (memoryUpdated) {
                 const payload = {
