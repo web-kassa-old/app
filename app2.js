@@ -4560,7 +4560,6 @@ window.renderMapper2Cards = function(templateData) {
             let reqText = (requirements[i] || "").toLowerCase();
             let isReq = reqText.includes('обязательн') && !reqText.includes('необязательн');
             
-            // Теперь мы помечаем ВСЕ эти поля как isKaspi: true
             allReqs.push({ sysKey, name: humName, req: isReq, desc: 'Словарь или Сплиттер', isKaspi: true });
         }
     }
@@ -4617,28 +4616,30 @@ window.renderMapper2Cards = function(templateData) {
         
         let statusClass = 'status-empty';
         let statusText = 'Выбрать';
-        let extraPreviewHtml = ''; // Контейнер для наглядного примера
+        let extraPreviewHtml = ''; 
         
+        // 1. ИСПРАВЛЕНИЕ ДЛЯ СЛОВАРЯ
         if (dictValue) {
-            statusClass = 'status-dict';
-            statusText = `[Словарь] ${dictValue}`;
-        } else if (mappedIndex !== undefined) {
+            statusClass = 'status-filled'; // Теперь это зеленая кнопка
+            let shortVal = dictValue.length > 15 ? dictValue.substring(0, 15) + '...' : dictValue;
+            statusText = `📖 ${shortVal}`;
+        } 
+        // 2. ИСПРАВЛЕНИЕ ДЛЯ СПЛИТТЕРА И ОБЫЧНЫХ КОЛОНОК
+        else if (mappedIndex !== undefined) {
             statusClass = 'status-filled';
             let colName = window.mapper2State.invoiceHeaders[mappedIndex] || `Колонка ${mappedIndex + 1}`;
             
             let hasSplit = window.mapper2State.splitRules && window.mapper2State.splitRules[req.sysKey] && window.mapper2State.splitRules[req.sysKey].length > 0;
             
             if (hasSplit) {
-                statusText = `✅ ${colName} ✂️`;
+                statusText = `✂️ ${colName}`; // Чистое название колонки на кнопке
                 
-                // Ищем первый попавшийся непустой текст для примера
                 let sampleText = '';
                 for (let i = 0; i < Math.min(10, window.mapper2State.invoiceRows.length); i++) {
                     let val = String(window.mapper2State.invoiceRows[i][mappedIndex] || '').trim();
                     if (val) { sampleText = val; break; }
                 }
                 
-                // Если нашли пример, формируем красивую подсветку результата
                 if (sampleText) {
                     const regex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,]/g;
                     let tokens = sampleText.match(regex) || [];
@@ -4652,7 +4653,12 @@ window.renderMapper2Cards = function(templateData) {
                         }
                     }).join('');
                     
-                    extraPreviewHtml = `<div style="margin-top: 6px; font-size: 11px; background: rgba(255,255,255,0.05); padding: 4px 8px; border-radius: 4px; display: inline-block;">${highlighted}</div>`;
+                    // Плашка с визуальным токенизатором
+                    extraPreviewHtml = `
+                    <div style="margin-top: 6px; font-size: 11px; background: rgba(255,255,255,0.05); padding: 4px 8px; border-radius: 4px; display: inline-block;">
+                        <span style="color: #aaa; margin-right: 4px;">Из «${colName}»:</span>
+                        ${highlighted}
+                    </div>`;
                 }
             } else {
                 statusText = `✅ ${colName}`;
@@ -4971,8 +4977,10 @@ window.selectDictionaryValue = function(value, isCustom) {
     // Окрашиваем карточку в зеленый
     const statusEl = document.getElementById('status-' + sysKey);
     if (statusEl) {
-        statusEl.className = 'req-status status-dict';
-        statusEl.innerText = `[Словарь] ${value}`;
+        // Обрезаем текст, если он слишком длинный, чтобы кнопка не ломала верстку
+        let shortVal = value.length > 15 ? value.substring(0, 15) + '...' : value;
+        statusEl.className = 'req-status status-mapped'; 
+        statusEl.innerText = `📖 ${shortVal}`;
     }
     
     // Закрываем модалку
