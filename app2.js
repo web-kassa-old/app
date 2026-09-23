@@ -4790,6 +4790,12 @@ window.renderMapper2Cards = function(templateData) {
     
     container.innerHTML = html;
     document.getElementById('parseInvoiceBtn').style.display = 'none';
+    const importModeContainer = document.getElementById('importModeContainer');
+    if (importModeContainer) importModeContainer.style.display = 'none';
+    const invoiceUploadWrapper = document.getElementById('invoiceUploadWrapper');
+    if (invoiceUploadWrapper) invoiceUploadWrapper.style.display = 'none';
+    
+    // Показываем интерфейс маппера
     document.getElementById('mapper2Area').style.display = 'flex';
     document.getElementById('applyMapper2Btn').style.display = 'block';
 };
