@@ -4297,152 +4297,6 @@ function t(key) {
     return (localDict[lang] && localDict[lang][key]) ? localDict[lang][key] : localDict['ru'][key];
 }
 
-function createDictionaryModal() {
-    if (document.getElementById('kaspiDictModal')) return;
-    
-    const modal = document.createElement('div');
-    modal.id = 'kaspiDictModal';
-    // Изменили выравнивание на flex-start (прижали к верху) и добавили safe-area-inset-top для защиты от челки/динамического острова на iPhone
-    modal.style.cssText = 'display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:999999; flex-direction:column; align-items:center; justify-content:flex-start; padding-top:env(safe-area-inset-top, 20px); padding-left:10px; padding-right:10px; box-sizing:border-box; backdrop-filter:blur(3px);';
-    
-    // Увеличили max-height и немного уплотнили отступы
-    modal.innerHTML = `
-        <div id="dictModalContent" style="background:var(--bg-body, #1e1e1e); color:var(--text-main, #fff); width:100%; max-width:400px; border-radius:10px; display:flex; flex-direction:column; max-height:90vh; margin-top:10px; box-sizing:border-box;">
-            <div style="padding:12px 15px; border-bottom:1px solid var(--border-main, #444); display:flex; justify-content:space-between; align-items:center;">
-                <b id="dictModalTitle" style="font-size:15px;">${t('dict_title')}</b>
-                <span onclick="closeDictionaryModal()" style="font-size:24px; cursor:pointer; color:#888; line-height:1;">&times;</span>
-            </div>
-            <div style="padding:10px 15px; padding-bottom:5px; border-bottom:1px solid var(--border-main, #444);">
-                <input type="text" id="dictModalSearch" placeholder="${t('dict_placeholder')}" oninput="filterDictionary()" style="width:100%; padding:10px; border:1px solid var(--accent-blue, #3b82f6); background:var(--bg-panel, #2a2a2a); color:var(--text-main, #fff); border-radius:6px; font-size:15px; outline:none; box-sizing:border-box;">
-                <div id="dictModalCountInfo" style="font-size:11px; color:var(--text-muted, #888); margin-top:6px; margin-bottom:4px; text-align:right;">
-                    <span id="dictModalCountText">${t('dict_total')}</span> <span id="dictTotalCount">0</span>
-                </div>
-            </div>
-            <ul id="dictModalList" style="list-style:none; padding:0; margin:0; overflow-y:auto; flex:1; max-height:none; overscroll-behavior:contain;"></ul>
-        </div>
-    `;
-    
-    modal.onclick = (e) => {
-        if (e.target.id === 'kaspiDictModal') closeDictionaryModal();
-    };
-    
-    document.body.appendChild(modal);
-
-    // УМНОЕ СКРЫТИЕ КЛАВИАТУРЫ: Срабатывает при касании списка
-    const listElem = document.getElementById('dictModalList');
-    listElem.addEventListener('touchstart', () => {
-        document.getElementById('dictModalSearch').blur();
-    }, { passive: true });
-}
-
-function openDictionaryModal(colIndex, colName) {
-    createDictionaryModal();
-    currentModalColIndex = parseInt(colIndex);
-    document.getElementById('dictModalTitle').innerText = colName;
-    document.getElementById('dictModalSearch').value = '';
-    document.getElementById('kaspiDictModal').style.display = 'flex';
-    filterDictionary();
-}
-
-function closeDictionaryModal() {
-    const modal = document.getElementById('kaspiDictModal');
-    if (modal) modal.style.display = 'none';
-}
-
-function filterDictionary() {
-    const query = document.getElementById('dictModalSearch').value.toLowerCase().trim();
-    const list = document.getElementById('dictModalList');
-    const countText = document.getElementById('dictModalCountText');
-    const totalCount = document.getElementById('dictTotalCount');
-    const dict = window.kaspiDicts[currentModalColIndex] || [];
-    
-    list.innerHTML = '';
-    
-    if (countText && totalCount) {
-        countText.innerText = query === '' ? t('dict_total') : t('dict_search_in');
-        totalCount.innerText = dict.length;
-    }
-    
-    let allFiltered = dict;
-
-    if (query !== '') {
-        allFiltered = dict.filter(val => String(val).toLowerCase().includes(query));
-        
-        allFiltered.sort((a, b) => {
-            const strA = String(a).toLowerCase();
-            const strB = String(b).toLowerCase();
-            const getScore = (str) => {
-                if (str.startsWith(query)) return 1; 
-                if (new RegExp(`(^|\\s|_|-)${query}`).test(str)) return 2; 
-                return 3; 
-            };
-            const scoreA = getScore(strA);
-            const scoreB = getScore(strB);
-            
-            if (scoreA !== scoreB) return scoreA - scoreB;
-            return strA.localeCompare(strB);
-        });
-    }
-
-    const displayLimit = 100;
-    const filteredToDisplay = allFiltered.slice(0, displayLimit);
-    
-    if (filteredToDisplay.length === 0) {
-        if (query.length > 0) {
-            list.innerHTML = `
-                <li style="padding:15px; text-align:center; color:#888;">
-                    <div style="margin-bottom: 10px;">${t('dict_not_found')}</div>
-                    <button onclick="selectDictionaryValue('${query.replace(/'/g, "\\'")}', true)" style="padding:10px 15px; background:#eab308; color:#854d0e; border:none; border-radius:6px; font-weight:bold; width:100%; font-size:14px; cursor:pointer;">
-                        ✏️ ${t('dict_use_custom')} "${query}"
-                    </button>
-                </li>`;
-        } else {
-            list.innerHTML = `<li style="padding:15px; text-align:center; color:#888;">${t('dict_start_typing')}</li>`;
-        }
-        return;
-    }
-
-    filteredToDisplay.forEach(val => {
-        const regex = new RegExp(`(${query})`, "gi");
-        const highlighted = query ? String(val).replace(regex, "<mark style='background:#fef08a; color:#854d0e;'>$1</mark>") : val;
-        
-        const li = document.createElement('li');
-        li.style.cssText = 'padding:15px; border-bottom:1px solid var(--border-light, #333); cursor:pointer; font-size:14px;';
-        li.innerHTML = highlighted;
-        li.onclick = () => selectDictionaryValue(val, false);
-        list.appendChild(li);
-    });
-
-    if (allFiltered.length > displayLimit) {
-        const extraCount = allFiltered.length - displayLimit;
-        const li = document.createElement('li');
-        li.style.cssText = 'padding:15px; text-align:center; color:var(--text-muted, #888); font-size:13px; font-style:italic; background:rgba(0,0,0,0.2);';
-        li.innerHTML = `${t('dict_and_more')} ${extraCount} ${t('dict_options')}.`;
-        list.appendChild(li);
-    }
-}
-
-function selectDictionaryValue(value, isCustom) {
-    if (!value) return;
-    const select = document.querySelector(`select[data-col-index="${currentModalColIndex}"]`);
-    if (select) {
-        const valId = `static_${value}`;
-        let opt = select.querySelector(`option[value="${valId}"]`);
-        
-        if (!opt) {
-            opt = document.createElement('option');
-            opt.value = valId;
-            opt.innerHTML = isCustom ? `✏️ ${value}` : `📌 ${value}`;
-            opt.style.background = isCustom ? '#fefce8' : '#e0f2fe';
-            opt.style.color = isCustom ? '#854d0e' : '#0369a1';
-            select.appendChild(opt);
-        }
-        select.value = valId;
-        updateSelectStates();
-    }
-    closeDictionaryModal();
-}
-
 // НОВАЯ ФУНКЦИЯ: Сброс при пустом поле ввода
 function handleInputBlur(inputElem, colIndex) {
     if (inputElem.value.trim() === '') {
@@ -4797,7 +4651,7 @@ window.renderMapper2Cards = function(templateData) {
                         }
                     }).join('');
                     
-                    extraPreviewHtml = `<div style="margin-top: 6px; font-size: 11px; background: rgba(255,255,255,0.05); padding: 4px 8px; border-radius: 4px; display: inline-block;">Пример: ${highlighted}</div>`;
+                    extraPreviewHtml = `<div style="margin-top: 6px; font-size: 11px; background: rgba(255,255,255,0.05); padding: 4px 8px; border-radius: 4px; display: inline-block;">${highlighted}</div>`;
                 }
             } else {
                 statusText = `✅ ${colName}`;
@@ -4834,21 +4688,21 @@ window.openColumnSelector = function(sysKey, reqName, isDict) {
     
     document.getElementById('sheet-title').innerText = 'Источник: ' + reqName;
     
-    const dictBtn = document.getElementById('btn-global-dict');
-    if (dictBtn) dictBtn.style.display = isDict ? 'block' : 'none';
-
     const colList = document.getElementById('sheet-col-list');
     
-    // 1. Отрицательные отступы (margin: -20px -20px...) убирают пустую область сверху
+    // Генерируем кнопку только для словарных полей
+    let dictBtnHtml = isDict ? `<button onclick="window.openKaspiDictSearch()" style="background: var(--accent-green, #4CAF50); border: none; color: #000; padding: 5px 12px; border-radius: 4px; font-size: 11px; font-weight: bold; cursor: pointer; margin-right: 8px;">🔍 Справочник</button>` : '';
+
     colList.innerHTML = `
     <div style="position: sticky; top: 0; background: var(--bg-panel, #1e1e1e); z-index: 10; padding: 15px 20px; margin: -20px -20px 15px -20px; border-bottom: 1px solid var(--border-light, #333); display: flex; justify-content: space-between; align-items: center;">
         <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; font-weight: bold;">Колонки из накладной</div>
-        <button onclick="clearMapper2Col('${sysKey}')" style="background: rgba(255, 68, 68, 0.1); border: 1px solid #ff4444; color: #ff4444; padding: 5px 12px; border-radius: 4px; font-size: 11px; font-weight: bold; cursor: pointer;">❌ Очистить связь</button>
+        <div style="display: flex; align-items: center;">
+            ${dictBtnHtml}
+            <button onclick="clearMapper2Col('${sysKey}')" style="background: rgba(255, 68, 68, 0.1); border: 1px solid #ff4444; color: #ff4444; padding: 5px 12px; border-radius: 4px; font-size: 11px; font-weight: bold; cursor: pointer;">❌ Очистить</button>
+        </div>
     </div>`;
 
     let currentlyMappedIndex = window.mapper2State.colMap ? window.mapper2State.colMap[sysKey] : undefined;
-    let currentSplitRule = window.mapper2State.splitRules ? window.mapper2State.splitRules[sysKey] : null;
-
     let splitRules = window.mapper2State.splitRules || {};
     let usedByOthers = {}; 
     
@@ -4965,6 +4819,181 @@ window.openColumnSelector = function(sysKey, reqName, isDict) {
     document.getElementById('sheet-overlay').style.display = 'block';
     setTimeout(() => document.getElementById('sheet-overlay').style.opacity = '1', 10);
     document.getElementById('bottom-sheet').style.transform = 'translateY(0)';
+};
+
+window.openKaspiDictSearch = async function() {
+    let sysKey = window.mapper2State.currentSysKey;
+    let reqName = window.mapper2State.currentReqName;
+
+    // Прячем нижнюю шторку
+    document.getElementById('bottom-sheet').style.transform = 'translateY(100%)';
+    setTimeout(() => {
+        let overlay = document.getElementById('sheet-overlay');
+        if(overlay) overlay.style.display = 'none';
+    }, 300);
+
+    window.showLoading(`Чтение справочника: ${reqName}...`);
+
+    try {
+        // Ищем input с файлом (замени селектор, если у тебя input называется иначе)
+        const fileInput = document.querySelector('input[type="file"]'); 
+        if (!fileInput || !fileInput.files[0]) {
+            window.hideLoading();
+            return alert("Не найден загруженный файл накладной.");
+        }
+
+        const file = fileInput.files[0];
+        const arrayBuffer = await file.arrayBuffer();
+        
+        // Читаем через ExcelJS
+        const workbook = new ExcelJS.Workbook();
+        await workbook.xlsx.load(arrayBuffer);
+
+        // Ищем лист values (нечувствительно к регистру)
+        const worksheet = workbook.worksheets.find(ws => ws.name.toLowerCase().includes('value') || ws.name.toLowerCase().includes('значения'));
+        
+        if (!worksheet) {
+            window.hideLoading();
+            return alert("В файле не найден лист 'values'.");
+        }
+
+        // Ищем индекс нужной колонки в первой строке
+        let targetCol = -1;
+        const headerRow = worksheet.getRow(1);
+        headerRow.eachCell((cell, colNumber) => {
+            let cellText = cell.value ? String(cell.value).trim().toLowerCase() : '';
+            if (cellText === reqName.toLowerCase()) {
+                targetCol = colNumber;
+            }
+        });
+
+        if (targetCol === -1) {
+            window.hideLoading();
+            return alert(`Колонка "${reqName}" не найдена на листе справочника.`);
+        }
+
+        // Собираем данные, исключая пустые
+        let rawValues = [];
+        worksheet.eachRow((row, rowNumber) => {
+            if (rowNumber === 1) return; // Пропуск шапки
+            let cell = row.getCell(targetCol);
+            let val = cell.value;
+            
+            if (val !== null && val !== undefined && val !== '') {
+                // Если ячейка содержит объект (rich text или формулу)
+                if (typeof val === 'object') {
+                    val = val.richText ? val.richText.map(rt => rt.text).join('') : (val.result !== undefined ? val.result : val.text || val.toString());
+                }
+                rawValues.push(String(val).trim());
+            }
+        });
+
+        // Удаляем дубликаты
+        let dictArray = [...new Set(rawValues)];
+        window.hideLoading();
+
+        if (dictArray.length === 0) return alert(`Справочник для "${reqName}" пуст.`);
+
+        // === СОЗДАНИЕ ИНТЕРФЕЙСА МОДАЛКИ ===
+        let modal = document.createElement('div');
+        modal.id = 'dict-search-modal';
+        modal.style.cssText = 'position:fixed; top:0; left:0; width:100%; height:100%; background:var(--bg-dark, #121212); z-index:9999; display:flex; flex-direction:column; padding: 20px; box-sizing:border-box;';
+        
+        modal.innerHTML = `
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px;">
+                <h3 style="margin:0; color:#fff; font-size:16px;">Словарь: ${reqName} <span style="font-size:12px; color:#888;">(${dictArray.length})</span></h3>
+                <button onclick="document.body.removeChild(this.parentElement.parentElement)" style="background:none; border:none; color:#ff4444; font-size:28px; cursor:pointer; line-height:1;">&times;</button>
+            </div>
+            <input type="text" id="dict-search-input" placeholder="Поиск..." autocomplete="off" style="width:100%; padding:14px; border-radius:8px; border:1px solid #444; background:#222; color:#fff; margin-bottom:15px; font-size:16px; box-sizing:border-box;">
+            <div id="dict-list-container" style="flex:1; overflow-y:auto; border:1px solid #333; border-radius:8px; background:#1a1a1a;"></div>
+        `;
+        document.body.appendChild(modal);
+
+        const inputEl = document.getElementById('dict-search-input');
+        const listEl = document.getElementById('dict-list-container');
+        inputEl.focus();
+        
+        // === АЛГОРИТМ ПОРЦИОННОЙ ОТРИСОВКИ ===
+        let filteredData = [...dictArray];
+        let currentIndex = 0;
+        const CHUNK_SIZE = 100;
+
+        function renderChunk(reset = false) {
+            if (reset) {
+                listEl.innerHTML = '';
+                currentIndex = 0;
+            }
+            let html = '';
+            let end = Math.min(currentIndex + CHUNK_SIZE, filteredData.length);
+            
+            for (let i = currentIndex; i < end; i++) {
+                let val = String(filteredData[i]);
+                let safeVal = val.replace(/'/g, "\\'").replace(/"/g, "&quot;");
+                html += `<div onclick="window.selectDictValue('${sysKey}', '${safeVal}')" style="padding: 14px 15px; border-bottom: 1px solid #2a2a2a; cursor: pointer; color: #ddd; font-size: 15px;">${val}</div>`;
+            }
+            
+            listEl.insertAdjacentHTML('beforeend', html);
+            currentIndex = end;
+        }
+
+        renderChunk(true);
+
+        // Бесконечный скролл
+        listEl.addEventListener('scroll', function() {
+            if (listEl.scrollTop + listEl.clientHeight >= listEl.scrollHeight - 50) {
+                if (currentIndex < filteredData.length) renderChunk();
+            }
+        });
+
+        // === 3-УРОВНЕВАЯ СОРТИРОВКА ПО РЕЛЕВАНТНОСТИ ===
+        inputEl.addEventListener('input', function(e) {
+            let q = e.target.value.toLowerCase().trim();
+            if (q.length === 0) {
+                filteredData = [...dictArray];
+            } else {
+                let p1 = [], p2 = [], p3 = [];
+                for (let i = 0; i < dictArray.length; i++) {
+                    let item = dictArray[i];
+                    let str = String(item).toLowerCase();
+                    
+                    if (str.startsWith(q)) {
+                        p1.push(item); // Приоритет 1: Начало строки
+                    } else if (str.includes(' ' + q) || str.includes('-' + q) || str.includes('"' + q) || str.includes('(' + q)) {
+                        p2.push(item); // Приоритет 2: Начало составного слова
+                    } else if (str.includes(q)) {
+                        p3.push(item); // Приоритет 3: Внутри слова
+                    }
+                }
+                filteredData = [...p1, ...p2, ...p3];
+            }
+            renderChunk(true);
+        });
+
+    } catch (err) {
+        window.hideLoading();
+        alert("Ошибка работы со справочником: " + err.message);
+    }
+};
+
+// Функция выбора и сохранения
+window.selectDictValue = function(sysKey, value) {
+    // Очищаем старые связи (колонка или сплиттер)
+    if (window.mapper2State.colMap) delete window.mapper2State.colMap[sysKey];
+    if (window.mapper2State.splitRules) delete window.mapper2State.splitRules[sysKey];
+    
+    if (!window.mapper2State.dictValues) window.mapper2State.dictValues = {};
+    
+    // Возвращаем кавычки на место
+    window.mapper2State.dictValues[sysKey] = value.replace(/&quot;/g, '"');
+    
+    const modal = document.getElementById('dict-search-modal');
+    if (modal) document.body.removeChild(modal);
+    
+    const statusEl = document.getElementById('status-' + sysKey);
+    if (statusEl) {
+        statusEl.className = 'req-status status-dict';
+        statusEl.innerText = `[Словарь] ${window.mapper2State.dictValues[sysKey]}`;
+    }
 };
 
 window.clearMapper2Col = function(sysKey) {
@@ -5107,27 +5136,6 @@ window.applySplitRule = function(colIndex, colName) {
     }
 
     updateReqCardStatus(sysKey, '✂️ ' + colName + ' 🟢', 'status-filled', previewVal || "Пусто");
-    closeSheet();
-};
-
-// 5. ИНТЕГРАЦИЯ СО СЛОВАРЕМ KASPI (Переиспользуем старый архивный код)
-window.openGlobalDictionary = function() {
-    const colName = window.mapper2State.currentReqName;
-    // Вызываем вашу старую функцию (0 передаем просто как заглушку индекса)
-    window.openDictionaryModal(0, colName); 
-};
-
-// Переопределяем старую функцию selectDictionaryValue (чтобы она не искала `<select>`)
-window.selectDictionaryValue = function(value, isCustom) {
-    if (!value) return;
-    const sysKey = window.mapper2State.currentSysKey;
-    
-    delete window.mapper2State.colMap[sysKey];
-    delete window.mapper2State.splitRules[sysKey];
-    window.mapper2State.dictValues[sysKey] = value;
-    
-    updateReqCardStatus(sysKey, (isCustom ? '✏️ ' : '📌 ') + 'Словарь 🟢', 'status-filled', value);
-    window.closeDictionaryModal();
     closeSheet();
 };
 
