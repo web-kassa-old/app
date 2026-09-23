@@ -5217,7 +5217,6 @@ window.applyMapper2Logic = function() {
             
             let memoryUpdated = false;
             
-            // Пробегаемся по всем связанным колонкам и запоминаем их заголовки
             Object.keys(state.colMap).forEach(sysKey => {
                 let colIndex = state.colMap[sysKey];
                 let headerText = state.invoiceHeaders[colIndex];
@@ -5226,7 +5225,6 @@ window.applyMapper2Logic = function() {
                     let cleanWord = String(headerText).trim().toLowerCase();
                     if (!currentMemory[sysKey]) currentMemory[sysKey] = [];
                     
-                    // Если такого слова еще нет в памяти для этого поля - добавляем
                     if (!currentMemory[sysKey].includes(cleanWord)) {
                         currentMemory[sysKey].push(cleanWord);
                         memoryUpdated = true;
@@ -5234,12 +5232,10 @@ window.applyMapper2Logic = function() {
                 }
             });
 
-            // === ДОБАВЛЯЕМ СОХРАНЕНИЕ ПРАВИЛ СПЛИТТЕРА ===
             if (state.splitRules && Object.keys(state.splitRules).length > 0) {
                 currentMemory._splitRules = state.splitRules;
                 memoryUpdated = true;
             }
-            // =============================================
             
             if (memoryUpdated) {
                 const payload = {
@@ -5254,14 +5250,6 @@ window.applyMapper2Logic = function() {
             }
         }
     }
-
-    window.parsedInvoiceData = [];
-    window.invoiceGroups = {}; 
-    window.invoiceGroups[state.docNo] = { 
-        supplier: state.supplier, 
-        items: [], 
-        originalFiles: [{ fileName: state.fileName, fileBase64: state.originalBase64 }] 
-    };
 
     window.parsedInvoiceData = [];
     window.invoiceGroups = {}; 
@@ -5332,6 +5320,7 @@ window.applyMapper2Logic = function() {
             }
             attributesObj[key] = rawValue;
         };
+        
         Object.keys(state.colMap).forEach(processAttribute);
         if (state.dictValues) Object.keys(state.dictValues).forEach(processAttribute);
         let finalAttributes = Object.keys(attributesObj).length > 0 ? JSON.stringify(attributesObj) : "";
@@ -5365,6 +5354,16 @@ window.applyMapper2Logic = function() {
         return alert("Не удалось сформировать товары. Убедитесь, что в колонках «Количество» и «Цена» находятся ТОЛЬКО цифры.");
     }
 
+    // Вызываем функцию отрисовки таблицы (вынесли отдельно, чтобы перерисовывать при редактировании)
+    window.renderPreviewTable();
+    
+    document.getElementById('mapper2Area').style.display = 'none';
+    document.getElementById('invoicePreviewArea').style.display = 'flex';
+};
+
+window.renderPreviewTable = function() {
+    const state = window.mapper2State;
+    
     document.getElementById('invoiceMetadata').innerHTML = `
         <span style="color:var(--text-muted); font-size:13px;">Поставщик:</span> 
         <span style="color:var(--accent-yellow); font-weight:bold; font-size:14px;">${state.supplier}</span> 
@@ -5376,24 +5375,66 @@ window.applyMapper2Logic = function() {
         <span style="color:var(--accent-yellow); font-weight:bold; font-size:14px;">${window.parsedInvoiceData.length}</span>
     `;
     
-    document.getElementById('invoiceTableBody').innerHTML = window.parsedInvoiceData.map(item => `
+    document.getElementById('invoiceTableBody').innerHTML = window.parsedInvoiceData.map((item, index) => {
+        let attrsHtml = '';
+        if (item.attributes) {
+            try {
+                let parsed = JSON.parse(item.attributes);
+                attrsHtml = Object.keys(parsed).map(k => 
+                    `<div style="font-size: 11px; background: rgba(76, 175, 80, 0.1); border: 1px solid rgba(76, 175, 80, 0.3); color: #4CAF50; padding: 2px 6px; border-radius: 4px; display: inline-block; margin: 2px;">
+                        <span style="color:#aaa;">${k}:</span> <b>${parsed[k]}</b>
+                    </div>`
+                ).join('');
+            } catch(e){}
+        }
+
+        return `
         <tr style="border-bottom:1px solid var(--border-light); color:var(--text-main);">
             <td style="padding:5px;">
                 <span style="color:var(--accent-blue); font-weight:bold;">${item.item_id || 'AUTO'}</span>
                 ${!item.barcode ? `<br><span style="font-size:10px; color:var(--accent-green);">+ EAN-13 (Авто)</span>` : ''}
             </td>
-            <td style="padding:5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 150px;">
-                ${item.item_name}
-                ${item.raw_logistics ? `<br><span style="font-size:10px; color:var(--text-muted);">Скрытые параметры: ${item.raw_logistics}</span>` : ''}
+            <td style="padding:5px; max-width: 150px;">
+                <div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight:bold;">${item.item_name}</div>
+                <div style="margin-top: 4px;">${attrsHtml}</div>
+                <button onclick="window.editRowAttributes(${index})" style="background: none; border: 1px dashed #666; color: #aaa; cursor: pointer; border-radius: 4px; font-size: 10px; margin-top: 4px; padding: 2px 5px;">✏️ Изменить параметры</button>
             </td>
             <td style="padding:5px; text-align:right;">${Number(item.qty).toLocaleString('ru-RU')}</td>
-            <td style="padding:5px; text-align:right;">${item.cbm !== "" ? item.cbm : '<span style="color:var(--text-muted); font-size:11px;">из БД</span>'}</td>
-            <td style="padding:5px; text-align:right;">${item.weight !== "" ? item.weight : '<span style="color:var(--text-muted); font-size:11px;">из БД</span>'}</td>
             <td style="padding:5px; text-align:right; font-weight:bold;">${Number(item.cost).toLocaleString('ru-RU')}</td>
-        </tr>`).join('');
+        </tr>`;
+    }).join('');
+};
+
+window.editRowAttributes = function(index) {
+    let item = window.parsedInvoiceData[index];
+    let currentAttrs = {};
+    if (item.attributes) {
+        try { currentAttrs = JSON.parse(item.attributes); } catch(e) {}
+    }
+
+    // Здесь мы используем стандартный prompt браузера для быстрого редактирования.
+    // Если нужно добавить новое поле (например, Шипы), пишем "Шипованность: Да".
+    let attrString = Object.keys(currentAttrs).map(k => `${k}: ${currentAttrs[k]}`).join('\n');
     
-    document.getElementById('mapper2Area').style.display = 'none';
-    document.getElementById('invoicePreviewArea').style.display = 'flex';
+    let result = prompt(`Редактирование параметров для:\n${item.item_name}\n\nВведите параметры в формате "Ключ: Значение" (каждый с новой строки). Например:\nШипованность: Да\nRunFlat: Нет`, attrString);
+    
+    if (result !== null) {
+        let newAttrs = {};
+        result.split('\n').forEach(line => {
+            let parts = line.split(':');
+            if (parts.length >= 2) {
+                let key = parts[0].trim();
+                let val = parts.slice(1).join(':').trim();
+                if (key && val) newAttrs[key] = val;
+            }
+        });
+        
+        // Обновляем данные в массиве и перерисовываем таблицу
+        item.attributes = Object.keys(newAttrs).length > 0 ? JSON.stringify(newAttrs) : "";
+        window.invoiceGroups[item.doc_no].items[index].attributes = item.attributes;
+        
+        window.renderPreviewTable();
+    }
 };
 
 // Функция возврата к настройкам маппера (переопределяем старую)
