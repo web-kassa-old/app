@@ -5364,15 +5364,15 @@ window.applyMapper2Logic = function() {
 window.renderPreviewTable = function() {
     const state = window.mapper2State;
     
+    // Сжатый блок метаданных (экономим высоту)
     document.getElementById('invoiceMetadata').innerHTML = `
-        <span style="color:var(--text-muted); font-size:13px;">Поставщик:</span> 
-        <span style="color:var(--accent-yellow); font-weight:bold; font-size:14px;">${state.supplier}</span> 
-        <span style="color:var(--border-light); margin:0 10px;">|</span> 
-        <span style="color:var(--text-muted); font-size:13px;">Документ:</span> 
-        <span style="color:var(--accent-yellow); font-weight:bold;">${state.docNo}</span> 
-        <span style="color:var(--border-light); margin:0 10px;">|</span> 
-        <span style="color:var(--text-muted); font-size:13px;">Позиций:</span> 
-        <span style="color:var(--accent-yellow); font-weight:bold; font-size:14px;">${window.parsedInvoiceData.length}</span>
+        <div style="display: flex; justify-content: center; align-items: center; gap: 10px; font-size: 13px; padding: 5px 0; border-bottom: 1px solid var(--border-light); margin-bottom: 5px;">
+            <div><span style="color:var(--text-muted);">Поставщик:</span> <span style="color:var(--accent-yellow); font-weight:bold;">${state.supplier}</span></div>
+            <div style="color:var(--border-light);">|</div>
+            <div><span style="color:var(--text-muted);">Документ:</span> <span style="color:var(--accent-yellow); font-weight:bold;">${state.docNo}</span></div>
+            <div style="color:var(--border-light);">|</div>
+            <div><span style="color:var(--text-muted);">Позиций:</span> <span style="color:var(--accent-yellow); font-weight:bold;">${window.parsedInvoiceData.length}</span></div>
+        </div>
     `;
     
     document.getElementById('invoiceTableBody').innerHTML = window.parsedInvoiceData.map((item, index) => {
@@ -5380,29 +5380,99 @@ window.renderPreviewTable = function() {
         if (item.attributes) {
             try {
                 let parsed = JSON.parse(item.attributes);
-                attrsHtml = Object.keys(parsed).map(k => 
-                    `<div style="font-size: 11px; background: rgba(76, 175, 80, 0.1); border: 1px solid rgba(76, 175, 80, 0.3); color: #4CAF50; padding: 2px 6px; border-radius: 4px; display: inline-block; margin: 2px;">
-                        <span style="color:#aaa;">${k}:</span> <b>${parsed[k]}</b>
-                    </div>`
-                ).join('');
+                attrsHtml = Object.keys(parsed).map(k => {
+                    // Очищаем длинные системные ключи Kaspi для красивого отображения (оставляем только суть)
+                    let displayKey = k.split('*').pop().replace('tires', '').replace('.', '').trim();
+                    if(!displayKey) displayKey = k;
+                    
+                    return `<div style="font-size: 10px; background: rgba(76, 175, 80, 0.1); border: 1px solid rgba(76, 175, 80, 0.3); color: #4CAF50; padding: 2px 6px; border-radius: 4px; white-space: nowrap;">
+                        <span style="color:#aaa;">${displayKey}:</span> <b style="color:#fff;">${parsed[k]}</b>
+                    </div>`;
+                }).join('');
             } catch(e){}
         }
 
+        // Добавлено vertical-align: top; во все ячейки
         return `
         <tr style="border-bottom:1px solid var(--border-light); color:var(--text-main);">
-            <td style="padding:5px;">
-                <span style="color:var(--accent-blue); font-weight:bold;">${item.item_id || 'AUTO'}</span>
+            <td style="padding:8px 5px; vertical-align: top;">
+                <span style="color:var(--accent-blue); font-weight:bold; font-size:12px;">${item.item_id || 'AUTO'}</span>
                 ${!item.barcode ? `<br><span style="font-size:10px; color:var(--accent-green);">+ EAN-13 (Авто)</span>` : ''}
             </td>
-            <td style="padding:5px; max-width: 150px;">
-                <div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight:bold;">${item.item_name}</div>
-                <div style="margin-top: 4px;">${attrsHtml}</div>
-                <button onclick="window.editRowAttributes(${index})" style="background: none; border: 1px dashed #666; color: #aaa; cursor: pointer; border-radius: 4px; font-size: 10px; margin-top: 4px; padding: 2px 5px;">✏️ Изменить параметры</button>
+            <td style="padding:8px 5px; vertical-align: top;">
+                <div style="font-weight:bold; font-size:13px; line-height: 1.2; word-break: break-word;">${item.item_name}</div>
+                ${attrsHtml ? `<div style="display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px;">${attrsHtml}</div>` : ''}
+                <button onclick="window.openAttributeEditor(${index})" style="background: rgba(255,255,255,0.05); border: 1px dashed #666; color: #aaa; cursor: pointer; border-radius: 4px; font-size: 10px; margin-top: 6px; padding: 4px 8px; transition: 0.2s;">✏️ Изменить параметры</button>
             </td>
-            <td style="padding:5px; text-align:right;">${Number(item.qty).toLocaleString('ru-RU')}</td>
-            <td style="padding:5px; text-align:right; font-weight:bold;">${Number(item.cost).toLocaleString('ru-RU')}</td>
+            <td style="padding:8px 5px; vertical-align: top; text-align:right; font-size:13px;">${Number(item.qty).toLocaleString('ru-RU')}</td>
+            <td style="padding:8px 5px; vertical-align: top; text-align:right; font-size:13px;">${item.cbm !== "" ? item.cbm : '-'}</td>
+            <td style="padding:8px 5px; vertical-align: top; text-align:right; font-size:13px;">${item.weight !== "" ? item.weight : '-'}</td>
+            <td style="padding:8px 5px; vertical-align: top; text-align:right; font-weight:bold; font-size:13px; color:var(--accent-yellow);">${Number(item.cost).toLocaleString('ru-RU')}</td>
         </tr>`;
     }).join('');
+};
+
+window.openAttributeEditor = function(index) {
+    let item = window.parsedInvoiceData[index];
+    let currentAttrs = {};
+    
+    if (item.attributes) {
+        try { currentAttrs = JSON.parse(item.attributes); } catch(e) {}
+    }
+
+    let attrString = Object.keys(currentAttrs).map(k => `${k}: ${currentAttrs[k]}`).join('\n');
+    
+    // Создаем красивую HTML-модалку, если ее еще нет
+    let modal = document.getElementById('attrEditModal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'attrEditModal';
+        modal.style.cssText = 'position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:999999; display:flex; align-items:center; justify-content:center; padding: 20px; box-sizing:border-box; backdrop-filter:blur(3px);';
+        modal.innerHTML = `
+            <div style="background:var(--bg-panel, #222); width:100%; max-width:400px; border-radius:10px; display:flex; flex-direction:column; box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
+                <div style="padding:15px; border-bottom:1px solid var(--border-light, #333); display:flex; justify-content:space-between; align-items:center;">
+                    <b style="color:var(--text-main, #fff); font-size: 15px;">Параметры товара</b>
+                    <span onclick="document.getElementById('attrEditModal').style.display='none'" style="cursor:pointer; color:#888; font-size:24px; line-height:1;">&times;</span>
+                </div>
+                <div style="padding:15px;">
+                    <div id="attrEditName" style="color:var(--accent-blue); font-weight:bold; font-size:13px; margin-bottom:10px; word-break:break-word;"></div>
+                    <p style="color:#aaa; font-size:11px; margin-bottom:10px; line-height: 1.4;">Введите параметры в формате <b>Ключ: Значение</b> (каждый с новой строки).<br>Например:<br>Шипованность: Да<br>Сезонность: Летняя</p>
+                    <textarea id="attrEditTextarea" rows="6" style="width:100%; padding:10px; background:#111; color:#fff; border:1px solid #444; border-radius:6px; font-family:monospace; font-size:13px; outline:none; box-sizing:border-box; resize:none;"></textarea>
+                </div>
+                <div style="padding:15px; border-top:1px solid var(--border-light, #333); display:flex; gap:10px;">
+                    <button onclick="document.getElementById('attrEditModal').style.display='none'" style="flex:1; padding:10px; background:#333; color:#fff; border:none; border-radius:6px; cursor:pointer;">Отмена</button>
+                    <button id="attrEditSaveBtn" style="flex:1; padding:10px; background:var(--accent-green, #4CAF50); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:bold;">Сохранить</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+    }
+    
+    // Заполняем модалку данными текущего товара
+    document.getElementById('attrEditName').innerText = item.item_name;
+    document.getElementById('attrEditTextarea').value = attrString;
+    modal.style.display = 'flex';
+    
+    // Обработчик сохранения
+    document.getElementById('attrEditSaveBtn').onclick = function() {
+        let result = document.getElementById('attrEditTextarea').value;
+        let newAttrs = {};
+        
+        result.split('\n').forEach(line => {
+            let parts = line.split(':');
+            if (parts.length >= 2) {
+                let key = parts[0].trim();
+                let val = parts.slice(1).join(':').trim();
+                if (key && val) newAttrs[key] = val;
+            }
+        });
+        
+        item.attributes = Object.keys(newAttrs).length > 0 ? JSON.stringify(newAttrs) : "";
+        window.invoiceGroups[item.doc_no].items[index].attributes = item.attributes;
+        
+        window.renderPreviewTable();
+        modal.style.display = 'none';
+    };
 };
 
 window.editRowAttributes = function(index) {
