@@ -4615,24 +4615,33 @@ window.renderMapper2Cards = function(templateData) {
         let dictValue = window.mapper2State.dictValues && window.mapper2State.dictValues[req.sysKey];
         
         let statusClass = 'status-empty';
-        let statusText = 'Выбрать';
+        let statusText = 'ВЫБРАТЬ';
+        let statusStyle = ''; // Добавлена переменная для стилей
         let extraPreviewHtml = ''; 
         
         // 1. ИСПРАВЛЕНИЕ ДЛЯ СЛОВАРЯ
         if (dictValue) {
-            statusClass = 'status-filled'; // Теперь это зеленая кнопка
+            statusClass = 'status-filled'; 
             let shortVal = dictValue.length > 15 ? dictValue.substring(0, 15) + '...' : dictValue;
             statusText = `📖 ${shortVal}`;
+            // Жестко задаем зеленый стиль
+            statusStyle = 'border: 1px solid #4CAF50; color: #4CAF50; background: rgba(76, 175, 80, 0.1); font-weight: bold;';
         } 
         // 2. ИСПРАВЛЕНИЕ ДЛЯ СПЛИТТЕРА И ОБЫЧНЫХ КОЛОНОК
         else if (mappedIndex !== undefined) {
             statusClass = 'status-filled';
             let colName = window.mapper2State.invoiceHeaders[mappedIndex] || `Колонка ${mappedIndex + 1}`;
             
-            let hasSplit = window.mapper2State.splitRules && window.mapper2State.splitRules[req.sysKey] && window.mapper2State.splitRules[req.sysKey].length > 0;
+            // Надежная проверка сплиттера
+            let splitData = window.mapper2State.splitRules && window.mapper2State.splitRules[req.sysKey];
+            let ruleIndices = [];
+            if (Array.isArray(splitData)) ruleIndices = splitData;
+            else if (splitData && Array.isArray(splitData.rule)) ruleIndices = splitData.rule;
+            else if (splitData && Array.isArray(splitData.tokens)) ruleIndices = splitData.tokens;
             
-            if (hasSplit) {
-                statusText = `✂️ ${colName}`; // Чистое название колонки на кнопке
+            if (ruleIndices.length > 0) {
+                statusText = `✂️ ${colName}`; 
+                statusStyle = 'border: 1px solid #4CAF50; color: #4CAF50; background: rgba(76, 175, 80, 0.1); font-weight: bold;';
                 
                 let sampleText = '';
                 for (let i = 0; i < Math.min(10, window.mapper2State.invoiceRows.length); i++) {
@@ -4643,25 +4652,24 @@ window.renderMapper2Cards = function(templateData) {
                 if (sampleText) {
                     const regex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,]/g;
                     let tokens = sampleText.match(regex) || [];
-                    let splitRule = window.mapper2State.splitRules[req.sysKey];
                     
                     let highlighted = tokens.map((tok, i) => {
-                        if (splitRule.includes(i)) {
+                        if (ruleIndices.map(Number).includes(i)) {
                             return `<b style="color:#000; background:var(--accent-green, #4CAF50); padding:0 3px; border-radius:3px;">${tok}</b>`;
                         } else {
                             return `<span style="color:#666; text-decoration:line-through;">${tok}</span>`;
                         }
                     }).join('');
                     
-                    // Плашка с визуальным токенизатором
                     extraPreviewHtml = `
-                    <div style="margin-top: 6px; font-size: 11px; background: rgba(255,255,255,0.05); padding: 4px 8px; border-radius: 4px; display: inline-block;">
+                    <div id="preview-${req.sysKey}" style="margin-top: 6px; font-size: 11px; background: rgba(255,255,255,0.05); padding: 4px 8px; border-radius: 4px; display: inline-block;">
                         <span style="color: #aaa; margin-right: 4px;">Из «${colName}»:</span>
                         ${highlighted}
                     </div>`;
                 }
             } else {
                 statusText = `✅ ${colName}`;
+                statusStyle = 'border: 1px solid #4CAF50; color: #4CAF50; background: rgba(76, 175, 80, 0.1); font-weight: bold;';
             }
         }
 
@@ -4672,7 +4680,8 @@ window.renderMapper2Cards = function(templateData) {
                 <span class="req-subtitle" id="subtitle-${req.sysKey}">${req.desc}</span>
                 ${extraPreviewHtml}
             </div>
-            <div class="req-status ${statusClass}" id="status-${req.sysKey}">${statusText}</div>
+            <!-- Добавлен атрибут style="\${statusStyle}" -->
+            <div class="req-status ${statusClass}" id="status-${req.sysKey}" style="${statusStyle}">${statusText}</div>
         </div>`;
     });
     
@@ -4974,13 +4983,17 @@ window.selectDictionaryValue = function(value, isCustom) {
     // Записываем новое значение
     window.mapper2State.dictValues[sysKey] = value;
     
-    // Окрашиваем карточку в зеленый
+    // Жестко окрашиваем карточку в зеленый стиль
     const statusEl = document.getElementById('status-' + sysKey);
     if (statusEl) {
-        // Обрезаем текст, если он слишком длинный, чтобы кнопка не ломала верстку
         let shortVal = value.length > 15 ? value.substring(0, 15) + '...' : value;
-        statusEl.className = 'req-status status-mapped'; 
+        statusEl.className = 'req-status';
+        statusEl.style.cssText = 'border: 1px solid #4CAF50; color: #4CAF50; background: rgba(76, 175, 80, 0.1); font-weight: bold;';
         statusEl.innerText = `📖 ${shortVal}`;
+        
+        // Очищаем старое превью сплиттера, если оно там висело
+        const previewEl = document.getElementById('preview-' + sysKey);
+        if (previewEl) previewEl.innerHTML = '';
     }
     
     // Закрываем модалку
