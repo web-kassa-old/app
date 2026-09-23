@@ -5373,7 +5373,11 @@ async function sendInvoiceToBackend() {
         }, 600);
 
         try {
-            let fp = "FP_" + group.items.length + "шт_" + group.items.reduce((sum, i) => sum + (Number(i.qty) || 0), 0) + "кол_" + (group.items[0].item_name || "").replace(/\s/g, '').substring(0, 10);
+            // Берем уникальный слепок файла (если он есть), иначе берем номер накладной
+            let uniqueFileId = (window.mapper2State && window.mapper2State.fileHash) ? window.mapper2State.fileHash : String(docNo).replace(/\s/g, '_');
+
+            // Формируем финальный отпечаток
+            let fp = "FP_" + uniqueFileId + "_" + group.items.length + "шт_" + group.items.reduce((sum, i) => sum + (Number(i.qty) || 0), 0) + "кол";
             group.items.forEach(item => item.file_code = fp);
 
             const response = await fetch(GATEWAY_URL, { 
