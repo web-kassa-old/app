@@ -4663,7 +4663,6 @@ window.renderMapper2Cards = function(templateData) {
                     
                     extraPreviewHtml = `
                     <div id="preview-${req.sysKey}" style="margin-top: 6px; font-size: 11px; background: rgba(255,255,255,0.05); padding: 4px 8px; border-radius: 4px; display: inline-block;">
-                        <span style="color: #aaa; margin-right: 4px;">Из «${colName}»:</span>
                         ${highlighted}
                     </div>`;
                 }
@@ -5185,7 +5184,6 @@ window.applySplitRule = function(colIndex, colName) {
             
             let extraPreviewHtml = `
             <div id="preview-${sysKey}" style="margin-top: 6px; font-size: 11px; background: rgba(255,255,255,0.05); padding: 4px 8px; border-radius: 4px; display: inline-block;">
-                <span style="color: #aaa; margin-right: 4px;">Из «${colName}»:</span>
                 ${highlighted}
             </div>`;
             
