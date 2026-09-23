@@ -4558,19 +4558,19 @@ window.renderMapper2Cards = function(templateData) {
 
             let reqText = (requirements[i] || "").toLowerCase();
             let isReq = reqText.includes('обязательн') && !reqText.includes('необязательн');
-            let isDict = sysKey.toLowerCase().includes('brand') || humName.toLowerCase().includes('бренд');
-
-            allReqs.push({ sysKey, name: humName, req: isReq, desc: isDict ? 'Словарь Kaspi' : 'Текст или Сплиттер', isDict });
+            
+            // Теперь мы помечаем ВСЕ эти поля как isKaspi: true
+            allReqs.push({ sysKey, name: humName, req: isReq, desc: 'Словарь или Сплиттер', isKaspi: true });
         }
     }
 
     const posBaseFields = [
-        { sysKey: 'name', name: 'Наименование', req: true, desc: 'Обязательно', isDict: false },
-        { sysKey: 'qty', name: 'Количество', req: true, desc: 'На складе (POS)', isDict: false },
-        { sysKey: 'price', name: 'Цена закупа', req: true, desc: 'В валюте накладной', isDict: false },
-        { sysKey: 'barcode', name: 'Код / Штрихкод', req: false, desc: 'Связь с ID товара в POS', isDict: false },
-        { sysKey: 'cbm', name: 'Объем (CBM)', req: false, desc: 'Для расчета', isDict: false },
-        { sysKey: 'weight', name: 'Вес (кг)', req: false, desc: 'Для расчета', isDict: false }
+        { sysKey: 'name', name: 'Наименование', req: true, desc: 'Обязательно', isKaspi: false },
+        { sysKey: 'qty', name: 'Количество', req: true, desc: 'На складе (POS)', isKaspi: false },
+        { sysKey: 'price', name: 'Цена закупа', req: true, desc: 'В валюте накладной', isKaspi: false },
+        { sysKey: 'barcode', name: 'Код / Штрихкод', req: false, desc: 'Связь с ID товара в POS', isKaspi: false },
+        { sysKey: 'cbm', name: 'Объем (CBM)', req: false, desc: 'Для расчета', isKaspi: false },
+        { sysKey: 'weight', name: 'Вес (кг)', req: false, desc: 'Для расчета', isKaspi: false }
     ];
 
     posBaseFields.forEach(field => {
@@ -4659,7 +4659,7 @@ window.renderMapper2Cards = function(templateData) {
         }
 
         html += `
-        <div class="req-card" onclick="openColumnSelector('${req.sysKey}', '${req.name}', ${req.isDict})">
+        <div class="req-card" onclick="openColumnSelector('${req.sysKey}', '${req.name.replace(/'/g, "\\'")}', ${req.isKaspi === true})">
             <div class="req-info">
                 <span class="req-title ${req.req ? 'required' : ''}">${req.name}</span>
                 <span class="req-subtitle" id="subtitle-${req.sysKey}">${req.desc}</span>
@@ -4682,7 +4682,7 @@ window.renderMapper2Cards = function(templateData) {
 };
 
 // 3. ОТКРЫТИЕ ШТОРКИ И ОТРИСОВКА КОЛОНОК
-window.openColumnSelector = function(sysKey, reqName, isDict) {
+window.openColumnSelector = function(sysKey, reqName, isKaspi) {
     window.mapper2State.currentSysKey = sysKey;
     window.mapper2State.currentReqName = reqName;
     
@@ -4690,8 +4690,8 @@ window.openColumnSelector = function(sysKey, reqName, isDict) {
     
     const colList = document.getElementById('sheet-col-list');
     
-    // Генерируем кнопку только для словарных полей
-    let dictBtnHtml = isDict ? `<button onclick="window.openKaspiDictSearch()" style="background: var(--accent-green, #4CAF50); border: none; color: #000; padding: 5px 12px; border-radius: 4px; font-size: 11px; font-weight: bold; cursor: pointer; margin-right: 8px;">🔍 Справочник</button>` : '';
+    // Кнопка справочника показывается для всех полей шаблона Kaspi
+    let dictBtnHtml = isKaspi ? `<button onclick="window.openKaspiDictSearch()" style="background: var(--accent-green, #4CAF50); border: none; color: #000; padding: 5px 12px; border-radius: 4px; font-size: 11px; font-weight: bold; cursor: pointer; margin-right: 8px;">🔍 Справочник</button>` : '';
 
     colList.innerHTML = `
     <div style="position: sticky; top: 0; background: var(--bg-panel, #1e1e1e); z-index: 10; padding: 15px 20px; margin: -20px -20px 15px -20px; border-bottom: 1px solid var(--border-light, #333); display: flex; justify-content: space-between; align-items: center;">
@@ -4702,7 +4702,9 @@ window.openColumnSelector = function(sysKey, reqName, isDict) {
         </div>
     </div>`;
 
+    // ВАЖНО: Восстановлена переменная currentSplitRule, чтобы клик по выбранной строке не выдавал ошибку
     let currentlyMappedIndex = window.mapper2State.colMap ? window.mapper2State.colMap[sysKey] : undefined;
+    let currentSplitRule = window.mapper2State.splitRules ? window.mapper2State.splitRules[sysKey] : null;
     let splitRules = window.mapper2State.splitRules || {};
     let usedByOthers = {}; 
     
