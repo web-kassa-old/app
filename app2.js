@@ -4650,6 +4650,16 @@ window.processInvoiceFile = async function() {
             window.mapper2State.invoiceHeaders = rawHeaders.map(h => String(h || '').replace(/[\r\n]+/g, ' ').trim());
             window.mapper2State.invoiceRows = rows.slice(firstDataRowIdx);
             
+            // === ВОЗВРАЩАЕМ ГЕНЕРАЦИЮ СЛЕПКА ФАЙЛА (ДЛЯ БЭКЕНДА) ===
+            let fileContentStr = window.mapper2State.docNo + "_" + window.mapper2State.supplier + "_" + JSON.stringify(window.mapper2State.invoiceRows.slice(0, 5));
+            let hashNum = 0;
+            for (let i = 0; i < fileContentStr.length; i++) {
+                hashNum = ((hashNum << 5) - hashNum) + fileContentStr.charCodeAt(i);
+                hashNum |= 0;
+            }
+            window.mapper2State.fileHash = "hash_" + Math.abs(hashNum).toString(16);
+            // =======================================================
+            
             window.hideLoading();
             window.renderMapper2Cards(templateData); 
         } else {
