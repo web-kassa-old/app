@@ -4793,15 +4793,28 @@ window.openColumnSelector = function(sysKey, reqName, isDict) {
 
     const colList = document.getElementById('sheet-col-list');
     
-    // Убрали лишние отступы сверху для компактности
     colList.innerHTML = `
     <div style="position: sticky; top: 0; background: var(--bg-panel, #1e1e1e); z-index: 10; padding: 5px 0 10px 0; margin-bottom: 10px; border-bottom: 1px solid var(--border-light, #333); display: flex; justify-content: space-between; align-items: center;">
         <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; font-weight: bold;">Колонки из накладной</div>
         <button onclick="clearMapper2Col('${sysKey}')" style="background: transparent; border: 1px solid #ff4444; color: #ff4444; padding: 4px 10px; border-radius: 4px; font-size: 11px; cursor: pointer;">❌ Очистить связь</button>
     </div>`;
 
-    // Индекс уже привязанной колонки для текущего поля (если есть)
     let currentlyMappedIndex = window.mapper2State.colMap ? window.mapper2State.colMap[sysKey] : undefined;
+    let currentSplitRule = window.mapper2State.splitRules ? window.mapper2State.splitRules[sysKey] : null;
+
+    // === СОБИРАЕМ ЗАНЯТЫЕ КОЛОНКИ ===
+    let usedByOthers = {}; 
+    if (window.mapper2State.colMap) {
+        Object.keys(window.mapper2State.colMap).forEach(k => {
+            if (k !== sysKey) {
+                let idx = window.mapper2State.colMap[k];
+                if (!usedByOthers[idx]) usedByOthers[idx] = [];
+                usedByOthers[idx].push(k);
+            }
+        });
+    }
+
+    const regex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,]/g;
 
     window.mapper2State.invoiceHeaders.forEach((rawColName, index) => {
         let colName = String(rawColName || '').trim();
@@ -4813,18 +4826,43 @@ window.openColumnSelector = function(sysKey, reqName, isDict) {
         let previews = [];
         for (let i = 0; i < Math.min(10, window.mapper2State.invoiceRows.length); i++) {
             let val = String(window.mapper2State.invoiceRows[i][index] || '').trim();
-            if (val && previews.indexOf(val) === -1 && previews.length < 3) previews.push(val);
+            if (val && previews.length < 3 && !previews.some(p => p.orig === val)) {
+                previews.push({ orig: val });
+            }
         }
         
         if (rawColName === '' && previews.length === 0) return;
 
-        let previewText = previews.length > 0 ? '- ' + previews.join('<br>- ') : 'Пустая колонка (нет данных)';
-        let safePreview = previews[0] ? String(previews[0]).replace(/[\r\n]+/g, ' ').replace(/'/g, "\\'").replace(/"/g, '\\"') : '';
-
-        // Проверяем, спарена ли эта конкретная колонка прямо сейчас
         let isSelected = (currentlyMappedIndex === index);
-        let itemStyle = isSelected ? 'border: 2px solid var(--accent-green, #4CAF50); background: rgba(76, 175, 80, 0.08); border-radius: 6px; padding: 4px;' : '';
-        let badgeHtml = isSelected ? '<div style="font-size: 10px; color: var(--accent-green, #4CAF50); font-weight: bold; margin-bottom: 2px;">📌 Уже выбрано для этой связи</div>' : '';
+        let isUsedByOther = (usedByOthers[index] !== undefined && usedByOthers[index].length > 0);
+
+        // === УМНОЕ ПРЕВЬЮ ДЛЯ СПЛИТТЕРА ===
+        let previewHtmlArr = [];
+        previews.forEach(p => {
+            let text = p.orig;
+            if (isSelected && currentSplitRule) {
+                let tokens = text.match(regex) || [];
+                let extracted = currentSplitRule.map(i => tokens[i] !== undefined ? tokens[i] : '').join('');
+                text = `<span style="color:#888; text-decoration:line-through;">${text}</span> <b style="color:var(--accent-yellow);">➔ ${extracted}</b>`;
+            }
+            previewHtmlArr.push('- ' + text);
+        });
+
+        let previewText = previewHtmlArr.length > 0 ? previewHtmlArr.join('<br>') : 'Пустая колонка (нет данных)';
+        let safePreview = previews[0] ? String(previews[0].orig).replace(/[\r\n]+/g, ' ').replace(/'/g, "\\'").replace(/"/g, '\\"') : '';
+
+        // === СТИЛИ И БЕЙДЖИ ===
+        let itemStyle = '';
+        let badgeHtml = '';
+
+        if (isSelected) {
+            itemStyle = 'border: 2px solid var(--accent-green, #4CAF50); background: rgba(76, 175, 80, 0.08); border-radius: 6px; padding: 4px;';
+            let splitNote = currentSplitRule ? ' (Фрагмент)' : '';
+            badgeHtml = `<div style="font-size: 10px; color: var(--accent-green, #4CAF50); font-weight: bold; margin-bottom: 2px;">📌 Выбрано${splitNote}</div>`;
+        } else if (isUsedByOther) {
+            itemStyle = 'opacity: 0.6; filter: grayscale(0.5); border: 1px dashed #666; background: rgba(255,255,255,0.02); border-radius: 6px; padding: 4px;';
+            badgeHtml = `<div style="font-size: 10px; color: #888; font-style: italic; margin-bottom: 2px;">⚠️ Используется в другом поле (можно сплитовать)</div>`;
+        }
 
         colList.innerHTML += `
         <div class="col-item" style="${itemStyle}">
