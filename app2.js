@@ -4529,7 +4529,6 @@ window.processInvoiceFile = async function() {
     if (!fileInput || !fileInput.files.length) return alert(translations[currentLang].inc_no_file || "Выберите файл");
 
     let templateData = null;
-    console.log("=== ТЕКУЩИЙ РЕЖИМ ИМПОРТА ===", window.currentImportMode);
 
     if (window.currentImportMode === 'kaspi') {
         const templateSelect = document.getElementById('kaspiTemplateSelect');
@@ -4541,20 +4540,12 @@ window.processInvoiceFile = async function() {
             const payload = { action: 'getKaspiTemplate', api_key: CLIENT_API_KEY, category: templateName };
             const res = await window.smartFetch(GATEWAY_URL, payload);
             
-            console.log("=== ОТВЕТ СЕРВЕРА С ШАБЛОНОМ ===", res);
-
             const headersRaw = res.headersJson || res.headers_json || res.headers;
-
             if (res && res.success && headersRaw) {
                 templateData = typeof headersRaw === 'string' ? JSON.parse(headersRaw) : headersRaw;
-                
-                // === ПЕРЕДАЕМ ПАМЯТЬ С СЕРВЕРА ===
                 if (res.memoryJson) templateData.memoryJson = res.memoryJson;
-                
-                const keysArray = templateData.systemKeys || templateData.system_keys || templateData.keys || templateData.fields || Object.keys(templateData);
-                alert(`✅ Шаблон "${templateName}" скачан!\nНайдено полей: ${keysArray ? keysArray.length : 0}\nОткрываем Маппер...`);
             } else {
-                throw new Error("Сервер ответил, но структура шапок (headersJson) пустая или отсутствует");
+                throw new Error("Структура шапок пустая");
             }
         } catch (err) {
             window.hideLoading();
@@ -4594,28 +4585,42 @@ window.processInvoiceFile = async function() {
         let file_supplier = 'UNKNOWN';
 
         let dict = window.mapper2State?.dictValues || (typeof invoiceSynonyms !== 'undefined' ? invoiceSynonyms : {});
-        let supSyns = [].concat(dict['Поиск имени поставщика'] || [], dict['supplier_keywords'] || [], ['the seller', 'vendor', 'supplier', 'поставщик']).map(s => String(s).replace(/\s+/g, '').toLowerCase()).filter(Boolean);
-        let docSyns = [].concat(dict['Номер накладной'] || [], dict['invoice_no'] || [], ['invoice no', 'invoice', 'инвойс', '№ накл']).map(s => String(s).replace(/\s+/g, '').toLowerCase()).filter(Boolean);
+        let supSyns = [].concat(dict['Поиск имени поставщика'] || [], dict['supplier_keywords'] || [], ['supplier', 'vendor', 'the seller', 'поставщик']).map(s => String(s).replace(/\s+/g, '').toLowerCase()).filter(Boolean);
+        let docSyns = [].concat(dict['Номер накладной'] || [], dict['invoice_no'] || [], ['invoice no', 'invoice', 'doc', 'инвойс', '№ накл']).map(s => String(s).replace(/\s+/g, '').toLowerCase()).filter(Boolean);
 
+        // Улучшенный поиск поставщика и номера (поддерживает формат "Метка: Значение" в одной ячейке)
         for (let i = 0; i < Math.min(15, rows.length); i++) {
             let row = rows[i] || [];
             for (let j = 0; j < row.length; j++) {
-                let cellVal = String(row[j] || "").toLowerCase();
+                let rawCell = String(row[j] || "").trim();
+                let cellVal = rawCell.toLowerCase();
                 let cleanCell = cellVal.replace(/\s+/g, '');
                 if (!cleanCell) continue;
 
                 if (supSyns.some(syn => cleanCell.includes(syn))) {
-                    for (let k = j + 1; k < row.length; k++) {
-                        if (row[k] && String(row[k]).trim() !== '') {
-                            file_supplier = String(row[k]).trim().replace(/^"|"$/g, '');
-                            break;
+                    if (rawCell.includes(':')) {
+                        let parts = rawCell.split(':');
+                        if (parts[1] && parts[1].trim()) file_supplier = parts[1].trim().replace(/^"|"$/g, '');
+                    }
+                    if (file_supplier === 'UNKNOWN') {
+                        for (let k = j + 1; k < row.length; k++) {
+                            if (row[k] && String(row[k]).trim() !== '') {
+                                file_supplier = String(row[k]).trim().replace(/^"|"$/g, '');
+                                break;
+                            }
                         }
                     }
                 }
                 
                 if (docSyns.some(syn => cleanCell.includes(syn))) {
-                    let val = String(row[j+1] || '').trim();
-                    if (val && val !== 'UNKNOWN') file_doc_no = val;
+                    if (rawCell.includes(':')) {
+                        let parts = rawCell.split(':');
+                        if (parts[1] && parts[1].trim()) file_doc_no = parts[1].trim().replace(/^"|"$/g, '');
+                    }
+                    if (file_doc_no === 'UNKNOWN' || file_doc_no === '') {
+                        let val = String(row[j+1] || '').trim();
+                        if (val && val !== 'UNKNOWN') file_doc_no = val;
+                    }
                 }
             }
         }
@@ -4644,15 +4649,6 @@ window.processInvoiceFile = async function() {
             let rawHeaders = rows[firstDataRowIdx - 1] || [];
             window.mapper2State.invoiceHeaders = rawHeaders.map(h => String(h || '').replace(/[\r\n]+/g, ' ').trim());
             window.mapper2State.invoiceRows = rows.slice(firstDataRowIdx);
-            
-            // === ГЕНЕРАЦИЯ УНИКАЛЬНОГО ХЭША НАКЛАДНОЙ (ИСПРАВЛЕНО) ===
-            let cleanString = rawHeaders.map(h => String(h||'').replace(/\s+/g, '').toLowerCase()).join('|');
-            let hashNum = 0;
-            for (let i = 0; i < cleanString.length; i++) {
-                hashNum = ((hashNum << 5) - hashNum) + cleanString.charCodeAt(i);
-                hashNum |= 0; // Конвертируем в 32-битное целое число
-            }
-            window.mapper2State.fileHash = "hash_" + Math.abs(hashNum).toString(16) + "_" + cleanString.length;
             
             window.hideLoading();
             window.renderMapper2Cards(templateData); 
@@ -4797,11 +4793,15 @@ window.openColumnSelector = function(sysKey, reqName, isDict) {
 
     const colList = document.getElementById('sheet-col-list');
     
+    // Убрали лишние отступы сверху для компактности
     colList.innerHTML = `
-    <div style="position: sticky; top: -10px; background: var(--bg-panel, #1e1e1e); z-index: 10; padding: 15px 0 10px 0; margin-top: -10px; margin-bottom: 10px; border-bottom: 1px solid var(--border-light, #333); display: flex; justify-content: space-between; align-items: center;">
+    <div style="position: sticky; top: 0; background: var(--bg-panel, #1e1e1e); z-index: 10; padding: 5px 0 10px 0; margin-bottom: 10px; border-bottom: 1px solid var(--border-light, #333); display: flex; justify-content: space-between; align-items: center;">
         <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; font-weight: bold;">Колонки из накладной</div>
         <button onclick="clearMapper2Col('${sysKey}')" style="background: transparent; border: 1px solid #ff4444; color: #ff4444; padding: 4px 10px; border-radius: 4px; font-size: 11px; cursor: pointer;">❌ Очистить связь</button>
     </div>`;
+
+    // Индекс уже привязанной колонки для текущего поля (если есть)
+    let currentlyMappedIndex = window.mapper2State.colMap ? window.mapper2State.colMap[sysKey] : undefined;
 
     window.mapper2State.invoiceHeaders.forEach((rawColName, index) => {
         let colName = String(rawColName || '').trim();
@@ -4821,8 +4821,14 @@ window.openColumnSelector = function(sysKey, reqName, isDict) {
         let previewText = previews.length > 0 ? '- ' + previews.join('<br>- ') : 'Пустая колонка (нет данных)';
         let safePreview = previews[0] ? String(previews[0]).replace(/[\r\n]+/g, ' ').replace(/'/g, "\\'").replace(/"/g, '\\"') : '';
 
+        // Проверяем, спарена ли эта конкретная колонка прямо сейчас
+        let isSelected = (currentlyMappedIndex === index);
+        let itemStyle = isSelected ? 'border: 2px solid var(--accent-green, #4CAF50); background: rgba(76, 175, 80, 0.08); border-radius: 6px; padding: 4px;' : '';
+        let badgeHtml = isSelected ? '<div style="font-size: 10px; color: var(--accent-green, #4CAF50); font-weight: bold; margin-bottom: 2px;">📌 Уже выбрано для этой связи</div>' : '';
+
         colList.innerHTML += `
-        <div class="col-item">
+        <div class="col-item" style="${itemStyle}">
+            ${badgeHtml}
             <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
                 <div class="col-content" onclick="selectMapper2Col(${index}, '${safeColName}')">
                     <div class="col-name">${displayColName}</div>
