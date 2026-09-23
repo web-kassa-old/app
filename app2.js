@@ -5138,29 +5138,61 @@ window.applySplitRule = function(colIndex, colName) {
     
     if (tokenIndices.length === 0) return alert('Выберите фрагменты!');
 
+    // Сохраняем новые данные
     delete window.mapper2State.dictValues[sysKey];
     window.mapper2State.colMap[sysKey] = colIndex;
     window.mapper2State.splitRules[sysKey] = tokenIndices;
 
-    // Генерируем пример склейки из первой попавшейся строки
+    // Генерируем пример склейки из первой попавшейся непустой строки
     let rawVal = "";
     for (let i = 0; i < window.mapper2State.invoiceRows.length; i++) {
         let val = String(window.mapper2State.invoiceRows[i][colIndex] || '').trim();
         if (val) { rawVal = val; break; }
     }
     
-    let previewVal = "";
-    if (rawVal) {
-        const regex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,]/g;
-        const tokens = rawVal.match(regex) || [];
-        let result = [];
-        tokenIndices.forEach(idx => {
-            if (tokens[idx] !== undefined) result.push(tokens[idx]);
-        });
-        previewVal = result.join('');
+    // 1. КРАСИМ КНОПКУ
+    const statusEl = document.getElementById('status-' + sysKey);
+    if (statusEl) {
+        statusEl.className = 'req-status status-filled';
+        statusEl.innerText = `✂️ ${colName}`;
+        statusEl.style.cssText = 'border: 1px solid #4CAF50; color: #4CAF50; background: rgba(76, 175, 80, 0.1); font-weight: bold;';
     }
 
-    updateReqCardStatus(sysKey, '✂️ ' + colName + ' 🟢', 'status-filled', previewVal || "Пусто");
+    // 2. ДОБАВЛЯЕМ ВИЗУАЛЬНЫЙ ТОКЕНИЗАТОР
+    let subtitleEl = document.getElementById('subtitle-' + sysKey);
+    if (subtitleEl && subtitleEl.parentElement) {
+        let reqInfo = subtitleEl.parentElement;
+        
+        // Удаляем старое превью, если оно там уже было
+        let oldPreview = document.getElementById('preview-' + sysKey);
+        if (oldPreview) oldPreview.remove();
+        
+        // Удаляем старый "желтый" результат от старых скриптов, если он есть
+        let oldResult = reqInfo.querySelector('.req-result');
+        if (oldResult) oldResult.remove();
+        
+        if (rawVal) {
+            const regex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,]/g;
+            const tokens = rawVal.match(regex) || [];
+            
+            let highlighted = tokens.map((tok, i) => {
+                if (tokenIndices.includes(i)) {
+                    return `<b style="color:#000; background:var(--accent-green, #4CAF50); padding:0 3px; border-radius:3px;">${tok}</b>`;
+                } else {
+                    return `<span style="color:#666; text-decoration:line-through;">${tok}</span>`;
+                }
+            }).join('');
+            
+            let extraPreviewHtml = `
+            <div id="preview-${sysKey}" style="margin-top: 6px; font-size: 11px; background: rgba(255,255,255,0.05); padding: 4px 8px; border-radius: 4px; display: inline-block;">
+                <span style="color: #aaa; margin-right: 4px;">Из «${colName}»:</span>
+                ${highlighted}
+            </div>`;
+            
+            reqInfo.insertAdjacentHTML('beforeend', extraPreviewHtml);
+        }
+    }
+
     closeSheet();
 };
 
