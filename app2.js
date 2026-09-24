@@ -4370,16 +4370,13 @@ window.mapper2State = {
 
 // === РОУТЕР ШАГОВ ПРИЕМКИ (ОБНОВЛЕННЫЙ) ===
 window.navigateIncomeStep = function(stepNumber) {
-    const tabs = document.getElementById('mapperTabsContainer');
-    if (tabs) tabs.style.display = 'flex';
-
-    const currency = document.getElementById('mapperCurrencyBlock');
-    if (currency) currency.style.display = 'flex';
     const step1 = document.getElementById('uploadStepArea'); 
     const step2 = document.getElementById('mapper2Area');    
     const step3 = document.getElementById('invoicePreviewArea'); 
+    const tabs = document.getElementById('mapperTabsContainer');
+    const currency = document.getElementById('mapperCurrencyBlock');
 
-    // Скрываем всё
+    // Скрываем все шаги
     if (step1) step1.style.display = 'none';
     if (step2) step2.style.display = 'none';
     if (step3) step3.style.display = 'none';
@@ -4387,6 +4384,10 @@ window.navigateIncomeStep = function(stepNumber) {
     // Показываем нужный шаг
     if (stepNumber === 1 && step1) {
         step1.style.display = 'block'; 
+        
+        // === ВКЛЮЧАЕМ ВКЛАДКИ И ВАЛЮТУ ТОЛЬКО НА ШАГЕ 1 ===
+        if (tabs) tabs.style.display = 'flex';
+        if (currency) currency.style.display = 'flex';
         
         // ФИКС: Принудительно возвращаем видимость внутренним блокам, 
         // которые мог спрятать старый скрипт при обработке файла
@@ -4406,9 +4407,15 @@ window.navigateIncomeStep = function(stepNumber) {
     } 
     else if (stepNumber === 2 && step2) {
         step2.style.display = 'flex'; 
+        // Прячем вкладки на 2 шаге
+        if (tabs) tabs.style.display = 'none';
+        if (currency) currency.style.display = 'none';
     } 
     else if (stepNumber === 3 && step3) {
         step3.style.display = 'flex'; 
+        // Прячем вкладки на 3 шаге
+        if (tabs) tabs.style.display = 'none';
+        if (currency) currency.style.display = 'none';
     }
 };
 
@@ -4588,14 +4595,15 @@ window.renderMapper2Cards = function(templateData) {
     if (templateData && templateData.systemKeys) {
         const { humanNames, systemKeys, requirements } = templateData;
         
-        window.mapper2State.sysToHumanMap = {}; // <--- НОВОЕ: Создаем словарь перевода
+        // === СОХРАНЯЕМ ПЕРЕВОД КЛЮЧЕЙ ДЛЯ БУДУЩИХ МОДАЛОК ===
+        window.mapper2State.sysToHumanMap = {};
         
         for (let i = 0; i < systemKeys.length; i++) {
             let sysKey = systemKeys[i];
             let humName = humanNames[i];
             if (!sysKey || !humName) continue;
 
-            window.mapper2State.sysToHumanMap[sysKey] = humName; // <--- НОВОЕ: Запоминаем пару "brand" -> "Бренд"
+            window.mapper2State.sysToHumanMap[sysKey] = humName;
 
             let reqText = (requirements[i] || "").toLowerCase();
             let isReq = reqText.includes('обязательн') && !reqText.includes('необязательн');
@@ -4656,23 +4664,19 @@ window.renderMapper2Cards = function(templateData) {
         
         let statusClass = 'status-empty';
         let statusText = 'ВЫБРАТЬ';
-        let statusStyle = ''; // Добавлена переменная для стилей
+        let statusStyle = ''; 
         let extraPreviewHtml = ''; 
         
-        // 1. ИСПРАВЛЕНИЕ ДЛЯ СЛОВАРЯ
         if (dictValue) {
             statusClass = 'status-filled'; 
             let shortVal = dictValue.length > 15 ? dictValue.substring(0, 15) + '...' : dictValue;
             statusText = `📖 ${shortVal}`;
-            // Жестко задаем зеленый стиль
             statusStyle = 'border: 1px solid #4CAF50; color: #4CAF50; background: rgba(76, 175, 80, 0.1); font-weight: bold;';
         } 
-        // 2. ИСПРАВЛЕНИЕ ДЛЯ СПЛИТТЕРА И ОБЫЧНЫХ КОЛОНОК
         else if (mappedIndex !== undefined) {
             statusClass = 'status-filled';
             let colName = window.mapper2State.invoiceHeaders[mappedIndex] || `Колонка ${mappedIndex + 1}`;
             
-            // Надежная проверка сплиттера
             let splitData = window.mapper2State.splitRules && window.mapper2State.splitRules[req.sysKey];
             let ruleIndices = [];
             if (Array.isArray(splitData)) ruleIndices = splitData;
@@ -4719,18 +4723,27 @@ window.renderMapper2Cards = function(templateData) {
                 <span class="req-subtitle" id="subtitle-${req.sysKey}">${req.desc}</span>
                 ${extraPreviewHtml}
             </div>
-            <!-- Добавлен атрибут style="\${statusStyle}" -->
             <div class="req-status ${statusClass}" id="status-${req.sysKey}" style="${statusStyle}">${statusText}</div>
         </div>`;
     });
     
     container.innerHTML = html;
 
+    // === СКРЫВАЕМ ЛИШНИЕ ЭЛЕМЕНТЫ ШАПКИ НА ШАГЕ 2 ===
     document.getElementById('parseInvoiceBtn').style.display = 'none';
+    
     const importModeContainer = document.getElementById('importModeContainer');
     if (importModeContainer) importModeContainer.style.display = 'none';
+    
     const invoiceUploadWrapper = document.getElementById('invoiceUploadWrapper');
     if (invoiceUploadWrapper) invoiceUploadWrapper.style.display = 'none';
+
+    // Прячем вкладки и валюту (освобождаем воздух)
+    const tabs = document.getElementById('mapperTabsContainer');
+    if (tabs) tabs.style.display = 'none';
+    
+    const currency = document.getElementById('mapperCurrencyBlock');
+    if (currency) currency.style.display = 'none';
     
     document.getElementById('mapper2Area').style.display = 'flex';
     document.getElementById('applyMapper2Btn').style.display = 'block';
