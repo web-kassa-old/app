@@ -301,7 +301,22 @@
                 kaspi_success: "Успешно!",
                 kaspi_err_net: "Ошибка сети",
                 kaspi_err_file: "Ошибка файла",
-                kaspi_err_sys: "Системная ошибка"
+                kaspi_err_sys: "Системная ошибка",
+                inc_supplier: "Пост:",
+                inc_doc_short: "Док:",
+                inc_pos: "Поз:",
+                inc_code: "Код",
+                inc_item_params: "Товар и параметры",
+                inc_qty_price: "Кол-во / Цена",
+                inc_edit_params: "✏️ Изменить параметры",
+                inc_cancel: "Отмена",
+                inc_ready: "Готово",
+                inc_save: "ОК",
+                inc_not_specified: "Не указано",
+                inc_apply_all: "Применить ко всем товарам",
+                inc_search_enter: "🔍 Поиск или ввод...",
+                inc_no_params: "Нет параметров",
+                inc_apply_all_badge: "✓ ко всем"
             },
             kz: {
                 btn_sale: "САТУ", btn_return: "ҚАЙТАРУ", search_placeholder: "ІЗДЕУ...",
@@ -605,7 +620,22 @@
                 kaspi_success: "Сәтті сақталды!",
                 kaspi_err_net: "Желі қатесі",
                 kaspi_err_file: "Файл қатесі",
-                kaspi_err_sys: "Жүйе қатесі"
+                kaspi_err_sys: "Жүйе қатесі",
+                inc_supplier: "Жетк:",
+                inc_doc_short: "Құж:",
+                inc_pos: "Поз:",
+                inc_code: "Код",
+                inc_item_params: "Тауар және параметрлер",
+                inc_qty_price: "Саны / Бағасы",
+                inc_edit_params: "✏️ Параметрлерді өзгерту",
+                inc_cancel: "Болдырмау",
+                inc_ready: "Дайын",
+                inc_save: "ОК",
+                inc_not_specified: "Көрсетілмеген",
+                inc_apply_all: "Барлық тауарларға қолдану",
+                inc_search_enter: "🔍 Іздеу немесе енгізу...",
+                inc_no_params: "Параметрлер жоқ",
+                inc_apply_all_badge: "✓ барлығына"
             }
         };
 
@@ -5361,17 +5391,22 @@ window.applyMapper2Logic = function() {
     document.getElementById('invoicePreviewArea').style.display = 'flex';
 };
 
+// === ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ РЕДАКТОРА ===
+window.currentEditIndex = null;
+window.tempAttrs = {};
+window.applyToAllMap = {};
+window.currentFieldDict = [];
+
+// === ОТРИСОВКА ГЛАВНОЙ ТАБЛИЦЫ ===
 window.renderPreviewTable = function() {
     const state = window.mapper2State;
+    const t = translations[currentLang];
     
-    // Сжатый блок метаданных (экономим высоту)
     document.getElementById('invoiceMetadata').innerHTML = `
-        <div style="display: flex; justify-content: center; align-items: center; gap: 10px; font-size: 13px; padding: 5px 0; border-bottom: 1px solid var(--border-light); margin-bottom: 5px;">
-            <div><span style="color:var(--text-muted);">Поставщик:</span> <span style="color:var(--accent-yellow); font-weight:bold;">${state.supplier}</span></div>
-            <div style="color:var(--border-light);">|</div>
-            <div><span style="color:var(--text-muted);">Документ:</span> <span style="color:var(--accent-yellow); font-weight:bold;">${state.docNo}</span></div>
-            <div style="color:var(--border-light);">|</div>
-            <div><span style="color:var(--text-muted);">Позиций:</span> <span style="color:var(--accent-yellow); font-weight:bold;">${window.parsedInvoiceData.length}</span></div>
+        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; padding: 10px; background: var(--bg-panel); border-radius: 8px; border: 1px solid var(--border-light);">
+            <div><span style="color:var(--text-muted);">${t.inc_supplier}</span> <b style="color:var(--accent-yellow);">${state.supplier}</b></div>
+            <div><span style="color:var(--text-muted);">${t.inc_doc_short}</span> <b style="color:var(--accent-yellow);">${state.docNo}</b></div>
+            <div><span style="color:var(--text-muted);">${t.inc_pos}</span> <b style="color:var(--accent-yellow);">${window.parsedInvoiceData.length}</b></div>
         </div>
     `;
     
@@ -5380,36 +5415,252 @@ window.renderPreviewTable = function() {
         if (item.attributes) {
             try {
                 let parsed = JSON.parse(item.attributes);
-                attrsHtml = Object.keys(parsed).map(k => {
-                    // Очищаем длинные системные ключи Kaspi для красивого отображения (оставляем только суть)
-                    let displayKey = k.split('*').pop().replace('tires', '').replace('.', '').trim();
-                    if(!displayKey) displayKey = k;
-                    
-                    return `<div style="font-size: 10px; background: rgba(76, 175, 80, 0.1); border: 1px solid rgba(76, 175, 80, 0.3); color: #4CAF50; padding: 2px 6px; border-radius: 4px; white-space: nowrap;">
-                        <span style="color:#aaa;">${displayKey}:</span> <b style="color:#fff;">${parsed[k]}</b>
-                    </div>`;
-                }).join('');
+                attrsHtml = `<div style="display: flex; flex-direction: column; gap: 4px; margin-top: 8px;">` + 
+                    Object.keys(parsed).map(k => {
+                        let displayKey = k.split('*').pop().replace(/tires/gi, '').replace(/additional/gi, '').replace(/general/gi, '').replace(/\./g, '').trim();
+                        if(!displayKey) displayKey = k;
+                        let val = parsed[k];
+                        if(val.length > 30) val = val.substring(0, 30) + '...';
+                        
+                        return `<div style="font-size: 11px; background: rgba(76, 175, 80, 0.1); border: 1px solid rgba(76, 175, 80, 0.3); padding: 4px 8px; border-radius: 4px; display: flex; justify-content: space-between; gap: 8px;">
+                            <span style="color:var(--text-muted); white-space:nowrap;">${displayKey}:</span> <b style="color:var(--accent-green); text-align:right;">${val}</b>
+                        </div>`;
+                    }).join('') + `</div>`;
             } catch(e){}
         }
-
-        // Добавлено vertical-align: top; во все ячейки
         return `
-        <tr style="border-bottom:1px solid var(--border-light); color:var(--text-main);">
-            <td style="padding:8px 5px; vertical-align: top;">
-                <span style="color:var(--accent-blue); font-weight:bold; font-size:12px;">${item.item_id || 'AUTO'}</span>
-                ${!item.barcode ? `<br><span style="font-size:10px; color:var(--accent-green);">+ EAN-13 (Авто)</span>` : ''}
+        <tr style="border-bottom:1px solid var(--border-light);">
+            <td class="col-min" style="padding:12px 8px; vertical-align: top;">
+                <div style="color:var(--accent-blue); font-weight:bold; font-size:12px;">${item.item_id || 'AUTO'}</div>
+                ${!item.barcode ? `<div style="font-size:9px; color:var(--accent-green); margin-top:4px;">+ EAN-13</div>` : ''}
             </td>
-            <td style="padding:8px 5px; vertical-align: top;">
-                <div style="font-weight:bold; font-size:13px; line-height: 1.2; word-break: break-word;">${item.item_name}</div>
-                ${attrsHtml ? `<div style="display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px;">${attrsHtml}</div>` : ''}
-                <button onclick="window.openAttributeEditor(${index})" style="background: rgba(255,255,255,0.05); border: 1px dashed #666; color: #aaa; cursor: pointer; border-radius: 4px; font-size: 10px; margin-top: 6px; padding: 4px 8px; transition: 0.2s;">✏️ Изменить параметры</button>
+            <td class="col-main" style="padding:12px 8px; vertical-align: top;">
+                <div style="font-weight:bold; font-size:13px; line-height:1.2;">${item.item_name}</div>
+                ${attrsHtml}
+                <button onclick="window.openEditorMain(${index})" style="width: 100%; background: rgba(128,128,128,0.05); border: 1px dashed var(--border-light); color: var(--text-muted); cursor: pointer; border-radius: 4px; font-size: 11px; margin-top: 10px; padding: 10px;">${t.inc_edit_params}</button>
             </td>
-            <td style="padding:8px 5px; vertical-align: top; text-align:right; font-size:13px;">${Number(item.qty).toLocaleString('ru-RU')}</td>
-            <td style="padding:8px 5px; vertical-align: top; text-align:right; font-size:13px;">${item.cbm !== "" ? item.cbm : '-'}</td>
-            <td style="padding:8px 5px; vertical-align: top; text-align:right; font-size:13px;">${item.weight !== "" ? item.weight : '-'}</td>
-            <td style="padding:8px 5px; vertical-align: top; text-align:right; font-weight:bold; font-size:13px; color:var(--accent-yellow);">${Number(item.cost).toLocaleString('ru-RU')}</td>
+            <td class="col-min" style="padding:12px 8px; vertical-align: top; text-align:right;">
+                <div style="font-size:12px; color:var(--text-muted); margin-bottom: 4px;">${Number(item.qty).toLocaleString('ru-RU')}</div>
+                <div style="font-size:13px; font-weight:bold; color:var(--accent-yellow);">${Number(item.cost).toLocaleString('ru-RU')}</div>
+            </td>
         </tr>`;
     }).join('');
+};
+
+// === 1. ГЛАВНОЕ ОКНО РЕДАКТИРОВАНИЯ ===
+window.openEditorMain = function(index) {
+    window.currentEditIndex = index;
+    let item = window.parsedInvoiceData[index];
+    window.tempAttrs = {};
+    window.applyToAllMap = {};
+    if (item.attributes) {
+        try { window.tempAttrs = JSON.parse(item.attributes); } catch(e) {}
+    }
+    renderEditorMainUI(item);
+};
+
+window.renderEditorMainUI = function(item) {
+    const t = translations[currentLang];
+    let fieldsHtml = '';
+    
+    Object.keys(window.tempAttrs).forEach(k => {
+        let val = window.tempAttrs[k];
+        let displayKey = k.split('*').pop().replace(/tires/gi, '').replace(/additional/gi, '').replace(/general/gi, '').replace(/\./g, '').trim();
+        if (!displayKey) displayKey = k;
+        
+        let isGlobal = window.applyToAllMap[k] !== undefined;
+        let previewVal = val.length > 50 ? val.substring(0, 50) + '...' : val;
+
+        fieldsHtml += `
+        <div class="param-row" onclick="window.openEditorField('${k}')">
+            <div style="flex: 1; min-width: 0; padding-right: 15px;">
+                <div style="font-size:11px; color:var(--text-muted); text-transform:uppercase; margin-bottom:4px;">${displayKey}</div>
+                <div style="font-size:15px; font-weight:bold; color:var(--text-main); word-break: break-word; line-height: 1.3;">${previewVal || `<span style="color:var(--text-muted); font-weight:normal;">${t.inc_not_specified}</span>`}</div>
+            </div>
+            <div style="flex-shrink: 0; display:flex; align-items:center; gap: 10px;">
+                ${isGlobal ? `<span style="font-size:10px; color:var(--accent-green); background:rgba(76,175,80,0.1); padding:4px 6px; border-radius:4px;">${t.inc_apply_all_badge}</span>` : ''}
+                <span style="color:var(--text-muted); font-size:18px;">&#10095;</span>
+            </div>
+        </div>`;
+    });
+
+    // Создаем контейнер, если его нет
+    let modalContainer = document.getElementById('modalContainer');
+    if (!modalContainer) {
+        modalContainer = document.createElement('div');
+        modalContainer.id = 'modalContainer';
+        document.body.appendChild(modalContainer);
+    }
+
+    modalContainer.innerHTML = `
+        <div id="editorMainModal" class="kaspi-modal-overlay">
+            <div class="kaspi-modal-header">
+                <span onclick="document.getElementById('modalContainer').innerHTML=''" style="color:var(--text-muted); font-size:16px; cursor:pointer;">${t.inc_cancel}</span>
+                <b style="font-size:16px; color:var(--text-main);">${t.inc_item_params}</b>
+                <span onclick="window.saveAllEdits()" style="color:var(--accent-green); font-size:16px; font-weight:bold; cursor:pointer;">${t.inc_ready}</span>
+            </div>
+            <div class="kaspi-modal-subheader">
+                <div style="color:var(--accent-blue); font-weight:bold; font-size:14px;">${item.item_name}</div>
+            </div>
+            <div style="flex:1; overflow-y:auto; background:var(--bg-body);">
+                ${fieldsHtml || `<div style="padding:20px; text-align:center; color:var(--text-muted);">${t.inc_no_params}</div>`}
+            </div>
+        </div>
+    `;
+};
+
+window.saveAllEdits = function() {
+    let item = window.parsedInvoiceData[window.currentEditIndex];
+    item.attributes = Object.keys(window.tempAttrs).length > 0 ? JSON.stringify(window.tempAttrs) : "";
+    window.invoiceGroups[item.doc_no].items[window.currentEditIndex].attributes = item.attributes;
+
+    if (Object.keys(window.applyToAllMap).length > 0) {
+        window.parsedInvoiceData.forEach((row, rIdx) => {
+            if (rIdx === window.currentEditIndex) return;
+            let rowAttrs = {};
+            try { if (row.attributes) rowAttrs = JSON.parse(row.attributes); } catch(e){}
+            Object.keys(window.applyToAllMap).forEach(globalKey => {
+                rowAttrs[globalKey] = window.applyToAllMap[globalKey];
+            });
+            row.attributes = JSON.stringify(rowAttrs);
+            window.invoiceGroups[row.doc_no].items[rIdx].attributes = row.attributes;
+        });
+    }
+    
+    document.getElementById('modalContainer').innerHTML = '';
+    window.renderPreviewTable();
+};
+
+// === 2. ПОЛНОЭКРАННОЕ ОКНО ПРАВКИ ОДНОГО ПОЛЯ ===
+window.openEditorField = function(originalKey) {
+    const t = translations[currentLang];
+    let val = window.tempAttrs[originalKey] || "";
+    let displayKey = originalKey.split('*').pop().replace(/tires/gi, '').replace(/additional/gi, '').replace(/general/gi, '').replace(/\./g, '').trim();
+    if (!displayKey) displayKey = originalKey;
+
+    let dictKey = Object.keys(window.kaspiDicts || {}).find(dk => dk.toLowerCase() === displayKey.toLowerCase() || dk === originalKey);
+    let dict = dictKey ? window.kaspiDicts[dictKey] : null;
+
+    let isGlobal = window.applyToAllMap[originalKey] !== undefined;
+    let controlHtml = '';
+    let listHtml = '';
+
+    if (dict && dict.length > 0) {
+        window.currentFieldDict = dict;
+        controlHtml = `
+        <div style="padding:15px 20px 10px 20px; background:var(--bg-body); flex-shrink:0; z-index:2; box-shadow: 0 4px 10px rgba(0,0,0,0.15);">
+            <input type="text" id="singleFieldInput" class="kaspi-input-field" value="${val.replace(/"/g, '&quot;')}" 
+                placeholder="${t.inc_search_enter}"
+                onfocus="this.select()"
+                oninput="window.filterDictList(this)">
+            
+            <label style="display:flex; align-items:center; gap:10px; margin-top:15px; padding:15px; background:var(--bg-panel); border-radius:8px; border:1px solid var(--border-light); cursor:pointer;">
+                <input type="checkbox" id="singleFieldApplyAll" ${isGlobal ? 'checked' : ''} style="width:20px; height:20px;">
+                <span style="font-size:14px; color:var(--text-main);">${t.inc_apply_all}</span>
+            </label>
+        </div>`;
+        
+        listHtml = `
+        <div style="flex:1; overflow-y:auto; padding: 10px 20px 20px 20px; -webkit-overflow-scrolling: touch;">
+            <ul id="dictList" style="list-style:none; padding:0; margin:0; background:var(--bg-panel); border-radius:8px; border:1px solid var(--border-light);">
+                ${dict.map(d => `<li onclick="window.selectPreviewDictValue('${d.replace(/'/g, "\\'")}')" class="param-row">
+                    <span style="color:var(--text-main);">${d}</span>${d === val ? `<span style="color:var(--accent-blue);">✔</span>` : ''}
+                </li>`).join('')}
+            </ul>
+        </div>`;
+    } else {
+        controlHtml = `
+        <div style="padding:15px 20px 10px 20px; background:var(--bg-body); flex-shrink:0; z-index:2;">
+            <label style="display:flex; align-items:center; gap:10px; padding:15px; background:var(--bg-panel); border-radius:8px; border:1px solid var(--border-light); cursor:pointer;">
+                <input type="checkbox" id="singleFieldApplyAll" ${isGlobal ? 'checked' : ''} style="width:20px; height:20px;">
+                <span style="font-size:14px; color:var(--text-main);">${t.inc_apply_all}</span>
+            </label>
+        </div>`;
+        
+        listHtml = `
+        <div style="flex:1; overflow-y:auto; padding: 10px 20px 20px 20px; display:flex; flex-direction:column; -webkit-overflow-scrolling: touch;">
+            <textarea id="singleFieldInput" class="kaspi-input-field" placeholder="${displayKey}..." 
+                style="flex:1; min-height:250px; resize:none; line-height:1.5; font-family:inherit;">${val}</textarea>
+        </div>`;
+    }
+
+    let fieldModal = document.createElement('div');
+    fieldModal.id = "editorFieldModal";
+    fieldModal.className = "kaspi-modal-overlay";
+    
+    fieldModal.innerHTML = `
+        <div class="kaspi-modal-header">
+            <span onclick="document.getElementById('editorFieldModal').remove()" style="color:var(--accent-blue); font-size:16px; cursor:pointer; display:flex; align-items:center; gap:5px;">
+                <span style="font-size:20px; margin-top:-2px;">&#10094;</span> 
+            </span>
+            <b style="font-size:14px; color:var(--text-main); text-transform:uppercase; text-overflow:ellipsis; overflow:hidden; white-space:nowrap; max-width:150px; text-align:center;">${displayKey}</b>
+            <span onclick="window.saveSingleField('${originalKey}')" style="color:var(--accent-green); font-size:16px; font-weight:bold; cursor:pointer;">${t.inc_save}</span>
+        </div>
+        ${controlHtml}
+        ${listHtml}
+    `;
+    document.getElementById('modalContainer').appendChild(fieldModal);
+};
+
+// === АЛГОРИТМ УМНОГО ПОИСКА ===
+window.filterDictList = function(input) {
+    let filter = input.value.toLowerCase().trim();
+    let ul = document.getElementById('dictList');
+    if(!ul) return;
+
+    let dict = window.currentFieldDict || [];
+    
+    if (!filter) {
+        ul.innerHTML = dict.map(d => `<li onclick="window.selectPreviewDictValue('${d.replace(/'/g, "\\'")}')" class="param-row">
+            <span style="color:var(--text-main);">${d}</span>
+        </li>`).join('');
+        return;
+    }
+
+    let startsWith = [];
+    let wordStart = [];
+    let includes = [];
+    let safeFilter = filter.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    let highlightRegex = new RegExp(`(${safeFilter})`, 'gi');
+
+    dict.forEach(d => {
+        let lowerD = d.toLowerCase();
+        let highlightedD = d.replace(highlightRegex, '<b style="color:var(--accent-yellow);">$1</b>');
+        
+        let liHtml = `<li onclick="window.selectDictValue('${d.replace(/'/g, "\\'")}')" class="param-row">
+            <span style="color:var(--text-main);">${highlightedD}</span>
+        </li>`;
+
+        if (lowerD.startsWith(filter)) {
+            startsWith.push(liHtml);
+        } else if (new RegExp(`(^|[\\s\\/\\-\\_])` + safeFilter).test(lowerD)) {
+            wordStart.push(liHtml);
+        } else if (lowerD.includes(filter)) {
+            includes.push(liHtml);
+        }
+    });
+
+    ul.innerHTML = [...startsWith, ...wordStart, ...includes].join('');
+};
+
+window.selectPreviewDictValue = function(val) {
+    document.getElementById('singleFieldInput').value = val;
+};
+
+window.saveSingleField = function(originalKey) {
+    let newVal = document.getElementById('singleFieldInput').value.trim();
+    let applyAll = document.getElementById('singleFieldApplyAll').checked;
+    
+    window.tempAttrs[originalKey] = newVal;
+    
+    if (applyAll) {
+        window.applyToAllMap[originalKey] = newVal;
+    } else {
+        delete window.applyToAllMap[originalKey];
+    }
+    
+    document.getElementById('editorFieldModal').remove();
+    window.renderEditorMainUI(window.parsedInvoiceData[window.currentEditIndex]);
 };
 
 window.openAttributeEditor = function(index) {

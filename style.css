@@ -791,3 +791,80 @@ button,
 #kaspi-template-file::file-selector-button:active {
     background-color: #444;
 }
+
+/* --- KASPI MAPPER 2.0 MOBILE UI --- */
+#invoiceTableContainer {
+    flex: 1; 
+    overflow-y: auto; 
+    overflow-x: hidden;
+    background: var(--bg-panel); 
+    border-radius: 8px; 
+    border: 1px solid var(--border-light);
+    -webkit-overflow-scrolling: touch;
+}
+
+#invoiceTableContainer th { 
+    position: sticky; 
+    top: -1px; 
+    background: var(--bg-body); 
+    z-index: 10; 
+    padding: 10px 8px; 
+    border-bottom: 1px solid var(--border-light); 
+    color: var(--text-muted); 
+    font-size: 11px; 
+    text-align: left; 
+    text-transform: uppercase; 
+}
+
+.col-min { width: 1%; white-space: nowrap; }
+.col-main { width: auto; }
+
+/* Строки параметров в окне редактирования */
+.param-row {
+    display: flex; 
+    justify-content: space-between; 
+    align-items: center;
+    padding: 15px; 
+    border-bottom: 1px solid var(--border-light); 
+    cursor: pointer;
+    background: transparent; 
+    transition: 0.2s;
+}
+.param-row:active { 
+    background: rgba(128, 128, 128, 0.1); 
+}
+
+/* Модальные окна редактора */
+.kaspi-modal-overlay {
+    position: fixed; 
+    inset: 0; 
+    background: var(--bg-body); 
+    z-index: 999999; 
+    display: flex; 
+    flex-direction: column;
+}
+.kaspi-modal-header {
+    display: flex; 
+    justify-content: space-between; 
+    align-items: center; 
+    padding: 15px 20px; 
+    background: var(--bg-panel); 
+    border-bottom: 1px solid var(--border-light);
+    flex-shrink: 0;
+    z-index: 2;
+}
+.kaspi-modal-subheader {
+    padding: 15px 20px; 
+    background: rgba(128, 128, 128, 0.05); 
+    border-bottom: 1px solid var(--border-light);
+}
+.kaspi-input-field {
+    width: 100%; 
+    padding: 15px; 
+    background: var(--bg-panel); 
+    color: var(--text-main); 
+    border: 1px solid var(--border-light); 
+    border-radius: 8px; 
+    font-size: 16px; 
+    outline: none;
+}
