@@ -486,15 +486,16 @@
                 <div id="uploadStepArea" style="display: block;">
                     <div class="minimal-input-container" style="display: flex; flex-direction: column; gap: 15px; margin-bottom: 20px;">
         
-                        <!-- 1. Выбор валюты (С поясняющим текстом на одной линии) -->
+                        <!-- 1. Выбор валюты -->
                         <div id="mapperCurrencyBlock" style="display: flex; align-items: center; justify-content: space-between; background: var(--bg-body, rgba(0,0,0,0.03)); padding: 10px 15px; border-radius: 8px; border: 1px dashed var(--border-main);">
-                            <label style="font-size: 13px; font-weight: bold; color: var(--text-main); margin: 0; display: flex; align-items: center; gap: 8px;" data-i18n="invoice_currency_label">
-                                💵 <span>Валюта цен в накладной:</span>
+                            <!-- ИЗМЕНЕНИЕ: Перенесли data-i18n на span, чтобы сохранить эмодзи -->
+                            <label style="font-size: 13px; font-weight: bold; color: var(--text-main); margin: 0; display: flex; align-items: center; gap: 8px;">
+                                💵 <span data-i18n="inc_currency_label">Валюта цен в накладной:</span>
                             </label>
                             
                             <div class="currency-minimal-container" style="position: relative; width: 90px;">
                                 <div class="currency-minimal-header" id="dropdownHeader" onclick="toggleDropdown()" style="font-size: 15px; padding: 8px 12px; background: var(--bg-modal, #fff); border: 1px solid var(--border-main); border-radius: 4px; display: flex; justify-content: space-between; align-items: center; cursor: pointer;">
-                                    <span id="dropdownSelectedCode" style="color: var(--accent-yellow, #FFD700); font-weight: bold;">USD</span>
+                                    <span id="dropdownSelectedCode" style="color: var(--accent-yellow, #FFD700);">USD</span>
                                     <span class="curr-arrow-mini" style="color: var(--text-muted); font-size: 10px;">▼</span>
                                 </div>
                                 <div class="currency-minimal-list" id="dropdownList" style="position: absolute; top: calc(100% + 4px); left: 0; width: 100%; z-index: 9999; background: var(--bg-modal); border: 1px solid var(--border-light); border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
@@ -510,37 +511,39 @@
 
                         <!-- 2. ФАЗА 1: Блок выбора режима импорта -->
                         <div id="importModeContainer">
-                            <!-- Заголовок и кнопка справки -->
                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                                <label style="font-size: 14px; font-weight: bold; color: var(--text-main);" data-i18n="import_mode_title">⚙️ Выберите режим приёмки:</label>
+                                <!-- ИЗМЕНЕНИЕ: Обернули текст в span и задали новый ключ -->
+                                <label style="font-size: 14px; font-weight: bold; color: var(--text-main);">
+                                    ⚙️ <span data-i18n="inc_select_mode">Выберите режим приёмки:</span>
+                                </label>
                                 <button type="button" onclick="showImportHelp()" style="background: none; border: none; color: #3498db; cursor: pointer; font-size: 16px;" title="Справка">
                                     [?]
                                 </button>
                             </div>
                             
-                            <!-- Плитки выбора режима (Симметричный текст) -->
                             <div style="display: flex; gap: 10px; margin-bottom: 15px; overflow: hidden;">
                                 <div id="btnModeInternal" onclick="selectImportMode('internal')" style="flex: 1; min-width: 0; padding: 12px 2px; border: 2px solid var(--border-main); border-radius: 8px; text-align: center; cursor: pointer; background: var(--bg-body); transition: 0.2s;">
                                     <div style="font-size: 24px; margin-bottom: 5px;">📥</div>
-                                    <div style="font-size: 12px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" data-i18n="mode_internal_title">Только в базу</div>
-                                    <div style="font-size: 10px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" data-i18n="mode_internal_desc">Быстрая приёмка</div>
+                                    <!-- ИЗМЕНЕНИЕ: Ключи для Быстрой приемки -->
+                                    <div style="font-size: 12px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" data-i18n="inc_mode_db_only">Только в базу</div>
+                                    <div style="font-size: 10px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" data-i18n="inc_mode_fast">Быстрая приёмка</div>
                                 </div>
                                 
                                 <div id="btnModeKaspi" onclick="selectImportMode('kaspi')" style="flex: 1; min-width: 0; padding: 12px 2px; border: 2px solid var(--border-main); border-radius: 8px; text-align: center; cursor: pointer; background: var(--bg-body); transition: 0.2s;">
                                     <div style="font-size: 24px; margin-bottom: 5px;">🛒</div>
-                                    <div style="font-size: 12px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" data-i18n="mode_kaspi_title">База + Kaspi</div>
-                                    <div style="font-size: 10px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" data-i18n="mode_kaspi_desc">Умный импорт</div>
+                                    <!-- ИЗМЕНЕНИЕ: База + Kaspi не переводим (это бренд), а вот Умный импорт переводим -->
+                                    <div style="font-size: 12px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">База + Kaspi</div>
+                                    <div style="font-size: 10px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" data-i18n="inc_mode_smart">Умный импорт</div>
                                 </div>
                             </div>
 
-                            <!-- Скрытый блок выбора шаблона -->
                             <div id="kaspiTemplateBlock" style="display: none; margin-bottom: 15px;">
-                                <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 5px;" data-i18n="select_template_label">Шаблон маркетплейса:</label>
+                                <!-- ИЗМЕНЕНИЕ: Ключ для шаблона -->
+                                <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 5px;" data-i18n="inc_marketplace_template">Шаблон маркетплейса:</label>
                                 <select id="kaspiTemplateSelect" onchange="handleTemplateChange(event)" style="width: 100%; padding: 12px; min-height: 46px; font-size: 15px; border-radius: 4px; border: 1px solid var(--border-main); background: var(--bg-body); color: var(--text-main);">
                                 </select>
                                 <input type="file" id="templateFileInput" accept=".xlsx" class="visually-hidden" onchange="handleTemplateUpload(event)">
                             </div>
-                            
                         </div>
 
                         <!-- 3. Кнопка загрузки накладной -->
@@ -561,22 +564,23 @@
                 </div> <!-- Конец uploadStepArea -->
 
                 <!-- === ШАГ 2: МАППЕР 2.0 === -->
-                <!-- ИЗМЕНЕНИЕ: margin-top изменен с 15px на -5px для компенсации пустого пространства -->
-                <div id="mapper2Area" style="display: none; margin-top: -20px; flex-direction: column; height: 75vh; width: 100%; box-sizing: border-box;">
+                <div id="mapper2Area" style="display: none; margin-top: -15px; flex-direction: column; height: 75vh; width: 100%; box-sizing: border-box;">
                     
-                    <div style="font-weight: bold; margin-bottom: 10px; color: var(--accent-yellow); font-size: 14px; text-align: center; flex-shrink: 0;">ЗАПОЛНИТЕ ТРЕБОВАНИЯ KASPI</div>
+                    <!-- ИЗМЕНЕНИЕ: Ключ для заголовка шага 2 -->
+                    <div style="font-weight: bold; margin-bottom: 10px; color: var(--accent-yellow); font-size: 14px; text-align: center; flex-shrink: 0;" data-i18n="inc_fill_kaspi_reqs">ЗАПОЛНИТЕ ТРЕБОВАНИЯ KASPI</div>
                     
                     <div id="mapper2CardsContainer" style="overflow-y: auto; flex: 1; min-height: 0; margin-bottom: 15px; padding-right: 5px; -webkit-overflow-scrolling: touch;"></div>
                     
                     <div style="display: flex; gap: 15px; margin-top: auto; flex-shrink: 0; padding-bottom: 5px;">
-                        <button type="button" onclick="navigateIncomeStep(1)" style="flex: 1; padding: 12px; background: var(--bg-secondary); border: 1px solid var(--border-light); color: var(--text-main); border-radius: 4px; font-weight: bold; cursor: pointer;" data-i18n="back">⬅ НАЗАД</button>
+                        <!-- ИЗМЕНЕНИЕ: Ключ для НАЗАД -->
+                        <button type="button" onclick="navigateIncomeStep(1)" style="flex: 1; padding: 12px; background: var(--bg-secondary); border: 1px solid var(--border-light); color: var(--text-main); border-radius: 4px; font-weight: bold; cursor: pointer;" data-i18n="inc_back">⬅ НАЗАД</button>
                         
-                        <button id="applyMapper2Btn" onclick="applyMapper2Logic()" class="btn-primary" style="flex: 2; padding: 12px; display: none;">✅ СОБРАТЬ НАКЛАДНУЮ</button>
+                        <!-- ИЗМЕНЕНИЕ: Обернули текст в span, чтобы галка ✅ не пропала -->
+                        <button id="applyMapper2Btn" onclick="applyMapper2Logic()" class="btn-primary" style="flex: 2; padding: 12px; display: none;">✅ <span data-i18n="inc_build_invoice">СОБРАТЬ НАКЛАДНУЮ</span></button>
                     </div>
                 </div>
 
                 <!-- === BOTTOM SHEET (ШТОРКА ВЫБОРА КОЛОНКИ) === -->
-                <!-- Шторки оставляем на месте, они работают поверх всего -->
                 <div class="sheet-overlay" id="sheet-overlay" onclick="closeSheet()"></div>
                 <div class="bottom-sheet" id="bottom-sheet">
                     <div class="sheet-drag-handle"></div>
@@ -591,12 +595,10 @@
                 </div>
 
                 <!-- === ШАГ 3: ПРЕДПРОСМОТР === -->
-                <!-- ИЗМЕНЕНИЕ 1: Задаем общую высоту 75vh и поднимаем блок на 5px вверх -->
                 <div id="invoicePreviewArea" style="display: none; flex-direction: column; height: 75vh; width: 100%; box-sizing: border-box; margin-top: -5px;">
                     
                     <div id="invoiceMetadata" style="margin-bottom: 10px; font-weight: bold; color: var(--accent-yellow); font-size: 14px; text-align: center; flex-shrink: 0;"></div>
                     
-                    <!-- ИЗМЕНЕНИЕ 2: Убрали жесткие 50vh. Добавили flex: 1; min-height: 0; чтобы таблица тянулась до низу -->
                     <div id="invoiceTableContainer" style="overflow-y: auto; flex: 1; min-height: 0; border: 1px solid var(--border-light); margin-bottom: 15px; width: 100%; box-sizing: border-box; -webkit-overflow-scrolling: touch;">
                         <table style="width: 100%; border-collapse: collapse; font-size: 13px; color: var(--text-main);">
                             <thead style="position: sticky; top: -1px; background: var(--bg-body); z-index: 10;">
@@ -625,11 +627,12 @@
                         </div>
                     </div>
                     
-                    <!-- ИЗМЕНЕНИЕ 3: Добавлено margin-top: auto; чтобы кнопки жестко прижались к нижнему краю модалки -->
                     <div style="display: flex; gap: 15px; flex-shrink: 0; margin-top: auto; padding-bottom: 5px;">
-                        <button type="button" onclick="navigateIncomeStep(2)" style="flex: 1; padding: 12px; background: var(--bg-secondary); border: 1px solid var(--border-light); color: var(--text-main); border-radius: 4px; font-weight: bold; cursor: pointer;" data-i18n="back">⬅ НАЗАД</button>
+                        <!-- ИЗМЕНЕНИЕ: Ключ для НАЗАД -->
+                        <button type="button" onclick="navigateIncomeStep(2)" style="flex: 1; padding: 12px; background: var(--bg-secondary); border: 1px solid var(--border-light); color: var(--text-main); border-radius: 4px; font-weight: bold; cursor: pointer;" data-i18n="inc_back">⬅ НАЗАД</button>
                         
-                        <button id="sendInvoiceBtn" onclick="sendInvoiceToBackend()" class="btn-primary blue" style="flex: 2; padding: 12px;" data-i18n="income_confirm">✅ ОПРИХОДОВАТЬ</button>
+                        <!-- ИЗМЕНЕНИЕ: Старый ключ income_confirm оставлен для совместимости, но добавлен span для эмодзи -->
+                        <button id="sendInvoiceBtn" onclick="sendInvoiceToBackend()" class="btn-primary blue" style="flex: 2; padding: 12px;">✅ <span data-i18n="income_confirm">ОПРИХОДОВАТЬ</span></button>
                     </div>
                 </div>
 

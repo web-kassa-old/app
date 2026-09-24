@@ -316,7 +316,24 @@
                 inc_apply_all: "Применить ко всем товарам",
                 inc_search_enter: "🔍 Поиск или ввод...",
                 inc_no_params: "Нет параметров",
-                inc_apply_all_badge: "✓ ко всем"
+                inc_apply_all_badge: "✓ ко всем",
+                inc_currency_label: "Валюта цен в накладной:",
+                inc_select_mode: "Выберите режим приёмки:",
+                inc_mode_db_only: "Только в базу",
+                inc_mode_fast: "Быстрая приёмка",
+                inc_mode_smart: "Умный импорт",
+                inc_marketplace_template: "Шаблон маркетплейса:",
+                inc_upload_excel: "Загрузите файл Excel",
+                
+                inc_fill_kaspi_reqs: "ЗАПОЛНИТЕ ТРЕБОВАНИЯ KASPI",
+                inc_auto_fill: "Заполняется автоматически",
+                inc_db_barcode: "ШТРИХКОД БД",
+                inc_dict_or_splitter: "Словарь или Сплиттер",
+                inc_select: "ВЫБРАТЬ",
+                inc_build_invoice: "СОБРАТЬ НАКЛАДНУЮ",
+                
+                inc_not_specified: "Не указан",
+                inc_back: "НАЗАД"
             },
             kz: {
                 btn_sale: "САТУ", btn_return: "ҚАЙТАРУ", search_placeholder: "ІЗДЕУ...",
@@ -635,7 +652,24 @@
                 inc_apply_all: "Барлық тауарларға қолдану",
                 inc_search_enter: "🔍 Іздеу немесе енгізу...",
                 inc_no_params: "Параметрлер жоқ",
-                inc_apply_all_badge: "✓ барлығына"
+                inc_apply_all_badge: "✓ барлығына",
+                inc_currency_label: "Жүкқұжаттағы баға валютасы:",
+                inc_select_mode: "Қабылдау режимін таңдаңыз:",
+                inc_mode_db_only: "Тек базаға",
+                inc_mode_fast: "Жылдам қабылдау",
+                inc_mode_smart: "Ақылды импорт",
+                inc_marketplace_template: "Маркетплейс шаблоны:",
+                inc_upload_excel: "Excel файлын жүктеңіз",
+                
+                inc_fill_kaspi_reqs: "KASPI ТАЛАПТАРЫН ТОЛТЫРЫҢЫЗ",
+                inc_auto_fill: "Автоматты түрде толтырылады",
+                inc_db_barcode: "ДҚ ШТРИХКОДЫ",
+                inc_dict_or_splitter: "Сөздік немесе Сплиттер",
+                inc_select: "ТАҢДАУ",
+                inc_build_invoice: "ЖҮКҚҰЖАТТЫ ЖИНАУ",
+                
+                inc_not_specified: "Көрсетілмеген",
+                inc_back: "АРТҚА"
             }
         };
 
@@ -4608,7 +4642,8 @@ window.renderMapper2Cards = function(templateData) {
             let reqText = (requirements[i] || "").toLowerCase();
             let isReq = reqText.includes('обязательн') && !reqText.includes('необязательн');
             
-            allReqs.push({ sysKey, name: humName, req: isReq, desc: 'Словарь или Сплиттер', isKaspi: true });
+            const t = translations[currentLang] || {};
+allReqs.push({ sysKey, name: humName, req: isReq, desc: t.inc_dict_or_splitter || 'Словарь или Сплиттер', isKaspi: true });
         }
     }
 
@@ -4633,12 +4668,12 @@ window.renderMapper2Cards = function(templateData) {
         let isKaspiSku = req.sysKey.toLowerCase().includes('sku') || req.name.toLowerCase().includes('артикул');
         if (isKaspiSku) {
             html += `
-            <div class="req-card" style="opacity: 0.6; filter: grayscale(1); cursor: not-allowed; background: #1a1a1a; border-color: #333;">
+            <div class="req-card" style="opacity: 0.6; filter: grayscale(1); cursor: not-allowed; background: var(--bg-panel); border-color: var(--border-light);">
                 <div class="req-info">
-                    <span class="req-title required">${req.name}</span>
-                    <span class="req-subtitle">Заполняется автоматически</span>
+                    <span class="req-title required" style="color: var(--text-main);">${req.name}</span>
+                    <span class="req-subtitle" style="color: var(--text-muted);">${t.inc_auto_fill || 'Заполняется автоматически'}</span>
                 </div>
-                <div class="req-status status-dict" style="background: #2a2a2a; border-color: #444; color: #888;">🔒 Штрихкод БД</div>
+                <div class="req-status status-dict" style="background: var(--bg-body); border-color: var(--border-light); color: var(--text-muted);">🔒 ${t.inc_db_barcode || 'Штрихкод БД'}</div>
             </div>`;
             return; 
         }
@@ -4663,7 +4698,7 @@ window.renderMapper2Cards = function(templateData) {
         let dictValue = window.mapper2State.dictValues && window.mapper2State.dictValues[req.sysKey];
         
         let statusClass = 'status-empty';
-        let statusText = 'ВЫБРАТЬ';
+        let statusText = t.inc_select || 'ВЫБРАТЬ';
         let statusStyle = ''; 
         let extraPreviewHtml = ''; 
         
@@ -5437,7 +5472,7 @@ window.renderPreviewTable = function() {
     
     document.getElementById('invoiceMetadata').innerHTML = `
         <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; padding: 10px; background: var(--bg-panel); border-radius: 8px; border: 1px solid var(--border-light);">
-            <div><span style="color:var(--text-muted);">${t.inc_supplier}</span> <b style="color:var(--accent-yellow);">${state.supplier}</b></div>
+            <div><span style="color:var(--text-muted);">${t.inc_supplier}</span> <b style="color:var(--accent-yellow);">${state.supplier || t.inc_not_specified || 'Не указан'}</b></div>
             <div><span style="color:var(--text-muted);">${t.inc_doc_short}</span> <b style="color:var(--accent-yellow);">${state.docNo}</b></div>
             <div><span style="color:var(--text-muted);">${t.inc_pos}</span> <b style="color:var(--accent-yellow);">${window.parsedInvoiceData.length}</b></div>
         </div>
