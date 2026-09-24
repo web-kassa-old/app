@@ -473,7 +473,8 @@
             </h3>
 
             <!-- ПЕРЕКЛЮЧАТЕЛЬ ВКЛАДОК -->
-            <div style="display: flex; gap: 10px; margin-bottom: 20px; flex-shrink: 0;">
+            <!-- Добавили id="mapperTabsContainer" -->
+            <div id="mapperTabsContainer" style="display: flex; gap: 10px; margin-bottom: 20px; flex-shrink: 0;">
                 <button id="tab-btn-import" onclick="switchIncomeTab('import')" class="modal-tab active" data-i18n="tab_import">ИМПОРТ EXCEL</button>
                 <button id="tab-btn-new" onclick="switchIncomeTab('new')" class="modal-tab inactive" data-i18n="tab_new">НОВЫЙ ТОВАР</button>
             </div>
@@ -486,7 +487,7 @@
                     <div class="minimal-input-container" style="display: flex; flex-direction: column; gap: 15px; margin-bottom: 20px;">
         
                         <!-- 1. Выбор валюты (С поясняющим текстом на одной линии) -->
-                        <div style="display: flex; align-items: center; justify-content: space-between; background: var(--bg-body, rgba(0,0,0,0.03)); padding: 10px 15px; border-radius: 8px; border: 1px dashed var(--border-main);">
+                        <div id="mapperCurrencyBlock" style="display: flex; align-items: center; justify-content: space-between; background: var(--bg-body, rgba(0,0,0,0.03)); padding: 10px 15px; border-radius: 8px; border: 1px dashed var(--border-main);">
                             <label style="font-size: 13px; font-weight: bold; color: var(--text-main); margin: 0; display: flex; align-items: center; gap: 8px;" data-i18n="invoice_currency_label">
                                 💵 <span>Валюта цен в накладной:</span>
                             </label>

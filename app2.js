@@ -4370,6 +4370,11 @@ window.mapper2State = {
 
 // === РОУТЕР ШАГОВ ПРИЕМКИ (ОБНОВЛЕННЫЙ) ===
 window.navigateIncomeStep = function(stepNumber) {
+    const tabs = document.getElementById('mapperTabsContainer');
+    if (tabs) tabs.style.display = 'flex';
+
+    const currency = document.getElementById('mapperCurrencyBlock');
+    if (currency) currency.style.display = 'flex';
     const step1 = document.getElementById('uploadStepArea'); 
     const step2 = document.getElementById('mapper2Area');    
     const step3 = document.getElementById('invoicePreviewArea'); 
@@ -5399,6 +5404,11 @@ window.currentFieldDict = [];
 
 // === ОТРИСОВКА ГЛАВНОЙ ТАБЛИЦЫ ===
 window.renderPreviewTable = function() {
+    const tabs = document.getElementById('mapperTabsContainer');
+if (tabs) tabs.style.display = 'none';
+
+const currency = document.getElementById('mapperCurrencyBlock');
+if (currency) currency.style.display = 'none';
     const state = window.mapper2State;
     const t = translations[currentLang];
     
