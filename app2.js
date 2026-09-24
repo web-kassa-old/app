@@ -280,7 +280,7 @@
                 kaspi_tpl_file: "Файл шаблона Kaspi (.xlsx):",
                 btn_save_tpl: "Сохранить",
                 btn_kaspi_templates: "Шаблоны Kaspi",
-                modal_template_title: "+Новый шаблон",
+                modal_template_title: "Новый шаблон",
                 modal_template_desc: "Выберите Excel-файл для загрузки",
                 btn_choose_excel: "Выбрать Excel-файл",
                 btn_cancel: "Отмена",
@@ -619,7 +619,7 @@
                 kaspi_tpl_file: "Kaspi шаблонының файлы (.xlsx):",
                 btn_save_tpl: "Сақтау",
                 btn_kaspi_templates: "Kaspi шаблондары",
-                modal_template_title: "+Жаңа шаблон",
+                modal_template_title: "Жаңа шаблон",
                 modal_template_desc: "Жүктеу үшін Excel файлын таңдаңыз",
                 btn_choose_excel: "Excel файлын таңдау",
                 btn_cancel: "Бас тарту",
@@ -7910,29 +7910,6 @@ window.openKaspiManager = function() {
     document.getElementById('kaspi-modal').style.display = 'flex';
 }
 
-window.handleTemplateChange = function(event) {
-    const val = event.target.value;
-    const t = translations[currentLang] || translations['ru'];
-
-    if (val === 'new_template' || val === 'new') {
-        const fileInput = document.getElementById('templateFileInput');
-        if (fileInput) fileInput.click();
-        event.target.value = ""; 
-        
-        if (typeof setUploadButtonState === 'function') {
-            setUploadButtonState(false, '🔒 ' + (t.tpl_select_list || 'Выберите шаблон из списка'));
-        }
-    } else if (val !== "") {
-        if (typeof setUploadButtonState === 'function') {
-            setUploadButtonState(true, '📁 ' + (t.inc_upload_excel || 'Загрузите файл Excel'));
-        }
-    } else {
-        if (typeof setUploadButtonState === 'function') {
-            setUploadButtonState(false, '🔒 ' + (t.tpl_select_list || 'Выберите шаблон из списка'));
-        }
-    }
-};
-
 // 3. Закрытие модалки
 window.closeKaspiManager = function() {
     const modal = document.getElementById('kaspi-modal');
@@ -8851,40 +8828,6 @@ async function generateExportFile() {
 // Глобальная переменная для отслеживания режима
 window.currentImportMode = 'internal';
 
-// Функция клика по плиткам выбора режима
-window.selectImportMode = function(mode) {
-    window.currentImportMode = mode;
-    const btnInternal = document.getElementById('btnModeInternal');
-    const btnKaspi = document.getElementById('btnModeKaspi');
-    const templateBlock = document.getElementById('kaspiTemplateBlock');
-    
-    const t = translations[currentLang] || translations['ru'];
-    
-    if (mode === 'internal') {
-        btnInternal.style.borderColor = 'var(--accent-green)';
-        btnKaspi.style.borderColor = 'var(--border-main)';
-        if (templateBlock) templateBlock.style.display = 'none';
-        
-        setUploadButtonState(true, '📁 ' + (t.inc_upload_excel || 'Загрузите файл Excel'));
-    } else {
-        btnKaspi.style.borderColor = 'var(--accent-green)';
-        btnInternal.style.borderColor = 'var(--border-main)';
-        if (templateBlock) templateBlock.style.display = 'block';
-        
-        const select = document.getElementById('kaspiTemplateSelect');
-        if (select && select.options.length <= 2 && typeof window.loadKaspiTemplatesFromServer === 'function') {
-            window.loadKaspiTemplatesFromServer();
-        }
-        
-        const hasSelectedTemplate = select && select.value !== "" && select.value !== "new" && select.value !== "new_template";
-        if (hasSelectedTemplate) {
-            setUploadButtonState(true, '📁 ' + (t.inc_upload_excel || 'Загрузите файл Excel'));
-        } else {
-            setUploadButtonState(false, '🔒 ' + (t.tpl_select_list || 'Выберите шаблон из списка'));
-        }
-    }
-};
-
 // Вспомогательная функция для визуала кнопки загрузки
 function setUploadButtonState(isActive, textHTML) {
     const wrapper = document.getElementById('invoiceUploadWrapper');
@@ -8917,18 +8860,98 @@ window.unlockInvoiceUpload = function() {
     }
 };
 
-// 3. Вывод имени файла (когда файл уже выбран)
-window.updateFileNameCompactUI = function(input) {
+window.setUploadButtonState = function(isEnabled, i18nKey, defaultText, emoji) {
+    const wrapper = document.getElementById('invoiceUploadWrapper');
     const labelSpan = document.getElementById('fileNameTextCompact');
-    if (!labelSpan) return;
     
-    if (input && input.files && input.files.length > 0) {
-        labelSpan.innerText = '✅ ' + input.files[0].name;
-        labelSpan.style.color = 'var(--accent-green)';
+    // Включаем или выключаем рамку
+    if (wrapper) {
+        wrapper.style.opacity = isEnabled ? '1' : '0.5';
+        wrapper.style.pointerEvents = isEnabled ? 'auto' : 'none';
+    }
+    
+    if (labelSpan) {
+        const lang = window.currentLang || localStorage.getItem('pos_lang') || 'ru';
+        const tr = (typeof translations !== 'undefined' && translations[lang]) ? translations[lang] : {};
+        
+        if (i18nKey) {
+            // Если это системная фраза - ВЕШАЕМ атрибут, чтобы она переводилась при клике на язык
+            labelSpan.setAttribute('data-i18n', i18nKey);
+            labelSpan.innerText = tr[i18nKey] || defaultText;
+        } else {
+            // Если это имя файла - УДАЛЯЕМ атрибут, чтобы переводчик не стер имя файла
+            labelSpan.removeAttribute('data-i18n');
+            labelSpan.innerText = defaultText;
+        }
+        
+        // Меняем эмодзи в соседнем span (если он есть)
+        const emojiSpan = labelSpan.previousElementSibling;
+        if (emojiSpan && emoji) {
+            emojiSpan.innerText = emoji;
+        }
+    }
+};
+
+window.selectImportMode = function(mode) {
+    window.currentImportMode = mode;
+    const btnInternal = document.getElementById('btnModeInternal');
+    const btnKaspi = document.getElementById('btnModeKaspi');
+    const templateBlock = document.getElementById('kaspiTemplateBlock');
+    
+    if (mode === 'internal') {
+        btnInternal.style.borderColor = 'var(--accent-green)';
+        btnKaspi.style.borderColor = 'var(--border-main)';
+        if (templateBlock) templateBlock.style.display = 'none';
+        
+        window.setUploadButtonState(true, 'inc_upload_excel', 'Загрузите файл Excel', '📁');
     } else {
-        const t = translations[currentLang] || translations['ru'];
-        labelSpan.innerText = '📁 ' + (t.inc_upload_excel || 'Загрузите файл Excel');
-        labelSpan.style.color = 'var(--text-main)';
+        btnKaspi.style.borderColor = 'var(--accent-green)';
+        btnInternal.style.borderColor = 'var(--border-main)';
+        if (templateBlock) templateBlock.style.display = 'block';
+        
+        const select = document.getElementById('kaspiTemplateSelect');
+        if (select && select.options.length <= 2 && typeof window.loadKaspiTemplatesFromServer === 'function') {
+            window.loadKaspiTemplatesFromServer();
+        }
+        
+        const hasSelectedTemplate = select && select.value !== "" && select.value !== "new" && select.value !== "new_template";
+        if (hasSelectedTemplate) {
+            window.setUploadButtonState(true, 'inc_upload_excel', 'Загрузите файл Excel', '📁');
+        } else {
+            window.setUploadButtonState(false, 'tpl_select_list', 'Выберите шаблон из списка', '🔒');
+        }
+    }
+};
+
+window.handleTemplateChange = function(event) {
+    const val = event.target.value;
+
+    if (val === 'new_template' || val === 'new') {
+        const fileInput = document.getElementById('templateFileInput');
+        if (fileInput) fileInput.click();
+        event.target.value = ""; 
+        
+        window.setUploadButtonState(false, 'tpl_select_list', 'Выберите шаблон из списка', '🔒');
+    } else if (val !== "") {
+        window.setUploadButtonState(true, 'inc_upload_excel', 'Загрузите файл Excel', '📁');
+    } else {
+        window.setUploadButtonState(false, 'tpl_select_list', 'Выберите шаблон из списка', '🔒');
+    }
+};
+
+window.updateFileNameCompactUI = function(input) {
+    if (input && input.files && input.files.length > 0) {
+        // ФАЙЛ ВЫБРАН: Передаем имя файла и отключаем ключ перевода (null)
+        window.setUploadButtonState(true, null, input.files[0].name, '✅');
+        
+        const labelSpan = document.getElementById('fileNameTextCompact');
+        if (labelSpan) labelSpan.style.color = 'var(--accent-green)';
+    } else {
+        // ФАЙЛ СБРОШЕН: Возвращаем системную фразу
+        window.setUploadButtonState(true, 'inc_upload_excel', 'Загрузите файл Excel', '📁');
+        
+        const labelSpan = document.getElementById('fileNameTextCompact');
+        if (labelSpan) labelSpan.style.color = 'var(--text-main)';
     }
 };
 
