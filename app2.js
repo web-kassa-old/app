@@ -5483,9 +5483,13 @@ window.renderEditorMainUI = function(item) {
     const t = translations[currentLang];
     let fieldsHtml = '';
     
-    Object.keys(window.tempAttrs).forEach(k => {
-        let val = window.tempAttrs[k];
-        let displayKey = k.split('*').pop().replace(/tires/gi, '').replace(/additional/gi, '').replace(/general/gi, '').replace(/\./g, '').trim();
+    // Проходим по ВСЕМ собранным ключам
+    window.allInvoiceKeys.forEach(k => {
+        let val = window.tempAttrs[k] || ""; 
+        
+        // Достаем русское имя из памяти шаблона
+        let humanName = window.mapper2State.sysToHumanMap ? window.mapper2State.sysToHumanMap[k] : null;
+        let displayKey = humanName || k.split('*').pop().replace(/tires/gi, '').replace(/additional/gi, '').replace(/general/gi, '').replace(/\./g, '').trim();
         if (!displayKey) displayKey = k;
         
         let isGlobal = window.applyToAllMap[k] !== undefined;
@@ -5495,16 +5499,15 @@ window.renderEditorMainUI = function(item) {
         <div class="param-row" onclick="window.openEditorField('${k}')">
             <div style="flex: 1; min-width: 0; padding-right: 15px;">
                 <div style="font-size:11px; color:var(--text-muted); text-transform:uppercase; margin-bottom:4px;">${displayKey}</div>
-                <div style="font-size:15px; font-weight:bold; color:var(--text-main); word-break: break-word; line-height: 1.3;">${previewVal || `<span style="color:var(--text-muted); font-weight:normal;">${t.inc_not_specified}</span>`}</div>
+                <div style="font-size:15px; font-weight:bold; color:var(--text-main); word-break: break-word; line-height: 1.3;">${previewVal || `<span style="color:var(--text-muted); font-weight:normal;">${t.inc_not_specified || 'Не указано'}</span>`}</div>
             </div>
             <div style="flex-shrink: 0; display:flex; align-items:center; gap: 10px;">
-                ${isGlobal ? `<span style="font-size:10px; color:var(--accent-green); background:rgba(76,175,80,0.1); padding:4px 6px; border-radius:4px;">${t.inc_apply_all_badge}</span>` : ''}
+                ${isGlobal ? `<span style="font-size:10px; color:var(--accent-green); background:rgba(76,175,80,0.1); padding:4px 6px; border-radius:4px;">${t.inc_apply_all_badge || 'ко всем'}</span>` : ''}
                 <span style="color:var(--text-muted); font-size:18px;">&#10095;</span>
             </div>
         </div>`;
     });
 
-    // Создаем контейнер, если его нет
     let modalContainer = document.getElementById('modalContainer');
     if (!modalContainer) {
         modalContainer = document.createElement('div');
@@ -5515,15 +5518,15 @@ window.renderEditorMainUI = function(item) {
     modalContainer.innerHTML = `
         <div id="editorMainModal" class="kaspi-modal-overlay">
             <div class="kaspi-modal-header">
-                <span onclick="document.getElementById('modalContainer').innerHTML=''" style="color:var(--text-muted); font-size:16px; cursor:pointer;">${t.inc_cancel}</span>
-                <b style="font-size:16px; color:var(--text-main);">${t.inc_item_params}</b>
-                <span onclick="window.saveAllEdits()" style="color:var(--accent-green); font-size:16px; font-weight:bold; cursor:pointer;">${t.inc_ready}</span>
+                <span onclick="document.getElementById('modalContainer').innerHTML=''" style="color:var(--text-muted); font-size:16px; cursor:pointer;">${t.inc_cancel || 'Отмена'}</span>
+                <b style="font-size:16px; color:var(--text-main);">${t.inc_item_params || 'Параметры'}</b>
+                <span onclick="window.saveAllEdits()" style="color:var(--accent-green); font-size:16px; font-weight:bold; cursor:pointer;">${t.inc_ready || 'Готово'}</span>
             </div>
             <div class="kaspi-modal-subheader">
                 <div style="color:var(--accent-blue); font-weight:bold; font-size:14px;">${item.item_name}</div>
             </div>
             <div style="flex:1; overflow-y:auto; background:var(--bg-body);">
-                ${fieldsHtml || `<div style="padding:20px; text-align:center; color:var(--text-muted);">${t.inc_no_params}</div>`}
+                ${fieldsHtml || `<div style="padding:20px; text-align:center; color:var(--text-muted);">Нет доступных параметров</div>`}
             </div>
         </div>
     `;
@@ -5556,29 +5559,25 @@ window.openEditorField = function(originalKey) {
     const t = translations[currentLang];
     let val = window.tempAttrs[originalKey] || "";
     
-    // Очищаем ключ для красивого заголовка
-    let displayKey = originalKey.split('*').pop().replace(/tires/gi, '').replace(/additional/gi, '').replace(/general/gi, '').replace(/\./g, '').trim();
+    // Достаем русское имя для заголовка
+    let humanName = window.mapper2State.sysToHumanMap ? window.mapper2State.sysToHumanMap[originalKey] : null;
+    let displayKey = humanName || originalKey.split('*').pop().replace(/tires/gi, '').replace(/additional/gi, '').replace(/general/gi, '').replace(/\./g, '').trim();
     if (!displayKey) displayKey = originalKey;
 
     // === АГРЕССИВНЫЙ ПОИСК СЛОВАРЯ (УНИВЕРСАЛЬНЫЙ) ===
-        let dict = null;
-        if (window.kaspiDicts) {
-            let cleanOrig = originalKey.toLowerCase().trim();
-            let cleanDisp = displayKey.toLowerCase().trim();
-            
-            // Достаем точное русское название категории из памяти (например, "Тип рисунка протектора")
-            let humanName = window.mapper2State.sysToHumanMap ? window.mapper2State.sysToHumanMap[originalKey] : null;
-            let targetDictKey = humanName ? humanName.toLowerCase().trim() : cleanDisp;
+    let dict = null;
+    if (window.kaspiDicts) {
+        let cleanOrig = originalKey.toLowerCase().trim();
+        let cleanDisp = displayKey.toLowerCase().trim();
+        let targetDictKey = humanName ? humanName.toLowerCase().trim() : cleanDisp;
 
-            let foundKey = Object.keys(window.kaspiDicts).find(dk => {
-                let cleanDk = dk.toLowerCase().trim();
-                // Ищем по русскому имени, по оригинальному ключу или по отображаемому имени
-                return cleanDk === targetDictKey || 
-                    cleanDk === cleanOrig || 
-                    cleanDk === cleanDisp;
-            });
-            
-            if (foundKey) dict = window.kaspiDicts[foundKey];
+        let foundKey = Object.keys(window.kaspiDicts).find(dk => {
+            let cleanDk = dk.toLowerCase().trim();
+            // Ищем по русскому имени, по оригинальному ключу или по отображаемому имени
+            return cleanDk === targetDictKey || cleanDk === cleanOrig || cleanDk === cleanDisp;
+        });
+        
+        if (foundKey) dict = window.kaspiDicts[foundKey];
     }
 
     // Защита: если словарь найден, но упакован как объект, вытаскиваем массив значений
@@ -5586,26 +5585,23 @@ window.openEditorField = function(originalKey) {
         if (typeof dict === 'object') dict = Object.values(dict);
     }
 
-    // Выведет в консоль (F12) результаты поиска, если список опять пуст
-    console.log("Ищем ключ:", originalKey, "| Найден словарь:", dict);
-
     let isGlobal = window.applyToAllMap[originalKey] !== undefined;
     let controlHtml = '';
     let listHtml = '';
 
-    // Если словарь успешно найден и в нем есть данные -> РЕЖИМ СПИСКА
+    // Если словарь успешно найден -> РЕЖИМ СПИСКА
     if (dict && dict.length > 0) {
         window.currentFieldDict = dict;
         controlHtml = `
         <div style="padding:15px 20px 10px 20px; background:var(--bg-body); flex-shrink:0; z-index:2; box-shadow: 0 4px 10px rgba(0,0,0,0.15);">
             <input type="text" id="singleFieldInput" class="kaspi-input-field" value="${val.replace(/"/g, '&quot;')}" 
-                placeholder="${t.inc_search_enter}"
+                placeholder="${t.inc_search_enter || 'Поиск...'}"
                 onfocus="this.select()"
                 oninput="window.filterDictList(this)">
             
             <label style="display:flex; align-items:center; gap:10px; margin-top:15px; padding:15px; background:var(--bg-panel); border-radius:8px; border:1px solid var(--border-light); cursor:pointer;">
                 <input type="checkbox" id="singleFieldApplyAll" ${isGlobal ? 'checked' : ''} style="width:20px; height:20px;">
-                <span style="font-size:14px; color:var(--text-main);">${t.inc_apply_all}</span>
+                <span style="font-size:14px; color:var(--text-main);">${t.inc_apply_all || 'Применить ко всем товарам'}</span>
             </label>
         </div>`;
         
@@ -5624,7 +5620,7 @@ window.openEditorField = function(originalKey) {
         <div style="padding:15px 20px 10px 20px; background:var(--bg-body); flex-shrink:0; z-index:2;">
             <label style="display:flex; align-items:center; gap:10px; padding:15px; background:var(--bg-panel); border-radius:8px; border:1px solid var(--border-light); cursor:pointer;">
                 <input type="checkbox" id="singleFieldApplyAll" ${isGlobal ? 'checked' : ''} style="width:20px; height:20px;">
-                <span style="font-size:14px; color:var(--text-main);">${t.inc_apply_all}</span>
+                <span style="font-size:14px; color:var(--text-main);">${t.inc_apply_all || 'Применить ко всем товарам'}</span>
             </label>
         </div>`;
         
@@ -5645,13 +5641,13 @@ window.openEditorField = function(originalKey) {
                 <span style="font-size:20px; margin-top:-2px;">&#10094;</span> 
             </span>
             <b style="font-size:14px; color:var(--text-main); text-transform:uppercase; text-overflow:ellipsis; overflow:hidden; white-space:nowrap; max-width:150px; text-align:center;">${displayKey}</b>
-            <span onclick="window.saveSingleField('${originalKey}')" style="color:var(--accent-green); font-size:16px; font-weight:bold; cursor:pointer;">${t.inc_save}</span>
+            <span onclick="window.saveSingleField('${originalKey}')" style="color:var(--accent-green); font-size:16px; font-weight:bold; cursor:pointer;">${t.inc_save || 'OK'}</span>
         </div>
         ${controlHtml}
         ${listHtml}
     `;
     document.getElementById('modalContainer').appendChild(fieldModal);
-};
+};;
 
 // === АЛГОРИТМ УМНОГО ПОИСКА ===
 window.filterDictList = function(input) {
