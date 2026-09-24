@@ -27,7 +27,7 @@
                 income_name: "Наименование",
                 income_qty: "Кол-во",
                 income_price: "Цена",
-                income_confirm: "✅ ОПРИХОДОВАТЬ",
+                income_confirm: "ОПРИХОДОВАТЬ",
                 income_meta_supplier: "Поставщик",
                 income_meta_doc: "Документ",
                 income_meta_items: "Позиций",
@@ -324,16 +324,19 @@
                 inc_mode_smart: "Умный импорт",
                 inc_marketplace_template: "Шаблон маркетплейса:",
                 inc_upload_excel: "Загрузите файл Excel",
-                
                 inc_fill_kaspi_reqs: "ЗАПОЛНИТЕ ТРЕБОВАНИЯ KASPI",
                 inc_auto_fill: "Заполняется автоматически",
                 inc_db_barcode: "ШТРИХКОД БД",
                 inc_dict_or_splitter: "Словарь или Сплиттер",
                 inc_select: "ВЫБРАТЬ",
                 inc_build_invoice: "СОБРАТЬ НАКЛАДНУЮ",
-                
                 inc_not_specified: "Не указан",
-                inc_back: "НАЗАД"
+                inc_back: "НАЗАД",
+                kaspi_download_tpl: "Скачивание структуры шаблона...",
+                tpl_select: "-- Выберите шаблон --",
+                tpl_new: "Новый шаблон",
+                tpl_select_list: "Выберите шаблон из списка",
+                tpl_select_mode: "Сначала выберите режим"
             },
             kz: {
                 btn_sale: "САТУ", btn_return: "ҚАЙТАРУ", search_placeholder: "ІЗДЕУ...",
@@ -363,7 +366,7 @@
                 income_name: "Атауы",
                 income_qty: "Саны",
                 income_price: "Бағасы",
-                income_confirm: "✅ КІРІСКЕ АЛУ",
+                income_confirm: "КІРІСКЕ АЛУ",
                 income_meta_supplier: "Жеткізуші",
                 income_meta_doc: "Құжат",
                 income_meta_items: "Позициялар",
@@ -660,16 +663,19 @@
                 inc_mode_smart: "Ақылды импорт",
                 inc_marketplace_template: "Маркетплейс шаблоны:",
                 inc_upload_excel: "Excel файлын жүктеңіз",
-                
                 inc_fill_kaspi_reqs: "KASPI ТАЛАПТАРЫН ТОЛТЫРЫҢЫЗ",
                 inc_auto_fill: "Автоматты түрде толтырылады",
                 inc_db_barcode: "ДҚ ШТРИХКОДЫ",
                 inc_dict_or_splitter: "Сөздік немесе Сплиттер",
                 inc_select: "ТАҢДАУ",
                 inc_build_invoice: "ЖҮКҚҰЖАТТЫ ЖИНАУ",
-                
                 inc_not_specified: "Көрсетілмеген",
-                inc_back: "АРТҚА"
+                inc_back: "АРТҚА",
+                kaspi_download_tpl: "Шаблон құрылымын жүктеп алу...",
+                tpl_select: "-- Шаблонды таңдаңыз --",
+                tpl_new: "Жаңа шаблон",
+                tpl_select_list: "Тізімнен шаблонды таңдаңыз",
+                tpl_select_mode: "Алдымен режимді таңдаңыз"
             }
         };
 
@@ -1620,50 +1626,15 @@ window.startQuaggaScanner = function() {
     Quagga.onDetected(window.handleQuaggaDetection);
 };
 
-window.handleQuaggaDetection = function(result) {
-    if (!result || !result.codeResult || !result.codeResult.code) return;
-    
-    const code = result.codeResult.code;
-
-    // Простая проверка: если код не пустой и длиннее 3 символов
-    if (code && code.length >= 3) {
-        const barcodeInput = document.getElementById('qe-barcode');
-        if (barcodeInput) {
-            barcodeInput.value = code;
-            
-            // Выключаем камеру и сбрасываем фокус
-            window.stopQuaggaScanner();
-            barcodeInput.blur();
-        }
-    }
-};
-
-window.stopQuaggaScanner = function() {
-    const container = document.getElementById('quagga-scanner-container');
-    const target = document.getElementById('quagga-video-target');
-    
-    try {
-        Quagga.stop();
-        Quagga.offDetected(window.handleQuaggaDetection);
-    } catch (e) {
-        // Игнорируем ошибки при повторной остановке
-    }
-    
-    if (target) target.innerHTML = '';
-    if (container) container.style.display = 'none';
-};
-
-// Переменные для защиты от случайных ложных считываний
+// === ОЧИЩЕННЫЙ ВИДЕО-СКАНЕР QUAGGA2 ===
 let quaggaScanCount = 0;
 let lastScannedCode = "";
 
-// 2. Обработка момента, когда камера увидела штрихкод
 window.handleQuaggaDetection = function(result) {
     if (!result || !result.codeResult || !result.codeResult.code) return;
-    
     const code = result.codeResult.code;
 
-    // Ждем 2 одинаковых подтверждения подряд для исключения ошибок
+    // Ждем 3 одинаковых подтверждения подряд для защиты от ложных срабатываний
     if (code === lastScannedCode) {
         quaggaScanCount++;
     } else {
@@ -1676,14 +1647,11 @@ window.handleQuaggaDetection = function(result) {
         if (barcodeInput) {
             barcodeInput.value = code;
             window.stopQuaggaScanner();
-            
-            // Просто сбрасываем фокус, не пытаясь программно открыть "Цену"
             barcodeInput.blur();
         }
     }
 };
 
-// 3. Полная остановка и закрытие сканера
 window.stopQuaggaScanner = function() {
     const container = document.getElementById('quagga-scanner-container');
     const target = document.getElementById('quagga-video-target');
@@ -1691,15 +1659,29 @@ window.stopQuaggaScanner = function() {
     try {
         Quagga.stop();
         Quagga.offDetected(window.handleQuaggaDetection);
-    } catch (e) {
-        // Сканер уже был остановлен
-    }
+    } catch (e) {}
     
     if (target) target.innerHTML = '';
     if (container) container.style.display = 'none';
     
     quaggaScanCount = 0;
     lastScannedCode = "";
+};
+
+// === ОЧИЩЕННАЯ ОСТАНОВКА РЕЗЕРВНОГО СКАНЕРА ===
+window.stopScanner = function() {
+    const scannerDiv = document.getElementById('scanner-container');
+    if (html5QrCode && html5QrCode.isScanning) {
+        html5QrCode.stop().then(() => {
+            if (scannerDiv) {
+                scannerDiv.style.display = 'none';
+                scannerDiv.innerHTML = '';
+            }
+        }).catch(err => console.error(err));
+    } else if (scannerDiv) {
+        scannerDiv.style.display = 'none';
+        scannerDiv.innerHTML = '';
+    }
 };
 
 // Вспомогательная функция: сжимает гигантское фото до 1200px и подготавливает для распознавания
@@ -1788,39 +1770,6 @@ window.captureAndDecode = async function() {
             alert("Не удалось считать код со снимка. Попробуйте еще раз.");
         }
     }, "image/png");
-};
-
-// Функция закрытия сканера
-window.stopScanner = function() {
-    const scannerDiv = document.getElementById('scanner-container');
-    if (html5QrCode && html5QrCode.isScanning) {
-        html5QrCode.stop().then(() => {
-            if (scannerDiv) {
-                scannerDiv.style.display = 'none';
-                scannerDiv.innerHTML = '';
-            }
-        }).catch(() => {
-            if (scannerDiv) {
-                scannerDiv.style.display = 'none';
-                scannerDiv.innerHTML = '';
-            }
-        });
-    } else if (scannerDiv) {
-        scannerDiv.style.display = 'none';
-        scannerDiv.innerHTML = '';
-    }
-};
-
-// Функция аккуратного закрытия камеры
-window.stopScanner = function() {
-    const scannerDiv = document.getElementById('scanner-container');
-    if (html5QrCode && html5QrCode.isScanning) {
-        html5QrCode.stop().then(() => {
-            if (scannerDiv) scannerDiv.style.display = 'none';
-        }).catch(err => console.error(err));
-    } else if (scannerDiv) {
-        scannerDiv.style.display = 'none';
-    }
 };
 
 // Функция-помощник для безопасного считывания данных (чтобы обходить скрытые окна-дубликаты)
@@ -4465,7 +4414,13 @@ window.processInvoiceFile = async function() {
         const templateName = templateSelect ? templateSelect.value : "";
         if (!templateName) return alert("Пожалуйста, выберите шаблон Kaspi из списка!");
 
-        window.showLoading("Скачивание структуры шаблона...");
+        // === ИЗМЕНЕНИЕ: Динамический перевод текста лоадера ===
+        let tText = (typeof translations !== 'undefined' && translations[currentLang] && translations[currentLang].kaspi_download_tpl) 
+            ? translations[currentLang].kaspi_download_tpl 
+            : "Скачивание структуры шаблона...";
+        window.showLoading(tText);
+        // =====================================================
+
         try {
             const payload = { action: 'getKaspiTemplate', api_key: CLIENT_API_KEY, category: templateName };
             const res = await window.smartFetch(GATEWAY_URL, payload);
@@ -8908,14 +8863,18 @@ window.selectImportMode = function(mode) {
     const btnKaspi = document.getElementById('btnModeKaspi');
     const templateBlock = document.getElementById('kaspiTemplateBlock');
     
+    // === ИЗМЕНЕНИЕ: Подхватываем текущий язык и словарь ===
+    const lang = (typeof currentLang !== 'undefined') ? currentLang : 'ru';
+    const t = (typeof translations !== 'undefined' && translations[lang]) ? translations[lang] : {};
+    
     if (mode === 'internal') {
         // Режим: Только в базу
         btnInternal.style.borderColor = 'var(--accent-green)';
         btnKaspi.style.borderColor = 'var(--border-main)';
         if (templateBlock) templateBlock.style.display = 'none';
         
-        // Меняем текст кнопки и разблокируем её
-        setUploadButtonState(true, '📁 Загрузите файл Excel');
+        // Меняем текст кнопки и разблокируем её (С ПЕРЕВОДОМ)
+        setUploadButtonState(true, '📁 ' + (t.inc_upload_excel || 'Загрузите файл Excel'));
     } else {
         // Режим: База + Kaspi
         btnKaspi.style.borderColor = 'var(--accent-green)';
@@ -8927,12 +8886,13 @@ window.selectImportMode = function(mode) {
             window.loadKaspiTemplatesFromServer();
         }
         
-        // Проверяем, выбран ли уже шаблон (и не равен ли он "new")
-        const hasSelectedTemplate = select && select.value !== "" && select.value !== "new";
+        // Проверяем, выбран ли уже шаблон (и не равен ли он "new_template" или "new")
+        const hasSelectedTemplate = select && select.value !== "" && select.value !== "new" && select.value !== "new_template";
         if (hasSelectedTemplate) {
-            setUploadButtonState(true, '📁 Загрузите файл Excel');
+            setUploadButtonState(true, '📁 ' + (t.inc_upload_excel || 'Загрузите файл Excel'));
         } else {
-            setUploadButtonState(false, '🔒 Выберите шаблон из списка');
+            // Блокируем кнопку с подсказкой (С ПЕРЕВОДОМ)
+            setUploadButtonState(false, '🔒 ' + (t.tpl_select_list || 'Выберите шаблон из списка'));
         }
     }
 };
@@ -9057,8 +9017,12 @@ window.loadKaspiTemplatesFromServer = async function(isSilent = false) {
     const select = document.getElementById('kaspiTemplateSelect');
     if (!select) return;
 
-    // Ставим заглушку
-    select.innerHTML = '<option value="" disabled selected data-i18n="loading_templates">⏳ Обновляем список шаблонов...</option>';
+    // === ИЗМЕНЕНИЕ: Подхватываем текущий язык и словарь ===
+    const lang = (typeof currentLang !== 'undefined') ? currentLang : 'ru';
+    const t = (typeof translations !== 'undefined' && translations[lang]) ? translations[lang] : {};
+
+    // Ставим заглушку с переводом
+    select.innerHTML = `<option value="" disabled selected data-i18n="loading_templates">⏳ ${t.loading_templates || 'Обновляем список шаблонов...'}</option>`;
     
     if (typeof applyLanguage === 'function' && typeof currentLang !== 'undefined') {
         applyLanguage(currentLang);
@@ -9073,25 +9037,24 @@ window.loadKaspiTemplatesFromServer = async function(isSilent = false) {
 
         const payload = { action: 'getKaspiTemplateListBackend', api_key: typeof CLIENT_API_KEY !== 'undefined' ? CLIENT_API_KEY : "" };
         
-        // ОПРЕДЕЛЯЕМ URL (используем ваш стандартный)
+        // ОПРЕДЕЛЯЕМ URL
         const targetUrl = typeof APPS_SCRIPT_URL !== 'undefined' ? APPS_SCRIPT_URL : (typeof GATEWAY_URL !== 'undefined' ? GATEWAY_URL : "");
         
-        // === ИСПОЛЬЗУЕМ ВАШ УМНЫЙ ФЕТЧ ===
-        // Передаем URL, пакет, имя для кэша и ставим 1 попытку (чтобы не ждало долго в фоне)
+        // ИСПОЛЬЗУЕМ ВАШ УМНЫЙ ФЕТЧ
         const result = await window.smartFetch(targetUrl, payload, 'kaspiTemplatesCache', 1);
 
+        // === ИЗМЕНЕНИЕ: Подставляем переводы из словаря ===
         let optionsHTML = `
-            <option value="" disabled selected>-- Выберите шаблон --</option>
-            <option value="new_template" style="font-weight: bold; color: #2ecc71;">➕ Новый шаблон</option>
+            <option value="" disabled selected data-i18n="tpl_select">${t.tpl_select || '-- Выберите шаблон --'}</option>
+            <option value="new_template" style="font-weight: bold; color: #2ecc71;">➕ ${t.tpl_new || 'Новый шаблон'}</option>
         `;
 
         if (result && result.success && result.templates && result.templates.length > 0) {
             result.templates.forEach(tpl => {
-                // Если пришел новый формат (объект), прячем хэш в data-атрибут
                 if (typeof tpl === 'object' && tpl !== null) {
                     optionsHTML += `<option value="${tpl.name}" data-hash="${tpl.hash}">${tpl.name}</option>`;
                 } else {
-                    optionsHTML += `<option value="${tpl}">${tpl}</option>`; // Фолбэк для старого кэша
+                    optionsHTML += `<option value="${tpl}">${tpl}</option>`; 
                 }
             });
         } else if (!result || !result.success) {
@@ -9102,9 +9065,10 @@ window.loadKaspiTemplatesFromServer = async function(isSilent = false) {
         
     } catch (error) {
         console.error("Ошибка загрузки списка шаблонов:", error);
+        // === ИЗМЕНЕНИЕ: Подставляем переводы в блок ошибки ===
         select.innerHTML = `
-            <option value="" disabled selected data-i18n="loading_error">-- Ошибка загрузки --</option>
-            <option value="new_template" style="font-weight: bold; color: #2ecc71;">➕ Новый шаблон</option>
+            <option value="" disabled selected data-i18n="loading_error">${t.loading_error || '-- Ошибка загрузки --'}</option>
+            <option value="new_template" style="font-weight: bold; color: #2ecc71;">➕ ${t.tpl_new || 'Новый шаблон'}</option>
         `;
     } finally {
         select.disabled = false;
