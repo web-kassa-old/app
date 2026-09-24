@@ -4559,9 +4559,7 @@ window.processInvoiceFile = async function() {
 
 // 2. ОТРИСОВКА КАРТОЧЕК НА ГЛАВНОМ ЭКРАНЕ
 window.renderMapper2Cards = function(templateData) {
-    // === ПОДКЛЮЧАЕМ СЛОВАРЬ В САМОМ НАЧАЛЕ ===
-    const lang = (typeof currentLang !== 'undefined') ? currentLang : 'ru';
-    const tr = (typeof translations !== 'undefined' && translations[lang]) ? translations[lang] : {};
+    const t = translations[currentLang] || translations['ru'];
 
     window.kaspiDicts = templateData.dictionary || {};
     const container = document.getElementById('mapper2CardsContainer');
@@ -4578,7 +4576,6 @@ window.renderMapper2Cards = function(templateData) {
         try {
             learnedSynonyms = typeof templateData.memoryJson === 'string' ? JSON.parse(templateData.memoryJson) : templateData.memoryJson;
             window.mapper2State.rawMemoryJson = JSON.stringify(learnedSynonyms);
-            
             if (learnedSynonyms._splitRules) {
                 window.mapper2State.splitRules = JSON.parse(JSON.stringify(learnedSynonyms._splitRules));
             }
@@ -4587,7 +4584,6 @@ window.renderMapper2Cards = function(templateData) {
 
     if (templateData && templateData.systemKeys) {
         const { humanNames, systemKeys, requirements } = templateData;
-        
         window.mapper2State.sysToHumanMap = {};
         
         for (let i = 0; i < systemKeys.length; i++) {
@@ -4600,8 +4596,7 @@ window.renderMapper2Cards = function(templateData) {
             let reqText = (requirements[i] || "").toLowerCase();
             let isReq = reqText.includes('обязательн') && !reqText.includes('необязательн');
             
-            // ИСПОЛЬЗУЕМ tr ВМЕСТО t
-            allReqs.push({ sysKey, name: humName, req: isReq, desc: tr.inc_dict_or_splitter || 'Словарь или Сплиттер', isKaspi: true });
+            allReqs.push({ sysKey, name: humName, req: isReq, desc: t.inc_dict_or_splitter || 'Словарь или Сплиттер', isKaspi: true });
         }
     }
 
@@ -4625,14 +4620,13 @@ window.renderMapper2Cards = function(templateData) {
     allReqs.forEach(req => {
         let isKaspiSku = req.sysKey.toLowerCase().includes('sku') || req.name.toLowerCase().includes('артикул');
         if (isKaspiSku) {
-            // ИСПОЛЬЗУЕМ tr ДЛЯ АВТОЗАПОЛНЕНИЯ И ШТРИХКОДА
             html += `
             <div class="req-card" style="opacity: 0.6; filter: grayscale(1); cursor: not-allowed; background: var(--bg-panel); border-color: var(--border-light);">
                 <div class="req-info">
                     <span class="req-title required" style="color: var(--text-main);">${req.name}</span>
-                    <span class="req-subtitle" style="color: var(--text-muted);">${tr.inc_auto_fill || 'Заполняется автоматически'}</span>
+                    <span class="req-subtitle" style="color: var(--text-muted);">${t.inc_auto_fill || 'Заполняется автоматически'}</span>
                 </div>
-                <div class="req-status status-dict" style="background: var(--bg-body); border-color: var(--border-light); color: var(--text-muted);">🔒 ${tr.inc_db_barcode || 'Штрихкод БД'}</div>
+                <div class="req-status status-dict" style="background: var(--bg-body); border-color: var(--border-light); color: var(--text-muted);">🔒 ${t.inc_db_barcode || 'Штрихкод БД'}</div>
             </div>`;
             return; 
         }
@@ -4657,8 +4651,7 @@ window.renderMapper2Cards = function(templateData) {
         let dictValue = window.mapper2State.dictValues && window.mapper2State.dictValues[req.sysKey];
         
         let statusClass = 'status-empty';
-        // ИСПОЛЬЗУЕМ tr ДЛЯ КНОПКИ "ВЫБРАТЬ"
-        let statusText = tr.inc_select || 'ВЫБРАТЬ';
+        let statusText = t.inc_select || 'ВЫБРАТЬ';
         let statusStyle = ''; 
         let extraPreviewHtml = ''; 
         
@@ -4724,7 +4717,8 @@ window.renderMapper2Cards = function(templateData) {
     
     container.innerHTML = html;
 
-    document.getElementById('parseInvoiceBtn').style.display = 'none';
+    const parseBtn = document.getElementById('parseInvoiceBtn');
+    if (parseBtn) parseBtn.style.display = 'none';
     
     const importModeContainer = document.getElementById('importModeContainer');
     if (importModeContainer) importModeContainer.style.display = 'none';
@@ -7917,26 +7911,25 @@ window.openKaspiManager = function() {
 }
 
 window.handleTemplateChange = function(event) {
-    const selectedValue = event.target.value;
+    const val = event.target.value;
+    const t = translations[currentLang] || translations['ru'];
 
-    if (selectedValue === 'new' || selectedValue === 'new_template') {
-        window.kaspiModalSource = 'income'; // Запоминаем, что пришли из Приемки
-        window.lockInvoiceUpload();
+    if (val === 'new_template' || val === 'new') {
+        const fileInput = document.getElementById('templateFileInput');
+        if (fileInput) fileInput.click();
+        event.target.value = ""; 
         
-        // Очищаем поля нашей родной модалки
-        document.getElementById('kaspi-category-name').value = '';
-        document.getElementById('kaspi-template-file').value = '';
-        document.getElementById('kaspi-status').innerText = '';
-        
-        // Открываем единую модалку Kaspi!
-        const modal = document.getElementById('kaspi-modal');
-        if (modal) modal.style.display = 'flex';
-        
-        setTimeout(() => { event.target.selectedIndex = 0; }, 50);
-    } else if (selectedValue !== '') {
-        setTimeout(() => { window.unlockInvoiceUpload(); }, 150);
+        if (typeof setUploadButtonState === 'function') {
+            setUploadButtonState(false, '🔒 ' + (t.tpl_select_list || 'Выберите шаблон из списка'));
+        }
+    } else if (val !== "") {
+        if (typeof setUploadButtonState === 'function') {
+            setUploadButtonState(true, '📁 ' + (t.inc_upload_excel || 'Загрузите файл Excel'));
+        }
     } else {
-        window.lockInvoiceUpload();
+        if (typeof setUploadButtonState === 'function') {
+            setUploadButtonState(false, '🔒 ' + (t.tpl_select_list || 'Выберите шаблон из списка'));
+        }
     }
 };
 
@@ -8861,21 +8854,18 @@ window.currentImportMode = 'internal';
 // Функция клика по плиткам выбора режима
 window.selectImportMode = function(mode) {
     window.currentImportMode = mode;
-    
     const btnInternal = document.getElementById('btnModeInternal');
     const btnKaspi = document.getElementById('btnModeKaspi');
     const templateBlock = document.getElementById('kaspiTemplateBlock');
     
-    // === ПОДКЛЮЧАЕМ СЛОВАРЬ БЕЗ КОНФЛИКТОВ ===
-    const lang = (typeof currentLang !== 'undefined') ? currentLang : 'ru';
-    const tr = (typeof translations !== 'undefined' && translations[lang]) ? translations[lang] : {};
+    const t = translations[currentLang] || translations['ru'];
     
     if (mode === 'internal') {
         btnInternal.style.borderColor = 'var(--accent-green)';
         btnKaspi.style.borderColor = 'var(--border-main)';
         if (templateBlock) templateBlock.style.display = 'none';
         
-        setUploadButtonState(true, '📁 ' + (tr.inc_upload_excel || 'Загрузите файл Excel'));
+        setUploadButtonState(true, '📁 ' + (t.inc_upload_excel || 'Загрузите файл Excel'));
     } else {
         btnKaspi.style.borderColor = 'var(--accent-green)';
         btnInternal.style.borderColor = 'var(--border-main)';
@@ -8888,9 +8878,9 @@ window.selectImportMode = function(mode) {
         
         const hasSelectedTemplate = select && select.value !== "" && select.value !== "new" && select.value !== "new_template";
         if (hasSelectedTemplate) {
-            setUploadButtonState(true, '📁 ' + (tr.inc_upload_excel || 'Загрузите файл Excel'));
+            setUploadButtonState(true, '📁 ' + (t.inc_upload_excel || 'Загрузите файл Excel'));
         } else {
-            setUploadButtonState(false, '🔒 ' + (tr.tpl_select_list || 'Выберите шаблон из списка'));
+            setUploadButtonState(false, '🔒 ' + (t.tpl_select_list || 'Выберите шаблон из списка'));
         }
     }
 };
@@ -8929,23 +8919,16 @@ window.unlockInvoiceUpload = function() {
 
 // 3. Вывод имени файла (когда файл уже выбран)
 window.updateFileNameCompactUI = function(input) {
-    let fileName = "";
+    const labelSpan = document.getElementById('fileNameTextCompact');
+    if (!labelSpan) return;
     
-    // Достаем имя файла (из инпута или переданной строки)
     if (input && input.files && input.files.length > 0) {
-        fileName = input.files[0].name;
-    } else if (typeof input === 'string' && input.trim() !== '') {
-        fileName = input;
-    }
-
-    if (fileName) {
-        // Отдаем имя файла с галочкой нашему главному дирижеру
-        if (typeof setUploadButtonState === 'function') {
-            setUploadButtonState(true, '✅ ' + fileName);
-        }
+        labelSpan.innerText = '✅ ' + input.files[0].name;
+        labelSpan.style.color = 'var(--accent-green)';
     } else {
-        // Если пользователь отменил выбор файла, возвращаем дефолтный текст
-        window.unlockInvoiceUpload(); 
+        const t = translations[currentLang] || translations['ru'];
+        labelSpan.innerText = '📁 ' + (t.inc_upload_excel || 'Загрузите файл Excel');
+        labelSpan.style.color = 'var(--text-main)';
     }
 };
 
@@ -9015,36 +8998,25 @@ window.loadKaspiTemplatesFromServer = async function(isSilent = false) {
     const select = document.getElementById('kaspiTemplateSelect');
     if (!select) return;
 
-    // === ИЗМЕНЕНИЕ: Подхватываем текущий язык и словарь ===
-    const lang = (typeof currentLang !== 'undefined') ? currentLang : 'ru';
-    const t = (typeof translations !== 'undefined' && translations[lang]) ? translations[lang] : {};
+    const t = translations[currentLang] || translations['ru'];
 
-    // Ставим заглушку с переводом
     select.innerHTML = `<option value="" disabled selected data-i18n="loading_templates">⏳ ${t.loading_templates || 'Обновляем список шаблонов...'}</option>`;
     
     if (typeof applyLanguage === 'function' && typeof currentLang !== 'undefined') {
         applyLanguage(currentLang);
     }
-    
     select.disabled = true;
 
     try {
-        if (!isSilent && typeof window.showLoading === 'function') {
-            window.showLoading(null, 'loading_templates');
-        }
+        if (!isSilent && typeof window.showLoading === 'function') window.showLoading(null, 'loading_templates');
 
         const payload = { action: 'getKaspiTemplateListBackend', api_key: typeof CLIENT_API_KEY !== 'undefined' ? CLIENT_API_KEY : "" };
-        
-        // ОПРЕДЕЛЯЕМ URL
         const targetUrl = typeof APPS_SCRIPT_URL !== 'undefined' ? APPS_SCRIPT_URL : (typeof GATEWAY_URL !== 'undefined' ? GATEWAY_URL : "");
-        
-        // ИСПОЛЬЗУЕМ ВАШ УМНЫЙ ФЕТЧ
         const result = await window.smartFetch(targetUrl, payload, 'kaspiTemplatesCache', 1);
 
-        // === ИЗМЕНЕНИЕ: Подставляем переводы из словаря ===
         let optionsHTML = `
             <option value="" disabled selected data-i18n="tpl_select">${t.tpl_select || '-- Выберите шаблон --'}</option>
-            <option value="new_template" style="font-weight: bold; color: #2ecc71;">➕ ${t.tpl_new || 'Новый шаблон'}</option>
+            <option value="new_template" data-i18n="tpl_new" style="font-weight: bold; color: #2ecc71;">➕ ${t.tpl_new || 'Новый шаблон'}</option>
         `;
 
         if (result && result.success && result.templates && result.templates.length > 0) {
@@ -9058,25 +9030,16 @@ window.loadKaspiTemplatesFromServer = async function(isSilent = false) {
         } else if (!result || !result.success) {
             throw new Error("Пустой ответ или ошибка от сервера/кэша");
         }
-        
         select.innerHTML = optionsHTML;
-        
     } catch (error) {
         console.error("Ошибка загрузки списка шаблонов:", error);
-        // === ИЗМЕНЕНИЕ: Подставляем переводы в блок ошибки ===
         select.innerHTML = `
             <option value="" disabled selected data-i18n="loading_error">${t.loading_error || '-- Ошибка загрузки --'}</option>
-            <option value="new_template" style="font-weight: bold; color: #2ecc71;">➕ ${t.tpl_new || 'Новый шаблон'}</option>
+            <option value="new_template" data-i18n="tpl_new" style="font-weight: bold; color: #2ecc71;">➕ ${t.tpl_new || 'Новый шаблон'}</option>
         `;
     } finally {
         select.disabled = false;
-        
-        if (typeof applyLanguage === 'function' && typeof currentLang !== 'undefined') {
-            applyLanguage(currentLang);
-        }
-
-        if (!isSilent && typeof window.hideLoading === 'function') {
-            window.hideLoading();
-        }
+        if (typeof applyLanguage === 'function' && typeof currentLang !== 'undefined') applyLanguage(currentLang);
+        if (!isSilent && typeof window.hideLoading === 'function') window.hideLoading();
     }
 };
