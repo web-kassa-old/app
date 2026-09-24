@@ -561,15 +561,13 @@
                 </div> <!-- Конец uploadStepArea -->
 
                 <!-- === ШАГ 2: МАППЕР 2.0 === -->
-                <!-- ИЗМЕНЕНИЕ 1: Задана жесткая высота 75vh, чтобы модалка растянулась -->
-                <div id="mapper2Area" style="display: none; margin-top: 15px; flex-direction: column; height: 75vh; width: 100%; box-sizing: border-box;">
+                <!-- ИЗМЕНЕНИЕ: margin-top изменен с 15px на -5px для компенсации пустого пространства -->
+                <div id="mapper2Area" style="display: none; margin-top: -5px; flex-direction: column; height: 75vh; width: 100%; box-sizing: border-box;">
                     
                     <div style="font-weight: bold; margin-bottom: 10px; color: var(--accent-yellow); font-size: 14px; text-align: center; flex-shrink: 0;">ЗАПОЛНИТЕ ТРЕБОВАНИЯ KASPI</div>
                     
-                    <!-- ИЗМЕНЕНИЕ 2: Убрано max-height: 40vh. Теперь flex: 1 и min-height: 0 заставляют список занять всё доступное место внутри 75vh -->
                     <div id="mapper2CardsContainer" style="overflow-y: auto; flex: 1; min-height: 0; margin-bottom: 15px; padding-right: 5px; -webkit-overflow-scrolling: touch;"></div>
                     
-                    <!-- ИЗМЕНЕНИЕ 3: margin-top: auto прижимает кнопки к низу, а flex-shrink: 0 не дает им сжиматься -->
                     <div style="display: flex; gap: 15px; margin-top: auto; flex-shrink: 0; padding-bottom: 5px;">
                         <button type="button" onclick="navigateIncomeStep(1)" style="flex: 1; padding: 12px; background: var(--bg-secondary); border: 1px solid var(--border-light); color: var(--text-main); border-radius: 4px; font-weight: bold; cursor: pointer;" data-i18n="back">⬅ НАЗАД</button>
                         
