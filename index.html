@@ -589,20 +589,21 @@
                 </div>
 
                 <!-- === ШАГ 3: ПРЕДПРОСМОТР === -->
-                <!-- ИЗМЕНЕНИЕ 1: Убрано max-height: 45vh, добавлено flex: 1 и min-height: 65vh -->
-                <div id="invoicePreviewArea" style="display: none; margin-top: 20px; flex-direction: column; overflow: hidden; flex: 1; min-height: 65vh; width: 100%; max-width: 100%; min-width: 0; box-sizing: border-box;">
-                    <div id="invoiceMetadata" style="margin-bottom: 10px; font-weight: bold; color: var(--accent-yellow); font-size: 14px; text-align: center;"></div>
+                <div id="invoicePreviewArea" style="display: none; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; width: 100%; box-sizing: border-box;">
                     
-                    <!-- ИЗМЕНЕНИЕ 2: Добавлен id="invoiceTableContainer" для прилипания шапки -->
-                    <div id="invoiceTableContainer" style="overflow: auto; border: 1px solid var(--border-light); margin-bottom: 15px; flex-grow: 1; width: 100%; min-width: 0; box-sizing: border-box; -webkit-overflow-scrolling: touch; overscroll-behavior: none;">
-                        <table style="min-width: 100%; width: max-content; border-collapse: collapse; font-size: 13px; color: var(--text-main);">
+                    <div id="invoiceMetadata" style="margin-bottom: 10px; font-weight: bold; color: var(--accent-yellow); font-size: 14px; text-align: center; flex-shrink: 0;"></div>
+                    
+                    <div id="invoiceTableContainer" style="overflow-y: auto; border: 1px solid var(--border-light); margin-bottom: 15px; flex: 1; min-height: 0; width: 100%; box-sizing: border-box; -webkit-overflow-scrolling: touch;">
+                        <table style="width: 100%; border-collapse: collapse; font-size: 13px; color: var(--text-main);">
                             <thead>
                                 <tr>
                                     <th class="col-min" data-i18n="inc_code">Код</th>
                                     <th class="col-main" data-i18n="inc_item_params">Товар и параметры</th>
-                                    <th class="col-min" style="text-align: right; line-height: 1.4;">
-                                        <div data-i18n="inc_qty_price">Кол-во / Цена</div>
-                                        <div id="dynamicCurrencySpan" style="color:var(--accent-yellow); font-weight:bold;">USD</div>
+                                    <th class="col-min" style="text-align: right; line-height: 1.4; white-space: nowrap;">
+                                        <div data-i18n="income_qty" style="color: var(--text-muted); font-size: 10px; text-transform: uppercase;">Кол-во</div>
+                                        <div>
+                                            <span data-i18n="income_price">Цена</span>, <span id="dynamicCurrencySpan" style="color:var(--accent-yellow); font-weight:bold;">USD</span>
+                                        </div>
                                     </th>
                                 </tr>
                             </thead>
@@ -610,7 +611,7 @@
                         </table>
                     </div>
                     
-                    <div id="status-container" style="display: none; margin-bottom: 15px; padding: 10px; background: var(--bg-body); border: 1px solid var(--border-light); border-radius: 4px;">
+                    <div id="status-container" style="display: none; margin-bottom: 15px; padding: 10px; background: var(--bg-body); border: 1px solid var(--border-light); border-radius: 4px; flex-shrink: 0;">
                         <div style="display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 13px;">
                             <span id="status-text" style="color: var(--accent-green);">Подготовка...</span>
                             <span id="status-percent" style="color: var(--text-muted);">0%</span>
@@ -621,7 +622,7 @@
                     </div>
                     
                     <!-- НИЖНИЙ БЛОК КНОПОК ШАГА 3 (С КНОПКОЙ НАЗАД) -->
-                    <div style="display: flex; gap: 15px; margin-top: 5px; flex-shrink: 0;">
+                    <div style="display: flex; gap: 15px; flex-shrink: 0; margin-bottom: 10px;">
                         <button type="button" onclick="navigateIncomeStep(2)" style="flex: 1; padding: 12px; background: var(--bg-secondary); border: 1px solid var(--border-light); color: var(--text-main); border-radius: 4px; font-weight: bold; cursor: pointer;" data-i18n="back">⬅ НАЗАД</button>
                         
                         <button id="sendInvoiceBtn" onclick="sendInvoiceToBackend()" class="btn-primary blue" style="flex: 2; padding: 12px;" data-i18n="income_confirm">✅ ОПРИХОДОВАТЬ НА СКЛАД</button>
