@@ -5545,16 +5545,44 @@ window.saveAllEdits = function() {
 window.openEditorField = function(originalKey) {
     const t = translations[currentLang];
     let val = window.tempAttrs[originalKey] || "";
+    
+    // Очищаем ключ для красивого заголовка
     let displayKey = originalKey.split('*').pop().replace(/tires/gi, '').replace(/additional/gi, '').replace(/general/gi, '').replace(/\./g, '').trim();
     if (!displayKey) displayKey = originalKey;
 
-    let dictKey = Object.keys(window.kaspiDicts || {}).find(dk => dk.toLowerCase() === displayKey.toLowerCase() || dk === originalKey);
-    let dict = dictKey ? window.kaspiDicts[dictKey] : null;
+    // === АГРЕССИВНЫЙ ПОИСК СЛОВАРЯ ===
+    let dict = null;
+    if (window.kaspiDicts) {
+        if (window.kaspiDicts[originalKey]) {
+            // Точное совпадение
+            dict = window.kaspiDicts[originalKey];
+        } else {
+            // Поиск без учета регистра и спецсимволов
+            let cleanOrig = originalKey.toLowerCase().trim();
+            let cleanDisp = displayKey.toLowerCase().trim();
+            
+            let foundKey = Object.keys(window.kaspiDicts).find(dk => {
+                let cleanDk = dk.toLowerCase().trim();
+                return cleanDk === cleanOrig || cleanDk === cleanDisp;
+            });
+            
+            if (foundKey) dict = window.kaspiDicts[foundKey];
+        }
+    }
+
+    // Защита: если словарь найден, но упакован как объект, вытаскиваем массив значений
+    if (dict && !Array.isArray(dict)) {
+        if (typeof dict === 'object') dict = Object.values(dict);
+    }
+
+    // Выведет в консоль (F12) результаты поиска, если список опять пуст
+    console.log("Ищем ключ:", originalKey, "| Найден словарь:", dict);
 
     let isGlobal = window.applyToAllMap[originalKey] !== undefined;
     let controlHtml = '';
     let listHtml = '';
 
+    // Если словарь успешно найден и в нем есть данные -> РЕЖИМ СПИСКА
     if (dict && dict.length > 0) {
         window.currentFieldDict = dict;
         controlHtml = `
@@ -5573,12 +5601,14 @@ window.openEditorField = function(originalKey) {
         listHtml = `
         <div style="flex:1; overflow-y:auto; padding: 10px 20px 20px 20px; -webkit-overflow-scrolling: touch;">
             <ul id="dictList" style="list-style:none; padding:0; margin:0; background:var(--bg-panel); border-radius:8px; border:1px solid var(--border-light);">
-                ${dict.map(d => `<li onclick="window.selectPreviewDictValue('${d.replace(/'/g, "\\'")}')" class="param-row">
+                ${dict.map(d => `<li onclick="window.selectPreviewDictValue('${String(d).replace(/'/g, "\\'")}')" class="param-row">
                     <span style="color:var(--text-main);">${d}</span>${d === val ? `<span style="color:var(--accent-blue);">✔</span>` : ''}
                 </li>`).join('')}
             </ul>
         </div>`;
-    } else {
+    } 
+    // Если словаря нет -> РЕЖИМ СВОБОДНОГО ТЕКСТА
+    else {
         controlHtml = `
         <div style="padding:15px 20px 10px 20px; background:var(--bg-body); flex-shrink:0; z-index:2;">
             <label style="display:flex; align-items:center; gap:10px; padding:15px; background:var(--bg-panel); border-radius:8px; border:1px solid var(--border-light); cursor:pointer;">
