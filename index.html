@@ -589,18 +589,20 @@
                 </div>
 
                 <!-- === ШАГ 3: ПРЕДПРОСМОТР === -->
-                <div id="invoicePreviewArea" style="display: none; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; width: 100%; box-sizing: border-box;">
+                <!-- ИЗМЕНЕНИЕ: Жесткая высота height: 72vh заставит скролл работать, а кнопки останутся внизу -->
+                <div id="invoicePreviewArea" style="display: none; flex-direction: column; height: 72vh; width: 100%; box-sizing: border-box; margin-top: 5px;">
                     
                     <div id="invoiceMetadata" style="margin-bottom: 10px; font-weight: bold; color: var(--accent-yellow); font-size: 14px; text-align: center; flex-shrink: 0;"></div>
                     
-                    <div id="invoiceTableContainer" style="overflow-y: auto; border: 1px solid var(--border-light); margin-bottom: 15px; flex: 1; min-height: 0; width: 100%; box-sizing: border-box; -webkit-overflow-scrolling: touch;">
+                    <div id="invoiceTableContainer" style="overflow-y: auto; border: 1px solid var(--border-light); margin-bottom: 15px; flex: 1; width: 100%; box-sizing: border-box; -webkit-overflow-scrolling: touch;">
                         <table style="width: 100%; border-collapse: collapse; font-size: 13px; color: var(--text-main);">
-                            <thead>
-                                <tr>
-                                    <th class="col-min" data-i18n="inc_code">Код</th>
-                                    <th class="col-main" data-i18n="inc_item_params">Товар и параметры</th>
-                                    <th class="col-min" style="text-align: right; line-height: 1.4; white-space: nowrap;">
-                                        <div data-i18n="income_qty" style="color: var(--text-muted); font-size: 10px; text-transform: uppercase;">Кол-во</div>
+                            <!-- ИЗМЕНЕНИЕ: Жестко прописанный sticky для шапки -->
+                            <thead style="position: sticky; top: -1px; background: var(--bg-body); z-index: 10;">
+                                <tr style="border-bottom: 1px solid var(--border-light);">
+                                    <th class="col-min" style="padding: 10px 8px; text-align: left; text-transform: uppercase; color: var(--text-muted); font-size: 11px;" data-i18n="inc_code">Код</th>
+                                    <th class="col-main" style="padding: 10px 8px; text-align: left; text-transform: uppercase; color: var(--text-muted); font-size: 11px;" data-i18n="inc_item_params">Товар и параметры</th>
+                                    <th class="col-min" style="padding: 10px 8px; text-align: right; text-transform: uppercase; color: var(--text-muted); font-size: 11px; line-height: 1.4; white-space: nowrap;">
+                                        <div data-i18n="income_qty" style="color: var(--text-muted); font-size: 10px;">Кол-во</div>
                                         <div>
                                             <span data-i18n="income_price">Цена</span>, <span id="dynamicCurrencySpan" style="color:var(--accent-yellow); font-weight:bold;">USD</span>
                                         </div>
@@ -611,7 +613,7 @@
                         </table>
                     </div>
                     
-                    <div id="status-container" style="display: none; margin-bottom: 15px; padding: 10px; background: var(--bg-body); border: 1px solid var(--border-light); border-radius: 4px; flex-shrink: 0;">
+                    <div id="status-container" style="display: none; margin-bottom: 10px; padding: 10px; background: var(--bg-body); border: 1px solid var(--border-light); border-radius: 4px; flex-shrink: 0;">
                         <div style="display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 13px;">
                             <span id="status-text" style="color: var(--accent-green);">Подготовка...</span>
                             <span id="status-percent" style="color: var(--text-muted);">0%</span>
@@ -622,7 +624,7 @@
                     </div>
                     
                     <!-- НИЖНИЙ БЛОК КНОПОК ШАГА 3 (С КНОПКОЙ НАЗАД) -->
-                    <div style="display: flex; gap: 15px; flex-shrink: 0; margin-bottom: 10px;">
+                    <div style="display: flex; gap: 15px; flex-shrink: 0;">
                         <button type="button" onclick="navigateIncomeStep(2)" style="flex: 1; padding: 12px; background: var(--bg-secondary); border: 1px solid var(--border-light); color: var(--text-main); border-radius: 4px; font-weight: bold; cursor: pointer;" data-i18n="back">⬅ НАЗАД</button>
                         
                         <button id="sendInvoiceBtn" onclick="sendInvoiceToBackend()" class="btn-primary blue" style="flex: 2; padding: 12px;" data-i18n="income_confirm">✅ ОПРИХОДОВАТЬ НА СКЛАД</button>
