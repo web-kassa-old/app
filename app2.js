@@ -4587,10 +4587,15 @@ window.renderMapper2Cards = function(templateData) {
 
     if (templateData && templateData.systemKeys) {
         const { humanNames, systemKeys, requirements } = templateData;
+        
+        window.mapper2State.sysToHumanMap = {}; // <--- НОВОЕ: Создаем словарь перевода
+        
         for (let i = 0; i < systemKeys.length; i++) {
             let sysKey = systemKeys[i];
             let humName = humanNames[i];
             if (!sysKey || !humName) continue;
+
+            window.mapper2State.sysToHumanMap[sysKey] = humName; // <--- НОВОЕ: Запоминаем пару "brand" -> "Бренд"
 
             let reqText = (requirements[i] || "").toLowerCase();
             let isReq = reqText.includes('обязательн') && !reqText.includes('необязательн');
@@ -5550,20 +5555,22 @@ window.openEditorField = function(originalKey) {
     let displayKey = originalKey.split('*').pop().replace(/tires/gi, '').replace(/additional/gi, '').replace(/general/gi, '').replace(/\./g, '').trim();
     if (!displayKey) displayKey = originalKey;
 
-    // === АГРЕССИВНЫЙ ПОИСК СЛОВАРЯ ===
-    let dict = null;
-    if (window.kaspiDicts) {
-        if (window.kaspiDicts[originalKey]) {
-            // Точное совпадение
-            dict = window.kaspiDicts[originalKey];
-        } else {
-            // Поиск без учета регистра и спецсимволов
+    // === АГРЕССИВНЫЙ ПОИСК СЛОВАРЯ (УНИВЕРСАЛЬНЫЙ) ===
+        let dict = null;
+        if (window.kaspiDicts) {
             let cleanOrig = originalKey.toLowerCase().trim();
             let cleanDisp = displayKey.toLowerCase().trim();
             
+            // Достаем точное русское название категории из памяти (например, "Тип рисунка протектора")
+            let humanName = window.mapper2State.sysToHumanMap ? window.mapper2State.sysToHumanMap[originalKey] : null;
+            let targetDictKey = humanName ? humanName.toLowerCase().trim() : cleanDisp;
+
             let foundKey = Object.keys(window.kaspiDicts).find(dk => {
                 let cleanDk = dk.toLowerCase().trim();
-                return cleanDk === cleanOrig || cleanDk === cleanDisp;
+                // Ищем по русскому имени, по оригинальному ключу или по отображаемому имени
+                return cleanDk === targetDictKey || 
+                    cleanDk === cleanOrig || 
+                    cleanDk === cleanDisp;
             });
             
             if (foundKey) dict = window.kaspiDicts[foundKey];
