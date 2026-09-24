@@ -5574,7 +5574,6 @@ window.openEditorField = function(originalKey) {
             });
             
             if (foundKey) dict = window.kaspiDicts[foundKey];
-        }
     }
 
     // Защита: если словарь найден, но упакован как объект, вытаскиваем массив значений
