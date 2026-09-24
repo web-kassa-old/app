@@ -5409,7 +5409,6 @@ window.currentFieldDict = [];
 
 // === ОТРИСОВКА ГЛАВНОЙ ТАБЛИЦЫ ===
 window.renderPreviewTable = function() {
-    window.renderPreviewTable = function() {
     const state = window.mapper2State;
     const t = translations[currentLang];
     
@@ -5419,13 +5418,9 @@ window.renderPreviewTable = function() {
     // Скрываем вкладки и валюту по их ID
     const tabs = document.getElementById('mapperTabsContainer');
     if (tabs) tabs.style.display = 'none';
-    const tabs = document.getElementById('mapperTabsContainer');
-if (tabs) tabs.style.display = 'none';
 
-const currency = document.getElementById('mapperCurrencyBlock');
-if (currency) currency.style.display = 'none';
-    const state = window.mapper2State;
-    const t = translations[currentLang];
+    const currency = document.getElementById('mapperCurrencyBlock');
+    if (currency) currency.style.display = 'none';
     
     document.getElementById('invoiceMetadata').innerHTML = `
         <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; padding: 10px; background: var(--bg-panel); border-radius: 8px; border: 1px solid var(--border-light);">
