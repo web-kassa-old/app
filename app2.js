@@ -5673,7 +5673,7 @@ window.filterDictList = function(input) {
         let lowerD = d.toLowerCase();
         let highlightedD = d.replace(highlightRegex, '<b style="color:var(--accent-yellow);">$1</b>');
         
-        let liHtml = `<li onclick="window.selectDictValue('${d.replace(/'/g, "\\'")}')" class="param-row">
+        let liHtml = `<li onclick="window.selectPreviewDictValue('${d.replace(/'/g, "\\'")}')" class="param-row">
             <span style="color:var(--text-main);">${highlightedD}</span>
         </li>`;
 
