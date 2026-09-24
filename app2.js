@@ -5409,6 +5409,16 @@ window.currentFieldDict = [];
 
 // === ОТРИСОВКА ГЛАВНОЙ ТАБЛИЦЫ ===
 window.renderPreviewTable = function() {
+    window.renderPreviewTable = function() {
+    const state = window.mapper2State;
+    const t = translations[currentLang];
+    
+    // === НОВОЕ: Запускаем авто-дописывание параметров перед рендером ===
+    window.autoCleanInvoiceAttributes();
+    
+    // Скрываем вкладки и валюту по их ID
+    const tabs = document.getElementById('mapperTabsContainer');
+    if (tabs) tabs.style.display = 'none';
     const tabs = document.getElementById('mapperTabsContainer');
 if (tabs) tabs.style.display = 'none';
 
@@ -5955,6 +5965,63 @@ async function sendInvoiceToBackend() {
     
     btn.disabled = false; btn.style.opacity = '1';
 }
+
+// === АВТОМАТИЧЕСКИЙ ПОДБОР ЗНАЧЕНИЙ ИЗ СЛОВАРЯ ===
+window.autoCleanInvoiceAttributes = function() {
+    if (!window.parsedInvoiceData || !window.kaspiDicts) return;
+
+    window.parsedInvoiceData.forEach(item => {
+        if (!item.attributes) return;
+
+        try {
+            let attrs = JSON.parse(item.attributes);
+            let changed = false;
+
+            for (let key in attrs) {
+                let rawValue = attrs[key];
+                if (!rawValue) continue;
+
+                // Находим правильное русское имя словаря через нашу карту
+                let humanName = window.mapper2State.sysToHumanMap ? window.mapper2State.sysToHumanMap[key] : null;
+                let targetDictKey = humanName ? humanName.toLowerCase().trim() : key.toLowerCase().trim();
+                
+                let foundKey = Object.keys(window.kaspiDicts).find(dk => dk.toLowerCase().trim() === targetDictKey);
+                let dict = foundKey ? window.kaspiDicts[foundKey] : null;
+
+                if (dict && Array.isArray(dict)) {
+                    let cleanRaw = String(rawValue).trim().toLowerCase();
+                    
+                    // 1. Сначала ищем точное совпадение (вдруг уже написано правильно)
+                    let match = dict.find(d => String(d).trim().toLowerCase() === cleanRaw);
+                    
+                    // 2. Если нет точного, ищем по началу строки (например, "67" для "67 (307 кг)")
+                    // Ищем так, чтобы после значения шел пробел или скобка, чтобы "6" не сматчилось с "67"
+                    if (!match) {
+                        match = dict.find(d => {
+                            let cleanD = String(d).trim().toLowerCase();
+                            return cleanD.startsWith(cleanRaw + " ") || 
+                                   cleanD.startsWith(cleanRaw + "(") || 
+                                   cleanD.startsWith(cleanRaw + " (");
+                        });
+                    }
+
+                    // Если нашли полное значение и оно отличается от огрызка — заменяем
+                    if (match && match !== rawValue) {
+                        attrs[key] = match;
+                        changed = true;
+                    }
+                }
+            }
+
+            // Если что-то поменяли, запаковываем обратно
+            if (changed) {
+                item.attributes = JSON.stringify(attrs);
+            }
+        } catch (e) {
+            console.error("Ошибка авто-очистки атрибутов:", e);
+        }
+    });
+};
 
         // =======================================================
 // УДЕРЖАНИЕ КНОПКИ "С" (Сброс кэша / Очистка ввода)
