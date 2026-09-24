@@ -589,10 +589,12 @@
                 </div>
 
                 <!-- === ШАГ 3: ПРЕДПРОСМОТР === -->
-                <div id="invoicePreviewArea" style="display: none; margin-top: 20px; flex-direction: column; overflow: hidden; max-height: 45vh; width: 100%; max-width: 100%; min-width: 0; box-sizing: border-box;">
+                <!-- ИЗМЕНЕНИЕ 1: Убрано max-height: 45vh, добавлено flex: 1 и min-height: 65vh -->
+                <div id="invoicePreviewArea" style="display: none; margin-top: 20px; flex-direction: column; overflow: hidden; flex: 1; min-height: 65vh; width: 100%; max-width: 100%; min-width: 0; box-sizing: border-box;">
                     <div id="invoiceMetadata" style="margin-bottom: 10px; font-weight: bold; color: var(--accent-yellow); font-size: 14px; text-align: center;"></div>
                     
-                    <div style="overflow: auto; border: 1px solid var(--border-light); margin-bottom: 15px; flex-grow: 1; width: 100%; min-width: 0; box-sizing: border-box; -webkit-overflow-scrolling: touch; overscroll-behavior: none;">
+                    <!-- ИЗМЕНЕНИЕ 2: Добавлен id="invoiceTableContainer" для прилипания шапки -->
+                    <div id="invoiceTableContainer" style="overflow: auto; border: 1px solid var(--border-light); margin-bottom: 15px; flex-grow: 1; width: 100%; min-width: 0; box-sizing: border-box; -webkit-overflow-scrolling: touch; overscroll-behavior: none;">
                         <table style="min-width: 100%; width: max-content; border-collapse: collapse; font-size: 13px; color: var(--text-main);">
                             <thead>
                                 <tr>
@@ -619,15 +621,12 @@
                     </div>
                     
                     <!-- НИЖНИЙ БЛОК КНОПОК ШАГА 3 (С КНОПКОЙ НАЗАД) -->
-                    <div style="display: flex; gap: 15px; margin-top: 5px;">
+                    <div style="display: flex; gap: 15px; margin-top: 5px; flex-shrink: 0;">
                         <button type="button" onclick="navigateIncomeStep(2)" style="flex: 1; padding: 12px; background: var(--bg-secondary); border: 1px solid var(--border-light); color: var(--text-main); border-radius: 4px; font-weight: bold; cursor: pointer;" data-i18n="back">⬅ НАЗАД</button>
                         
                         <button id="sendInvoiceBtn" onclick="sendInvoiceToBackend()" class="btn-primary blue" style="flex: 2; padding: 12px;" data-i18n="income_confirm">✅ ОПРИХОДОВАТЬ НА СКЛАД</button>
                     </div>
                 </div>
-            </div> <!-- Конец вкладки tab-import -->
-            </div> <!-- ЗАЩЕЛКИВАЕМ БЕЛЫЙ КОНТЕЙНЕР ПРИЕМКИ -->
-    </div> <!-- ЗАЩЕЛКИВАЕМ ГЛАВНЫЙ ФОН ПРИЕМКИ -->
 
 <!-- ========================================= -->
 <!-- ОКНО БЫСТРОГО РЕДАКТИРОВАНИЯ (QUICK EDIT) -->
