@@ -4559,6 +4559,10 @@ window.processInvoiceFile = async function() {
 
 // 2. ОТРИСОВКА КАРТОЧЕК НА ГЛАВНОМ ЭКРАНЕ
 window.renderMapper2Cards = function(templateData) {
+    // === ПОДКЛЮЧАЕМ СЛОВАРЬ В САМОМ НАЧАЛЕ ===
+    const lang = (typeof currentLang !== 'undefined') ? currentLang : 'ru';
+    const tr = (typeof translations !== 'undefined' && translations[lang]) ? translations[lang] : {};
+
     window.kaspiDicts = templateData.dictionary || {};
     const container = document.getElementById('mapper2CardsContainer');
     container.innerHTML = '';
@@ -4584,7 +4588,6 @@ window.renderMapper2Cards = function(templateData) {
     if (templateData && templateData.systemKeys) {
         const { humanNames, systemKeys, requirements } = templateData;
         
-        // === СОХРАНЯЕМ ПЕРЕВОД КЛЮЧЕЙ ДЛЯ БУДУЩИХ МОДАЛОК ===
         window.mapper2State.sysToHumanMap = {};
         
         for (let i = 0; i < systemKeys.length; i++) {
@@ -4597,8 +4600,8 @@ window.renderMapper2Cards = function(templateData) {
             let reqText = (requirements[i] || "").toLowerCase();
             let isReq = reqText.includes('обязательн') && !reqText.includes('необязательн');
             
-            const t = translations[currentLang] || {};
-allReqs.push({ sysKey, name: humName, req: isReq, desc: t.inc_dict_or_splitter || 'Словарь или Сплиттер', isKaspi: true });
+            // ИСПОЛЬЗУЕМ tr ВМЕСТО t
+            allReqs.push({ sysKey, name: humName, req: isReq, desc: tr.inc_dict_or_splitter || 'Словарь или Сплиттер', isKaspi: true });
         }
     }
 
@@ -4622,13 +4625,14 @@ allReqs.push({ sysKey, name: humName, req: isReq, desc: t.inc_dict_or_splitter |
     allReqs.forEach(req => {
         let isKaspiSku = req.sysKey.toLowerCase().includes('sku') || req.name.toLowerCase().includes('артикул');
         if (isKaspiSku) {
+            // ИСПОЛЬЗУЕМ tr ДЛЯ АВТОЗАПОЛНЕНИЯ И ШТРИХКОДА
             html += `
             <div class="req-card" style="opacity: 0.6; filter: grayscale(1); cursor: not-allowed; background: var(--bg-panel); border-color: var(--border-light);">
                 <div class="req-info">
                     <span class="req-title required" style="color: var(--text-main);">${req.name}</span>
-                    <span class="req-subtitle" style="color: var(--text-muted);">${t.inc_auto_fill || 'Заполняется автоматически'}</span>
+                    <span class="req-subtitle" style="color: var(--text-muted);">${tr.inc_auto_fill || 'Заполняется автоматически'}</span>
                 </div>
-                <div class="req-status status-dict" style="background: var(--bg-body); border-color: var(--border-light); color: var(--text-muted);">🔒 ${t.inc_db_barcode || 'Штрихкод БД'}</div>
+                <div class="req-status status-dict" style="background: var(--bg-body); border-color: var(--border-light); color: var(--text-muted);">🔒 ${tr.inc_db_barcode || 'Штрихкод БД'}</div>
             </div>`;
             return; 
         }
@@ -4653,7 +4657,8 @@ allReqs.push({ sysKey, name: humName, req: isReq, desc: t.inc_dict_or_splitter |
         let dictValue = window.mapper2State.dictValues && window.mapper2State.dictValues[req.sysKey];
         
         let statusClass = 'status-empty';
-        let statusText = t.inc_select || 'ВЫБРАТЬ';
+        // ИСПОЛЬЗУЕМ tr ДЛЯ КНОПКИ "ВЫБРАТЬ"
+        let statusText = tr.inc_select || 'ВЫБРАТЬ';
         let statusStyle = ''; 
         let extraPreviewHtml = ''; 
         
@@ -4719,7 +4724,6 @@ allReqs.push({ sysKey, name: humName, req: isReq, desc: t.inc_dict_or_splitter |
     
     container.innerHTML = html;
 
-    // === СКРЫВАЕМ ЛИШНИЕ ЭЛЕМЕНТЫ ШАПКИ НА ШАГЕ 2 ===
     document.getElementById('parseInvoiceBtn').style.display = 'none';
     
     const importModeContainer = document.getElementById('importModeContainer');
@@ -4728,7 +4732,6 @@ allReqs.push({ sysKey, name: humName, req: isReq, desc: t.inc_dict_or_splitter |
     const invoiceUploadWrapper = document.getElementById('invoiceUploadWrapper');
     if (invoiceUploadWrapper) invoiceUploadWrapper.style.display = 'none';
 
-    // Прячем вкладки и валюту (освобождаем воздух)
     const tabs = document.getElementById('mapperTabsContainer');
     if (tabs) tabs.style.display = 'none';
     
@@ -8863,20 +8866,17 @@ window.selectImportMode = function(mode) {
     const btnKaspi = document.getElementById('btnModeKaspi');
     const templateBlock = document.getElementById('kaspiTemplateBlock');
     
-    // === ИЗМЕНЕНИЕ: Подхватываем текущий язык и словарь ===
+    // === ПОДКЛЮЧАЕМ СЛОВАРЬ БЕЗ КОНФЛИКТОВ ===
     const lang = (typeof currentLang !== 'undefined') ? currentLang : 'ru';
-    const t = (typeof translations !== 'undefined' && translations[lang]) ? translations[lang] : {};
+    const tr = (typeof translations !== 'undefined' && translations[lang]) ? translations[lang] : {};
     
     if (mode === 'internal') {
-        // Режим: Только в базу
         btnInternal.style.borderColor = 'var(--accent-green)';
         btnKaspi.style.borderColor = 'var(--border-main)';
         if (templateBlock) templateBlock.style.display = 'none';
         
-        // Меняем текст кнопки и разблокируем её (С ПЕРЕВОДОМ)
-        setUploadButtonState(true, '📁 ' + (t.inc_upload_excel || 'Загрузите файл Excel'));
+        setUploadButtonState(true, '📁 ' + (tr.inc_upload_excel || 'Загрузите файл Excel'));
     } else {
-        // Режим: База + Kaspi
         btnKaspi.style.borderColor = 'var(--accent-green)';
         btnInternal.style.borderColor = 'var(--border-main)';
         if (templateBlock) templateBlock.style.display = 'block';
@@ -8886,13 +8886,11 @@ window.selectImportMode = function(mode) {
             window.loadKaspiTemplatesFromServer();
         }
         
-        // Проверяем, выбран ли уже шаблон (и не равен ли он "new_template" или "new")
         const hasSelectedTemplate = select && select.value !== "" && select.value !== "new" && select.value !== "new_template";
         if (hasSelectedTemplate) {
-            setUploadButtonState(true, '📁 ' + (t.inc_upload_excel || 'Загрузите файл Excel'));
+            setUploadButtonState(true, '📁 ' + (tr.inc_upload_excel || 'Загрузите файл Excel'));
         } else {
-            // Блокируем кнопку с подсказкой (С ПЕРЕВОДОМ)
-            setUploadButtonState(false, '🔒 ' + (t.tpl_select_list || 'Выберите шаблон из списка'));
+            setUploadButtonState(false, '🔒 ' + (tr.tpl_select_list || 'Выберите шаблон из списка'));
         }
     }
 };
