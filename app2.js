@@ -336,7 +336,8 @@
                 tpl_select: "-- Выберите шаблон --",
                 tpl_new: "Новый шаблон",
                 tpl_select_list: "Выберите шаблон из списка",
-                tpl_select_mode: "Сначала выберите режим"
+                tpl_select_mode: "Сначала выберите режим",
+                mapper_err_missing_cols: "⚠️ Обязательно привяжите колонки:\n1. Наименование (или model)\n2. Количество (qty)\n3. Цена (price)"
             },
             kz: {
                 btn_sale: "САТУ", btn_return: "ҚАЙТАРУ", search_placeholder: "ІЗДЕУ...",
@@ -675,7 +676,8 @@
                 tpl_select: "-- Шаблонды таңдаңыз --",
                 tpl_new: "Жаңа шаблон",
                 tpl_select_list: "Тізімнен шаблонды таңдаңыз",
-                tpl_select_mode: "Алдымен режимді таңдаңыз"
+                tpl_select_mode: "Алдымен режимді таңдаңыз",
+                mapper_err_missing_cols: "⚠️ Бағандарды міндетті түрде байланыстырыңыз:\n1. Атауы (немесе model)\n2. Саны (qty)\n3. Бағасы (price)"
             }
         };
 
@@ -5243,7 +5245,12 @@ window.applyMapper2Logic = function() {
     const nameIdx = state.colMap['name'] !== undefined ? state.colMap['name'] : state.colMap['model'];
 
     if (qtyIdx === undefined || priceIdx === undefined || nameIdx === undefined) {
-        return alert("⚠️ Обязательно привяжите колонки:\n1. Наименование (или model)\n2. Количество (qty)\n3. Цена (price)");
+        // Подхватываем текущий язык и словарь для алерта
+        const lang = window.currentLang || localStorage.getItem('pos_lang') || 'ru';
+        const tr = (typeof translations !== 'undefined' && translations[lang]) ? translations[lang] : {};
+        const errorMsg = tr.mapper_err_missing_cols || "⚠️ Обязательно привяжите колонки:\n1. Наименование (или model)\n2. Количество (qty)\n3. Цена (price)";
+        
+        return alert(errorMsg);
     }
 
     // === ФОНОВОЕ ОБУЧЕНИЕ СЛОВАРЯ СИНОНИМОВ ===
