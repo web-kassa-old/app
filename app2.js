@@ -5437,8 +5437,13 @@ window.renderPreviewTable = function() {
                 let parsed = JSON.parse(item.attributes);
                 attrsHtml = `<div style="display: flex; flex-direction: column; gap: 4px; margin-top: 8px;">` + 
                     Object.keys(parsed).map(k => {
-                        let displayKey = k.split('*').pop().replace(/tires/gi, '').replace(/additional/gi, '').replace(/general/gi, '').replace(/\./g, '').trim();
+                        
+                        // === ИЗМЕНЕНИЕ: Применяем наш переводчик sysToHumanMap здесь ===
+                        let humanName = window.mapper2State.sysToHumanMap ? window.mapper2State.sysToHumanMap[k] : null;
+                        let displayKey = humanName || k.split('*').pop().replace(/tires/gi, '').replace(/additional/gi, '').replace(/general/gi, '').replace(/\./g, '').trim();
                         if(!displayKey) displayKey = k;
+                        // ================================================================
+                        
                         let val = parsed[k];
                         if(val.length > 30) val = val.substring(0, 30) + '...';
                         
@@ -5448,6 +5453,7 @@ window.renderPreviewTable = function() {
                     }).join('') + `</div>`;
             } catch(e){}
         }
+        
         return `
         <tr style="border-bottom:1px solid var(--border-light);">
             <td class="col-min" style="padding:12px 8px; vertical-align: top;">
