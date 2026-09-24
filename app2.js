@@ -5503,8 +5503,10 @@ window.renderEditorMainUI = function(item) {
     const t = translations[currentLang];
     let fieldsHtml = '';
     
-    // Проходим по ВСЕМ собранным ключам
-    window.allInvoiceKeys.forEach(k => {
+    // === ИСПРАВЛЕНИЕ: Берем ключи напрямую из временных атрибутов товара ===
+    let keysToEdit = window.tempAttrs ? Object.keys(window.tempAttrs) : [];
+
+    keysToEdit.forEach(k => {
         let val = window.tempAttrs[k] || ""; 
         
         // Достаем русское имя из памяти шаблона
@@ -5512,7 +5514,8 @@ window.renderEditorMainUI = function(item) {
         let displayKey = humanName || k.split('*').pop().replace(/tires/gi, '').replace(/additional/gi, '').replace(/general/gi, '').replace(/\./g, '').trim();
         if (!displayKey) displayKey = k;
         
-        let isGlobal = window.applyToAllMap[k] !== undefined;
+        // Добавлена безопасная проверка для applyToAllMap
+        let isGlobal = window.applyToAllMap && window.applyToAllMap[k] !== undefined;
         let previewVal = val.length > 50 ? val.substring(0, 50) + '...' : val;
 
         fieldsHtml += `
