@@ -5447,8 +5447,9 @@ window.renderPreviewTable = function() {
                         let val = parsed[k];
                         if(val.length > 30) val = val.substring(0, 30) + '...';
                         
-                        return `<div style="font-size: 11px; background: rgba(76, 175, 80, 0.1); border: 1px solid rgba(76, 175, 80, 0.3); padding: 4px 8px; border-radius: 4px; display: flex; justify-content: space-between; gap: 8px;">
-                            <span style="color:var(--text-muted); white-space:nowrap;">${displayKey}:</span> <b style="color:var(--accent-green); text-align:right;">${val}</b>
+                        return `<div style="font-size: 11px; background: rgba(76, 175, 80, 0.1); border: 1px solid rgba(76, 175, 80, 0.3); padding: 6px 8px; border-radius: 4px; display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; line-height: 1.3;">
+                            <span style="color:var(--text-muted); flex: 1;">${displayKey}:</span> 
+                            <b style="color:var(--accent-green); text-align: right; max-width: 55%; word-break: break-word;">${val}</b>
                         </div>`;
                     }).join('') + `</div>`;
             } catch(e){}
