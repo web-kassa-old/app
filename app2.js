@@ -6559,6 +6559,7 @@ window.renderEditorMainUI = function (item) {
     Object.keys(window.tempAttrs).forEach(k => allKeys.add(k));
   }
 
+  // Принудительно добавляем системные ключи
   const posFields = {
       "name": "Наименование",
       "price": "Цена",
@@ -6591,19 +6592,22 @@ window.renderEditorMainUI = function (item) {
     let lowerDisp = cleanDisplayKey.toLowerCase();
     let lowerK = k.toLowerCase();
 
-    // 100% ЖЕСТКОЕ АВТОЗАПОЛНЕНИЕ БАЗОВЫХ ПОЛЕЙ (Решение бага с ценой и штрихкодом)
+    // Бронебойное автозаполнение системных полей из БД (решение бага с ценой и кодом)
     if (val === "" && item) {
-        if (lowerK === 'name' || lowerDisp === 'название товара' || lowerDisp === 'наименование') {
-            val = item.item_name || item.name || "";
+        if (lowerK === 'name' || lowerDisp.includes('название') || lowerDisp.includes('наименование')) {
+            val = item.item_name || item.name || item.title || "";
         } else if (lowerK === 'price' || lowerDisp.includes('цена')) {
-            val = item.price !== undefined && item.price !== null ? String(item.price) : "";
+            let p = item.price !== undefined ? item.price : (item.sell_price !== undefined ? item.sell_price : item.price_out);
+            val = (p !== undefined && p !== null) ? String(p) : "";
         } else if (lowerK === 'barcode' || lowerDisp.includes('штрихкод') || lowerDisp.includes('код')) {
-            val = item.barcode !== undefined && item.barcode !== null ? String(item.barcode) : "";
+            val = item.barcode || item.code || "";
         } else if (lowerK === 'qty' || lowerDisp.includes('количество')) {
-            val = item.stock !== undefined ? String(item.stock) : (item.qty !== undefined ? String(item.qty) : "");
+            let q = item.stock !== undefined ? item.stock : item.qty;
+            val = (q !== undefined && q !== null) ? String(q) : "";
         }
     }
 
+    // Проверка обязательности из предыдущего экрана
     let isReq = false;
     let prevCard = document.querySelector(`.req-card[onclick*="'${k}'"]`);
     if (prevCard && prevCard.querySelector('.required')) {
@@ -6620,7 +6624,7 @@ window.renderEditorMainUI = function (item) {
     let isDict = dicts[cleanDisplayKey] && dicts[cleanDisplayKey].length > 0;
 
     if (isSku && (val === "" || val === undefined)) {
-      val = t.inc_auto_fill || "Заполняется автоматически";
+      val = t.inc_auto_fill || "Автоматически";
     }
 
     let isEmpty = (val === "" || val === null || val === undefined);
@@ -6632,7 +6636,7 @@ window.renderEditorMainUI = function (item) {
         isSku: isSku,
         isReq: isReq,
         isDict: isDict,
-        previewVal: String(val).length > 50 ? String(val).substring(0, 50) + "..." : val
+        previewVal: String(val).length > 30 ? String(val).substring(0, 30) + "..." : val
     };
 
     if (isReq) {
@@ -6648,61 +6652,39 @@ window.renderEditorMainUI = function (item) {
   const renderList = (fields) => {
       let html = "";
       fields.forEach(f => {
-          let reqStar = f.isReq ? `<span style="color:#ff4444; margin-left:2px; font-weight:bold; font-size:14px;">*</span>` : "";
+          let reqStar = f.isReq ? `<span style="color:#ff4444; margin-left:4px; font-weight:bold; font-size:16px;">*</span>` : "";
+          let applyAllBadge = f.isGlobal ? `<span style="background:rgba(50, 157, 250, 0.15); color:var(--accent-blue); padding:2px 6px; border-radius:4px; font-size:9px; font-weight:bold; margin-left: 8px;">${t.inc_apply_all_badge || "Ко всем"}</span>` : "";
 
-          // Цвета боковых рамок как в отчетах
-          let rowStyle = "";
+          let rightSideHtml = "";
+          
           if (f.val) {
-              rowStyle = `background: rgba(76, 175, 80, 0.05); border-left: 4px solid var(--accent-green, #4CAF50);`;
-          } else if (f.isReq) {
-              rowStyle = `background: transparent; border-left: 4px solid #ff4444;`;
-          } else {
-              rowStyle = `background: transparent; border-left: 4px solid var(--accent-blue, #329dfa);`;
-          }
-
-          let rightIcon = f.isSku ? '&#10003;' : '&#10095;';
-          let iconColor = f.isSku ? 'var(--accent-green, #4CAF50)' : 'var(--text-muted, #888)';
-
-          // КНОПКИ ДЛЯ ПУСТЫХ ПОЛЕЙ (Справа)
-          let actionBadge = "";
-          if (!f.val) {
-              if (f.isDict) {
-                  actionBadge = `<div style="border: 1px solid var(--accent-blue, #329dfa); color: var(--accent-blue, #329dfa); padding: 4px 10px; border-radius: 4px; font-size: 10px; font-weight: bold; text-transform: uppercase;">Справочник</div>`;
-              } else {
-                  actionBadge = `<div style="border: 1px solid var(--text-muted, #888); color: var(--text-muted, #aaa); padding: 4px 10px; border-radius: 4px; font-size: 10px; font-weight: bold; text-transform: uppercase;">Ввод</div>`;
-              }
-          }
-
-          let applyAllBadge = f.isGlobal ? `<span style="background:rgba(50, 157, 250, 0.15); color:var(--accent-blue); padding:2px 6px; border-radius:4px; font-size:9px; font-weight:bold; margin-left: 6px;">${t.inc_apply_all_badge || "Ко всем"}</span>` : "";
-
-          let contentHtml = "";
-          if (f.val) {
-              // ЗАПОЛНЕНО: Мелкий заголовок, крупное значение
-              contentHtml = `
-                  <div style="font-size:10px; color:var(--text-muted); text-transform:uppercase; margin-bottom:4px; display:flex; align-items:center;">
-                      ${f.cleanDisplayKey}${reqStar} ${applyAllBadge}
-                  </div>
-                  <div style="font-size:15px; font-weight:bold; color:${f.isSku ? 'var(--text-muted)' : 'var(--text-main)'}; word-break: break-word; line-height: 1.3;">
-                      ${f.previewVal}
+              // ЗАПОЛНЕНО: Зеленая плашка с галочкой и значением
+              let displayVal = f.isSku ? (t.inc_auto_fill || "Автоматически") : f.previewVal;
+              rightSideHtml = `
+                  <div style="border: 1px solid #4CAF50; background: rgba(76, 175, 80, 0.1); color: #4CAF50; padding: 5px 12px; border-radius: 4px; font-size: 12px; font-weight: bold; max-width: 160px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-right: 8px;">
+                      ✓ ${displayVal}
                   </div>
               `;
           } else {
-              // ПУСТО: Крупный заголовок (кнопка будет справа)
-              contentHtml = `
-                  <div style="font-size:13px; color:var(--text-main); font-weight:bold; text-transform:uppercase; display:flex; align-items:center;">
-                      ${f.cleanDisplayKey}${reqStar} ${applyAllBadge}
+              // ПУСТО: Красная плашка [ВВОД] или [СПРАВОЧНИК]
+              let actionText = f.isDict ? "Справочник" : "Ввод";
+              rightSideHtml = `
+                  <div style="border: 1px solid #ff4444; color: #ff4444; padding: 5px 12px; border-radius: 4px; font-size: 11px; font-weight: bold; text-transform: uppercase; margin-right: 8px;">
+                      ${actionText}
                   </div>
               `;
           }
 
           html += `
-          <div class="param-row" onclick="window.openEditorField('${f.k}')" style="display:flex; justify-content:space-between; align-items:center; padding:14px 16px; border-bottom:1px solid var(--border-light, rgba(128,128,128,0.2)); cursor:pointer; transition: background 0.2s; ${rowStyle}">
-              <div style="flex: 1; min-width: 0; padding-right: 15px;">
-                  ${contentHtml}
+          <div class="param-row" onclick="window.openEditorField('${f.k}')" style="display:flex; justify-content:space-between; align-items:center; padding:16px; border-bottom:1px solid var(--border-light, rgba(128,128,128,0.2)); cursor:pointer; background: transparent; transition: background 0.2s;">
+              <div style="flex: 1; min-width: 0; padding-right: 15px; display:flex; align-items:center;">
+                  <div style="font-size:14px; color:var(--text-main); font-weight:bold; text-transform:uppercase;">
+                      ${f.cleanDisplayKey}${reqStar} ${applyAllBadge}
+                  </div>
               </div>
-              <div style="flex-shrink: 0; display:flex; align-items:center; gap:10px;">
-                  ${actionBadge}
-                  <div style="color:${iconColor}; font-size:18px;">${rightIcon}</div>
+              <div style="flex-shrink: 0; display:flex; align-items:center;">
+                  ${rightSideHtml}
+                  <div style="color:var(--text-muted); font-size:18px;">&#10095;</div>
               </div>
           </div>`;
       });
