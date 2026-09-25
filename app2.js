@@ -6549,15 +6549,23 @@ window.openEditorMain = function (index) {
 window.renderEditorMainUI = function (item) {
   const t = translations[currentLang] || {};
   
-  // 1. БЕРЕМ КЛЮЧИ СТРОГО ИЗ ШАБЛОНА КАСПИ И НАКЛАДНОЙ (Без искусственного добавления Цены/Штрихкода)
   let allKeys = new Set();
-  
   if (window.mapper2State && window.mapper2State.sysToHumanMap) {
     Object.keys(window.mapper2State.sysToHumanMap).forEach(k => allKeys.add(k));
   }
   if (window.tempAttrs) {
     Object.keys(window.tempAttrs).forEach(k => allKeys.add(k));
   }
+
+  const posFields = {
+      "name": "Наименование",
+      "price": "Цена",
+      "barcode": "Код / Штрихкод",
+      "qty": "Количество",
+      "cbm": "Объем (CBM)",
+      "weight": "Вес (кг)"
+  };
+  Object.keys(posFields).forEach(k => allKeys.add(k));
 
   let dicts = window.kaspiDicts || (window.mapper2State && window.mapper2State.dictionary) || {};
 
@@ -6566,7 +6574,7 @@ window.renderEditorMainUI = function (item) {
   let optionalEmpty = [];
   let optionalFilled = [];
 
-  // Инициализируем карту глобальных параметров, если её еще нет
+  // Инициализация карты глобальных параметров
   if (!window.applyToAllMap) window.applyToAllMap = {};
 
   Array.from(allKeys).forEach((k) => {
@@ -6574,7 +6582,9 @@ window.renderEditorMainUI = function (item) {
     if (rawVal === "undefined" || rawVal === "null" || rawVal === null || rawVal === undefined) rawVal = "";
     let val = String(rawVal).trim();
     
-    let humanName = window.mapper2State && window.mapper2State.sysToHumanMap ? window.mapper2State.sysToHumanMap[k] : null;
+    let humanName = (window.mapper2State && window.mapper2State.sysToHumanMap && window.mapper2State.sysToHumanMap[k]) 
+                    || posFields[k] 
+                    || null;
 
     let displayKey = humanName || k.split("*").pop().replace(/tires/gi, "").replace(/additional/gi, "").replace(/general/gi, "").replace(/\./g, "").trim();
     if (!displayKey) displayKey = k;
@@ -6582,7 +6592,7 @@ window.renderEditorMainUI = function (item) {
     let lowerDisp = cleanDisplayKey.toLowerCase();
     let lowerK = k.toLowerCase();
 
-    // Автозаполнение (сработает, только если параметр реально есть в шаблоне)
+    // Автозаполнение системных полей из БД
     if (val === "" && item) {
         if (lowerK === 'name' || lowerDisp === 'название товара' || lowerDisp === 'наименование') {
             val = item.item_name || item.name || item.title || "";
@@ -6598,26 +6608,26 @@ window.renderEditorMainUI = function (item) {
         }
     }
 
-    // Проверка обязательности строго из предыдущего экрана
     let isReq = false;
     let prevCard = document.querySelector(`.req-card[onclick*="'${k}'"]`);
     if (prevCard && prevCard.querySelector('.required')) {
         isReq = true;
     }
     
-    // Принудительно обязательные только базовые
-    if (lowerDisp === 'бренд' || lowerDisp === 'артикул') {
+    if (lowerDisp === 'бренд' || lowerDisp === 'артикул' || lowerK === 'name' || lowerK === 'price' || lowerK === 'qty') {
         isReq = true;
     }
 
     let isSku = lowerK.includes("sku") || lowerDisp === "артикул";
     let isDict = dicts[cleanDisplayKey] && dicts[cleanDisplayKey].length > 0;
 
-    // ИСПРАВЛЕНИЕ ЛОГИКИ "КО ВСЕМ": по умолчанию ставим ТОЛЬКО на Справочники
-    if (window.applyToAllMap[k] === undefined) {
+    // ИСПРАВЛЕННАЯ ЛОГИКА "КО ВСЕМ":
+    // Если параметр еще не трогали, включаем его по умолчанию ТОЛЬКО если это Справочник
+    if (!(k in window.applyToAllMap)) {
         window.applyToAllMap[k] = isDict;
     }
-    let isGlobal = window.applyToAllMap[k];
+    // СТРОГАЯ ПРОВЕРКА (=== true)
+    let isGlobal = window.applyToAllMap[k] === true;
 
     if (isSku && val === "") {
       val = t.inc_auto_fill || "Заполняется автоматически";
@@ -6644,7 +6654,6 @@ window.renderEditorMainUI = function (item) {
     }
   });
 
-  // 2. ФУНКЦИЯ ОТРИСОВКИ СПИСКА
   const renderList = (fields) => {
       let html = "";
       fields.forEach(f => {
@@ -6697,7 +6706,6 @@ window.renderEditorMainUI = function (item) {
       return html;
   };
 
-  // 3. СКЛЕИВАЕМ БЛОКИ
   let finalHtml = "";
   let mandatoryAll = mandatoryEmpty.concat(mandatoryFilled);
   let optionalAll = optionalEmpty.concat(optionalFilled);
