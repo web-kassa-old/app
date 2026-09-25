@@ -415,8 +415,14 @@ const translations = {
     msg_tpl_exists_1: 'Шаблон "',
     msg_tpl_exists_2: '" уже существует.\nВы хотите перезаписать его?',
     msg_connect_db: "Подключение к БД...",
-    msg_dict_empty_1: "Справочник для поля \"",
-    msg_dict_empty_2: "\" пуст или не найден."
+    msg_dict_empty_1: 'Справочник для поля "',
+    msg_dict_empty_2: '" пуст или не найден.',
+    mapper_source: "Источник: ",
+    mapper_inv_cols: "колонки из накладной",
+    mapper_btn_dict: "Справочник",
+    mapper_btn_clear: "Очистить",
+    mapper_busy_full: "ЗАНЯТО ЦЕЛИКОМ",
+    mapper_busy_part: "ЗАНЯТО ЧАСТИЧНО",
   },
   kz: {
     btn_sale: "САТУ",
@@ -834,8 +840,14 @@ const translations = {
     msg_tpl_exists_1: '"',
     msg_tpl_exists_2: '" шаблоны бар.\nОны үстінен жазғыңыз келе ме?',
     msg_connect_db: "Дерекқорға қосылуда...",
-    msg_dict_empty_1: "\"",
-    msg_dict_empty_2: "\" өрісі үшін анықтамалық бос немесе табылмады."
+    msg_dict_empty_1: '"',
+    msg_dict_empty_2: '" өрісі үшін анықтамалық бос немесе табылмады.',
+    mapper_source: "Дереккөз: ",
+mapper_inv_cols: "жүкқұжат бағандары",
+mapper_btn_dict: "Анықтамалық",
+mapper_btn_clear: "Тазалау",
+mapper_busy_full: "ТОЛЫҚТАЙ ҚАМТЫЛҒАН",
+mapper_busy_part: "ЖАРТЫЛАЙ ҚАМТЫЛҒАН",
   },
 };
 
@@ -5668,21 +5680,27 @@ window.openColumnSelector = function (sysKey, reqName, isKaspi) {
   window.mapper2State.currentSysKey = sysKey;
   window.mapper2State.currentReqName = reqName;
 
-  document.getElementById("sheet-title").innerText = "Источник: " + reqName;
+  document.getElementById("sheet-title").innerText = translations[currentLang].mapper_source + reqName;
 
   const colList = document.getElementById("sheet-col-list");
 
   // Кнопка справочника показывается для всех полей шаблона Kaspi
   let dictBtnHtml = isKaspi
-    ? `<button onclick="window.openKaspiDictSearch()" style="background: var(--accent-green, #4CAF50); border: none; color: #000; padding: 5px 12px; border-radius: 4px; font-size: 11px; font-weight: bold; cursor: pointer; margin-right: 8px;">🔍 Справочник</button>`
+    ? `<button onclick="window.openKaspiDictSearch()" style="background: var(--accent-green, #4CAF50); border: none; color: #000; padding: 5px 12px; border-radius: 4px; font-size: 11px; font-weight: bold; cursor: pointer; margin-right: 8px;">
+    🔍 <span data-i18n="mapper_btn_dict">Справочник</span>
+</button>`
     : "";
 
   colList.innerHTML = `
     <div style="position: sticky; top: 0; background: var(--bg-panel, #1e1e1e); z-index: 10; padding: 15px 20px; margin: -20px -20px 15px -20px; border-bottom: 1px solid var(--border-light, #333); display: flex; justify-content: space-between; align-items: center;">
-        <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; font-weight: bold;">Колонки из накладной</div>
+        <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; font-weight: bold;" data-i18n="mapper_inv_cols">
+    Колонки из накладной
+</div>
         <div style="display: flex; align-items: center;">
             ${dictBtnHtml}
-            <button onclick="clearMapper2Col('${sysKey}')" style="background: rgba(255, 68, 68, 0.1); border: 1px solid #ff4444; color: #ff4444; padding: 5px 12px; border-radius: 4px; font-size: 11px; font-weight: bold; cursor: pointer;">❌ Очистить</button>
+            <button onclick="clearMapper2Col('${sysKey}')" style="background: rgba(255, 68, 68, 0.1); border: 1px solid #ff4444; color: #ff4444; padding: 5px 12px; border-radius: 4px; font-size: 11px; font-weight: bold; cursor: pointer;">
+    ❌ <span data-i18n="mapper_btn_clear">Очистить</span>
+</button>
         </div>
     </div>`;
 
@@ -5802,7 +5820,9 @@ window.openColumnSelector = function (sysKey, reqName, isKaspi) {
       itemStyle =
         "background: #151515; border: 1px solid #222; border-radius: 6px; padding: 10px; margin-bottom: 10px; opacity: 0.9;";
       // 2. Яркие оранжевые плашки для занятых полей
-      let usedLabel = isFullyTaken ? "⚠️ ЗАНЯТО ЦЕЛИКОМ" : "⚠️ ЧАСТИЧНО ЗАНЯТО";
+      let usedLabel = isFullyTaken 
+    ? `⚠️ ${translations[currentLang].mapper_busy_full}` 
+    : `⚠️ ${translations[currentLang].mapper_busy_part}`;
       badgeHtml = `<div style="font-size: 10px; margin-bottom: 8px;"><span style="background: rgba(255, 152, 0, 0.15); border: 1px solid rgba(255, 152, 0, 0.4); color: #ff9800; padding: 3px 8px; border-radius: 4px; font-weight: bold;">${usedLabel}</span></div>`;
     }
 
@@ -5841,11 +5861,15 @@ window.openKaspiDictSearch = function () {
   let reqName = window.mapper2State.currentReqName;
 
   // Ищем словарь по человеческому имени колонки (например, "Бренд")
-let dict = window.kaspiDicts[reqName] || [];
+  let dict = window.kaspiDicts[reqName] || [];
 
-if (dict.length === 0) {
-  return alert(translations[currentLang].msg_dict_empty_1 + reqName + translations[currentLang].msg_dict_empty_2);
-}
+  if (dict.length === 0) {
+    return alert(
+      translations[currentLang].msg_dict_empty_1 +
+        reqName +
+        translations[currentLang].msg_dict_empty_2,
+    );
+  }
 
   // Прячем нижнюю шторку маппера
   document.getElementById("bottom-sheet").style.transform = "translateY(100%)";
@@ -5864,7 +5888,7 @@ if (dict.length === 0) {
     modal.innerHTML = `
             <div id="dictModalContent" style="background:var(--bg-body, #1e1e1e); color:var(--text-main, #fff); width:100%; max-width:400px; border-radius:10px; display:flex; flex-direction:column; max-height:90vh; margin-top:10px; box-sizing:border-box;">
                 <div style="padding:12px 15px; border-bottom:1px solid var(--border-main, #444); display:flex; justify-content:space-between; align-items:center;">
-                    <b id="dictModalTitle" style="font-size:15px;">Справочник</b>
+                    <b id="dictModalTitle" style="font-size:15px;" data-i18n="mapper_btn_dict">Справочник</b>
                     <span onclick="document.getElementById('kaspiDictModal').style.display = 'none';" style="font-size:24px; cursor:pointer; color:#888; line-height:1;">&times;</span>
                 </div>
                 <div style="padding:10px 15px; padding-bottom:5px; border-bottom:1px solid var(--border-main, #444);">
