@@ -6549,23 +6549,15 @@ window.openEditorMain = function (index) {
 window.renderEditorMainUI = function (item) {
   const t = translations[currentLang] || {};
   
+  // 1. СТРОГИЙ СБОР КЛЮЧЕЙ (ТОЛЬКО из шаблона и накладной, без искусственных полей!)
   let allKeys = new Set();
+  
   if (window.mapper2State && window.mapper2State.sysToHumanMap) {
     Object.keys(window.mapper2State.sysToHumanMap).forEach(k => allKeys.add(k));
   }
   if (window.tempAttrs) {
     Object.keys(window.tempAttrs).forEach(k => allKeys.add(k));
   }
-
-  const posFields = {
-      "name": "Наименование",
-      "price": "Цена",
-      "barcode": "Код / Штрихкод",
-      "qty": "Количество",
-      "cbm": "Объем (CBM)",
-      "weight": "Вес (кг)"
-  };
-  Object.keys(posFields).forEach(k => allKeys.add(k));
 
   let dicts = window.kaspiDicts || (window.mapper2State && window.mapper2State.dictionary) || {};
 
@@ -6581,9 +6573,7 @@ window.renderEditorMainUI = function (item) {
     if (rawVal === "undefined" || rawVal === "null" || rawVal === null || rawVal === undefined) rawVal = "";
     let val = String(rawVal).trim();
     
-    let humanName = (window.mapper2State && window.mapper2State.sysToHumanMap && window.mapper2State.sysToHumanMap[k]) 
-                    || posFields[k] 
-                    || null;
+    let humanName = window.mapper2State && window.mapper2State.sysToHumanMap ? window.mapper2State.sysToHumanMap[k] : null;
 
     let displayKey = humanName || k.split("*").pop().replace(/tires/gi, "").replace(/additional/gi, "").replace(/general/gi, "").replace(/\./g, "").trim();
     if (!displayKey) displayKey = k;
@@ -6591,18 +6581,10 @@ window.renderEditorMainUI = function (item) {
     let lowerDisp = cleanDisplayKey.toLowerCase();
     let lowerK = k.toLowerCase();
 
+    // Автозаполнение только для Названия товара (если оно реально есть в шаблоне Каспи)
     if (val === "" && item) {
         if (lowerK === 'name' || lowerDisp === 'название товара' || lowerDisp === 'наименование') {
             val = item.item_name || item.name || item.title || "";
-        } else if (lowerK === 'price' || lowerDisp.includes('цена')) {
-            let p = item.price !== undefined ? item.price : (item.sell_price !== undefined ? item.sell_price : item.price_out);
-            val = (p !== undefined && p !== null && p !== "") ? String(p) : "";
-        } else if (lowerK === 'barcode' || lowerDisp.includes('штрихкод') || lowerDisp === 'код') {
-            let b = item.barcode || item.code || item.item_code || item.sku;
-            val = (b !== undefined && b !== null && b !== "") ? String(b) : "";
-        } else if (lowerK === 'qty' || lowerDisp.includes('количество')) {
-            let q = item.stock !== undefined ? item.stock : item.qty;
-            val = (q !== undefined && q !== null && q !== "") ? String(q) : "";
         }
     }
 
@@ -6612,15 +6594,16 @@ window.renderEditorMainUI = function (item) {
         isReq = true;
     }
     
-    if (lowerDisp === 'бренд' || lowerDisp === 'артикул' || lowerK === 'name' || lowerK === 'price' || lowerK === 'qty') {
+    // Принудительно обязательные только самые важные
+    if (lowerDisp === 'бренд' || lowerDisp === 'артикул') {
         isReq = true;
     }
 
     let isSku = lowerK.includes("sku") || lowerDisp === "артикул";
     let isDict = dicts[cleanDisplayKey] && dicts[cleanDisplayKey].length > 0;
 
-    // СТРОГАЯ ПРОВЕРКА БЕЗ САМОДЕЯТЕЛЬНОСТИ: только если пользователь сам поставил галочку
-    let isGlobal = window.applyToAllMap[k] === true;
+    // РОДНАЯ ЛОГИКА POS NOIR: если ключ есть в объекте, значит галочка стоит
+    let isGlobal = window.applyToAllMap[k] !== undefined;
 
     if (isSku && val === "") {
       val = t.inc_auto_fill || "Заполняется автоматически";
@@ -6647,6 +6630,7 @@ window.renderEditorMainUI = function (item) {
     }
   });
 
+  // 2. ФУНКЦИЯ ОТРИСОВКИ СПИСКА
   const renderList = (fields) => {
       let html = "";
       fields.forEach(f => {
@@ -6699,6 +6683,7 @@ window.renderEditorMainUI = function (item) {
       return html;
   };
 
+  // 3. СКЛЕИВАЕМ БЛОКИ
   let finalHtml = "";
   let mandatoryAll = mandatoryEmpty.concat(mandatoryFilled);
   let optionalAll = optionalEmpty.concat(optionalFilled);
@@ -6774,23 +6759,10 @@ window.openEditorField = function (originalKey) {
   const t = translations[currentLang] || {};
   let val = window.tempAttrs[originalKey] || "";
 
-  // Достаем русское имя для заголовка
-  let humanName = window.mapper2State.sysToHumanMap
-    ? window.mapper2State.sysToHumanMap[originalKey]
-    : null;
-  let displayKey =
-    humanName ||
-    originalKey
-      .split("*")
-      .pop()
-      .replace(/tires/gi, "")
-      .replace(/additional/gi, "")
-      .replace(/general/gi, "")
-      .replace(/\./g, "")
-      .trim();
+  let humanName = window.mapper2State.sysToHumanMap ? window.mapper2State.sysToHumanMap[originalKey] : null;
+  let displayKey = humanName || originalKey.split("*").pop().replace(/tires/gi, "").replace(/additional/gi, "").replace(/general/gi, "").replace(/\./g, "").trim();
   if (!displayKey) displayKey = originalKey;
 
-  // === АГРЕССИВНЫЙ ПОИСК СЛОВАРЯ (УНИВЕРСАЛЬНЫЙ) ===
   let dict = null;
   if (window.kaspiDicts) {
     let cleanOrig = originalKey.toLowerCase().trim();
@@ -6799,11 +6771,7 @@ window.openEditorField = function (originalKey) {
 
     let foundKey = Object.keys(window.kaspiDicts).find((dk) => {
       let cleanDk = dk.toLowerCase().trim();
-      return (
-        cleanDk === targetDictKey ||
-        cleanDk === cleanOrig ||
-        cleanDk === cleanDisp
-      );
+      return (cleanDk === targetDictKey || cleanDk === cleanOrig || cleanDk === cleanDisp);
     });
 
     if (foundKey) dict = window.kaspiDicts[foundKey];
@@ -6813,17 +6781,18 @@ window.openEditorField = function (originalKey) {
     if (typeof dict === "object") dict = Object.values(dict);
   }
 
-  let isGlobal = window.applyToAllMap && window.applyToAllMap[originalKey] !== undefined;
+  // РОДНАЯ ЛОГИКА POS NOIR: проверяем строго на !== undefined
+  if (!window.applyToAllMap) window.applyToAllMap = {};
+  let isGlobal = window.applyToAllMap[originalKey] !== undefined;
+  
   let controlHtml = "";
   let listHtml = "";
 
-  // КНОПКА СБРОСА (Теперь отображается всегда, без условий!)
   let clearBtnHtml = `
       <div onclick="window.clearSingleField('${originalKey}')" style="display:flex; align-items:center; justify-content:center; gap:8px; margin-top:10px; padding:12px; background:rgba(255,68,68,0.1); color:#ff4444; border-radius:8px; border:1px solid rgba(255,68,68,0.3); font-size:14px; font-weight:bold; cursor:pointer; transition:background 0.2s;">
           <span>✖</span> Очистить выбор
       </div>`;
 
-  // ГЛОБАЛЬНАЯ ФУНКЦИЯ ДЛЯ КНОПКИ СБРОСА
   window.clearSingleField = function(key) {
       let input = document.getElementById('singleFieldInput');
       if(input) input.value = ""; 
@@ -6832,7 +6801,6 @@ window.openEditorField = function (originalKey) {
       window.saveSingleField(key); 
   };
 
-  // Если словарь успешно найден -> РЕЖИМ СПИСКА
   if (dict && dict.length > 0) {
     window.currentFieldDict = dict;
     controlHtml = `
@@ -6852,18 +6820,12 @@ window.openEditorField = function (originalKey) {
     listHtml = `
         <div style="flex:1; overflow-y:auto; padding: 10px 20px 20px 20px; -webkit-overflow-scrolling: touch;">
             <ul id="dictList" style="list-style:none; padding:0; margin:0; background:var(--bg-panel); border-radius:8px; border:1px solid var(--border-light);">
-                ${dict
-                  .map(
-                    (d) => `<li onclick="window.selectPreviewDictValue('${String(d).replace(/'/g, "\\'")}')" class="param-row">
+                ${dict.map((d) => `<li onclick="window.selectPreviewDictValue('${String(d).replace(/'/g, "\\'")}')" class="param-row">
                     <span style="color:var(--text-main);">${d}</span>${d === val ? `<span style="color:var(--accent-blue);">✔</span>` : ""}
-                </li>`,
-                  )
-                  .join("")}
+                </li>`).join("")}
             </ul>
         </div>`;
-  }
-  // Если словаря нет -> РЕЖИМ СВОБОДНОГО ТЕКСТА
-  else {
+  } else {
     controlHtml = `
         <div style="padding:15px 20px 10px 20px; background:var(--bg-body); flex-shrink:0; z-index:2;">
             <label style="display:flex; align-items:center; gap:10px; padding:15px; background:var(--bg-panel); border-radius:8px; border:1px solid var(--border-light); cursor:pointer;">
