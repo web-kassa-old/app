@@ -337,7 +337,8 @@
                 tpl_new: "Новый шаблон",
                 tpl_select_list: "Выберите шаблон из списка",
                 tpl_select_mode: "Сначала выберите режим",
-                mapper_err_missing_cols: "⚠️ Обязательно привяжите колонки:\n1. Наименование (или model)\n2. Количество (qty)\n3. Цена (price)"
+                mapper_err_missing_cols: "⚠️ Обязательно привяжите колонки:\n1. Наименование (или model)\n2. Количество (qty)\n3. Цена (price)",
+                btn_base: "База"
             },
             kz: {
                 btn_sale: "САТУ", btn_return: "ҚАЙТАРУ", search_placeholder: "ІЗДЕУ...",
@@ -677,7 +678,8 @@
                 tpl_new: "Жаңа шаблон",
                 tpl_select_list: "Тізімнен шаблонды таңдаңыз",
                 tpl_select_mode: "Алдымен режимді таңдаңыз",
-                mapper_err_missing_cols: "⚠️ Бағандарды міндетті түрде байланыстырыңыз:\n1. Атауы (немесе model)\n2. Саны (qty)\n3. Бағасы (price)"
+                mapper_err_missing_cols: "⚠️ Бағандарды міндетті түрде байланыстырыңыз:\n1. Атауы (немесе model)\n2. Саны (qty)\n3. Бағасы (price)",
+                btn_base: "Дерекқор"
             }
         };
 
@@ -7900,7 +7902,16 @@ function openDriveBase() {
         return;
     }
     
-    document.getElementById('drive-base-modal').style.display = 'flex';
+    // Ждем 50мс, чтобы закрытие настроек не перебило открытие базы
+    setTimeout(() => {
+        const modal = document.getElementById('drive-base-modal');
+        modal.style.display = 'flex';
+        modal.style.zIndex = '10005'; // Принудительно поверх всего остального
+        
+        // Блокируем фон, чтобы главный экран не скроллился
+        document.documentElement.classList.add("lock");
+        document.body.classList.add("lock");
+    }, 50);
 }
 
 // Открывает окно менеджера шаблонов

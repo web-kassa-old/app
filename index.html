@@ -2422,423 +2422,6 @@
             </div>
           </div>
 
-          <!-- МОДАЛКА БАЗЫ ДАННЫХ (DRIVE) -->
-          <div
-            id="drive-base-modal"
-            class="modal-overlay"
-            style="
-              display: none;
-              background: rgba(0, 0, 0, 0.75);
-              z-index: 9999;
-            "
-            onclick="closeDriveModal()"
-          >
-            <div
-              class="settings-box"
-              onclick="event.stopPropagation()"
-              style="
-                position: relative;
-                background: var(--bg-panel, #ffffff);
-                border: 1px solid var(--border-focus);
-                padding: 25px 20px;
-                box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
-                border-radius: 16px;
-                max-height: 90vh;
-                overflow-y: auto;
-              "
-            >
-              <!-- НОВЫЙ КРАСНЫЙ КРЕСТИК ЗАКРЫТИЯ (С РАМКОЙ И ФОНОМ) -->
-              <button
-                onclick="closeDriveModal()"
-                style="
-                  position: absolute;
-                  top: 12px;
-                  right: 12px;
-                  width: 32px;
-                  height: 32px;
-                  background: rgba(234, 67, 53, 0.1);
-                  border: 1px solid #ea4335;
-                  border-radius: 6px;
-                  font-size: 22px;
-                  color: #ea4335;
-                  cursor: pointer;
-                  display: flex;
-                  align-items: center;
-                  justify-content: center;
-                  z-index: 10;
-                "
-              >
-                &times;
-              </button>
-
-              <div
-                class="r-title"
-                style="
-                  font-size: 15px;
-                  margin-bottom: 25px;
-                  text-align: center;
-                  font-weight: bold;
-                  color: var(--text-main);
-                  text-transform: uppercase;
-                  letter-spacing: 1px;
-                "
-                data-i18n="drive_modal_title"
-              >
-                БАЗА ДАННЫХ (DRIVE)
-              </div>
-
-              <!-- БЛОК 1: ФАЙЛЫ (Синий акцент #4285F4) -->
-              <button
-                onclick="handleDriveClick(this, 'cashDbId', 'file')"
-                style="
-                  background: var(--bg-panel);
-                  color: var(--text-main);
-                  margin-bottom: 12px;
-                  width: 100%;
-                  padding: 16px 20px;
-                  border-radius: 12px;
-                  font-weight: 600;
-                  font-size: 13px;
-                  text-transform: uppercase;
-                  border: 1px solid var(--border-light);
-                  border-left: 5px solid #4285f4;
-                  cursor: pointer;
-                  display: flex;
-                  align-items: center;
-                  justify-content: flex-start;
-                  text-align: left;
-                  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
-                "
-              >
-                <span
-                  style="font-size: 20px; width: 35px; display: inline-block"
-                  >📊</span
-                >
-                <span style="flex: 1" data-i18n="drive_db"
-                  >ТАБЛИЦА: ТОВАРЫ И ЧЕКИ</span
-                >
-              </button>
-
-              <button
-                onclick="handleDriveClick(this, 'configDbId', 'file')"
-                style="
-                  background: var(--bg-panel);
-                  color: var(--text-main);
-                  margin-bottom: 25px;
-                  width: 100%;
-                  padding: 16px 20px;
-                  border-radius: 12px;
-                  font-weight: 600;
-                  font-size: 13px;
-                  text-transform: uppercase;
-                  border: 1px solid var(--border-light);
-                  border-left: 5px solid #4285f4;
-                  cursor: pointer;
-                  display: flex;
-                  align-items: center;
-                  justify-content: flex-start;
-                  text-align: left;
-                  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
-                "
-              >
-                <span
-                  style="font-size: 20px; width: 35px; display: inline-block"
-                  >⚙️</span
-                >
-                <span style="flex: 1" data-i18n="drive_config"
-                  >ТАБЛИЦА: НАСТРОЙКИ</span
-                >
-              </button>
-
-              <!-- БЛОК 2: ПАПКИ (Серый акцент #9AA0A6) -->
-              <button
-                onclick="handleDriveClick(this, 'rootFolderId', 'root')"
-                style="
-                  background: var(--bg-panel);
-                  color: var(--text-main);
-                  margin-bottom: 12px;
-                  width: 100%;
-                  padding: 16px 20px;
-                  border-radius: 12px;
-                  font-weight: 600;
-                  font-size: 13px;
-                  text-transform: uppercase;
-                  border: 1px solid var(--border-light);
-                  border-left: 5px solid #9aa0a6;
-                  cursor: pointer;
-                  display: flex;
-                  align-items: center;
-                  justify-content: flex-start;
-                  text-align: left;
-                  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
-                "
-              >
-                <span
-                  style="font-size: 20px; width: 35px; display: inline-block"
-                  >📁</span
-                >
-                <span style="flex: 1" data-i18n="drive_root"
-                  >КОРНЕВАЯ ПАПКА</span
-                >
-              </button>
-
-              <button
-                onclick="handleDriveClick(this, 'imagesFolderId', 'POS_Images')"
-                style="
-                  background: var(--bg-panel);
-                  color: var(--text-main);
-                  margin-bottom: 12px;
-                  width: 100%;
-                  padding: 16px 20px;
-                  border-radius: 12px;
-                  font-weight: 600;
-                  font-size: 13px;
-                  text-transform: uppercase;
-                  border: 1px solid var(--border-light);
-                  border-left: 5px solid #9aa0a6;
-                  cursor: pointer;
-                  display: flex;
-                  align-items: center;
-                  justify-content: flex-start;
-                  text-align: left;
-                  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
-                "
-              >
-                <span
-                  style="font-size: 20px; width: 35px; display: inline-block"
-                  >🖼</span
-                >
-                <span style="flex: 1" data-i18n="drive_images"
-                  >ПАПКА: ФОТОГРАФИИ</span
-                >
-              </button>
-
-              <button
-                onclick="
-                  handleDriveClick(this, 'invoicesFolderId', 'POS_Invoices')
-                "
-                style="
-                  background: var(--bg-panel);
-                  color: var(--text-main);
-                  margin-bottom: 12px;
-                  width: 100%;
-                  padding: 16px 20px;
-                  border-radius: 12px;
-                  font-weight: 600;
-                  font-size: 13px;
-                  text-transform: uppercase;
-                  border: 1px solid var(--border-light);
-                  border-left: 5px solid #9aa0a6;
-                  cursor: pointer;
-                  display: flex;
-                  align-items: center;
-                  justify-content: flex-start;
-                  text-align: left;
-                  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
-                "
-              >
-                <span
-                  style="font-size: 20px; width: 35px; display: inline-block"
-                  >📄</span
-                >
-                <span style="flex: 1" data-i18n="drive_invoices"
-                  >ПАПКА: НАКЛАДНЫЕ</span
-                >
-              </button>
-
-              <button
-                onclick="
-                  handleDriveClick(this, 'backupsFolderId', 'POS_Backups')
-                "
-                style="
-                  background: var(--bg-panel);
-                  color: var(--text-main);
-                  margin-bottom: 12px;
-                  width: 100%;
-                  padding: 16px 20px;
-                  border-radius: 12px;
-                  font-weight: 600;
-                  font-size: 13px;
-                  text-transform: uppercase;
-                  border: 1px solid var(--border-light);
-                  border-left: 5px solid #9aa0a6;
-                  cursor: pointer;
-                  display: flex;
-                  align-items: center;
-                  justify-content: flex-start;
-                  text-align: left;
-                  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
-                "
-              >
-                <span
-                  style="font-size: 20px; width: 35px; display: inline-block"
-                  >📦</span
-                >
-                <span style="flex: 1" data-i18n="drive_backups"
-                  >ПАПКА: РЕЗЕРВНЫЕ КОПИИ</span
-                >
-              </button>
-
-              <!-- БЛОК 3: Секретная папка (Фиолетовый/Темный акцент) -->
-              <button
-                onclick="
-                  handleDriveClick(
-                    this,
-                    'secretBackupsFolderId',
-                    'POS_Secret_Backups',
-                  )
-                "
-                style="
-                  background: var(--bg-panel);
-                  color: var(--text-main);
-                  margin-bottom: 25px;
-                  width: 100%;
-                  padding: 16px 20px;
-                  border-radius: 12px;
-                  font-weight: 600;
-                  font-size: 13px;
-                  text-transform: uppercase;
-                  border: 1px solid var(--border-light);
-                  border-left: 5px solid #9c27b0;
-                  cursor: pointer;
-                  display: flex;
-                  align-items: center;
-                  justify-content: flex-start;
-                  text-align: left;
-                  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
-                "
-              >
-                <span
-                  style="font-size: 20px; width: 35px; display: inline-block"
-                  >🔒</span
-                >
-                <span style="flex: 1" data-i18n="drive_secret"
-                  >ПАПКА: СЕКРЕТНЫЕ КОПИИ</span
-                >
-              </button>
-
-              <!-- НОВЫЙ БЛОК 4: УПРАВЛЕНИЕ ДАННЫМИ (Аварийные действия) -->
-              <div
-                style="
-                  border-top: 1px solid var(--border-light);
-                  margin-top: 10px;
-                  margin-bottom: 20px;
-                  padding-top: 20px;
-                "
-              >
-                <div
-                  class="r-title"
-                  style="
-                    font-size: 13px;
-                    margin-bottom: 15px;
-                    text-align: center;
-                    font-weight: bold;
-                    color: var(--text-muted, #888);
-                    text-transform: uppercase;
-                    letter-spacing: 1px;
-                  "
-                  data-i18n="drive_danger_zone"
-                >
-                  ОПЕРАТИВНЫЕ ДЕЙСТВИЯ
-                </div>
-
-                <button
-                  onclick="startDatabaseClear()"
-                  style="
-                    background: var(--bg-panel);
-                    color: var(--text-main);
-                    margin-bottom: 12px;
-                    width: 100%;
-                    padding: 16px 20px;
-                    border-radius: 12px;
-                    font-weight: 600;
-                    font-size: 13px;
-                    text-transform: uppercase;
-                    border: 1px solid var(--border-light);
-                    border-left: 5px solid #ea4335;
-                    cursor: pointer;
-                    display: flex;
-                    align-items: center;
-                    justify-content: flex-start;
-                    text-align: left;
-                    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
-                  "
-                >
-                  <span
-                    style="font-size: 20px; width: 35px; display: inline-block"
-                    >⚠️</span
-                  >
-                  <span style="flex: 1" data-i18n="drive_clear_btn"
-                    >ОЧИСТИТЬ БАЗУ ДАННЫХ</span
-                  >
-                </button>
-
-                <button
-                  onclick="startDatabaseRestore()"
-                  style="
-                    background: var(--bg-panel);
-                    color: var(--text-main);
-                    margin-bottom: 12px;
-                    width: 100%;
-                    padding: 16px 20px;
-                    border-radius: 12px;
-                    font-weight: 600;
-                    font-size: 13px;
-                    text-transform: uppercase;
-                    border: 1px solid var(--border-light);
-                    border-left: 5px solid #fbbc04;
-                    cursor: pointer;
-                    display: flex;
-                    align-items: center;
-                    justify-content: flex-start;
-                    text-align: left;
-                    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
-                  "
-                >
-                  <span
-                    style="font-size: 20px; width: 35px; display: inline-block"
-                    >🚑</span
-                  >
-                  <span style="flex: 1" data-i18n="drive_restore_btn"
-                    >ВОССТАНОВИТЬ ДАННЫЕ</span
-                  >
-                </button>
-
-                <!-- НОВАЯ КНОПКА: SMART MERGE -->
-                <button
-                  onclick="openDeepRestoreModal()"
-                  style="
-                    background: var(--bg-panel);
-                    color: var(--text-main);
-                    margin-bottom: 25px;
-                    width: 100%;
-                    padding: 16px 20px;
-                    border-radius: 12px;
-                    font-weight: 600;
-                    font-size: 13px;
-                    text-transform: uppercase;
-                    border: 1px solid var(--border-light);
-                    border-left: 5px solid #3f51b5;
-                    cursor: pointer;
-                    display: flex;
-                    align-items: center;
-                    justify-content: flex-start;
-                    text-align: left;
-                    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
-                  "
-                >
-                  <span
-                    style="font-size: 20px; width: 35px; display: inline-block"
-                    >💽</span
-                  >
-                  <span style="flex: 1" data-i18n="drive_deep_restore_btn"
-                    >ВОССТАНОВИТЬ ИЗ БЭКАПА</span
-                  >
-                </button>
-              </div>
-            </div>
-          </div>
-
           <!-- МОДАЛКА ВЫБОРА БЭКАПА (SMART MERGE) -->
           <div
             id="deep-restore-modal"
@@ -3621,6 +3204,402 @@
         "
       >
         <!-- Результаты -->
+      </div>
+    </div>
+    <!-- МОДАЛКА БАЗЫ ДАННЫХ (DRIVE) -->
+    <div
+      id="drive-base-modal"
+      class="modal-overlay"
+      style="display: none; background: rgba(0, 0, 0, 0.75); z-index: 9999"
+      onclick="closeDriveModal()"
+    >
+      <div
+        class="settings-box"
+        onclick="event.stopPropagation()"
+        style="
+          position: relative;
+          background: var(--bg-panel, #ffffff);
+          border: 1px solid var(--border-focus);
+          padding: 25px 20px;
+          box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+          border-radius: 16px;
+          max-height: 90vh;
+          overflow-y: auto;
+        "
+      >
+        <!-- НОВЫЙ КРАСНЫЙ КРЕСТИК ЗАКРЫТИЯ (С РАМКОЙ И ФОНОМ) -->
+        <button
+          onclick="closeDriveModal()"
+          style="
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            width: 32px;
+            height: 32px;
+            background: rgba(234, 67, 53, 0.1);
+            border: 1px solid #ea4335;
+            border-radius: 6px;
+            font-size: 22px;
+            color: #ea4335;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+          "
+        >
+          &times;
+        </button>
+
+        <div
+          class="r-title"
+          style="
+            font-size: 15px;
+            margin-bottom: 25px;
+            text-align: center;
+            font-weight: bold;
+            color: var(--text-main);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+          "
+          data-i18n="drive_modal_title"
+        >
+          БАЗА ДАННЫХ (DRIVE)
+        </div>
+
+        <!-- БЛОК 1: ФАЙЛЫ (Синий акцент #4285F4) -->
+        <button
+          onclick="handleDriveClick(this, 'cashDbId', 'file')"
+          style="
+            background: var(--bg-panel);
+            color: var(--text-main);
+            margin-bottom: 12px;
+            width: 100%;
+            padding: 16px 20px;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 13px;
+            text-transform: uppercase;
+            border: 1px solid var(--border-light);
+            border-left: 5px solid #4285f4;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            text-align: left;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+          "
+        >
+          <span style="font-size: 20px; width: 35px; display: inline-block"
+            >📊</span
+          >
+          <span style="flex: 1" data-i18n="drive_db"
+            >ТАБЛИЦА: ТОВАРЫ И ЧЕКИ</span
+          >
+        </button>
+
+        <button
+          onclick="handleDriveClick(this, 'configDbId', 'file')"
+          style="
+            background: var(--bg-panel);
+            color: var(--text-main);
+            margin-bottom: 25px;
+            width: 100%;
+            padding: 16px 20px;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 13px;
+            text-transform: uppercase;
+            border: 1px solid var(--border-light);
+            border-left: 5px solid #4285f4;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            text-align: left;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+          "
+        >
+          <span style="font-size: 20px; width: 35px; display: inline-block"
+            >⚙️</span
+          >
+          <span style="flex: 1" data-i18n="drive_config"
+            >ТАБЛИЦА: НАСТРОЙКИ</span
+          >
+        </button>
+
+        <!-- БЛОК 2: ПАПКИ (Серый акцент #9AA0A6) -->
+        <button
+          onclick="handleDriveClick(this, 'rootFolderId', 'root')"
+          style="
+            background: var(--bg-panel);
+            color: var(--text-main);
+            margin-bottom: 12px;
+            width: 100%;
+            padding: 16px 20px;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 13px;
+            text-transform: uppercase;
+            border: 1px solid var(--border-light);
+            border-left: 5px solid #9aa0a6;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            text-align: left;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+          "
+        >
+          <span style="font-size: 20px; width: 35px; display: inline-block"
+            >📁</span
+          >
+          <span style="flex: 1" data-i18n="drive_root">КОРНЕВАЯ ПАПКА</span>
+        </button>
+
+        <button
+          onclick="handleDriveClick(this, 'imagesFolderId', 'POS_Images')"
+          style="
+            background: var(--bg-panel);
+            color: var(--text-main);
+            margin-bottom: 12px;
+            width: 100%;
+            padding: 16px 20px;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 13px;
+            text-transform: uppercase;
+            border: 1px solid var(--border-light);
+            border-left: 5px solid #9aa0a6;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            text-align: left;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+          "
+        >
+          <span style="font-size: 20px; width: 35px; display: inline-block"
+            >🖼</span
+          >
+          <span style="flex: 1" data-i18n="drive_images"
+            >ПАПКА: ФОТОГРАФИИ</span
+          >
+        </button>
+
+        <button
+          onclick="handleDriveClick(this, 'invoicesFolderId', 'POS_Invoices')"
+          style="
+            background: var(--bg-panel);
+            color: var(--text-main);
+            margin-bottom: 12px;
+            width: 100%;
+            padding: 16px 20px;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 13px;
+            text-transform: uppercase;
+            border: 1px solid var(--border-light);
+            border-left: 5px solid #9aa0a6;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            text-align: left;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+          "
+        >
+          <span style="font-size: 20px; width: 35px; display: inline-block"
+            >📄</span
+          >
+          <span style="flex: 1" data-i18n="drive_invoices"
+            >ПАПКА: НАКЛАДНЫЕ</span
+          >
+        </button>
+
+        <button
+          onclick="handleDriveClick(this, 'backupsFolderId', 'POS_Backups')"
+          style="
+            background: var(--bg-panel);
+            color: var(--text-main);
+            margin-bottom: 12px;
+            width: 100%;
+            padding: 16px 20px;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 13px;
+            text-transform: uppercase;
+            border: 1px solid var(--border-light);
+            border-left: 5px solid #9aa0a6;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            text-align: left;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+          "
+        >
+          <span style="font-size: 20px; width: 35px; display: inline-block"
+            >📦</span
+          >
+          <span style="flex: 1" data-i18n="drive_backups"
+            >ПАПКА: РЕЗЕРВНЫЕ КОПИИ</span
+          >
+        </button>
+
+        <!-- БЛОК 3: Секретная папка (Фиолетовый/Темный акцент) -->
+        <button
+          onclick="
+            handleDriveClick(
+              this,
+              'secretBackupsFolderId',
+              'POS_Secret_Backups',
+            )
+          "
+          style="
+            background: var(--bg-panel);
+            color: var(--text-main);
+            margin-bottom: 25px;
+            width: 100%;
+            padding: 16px 20px;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 13px;
+            text-transform: uppercase;
+            border: 1px solid var(--border-light);
+            border-left: 5px solid #9c27b0;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            text-align: left;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+          "
+        >
+          <span style="font-size: 20px; width: 35px; display: inline-block"
+            >🔒</span
+          >
+          <span style="flex: 1" data-i18n="drive_secret"
+            >ПАПКА: СЕКРЕТНЫЕ КОПИИ</span
+          >
+        </button>
+
+        <!-- НОВЫЙ БЛОК 4: УПРАВЛЕНИЕ ДАННЫМИ (Аварийные действия) -->
+        <div
+          style="
+            border-top: 1px solid var(--border-light);
+            margin-top: 10px;
+            margin-bottom: 20px;
+            padding-top: 20px;
+          "
+        >
+          <div
+            class="r-title"
+            style="
+              font-size: 13px;
+              margin-bottom: 15px;
+              text-align: center;
+              font-weight: bold;
+              color: var(--text-muted, #888);
+              text-transform: uppercase;
+              letter-spacing: 1px;
+            "
+            data-i18n="drive_danger_zone"
+          >
+            ОПЕРАТИВНЫЕ ДЕЙСТВИЯ
+          </div>
+
+          <button
+            onclick="startDatabaseClear()"
+            style="
+              background: var(--bg-panel);
+              color: var(--text-main);
+              margin-bottom: 12px;
+              width: 100%;
+              padding: 16px 20px;
+              border-radius: 12px;
+              font-weight: 600;
+              font-size: 13px;
+              text-transform: uppercase;
+              border: 1px solid var(--border-light);
+              border-left: 5px solid #ea4335;
+              cursor: pointer;
+              display: flex;
+              align-items: center;
+              justify-content: flex-start;
+              text-align: left;
+              box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+            "
+          >
+            <span style="font-size: 20px; width: 35px; display: inline-block"
+              >⚠️</span
+            >
+            <span style="flex: 1" data-i18n="drive_clear_btn"
+              >ОЧИСТИТЬ БАЗУ ДАННЫХ</span
+            >
+          </button>
+
+          <button
+            onclick="startDatabaseRestore()"
+            style="
+              background: var(--bg-panel);
+              color: var(--text-main);
+              margin-bottom: 12px;
+              width: 100%;
+              padding: 16px 20px;
+              border-radius: 12px;
+              font-weight: 600;
+              font-size: 13px;
+              text-transform: uppercase;
+              border: 1px solid var(--border-light);
+              border-left: 5px solid #fbbc04;
+              cursor: pointer;
+              display: flex;
+              align-items: center;
+              justify-content: flex-start;
+              text-align: left;
+              box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+            "
+          >
+            <span style="font-size: 20px; width: 35px; display: inline-block"
+              >🚑</span
+            >
+            <span style="flex: 1" data-i18n="drive_restore_btn"
+              >ВОССТАНОВИТЬ ДАННЫЕ</span
+            >
+          </button>
+
+          <!-- НОВАЯ КНОПКА: SMART MERGE -->
+          <button
+            onclick="openDeepRestoreModal()"
+            style="
+              background: var(--bg-panel);
+              color: var(--text-main);
+              margin-bottom: 25px;
+              width: 100%;
+              padding: 16px 20px;
+              border-radius: 12px;
+              font-weight: 600;
+              font-size: 13px;
+              text-transform: uppercase;
+              border: 1px solid var(--border-light);
+              border-left: 5px solid #3f51b5;
+              cursor: pointer;
+              display: flex;
+              align-items: center;
+              justify-content: flex-start;
+              text-align: left;
+              box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+            "
+          >
+            <span style="font-size: 20px; width: 35px; display: inline-block"
+              >💽</span
+            >
+            <span style="flex: 1" data-i18n="drive_deep_restore_btn"
+              >ВОССТАНОВИТЬ ИЗ БЭКАПА</span
+            >
+          </button>
+        </div>
       </div>
     </div>
     <script
