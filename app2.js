@@ -6800,7 +6800,6 @@ window.openEditorField = function (originalKey) {
 
     let foundKey = Object.keys(window.kaspiDicts).find((dk) => {
       let cleanDk = dk.toLowerCase().trim();
-      // Ищем по русскому имени, по оригинальному ключу или по отображаемому имени
       return (
         cleanDk === targetDictKey ||
         cleanDk === cleanOrig ||
@@ -6811,7 +6810,6 @@ window.openEditorField = function (originalKey) {
     if (foundKey) dict = window.kaspiDicts[foundKey];
   }
 
-  // Защита: если словарь найден, но упакован как объект, вытаскиваем массив значений
   if (dict && !Array.isArray(dict)) {
     if (typeof dict === "object") dict = Object.values(dict);
   }
@@ -6820,7 +6818,7 @@ window.openEditorField = function (originalKey) {
   let controlHtml = "";
   let listHtml = "";
 
-  // КНОПКА СБРОСА (Одинаковая для справочника и текста)
+  // КНОПКА СБРОСА (Теперь отображается всегда, без условий!)
   let clearBtnHtml = `
       <div onclick="window.clearSingleField('${originalKey}')" style="display:flex; align-items:center; justify-content:center; gap:8px; margin-top:10px; padding:12px; background:rgba(255,68,68,0.1); color:#ff4444; border-radius:8px; border:1px solid rgba(255,68,68,0.3); font-size:14px; font-weight:bold; cursor:pointer; transition:background 0.2s;">
           <span>✖</span> Очистить выбор
@@ -6828,9 +6826,11 @@ window.openEditorField = function (originalKey) {
 
   // ГЛОБАЛЬНАЯ ФУНКЦИЯ ДЛЯ КНОПКИ СБРОСА
   window.clearSingleField = function(key) {
-      document.getElementById('singleFieldInput').value = ""; // Очищаем инпут
-      document.getElementById('singleFieldApplyAll').checked = false; // Снимаем галку
-      window.saveSingleField(key); // Сохраняем пустое значение и закрываем окно
+      let input = document.getElementById('singleFieldInput');
+      if(input) input.value = ""; 
+      let applyAll = document.getElementById('singleFieldApplyAll');
+      if(applyAll) applyAll.checked = false; 
+      window.saveSingleField(key); 
   };
 
   // Если словарь успешно найден -> РЕЖИМ СПИСКА
@@ -6847,7 +6847,7 @@ window.openEditorField = function (originalKey) {
                 <input type="checkbox" id="singleFieldApplyAll" ${isGlobal ? "checked" : ""} style="width:20px; height:20px;">
                 <span style="font-size:14px; color:var(--text-main);">${t.inc_apply_all || "Применить ко всем товарам"}</span>
             </label>
-            ${val ? clearBtnHtml : ''}
+            ${clearBtnHtml}
         </div>`;
 
     listHtml = `
@@ -6871,7 +6871,7 @@ window.openEditorField = function (originalKey) {
                 <input type="checkbox" id="singleFieldApplyAll" ${isGlobal ? "checked" : ""} style="width:20px; height:20px;">
                 <span style="font-size:14px; color:var(--text-main);">${t.inc_apply_all || "Применить ко всем товарам"}</span>
             </label>
-            ${val ? clearBtnHtml : ''}
+            ${clearBtnHtml}
         </div>`;
 
     listHtml = `
