@@ -6559,7 +6559,6 @@ window.renderEditorMainUI = function (item) {
     Object.keys(window.tempAttrs).forEach(k => allKeys.add(k));
   }
 
-  // Принудительно добавляем системные ключи
   const posFields = {
       "name": "Наименование",
       "price": "Цена",
@@ -6579,17 +6578,9 @@ window.renderEditorMainUI = function (item) {
 
   Array.from(allKeys).forEach((k) => {
     let val = (window.tempAttrs && window.tempAttrs[k] !== undefined && window.tempAttrs[k] !== null) 
-              ? window.tempAttrs[k] 
+              ? String(window.tempAttrs[k])
               : "";
     
-    // Автоподстановка из базы товара
-    if (val === "" && item) {
-        if (k === 'name') val = item.item_name || item.name || "";
-        if (k === 'price') val = item.price !== undefined && item.price !== null ? String(item.price) : "";
-        if (k === 'barcode') val = item.barcode || "";
-        if (k === 'qty') val = item.stock !== undefined ? String(item.stock) : (item.qty !== undefined ? String(item.qty) : "");
-    }
-
     let humanName = (window.mapper2State && window.mapper2State.sysToHumanMap && window.mapper2State.sysToHumanMap[k]) 
                     || posFields[k] 
                     || null;
@@ -6597,29 +6588,39 @@ window.renderEditorMainUI = function (item) {
     let displayKey = humanName || k.split("*").pop().replace(/tires/gi, "").replace(/additional/gi, "").replace(/general/gi, "").replace(/\./g, "").trim();
     if (!displayKey) displayKey = k;
     let cleanDisplayKey = displayKey.replace('*', '').trim();
+    let lowerDisp = cleanDisplayKey.toLowerCase();
+    let lowerK = k.toLowerCase();
 
-    // Проверяем обязательность из предыдущего экрана
+    // 100% ЖЕСТКОЕ АВТОЗАПОЛНЕНИЕ БАЗОВЫХ ПОЛЕЙ (Решение бага с ценой и штрихкодом)
+    if (val === "" && item) {
+        if (lowerK === 'name' || lowerDisp === 'название товара' || lowerDisp === 'наименование') {
+            val = item.item_name || item.name || "";
+        } else if (lowerK === 'price' || lowerDisp.includes('цена')) {
+            val = item.price !== undefined && item.price !== null ? String(item.price) : "";
+        } else if (lowerK === 'barcode' || lowerDisp.includes('штрихкод') || lowerDisp.includes('код')) {
+            val = item.barcode !== undefined && item.barcode !== null ? String(item.barcode) : "";
+        } else if (lowerK === 'qty' || lowerDisp.includes('количество')) {
+            val = item.stock !== undefined ? String(item.stock) : (item.qty !== undefined ? String(item.qty) : "");
+        }
+    }
+
     let isReq = false;
     let prevCard = document.querySelector(`.req-card[onclick*="'${k}'"]`);
     if (prevCard && prevCard.querySelector('.required')) {
         isReq = true;
     }
     
-    // Страховка обязательности (Исключили штрихкод из этого списка!)
-    if (k === 'name' || k === 'price' || k === 'qty') {
-        isReq = true;
-    }
-    let lowerDispForReq = cleanDisplayKey.toLowerCase();
-    if (lowerDispForReq === 'бренд' || lowerDispForReq === 'артикул') {
+    // Страховка обязательности базовых параметров
+    if (lowerDisp === 'бренд' || lowerDisp === 'артикул' || lowerK === 'name' || lowerK === 'price' || lowerK === 'qty') {
         isReq = true;
     }
 
     let isGlobal = window.applyToAllMap && window.applyToAllMap[k] !== undefined;
-    let isSku = k.toLowerCase().includes("sku") || lowerDispForReq === "артикул";
+    let isSku = lowerK.includes("sku") || lowerDisp === "артикул";
     let isDict = dicts[cleanDisplayKey] && dicts[cleanDisplayKey].length > 0;
 
     if (isSku && (val === "" || val === undefined)) {
-      val = t.inc_auto_fill || "Автоматически";
+      val = t.inc_auto_fill || "Заполняется автоматически";
     }
 
     let isEmpty = (val === "" || val === null || val === undefined);
@@ -6649,24 +6650,7 @@ window.renderEditorMainUI = function (item) {
       fields.forEach(f => {
           let reqStar = f.isReq ? `<span style="color:#ff4444; margin-left:2px; font-weight:bold; font-size:14px;">*</span>` : "";
 
-          let inputTypeIcon = f.isDict
-              ? `<span style="font-size:9px; color:var(--text-muted); border: 1px solid var(--border-main, #444); border-radius:3px; padding:1px 4px; margin-left:6px; font-weight:normal;">СПРАВОЧНИК</span>`
-              : `<span style="font-size:9px; color:var(--text-muted); border: 1px solid var(--border-main, #444); border-radius:3px; padding:1px 4px; margin-left:6px; font-weight:normal;">ВВОД</span>`;
-
-          let titleStyle = f.val
-              ? `font-size:10px; color:var(--text-muted); text-transform:uppercase; margin-bottom:4px;`
-              : `font-size:13px; color:var(--text-main); font-weight:bold; text-transform:uppercase; margin-bottom:4px;`;
-              
-          let emptyPlaceholder = f.isDict ? (t.inc_select || "Выбрать...") : (t.inc_enter_text || "Ввести...");
-          
-          let valueDisplay = f.val
-              ? `<div style="font-size:15px; font-weight:bold; color:${f.isSku ? 'var(--text-muted)' : 'var(--text-main)'}; word-break: break-word; line-height: 1.3;">${f.previewVal}</div>`
-              : `<div style="font-size:12px; color:#ffb74d; opacity:0.8; font-weight:normal;">${emptyPlaceholder}</div>`;
-
-          let rightIcon = f.isSku ? '&#10003;' : '&#10095;';
-          let iconColor = f.isSku ? 'var(--text-muted)' : 'var(--accent-blue)';
-          
-          // НОВЫЕ БОКОВЫЕ МАРКЕРЫ
+          // Цвета боковых рамок как в отчетах
           let rowStyle = "";
           if (f.val) {
               rowStyle = `background: rgba(76, 175, 80, 0.05); border-left: 4px solid var(--accent-green, #4CAF50);`;
@@ -6676,16 +6660,50 @@ window.renderEditorMainUI = function (item) {
               rowStyle = `background: transparent; border-left: 4px solid var(--accent-blue, #329dfa);`;
           }
 
+          let rightIcon = f.isSku ? '&#10003;' : '&#10095;';
+          let iconColor = f.isSku ? 'var(--accent-green, #4CAF50)' : 'var(--text-muted, #888)';
+
+          // КНОПКИ ДЛЯ ПУСТЫХ ПОЛЕЙ (Справа)
+          let actionBadge = "";
+          if (!f.val) {
+              if (f.isDict) {
+                  actionBadge = `<div style="border: 1px solid var(--accent-blue, #329dfa); color: var(--accent-blue, #329dfa); padding: 4px 10px; border-radius: 4px; font-size: 10px; font-weight: bold; text-transform: uppercase;">Справочник</div>`;
+              } else {
+                  actionBadge = `<div style="border: 1px solid var(--text-muted, #888); color: var(--text-muted, #aaa); padding: 4px 10px; border-radius: 4px; font-size: 10px; font-weight: bold; text-transform: uppercase;">Ввод</div>`;
+              }
+          }
+
+          let applyAllBadge = f.isGlobal ? `<span style="background:rgba(50, 157, 250, 0.15); color:var(--accent-blue); padding:2px 6px; border-radius:4px; font-size:9px; font-weight:bold; margin-left: 6px;">${t.inc_apply_all_badge || "Ко всем"}</span>` : "";
+
+          let contentHtml = "";
+          if (f.val) {
+              // ЗАПОЛНЕНО: Мелкий заголовок, крупное значение
+              contentHtml = `
+                  <div style="font-size:10px; color:var(--text-muted); text-transform:uppercase; margin-bottom:4px; display:flex; align-items:center;">
+                      ${f.cleanDisplayKey}${reqStar} ${applyAllBadge}
+                  </div>
+                  <div style="font-size:15px; font-weight:bold; color:${f.isSku ? 'var(--text-muted)' : 'var(--text-main)'}; word-break: break-word; line-height: 1.3;">
+                      ${f.previewVal}
+                  </div>
+              `;
+          } else {
+              // ПУСТО: Крупный заголовок (кнопка будет справа)
+              contentHtml = `
+                  <div style="font-size:13px; color:var(--text-main); font-weight:bold; text-transform:uppercase; display:flex; align-items:center;">
+                      ${f.cleanDisplayKey}${reqStar} ${applyAllBadge}
+                  </div>
+              `;
+          }
+
           html += `
           <div class="param-row" onclick="window.openEditorField('${f.k}')" style="display:flex; justify-content:space-between; align-items:center; padding:14px 16px; border-bottom:1px solid var(--border-light, rgba(128,128,128,0.2)); cursor:pointer; transition: background 0.2s; ${rowStyle}">
               <div style="flex: 1; min-width: 0; padding-right: 15px;">
-                  <div style="${titleStyle} display:flex; align-items:center; flex-wrap:wrap; gap:6px;">
-                      <span>${f.cleanDisplayKey}${reqStar}</span> ${inputTypeIcon}
-                      ${f.isGlobal ? `<span style="background:rgba(50, 157, 250, 0.15); color:var(--accent-blue); padding:2px 6px; border-radius:4px; font-size:9px; font-weight:bold;">${t.inc_apply_all_badge || "Ко всем"}</span>` : ""}
-                  </div>
-                  ${valueDisplay}
+                  ${contentHtml}
               </div>
-              <div style="flex-shrink: 0; color:${iconColor}; font-size:18px;">${rightIcon}</div>
+              <div style="flex-shrink: 0; display:flex; align-items:center; gap:10px;">
+                  ${actionBadge}
+                  <div style="color:${iconColor}; font-size:18px;">${rightIcon}</div>
+              </div>
           </div>`;
       });
       return html;
@@ -6693,7 +6711,6 @@ window.renderEditorMainUI = function (item) {
 
   // 3. СКЛЕИВАЕМ БЛОКИ
   let finalHtml = "";
-  
   let mandatoryAll = mandatoryEmpty.concat(mandatoryFilled);
   let optionalAll = optionalEmpty.concat(optionalFilled);
 
