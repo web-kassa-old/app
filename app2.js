@@ -6552,21 +6552,21 @@ window.renderEditorMainUI = function (item) {
   // 1. СОБИРАЕМ ВСЕ КЛЮЧИ ИЗ ПАМЯТИ
   let allKeys = new Set();
   
-  // Ключи из шаблона Каспи
   if (window.mapper2State && window.mapper2State.sysToHumanMap) {
     Object.keys(window.mapper2State.sysToHumanMap).forEach(k => allKeys.add(k));
   }
-  // Ключи из временных атрибутов
   if (window.tempAttrs) {
     Object.keys(window.tempAttrs).forEach(k => allKeys.add(k));
   }
 
-  // ПУНКТ 1 и 3: Принудительно добавляем системные ключи POS, чтобы они не терялись
+  // Принудительно добавляем системные ключи, чтобы они не потерялись
   const posFields = {
-      "name": "Название / Наименование",
-      "barcode": "Код / Штрихкод",
+      "name": "Наименование",
       "price": "Цена",
-      "qty": "Количество"
+      "barcode": "Код / Штрихкод",
+      "qty": "Количество",
+      "cbm": "Объем (CBM)",
+      "weight": "Вес (кг)"
   };
   Object.keys(posFields).forEach(k => allKeys.add(k));
 
@@ -6578,13 +6578,18 @@ window.renderEditorMainUI = function (item) {
   let optionalFilled = [];
 
   Array.from(allKeys).forEach((k) => {
-    let val = window.tempAttrs ? (window.tempAttrs[k] || "") : "";
+    // Безопасно достаем значение, даже если это 0
+    let val = (window.tempAttrs && window.tempAttrs[k] !== undefined && window.tempAttrs[k] !== null) 
+              ? window.tempAttrs[k] 
+              : "";
     
-    // Строгое автозаполнение системных полей из БД товара
-    if (k === 'name') val = val || item.item_name || item.name || "";
-    if (k === 'barcode') val = val || item.barcode || "";
-    if (k === 'price') val = val || item.price || "";
-    if (k === 'qty') val = val || item.stock || item.qty || "";
+    // Автоподстановка из базы товара, если поле пустое
+    if (val === "" && item) {
+        if (k === 'name') val = item.item_name || item.name || "";
+        if (k === 'price') val = item.price !== undefined ? item.price : "";
+        if (k === 'barcode') val = item.barcode || "";
+        if (k === 'qty') val = item.stock || item.qty || "";
+    }
 
     let humanName = (window.mapper2State && window.mapper2State.sysToHumanMap && window.mapper2State.sysToHumanMap[k]) 
                     || posFields[k] 
@@ -6592,32 +6597,27 @@ window.renderEditorMainUI = function (item) {
 
     let displayKey = humanName || k.split("*").pop().replace(/tires/gi, "").replace(/additional/gi, "").replace(/general/gi, "").replace(/\./g, "").trim();
     if (!displayKey) displayKey = k;
-
     let cleanDisplayKey = displayKey.replace('*', '').trim();
 
-    // Проверка обязательности из предыдущего экрана
+    // Проверяем обязательность только по предыдущему экрану (или если это Артикул)
     let isReq = false;
     let prevCard = document.querySelector(`.req-card[onclick*="'${k}'"]`);
     if (prevCard && prevCard.querySelector('.required')) {
         isReq = true;
     }
     
-    // Страховка обязательности: базовые поля всегда важны
-    let lowerDispForReq = cleanDisplayKey.toLowerCase();
-    if (posFields[k] || lowerDispForReq === 'бренд' || lowerDispForReq === 'артикул') {
-        isReq = true;
-    }
+    // Артикул всегда обязателен
+    let isSku = k.toLowerCase().includes("sku") || cleanDisplayKey.toLowerCase().includes("артикул");
+    if (isSku) isReq = true; 
 
     let isGlobal = window.applyToAllMap && window.applyToAllMap[k] !== undefined;
-    let isSku = k.toLowerCase().includes("sku") || lowerDispForReq === "артикул";
     let isDict = dicts[cleanDisplayKey] && dicts[cleanDisplayKey].length > 0;
 
-    if (isSku && !val) {
+    if (isSku && (val === "" || val === undefined)) {
       val = t.inc_auto_fill || "Автоматически";
-      isReq = true;
     }
 
-    let isEmpty = (val === "" || val === undefined);
+    let isEmpty = (val === "" || val === null || val === undefined);
     let fieldObj = {
         k: k,
         cleanDisplayKey: cleanDisplayKey,
@@ -6661,11 +6661,13 @@ window.renderEditorMainUI = function (item) {
           let rightIcon = f.isSku ? '&#10003;' : '&#10095;';
           let iconColor = f.isSku ? 'var(--text-muted)' : 'var(--accent-blue)';
           
-          // ПУНКТ 2: Задаем зеленоватый фон для заполненных полей
-          let rowBg = f.val ? 'background: rgba(76, 175, 80, 0.05);' : 'background: transparent;';
+          // ЯВНОЕ ВИЗУАЛЬНОЕ ОТЛИЧИЕ ЗАПОЛНЕННЫХ ПОЛЕЙ
+          let rowStyle = f.val 
+              ? `background: rgba(76, 175, 80, 0.08); border-left: 4px solid var(--accent-green, #4CAF50);` 
+              : `background: transparent; border-left: 4px solid transparent;`;
 
           html += `
-          <div class="param-row" onclick="window.openEditorField('${f.k}')" style="display:flex; justify-content:space-between; align-items:center; padding:14px 16px; border-bottom:1px solid var(--border-light, rgba(128,128,128,0.2)); cursor:pointer; transition: background 0.2s; ${rowBg}">
+          <div class="param-row" onclick="window.openEditorField('${f.k}')" style="display:flex; justify-content:space-between; align-items:center; padding:14px 16px; border-bottom:1px solid var(--border-light, rgba(128,128,128,0.2)); cursor:pointer; transition: background 0.2s; ${rowStyle}">
               <div style="flex: 1; min-width: 0; padding-right: 15px;">
                   <div style="${titleStyle} display:flex; align-items:center; flex-wrap:wrap; gap:6px;">
                       <span>${f.cleanDisplayKey}${reqStar}</span> ${inputTypeIcon}
