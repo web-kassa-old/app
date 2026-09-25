@@ -6574,7 +6574,6 @@ window.renderEditorMainUI = function (item) {
   let optionalEmpty = [];
   let optionalFilled = [];
 
-  // Инициализация карты глобальных параметров
   if (!window.applyToAllMap) window.applyToAllMap = {};
 
   Array.from(allKeys).forEach((k) => {
@@ -6592,7 +6591,6 @@ window.renderEditorMainUI = function (item) {
     let lowerDisp = cleanDisplayKey.toLowerCase();
     let lowerK = k.toLowerCase();
 
-    // Автозаполнение системных полей из БД
     if (val === "" && item) {
         if (lowerK === 'name' || lowerDisp === 'название товара' || lowerDisp === 'наименование') {
             val = item.item_name || item.name || item.title || "";
@@ -6621,12 +6619,7 @@ window.renderEditorMainUI = function (item) {
     let isSku = lowerK.includes("sku") || lowerDisp === "артикул";
     let isDict = dicts[cleanDisplayKey] && dicts[cleanDisplayKey].length > 0;
 
-    // ИСПРАВЛЕННАЯ ЛОГИКА "КО ВСЕМ":
-    // Если параметр еще не трогали, включаем его по умолчанию ТОЛЬКО если это Справочник
-    if (!(k in window.applyToAllMap)) {
-        window.applyToAllMap[k] = isDict;
-    }
-    // СТРОГАЯ ПРОВЕРКА (=== true)
+    // СТРОГАЯ ПРОВЕРКА БЕЗ САМОДЕЯТЕЛЬНОСТИ: только если пользователь сам поставил галочку
     let isGlobal = window.applyToAllMap[k] === true;
 
     if (isSku && val === "") {
