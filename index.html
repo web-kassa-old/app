@@ -2422,107 +2422,6 @@
             </div>
           </div>
 
-          <!-- ПОЛНОЭКРАННЫЙ ПОИСК ПОСТАВЩИКА -->
-          <div
-            id="supplier-fullscreen-modal"
-            class="supp-modal-bg"
-            style="
-              display: none;
-              position: fixed;
-              top: 0;
-              left: 0;
-              width: 100%;
-              height: 100%;
-              overflow: hidden;
-              background: #121212;
-              z-index: 999999;
-              flex-direction: column;
-              transform: translateY(var(--vv-offset, 0px));
-            "
-          >
-            <!-- Шапка -->
-            <div
-              class="supp-modal-header"
-              style="
-                flex-shrink: 0;
-                display: flex;
-                padding: 10px 15px;
-                padding-top: max(10px, env(safe-area-inset-top));
-                background: #1e1e1e;
-                border-bottom: 1px solid #333;
-                gap: 10px;
-              "
-            >
-              <input
-                type="text"
-                id="fullscreen-supplier-search"
-                class="supp-modal-input"
-                placeholder="Поиск или новый поставщик..."
-                oninput="window.filterFullscreenSuppliers()"
-                style="
-                  flex: 1;
-                  background: #000;
-                  color: #fff;
-                  border: 1px solid #333;
-                  padding: 10px;
-                  border-radius: 6px;
-                  font-size: 16px;
-                "
-              />
-              <button
-                onclick="window.closeFullscreenSupplier()"
-                style="
-                  background: #d32f2f;
-                  color: #fff;
-                  border: none;
-                  padding: 0 15px;
-                  border-radius: 6px;
-                  font-size: 20px;
-                  font-weight: bold;
-                "
-              >
-                ✕
-              </button>
-            </div>
-
-            <!-- Кнопка добавления -->
-            <div
-              id="fullscreen-add-new-btn"
-              style="
-                display: none;
-                flex-shrink: 0;
-                padding: 15px;
-                background: rgba(76, 175, 80, 0.1);
-                border-bottom: 1px solid #2e7d32;
-                text-align: center;
-                color: #4caf50;
-                font-weight: bold;
-                cursor: pointer;
-              "
-              onclick="
-                window.selectFullscreenSupplier(
-                  document.getElementById('fullscreen-supplier-search').value,
-                )
-              "
-            >
-              + Добавить: <span id="new-supplier-name-preview"></span>
-            </div>
-
-            <!-- Список -->
-            <div
-              id="fullscreen-supplier-list"
-              style="
-                flex: 1;
-                overflow-y: auto;
-                -webkit-overflow-scrolling: touch;
-                padding: 0 15px;
-                padding-bottom: max(15px, env(safe-area-inset-bottom));
-              "
-            >
-              <!-- Результаты -->
-            </div>
-          </div>
-
           <!-- МОДАЛКА БАЗЫ ДАННЫХ (DRIVE) -->
           <div
             id="drive-base-modal"
@@ -3624,7 +3523,106 @@
     </div>
     <!-- Контейнер для полноэкранных модальных окон Маппера 2.0 -->
     <div id="modalContainer"></div>
+    <!-- ПОЛНОЭКРАННЫЙ ПОИСК ПОСТАВЩИКА -->
+    <div
+      id="supplier-fullscreen-modal"
+      class="supp-modal-bg"
+      style="
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: #121212;
+        z-index: 999999;
+        flex-direction: column;
+        transform: translateY(var(--vv-offset, 0px));
+      "
+    >
+      <!-- Шапка -->
+      <div
+        class="supp-modal-header"
+        style="
+          flex-shrink: 0;
+          display: flex;
+          padding: 10px 15px;
+          padding-top: max(10px, env(safe-area-inset-top));
+          background: #1e1e1e;
+          border-bottom: 1px solid #333;
+          gap: 10px;
+        "
+      >
+        <input
+          type="text"
+          id="fullscreen-supplier-search"
+          class="supp-modal-input"
+          placeholder="Поиск или новый поставщик..."
+          oninput="window.filterFullscreenSuppliers()"
+          style="
+            flex: 1;
+            background: #000;
+            color: #fff;
+            border: 1px solid #333;
+            padding: 10px;
+            border-radius: 6px;
+            font-size: 16px;
+          "
+        />
+        <button
+          onclick="window.closeFullscreenSupplier()"
+          style="
+            background: #d32f2f;
+            color: #fff;
+            border: none;
+            padding: 0 15px;
+            border-radius: 6px;
+            font-size: 20px;
+            font-weight: bold;
+          "
+        >
+          ✕
+        </button>
+      </div>
 
+      <!-- Кнопка добавления -->
+      <div
+        id="fullscreen-add-new-btn"
+        style="
+          display: none;
+          flex-shrink: 0;
+          padding: 15px;
+          background: rgba(76, 175, 80, 0.1);
+          border-bottom: 1px solid #2e7d32;
+          text-align: center;
+          color: #4caf50;
+          font-weight: bold;
+          cursor: pointer;
+        "
+        onclick="
+          window.selectFullscreenSupplier(
+            document.getElementById('fullscreen-supplier-search').value,
+          )
+        "
+      >
+        + Добавить: <span id="new-supplier-name-preview"></span>
+      </div>
+
+      <!-- Список -->
+      <div
+        id="fullscreen-supplier-list"
+        style="
+          flex: 1;
+          overflow-y: auto;
+          -webkit-overflow-scrolling: touch;
+          padding: 0 15px;
+          padding-bottom: max(15px, env(safe-area-inset-bottom));
+        "
+      >
+        <!-- Результаты -->
+      </div>
+    </div>
     <script
       src="https://unpkg.com/html5-qrcode"
       type="text/javascript"
