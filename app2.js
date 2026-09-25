@@ -6559,7 +6559,7 @@ window.renderEditorMainUI = function (item) {
     Object.keys(window.tempAttrs).forEach(k => allKeys.add(k));
   }
 
-  // Принудительно добавляем системные ключи, чтобы они не потерялись
+  // Принудительно добавляем системные ключи
   const posFields = {
       "name": "Наименование",
       "price": "Цена",
@@ -6578,17 +6578,16 @@ window.renderEditorMainUI = function (item) {
   let optionalFilled = [];
 
   Array.from(allKeys).forEach((k) => {
-    // Безопасно достаем значение, даже если это 0
     let val = (window.tempAttrs && window.tempAttrs[k] !== undefined && window.tempAttrs[k] !== null) 
               ? window.tempAttrs[k] 
               : "";
     
-    // Автоподстановка из базы товара, если поле пустое
+    // Автоподстановка из базы товара
     if (val === "" && item) {
         if (k === 'name') val = item.item_name || item.name || "";
-        if (k === 'price') val = item.price !== undefined ? item.price : "";
+        if (k === 'price') val = item.price !== undefined && item.price !== null ? String(item.price) : "";
         if (k === 'barcode') val = item.barcode || "";
-        if (k === 'qty') val = item.stock || item.qty || "";
+        if (k === 'qty') val = item.stock !== undefined ? String(item.stock) : (item.qty !== undefined ? String(item.qty) : "");
     }
 
     let humanName = (window.mapper2State && window.mapper2State.sysToHumanMap && window.mapper2State.sysToHumanMap[k]) 
@@ -6599,18 +6598,24 @@ window.renderEditorMainUI = function (item) {
     if (!displayKey) displayKey = k;
     let cleanDisplayKey = displayKey.replace('*', '').trim();
 
-    // Проверяем обязательность только по предыдущему экрану (или если это Артикул)
+    // Проверяем обязательность из предыдущего экрана
     let isReq = false;
     let prevCard = document.querySelector(`.req-card[onclick*="'${k}'"]`);
     if (prevCard && prevCard.querySelector('.required')) {
         isReq = true;
     }
     
-    // Артикул всегда обязателен
-    let isSku = k.toLowerCase().includes("sku") || cleanDisplayKey.toLowerCase().includes("артикул");
-    if (isSku) isReq = true; 
+    // Страховка обязательности (Исключили штрихкод из этого списка!)
+    if (k === 'name' || k === 'price' || k === 'qty') {
+        isReq = true;
+    }
+    let lowerDispForReq = cleanDisplayKey.toLowerCase();
+    if (lowerDispForReq === 'бренд' || lowerDispForReq === 'артикул') {
+        isReq = true;
+    }
 
     let isGlobal = window.applyToAllMap && window.applyToAllMap[k] !== undefined;
+    let isSku = k.toLowerCase().includes("sku") || lowerDispForReq === "артикул";
     let isDict = dicts[cleanDisplayKey] && dicts[cleanDisplayKey].length > 0;
 
     if (isSku && (val === "" || val === undefined)) {
@@ -6661,10 +6666,15 @@ window.renderEditorMainUI = function (item) {
           let rightIcon = f.isSku ? '&#10003;' : '&#10095;';
           let iconColor = f.isSku ? 'var(--text-muted)' : 'var(--accent-blue)';
           
-          // ЯВНОЕ ВИЗУАЛЬНОЕ ОТЛИЧИЕ ЗАПОЛНЕННЫХ ПОЛЕЙ
-          let rowStyle = f.val 
-              ? `background: rgba(76, 175, 80, 0.08); border-left: 4px solid var(--accent-green, #4CAF50);` 
-              : `background: transparent; border-left: 4px solid transparent;`;
+          // НОВЫЕ БОКОВЫЕ МАРКЕРЫ
+          let rowStyle = "";
+          if (f.val) {
+              rowStyle = `background: rgba(76, 175, 80, 0.05); border-left: 4px solid var(--accent-green, #4CAF50);`;
+          } else if (f.isReq) {
+              rowStyle = `background: transparent; border-left: 4px solid #ff4444;`;
+          } else {
+              rowStyle = `background: transparent; border-left: 4px solid var(--accent-blue, #329dfa);`;
+          }
 
           html += `
           <div class="param-row" onclick="window.openEditorField('${f.k}')" style="display:flex; justify-content:space-between; align-items:center; padding:14px 16px; border-bottom:1px solid var(--border-light, rgba(128,128,128,0.2)); cursor:pointer; transition: background 0.2s; ${rowStyle}">
