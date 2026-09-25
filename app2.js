@@ -6549,7 +6549,7 @@ window.openEditorMain = function (index) {
 window.renderEditorMainUI = function (item) {
   const t = translations[currentLang] || {};
   
-  // 1. СОБИРАЕМ ВСЕ КЛЮЧИ ИЗ ПАМЯТИ
+  // 1. СОБИРАЕМ КЛЮЧИ ТОЛЬКО ИЗ ШАБЛОНА И НАКЛАДНОЙ (Убрали искусственное добавление "Цены закупа")
   let allKeys = new Set();
   
   if (window.mapper2State && window.mapper2State.sysToHumanMap) {
@@ -6559,16 +6559,15 @@ window.renderEditorMainUI = function (item) {
     Object.keys(window.tempAttrs).forEach(k => allKeys.add(k));
   }
 
-  // ТОЧНЫЕ названия базовых полей (как в окне спаривания)
-  const posFields = {
+  // Словарь только для резервных человеческих названий
+  const posFieldsNames = {
       "name": "Наименование",
-      "price": "Цена закупа",
+      "price": "Цена",
       "barcode": "Код / Штрихкод",
       "qty": "Количество",
       "cbm": "Объем (CBM)",
       "weight": "Вес (кг)"
   };
-  Object.keys(posFields).forEach(k => allKeys.add(k));
 
   let dicts = window.kaspiDicts || (window.mapper2State && window.mapper2State.dictionary) || {};
 
@@ -6578,12 +6577,13 @@ window.renderEditorMainUI = function (item) {
   let optionalFilled = [];
 
   Array.from(allKeys).forEach((k) => {
-    let val = (window.tempAttrs && window.tempAttrs[k] !== undefined && window.tempAttrs[k] !== null) 
-              ? String(window.tempAttrs[k])
-              : "";
+    // Безопасное извлечение значения (защита от "undefined" строкой)
+    let rawVal = window.tempAttrs ? window.tempAttrs[k] : "";
+    if (rawVal === "undefined" || rawVal === "null" || rawVal === null || rawVal === undefined) rawVal = "";
+    let val = String(rawVal).trim();
     
     let humanName = (window.mapper2State && window.mapper2State.sysToHumanMap && window.mapper2State.sysToHumanMap[k]) 
-                    || posFields[k] 
+                    || posFieldsNames[k] 
                     || null;
 
     let displayKey = humanName || k.split("*").pop().replace(/tires/gi, "").replace(/additional/gi, "").replace(/general/gi, "").replace(/\./g, "").trim();
@@ -6592,22 +6592,23 @@ window.renderEditorMainUI = function (item) {
     let lowerDisp = cleanDisplayKey.toLowerCase();
     let lowerK = k.toLowerCase();
 
-    // СТРОГОЕ автозаполнение (Без .includes, чтобы Название модели не перехватывало Название товара)
+    // БРОНЕБОЙНОЕ АВТОЗАПОЛНЕНИЕ из базы товара
     if (val === "" && item) {
         if (lowerK === 'name' || lowerDisp === 'название товара' || lowerDisp === 'наименование') {
             val = item.item_name || item.name || item.title || "";
-        } else if (lowerK === 'price' || lowerDisp === 'цена закупа' || lowerDisp === 'цена') {
+        } else if (lowerK === 'price' || lowerDisp.includes('цена')) {
             let p = item.price !== undefined ? item.price : (item.sell_price !== undefined ? item.sell_price : item.price_out);
-            val = (p !== undefined && p !== null) ? String(p) : "";
-        } else if (lowerK === 'barcode' || lowerDisp === 'код / штрихкод' || lowerDisp === 'штрихкод' || lowerDisp === 'код') {
-            val = item.barcode || item.code || "";
-        } else if (lowerK === 'qty' || lowerDisp === 'количество') {
+            val = (p !== undefined && p !== null && p !== "") ? String(p) : "";
+        } else if (lowerK === 'barcode' || lowerDisp.includes('штрихкод') || lowerDisp.includes('код')) {
+            let b = item.barcode || item.code || item.item_code || item.sku;
+            val = (b !== undefined && b !== null && b !== "") ? String(b) : "";
+        } else if (lowerK === 'qty' || lowerDisp.includes('количество')) {
             let q = item.stock !== undefined ? item.stock : item.qty;
-            val = (q !== undefined && q !== null) ? String(q) : "";
+            val = (q !== undefined && q !== null && q !== "") ? String(q) : "";
         }
     }
 
-    // Проверка обязательности из предыдущего экрана
+    // Проверка обязательности
     let isReq = false;
     let prevCard = document.querySelector(`.req-card[onclick*="'${k}'"]`);
     if (prevCard && prevCard.querySelector('.required')) {
@@ -6623,11 +6624,11 @@ window.renderEditorMainUI = function (item) {
     let isSku = lowerK.includes("sku") || lowerDisp === "артикул";
     let isDict = dicts[cleanDisplayKey] && dicts[cleanDisplayKey].length > 0;
 
-    if (isSku && (val === "" || val === undefined)) {
+    if (isSku && val === "") {
       val = t.inc_auto_fill || "Заполняется автоматически";
     }
 
-    let isEmpty = (val === "" || val === null || val === undefined);
+    let isEmpty = (val === "");
     let fieldObj = {
         k: k,
         cleanDisplayKey: cleanDisplayKey,
@@ -6658,15 +6659,15 @@ window.renderEditorMainUI = function (item) {
           let rightSideHtml = "";
           
           if (f.val) {
-              // ЗАПОЛНЕНО: Зеленая плашка с галочкой и значением
+              // ЗАПОЛНЕНО: Зеленая плашка с галочкой
               let displayVal = f.isSku ? (t.inc_auto_fill || "Заполняется автоматически") : f.previewVal;
               rightSideHtml = `
-                  <div style="border: 1px solid #4CAF50; color: #4CAF50; padding: 5px 12px; border-radius: 4px; font-size: 11px; font-weight: bold; max-width: 160px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-right: 8px;">
+                  <div style="border: 1px solid #4CAF50; color: #4CAF50; padding: 5px 12px; border-radius: 4px; font-size: 11px; font-weight: bold; max-width: 160px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-right: ${f.isSku ? '0' : '8px'};">
                       ✓ ${displayVal}
                   </div>
               `;
           } else {
-              // ПУСТО: Красная плашка [ВВОД] или [СПРАВОЧНИК]
+              // ПУСТО: Красная плашка
               let actionText = f.isDict ? "Справочник" : "Ввод";
               rightSideHtml = `
                   <div style="border: 1px solid #ff4444; color: #ff4444; padding: 5px 12px; border-radius: 4px; font-size: 11px; font-weight: bold; text-transform: uppercase; margin-right: 8px;">
@@ -6675,8 +6676,15 @@ window.renderEditorMainUI = function (item) {
               `;
           }
 
+          // ЗАМОРОЗКА АРТИКУЛА
+          let onclickAttr = f.isSku ? "" : `onclick="window.openEditorField('${f.k}')"`;
+          let rowStyle = f.isSku 
+              ? "background: rgba(0,0,0,0.1); opacity: 0.6; cursor: not-allowed; pointer-events: none;" 
+              : "background: transparent; cursor: pointer; transition: background 0.2s;";
+          let arrowIcon = f.isSku ? "" : `<div style="color:var(--text-muted); font-size:18px;">&#10095;</div>`;
+
           html += `
-          <div class="param-row" onclick="window.openEditorField('${f.k}')" style="display:flex; justify-content:space-between; align-items:center; padding:16px; border-bottom:1px solid var(--border-light, rgba(128,128,128,0.2)); cursor:pointer; background: transparent; transition: background 0.2s;">
+          <div class="param-row" ${onclickAttr} style="display:flex; justify-content:space-between; align-items:center; padding:16px; border-bottom:1px solid var(--border-light, rgba(128,128,128,0.2)); ${rowStyle}">
               <div style="flex: 1; min-width: 0; padding-right: 15px; display:flex; align-items:center;">
                   <div style="font-size:14px; color:var(--text-main); font-weight:bold; text-transform:uppercase;">
                       ${f.cleanDisplayKey}${reqStar} ${applyAllBadge}
@@ -6684,7 +6692,7 @@ window.renderEditorMainUI = function (item) {
               </div>
               <div style="flex-shrink: 0; display:flex; align-items:center;">
                   ${rightSideHtml}
-                  <div style="color:var(--text-muted); font-size:18px;">&#10095;</div>
+                  ${arrowIcon}
               </div>
           </div>`;
       });
