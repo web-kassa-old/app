@@ -6552,12 +6552,23 @@ window.renderEditorMainUI = function (item) {
   // 1. СОБИРАЕМ ВСЕ КЛЮЧИ ИЗ ПАМЯТИ
   let allKeys = new Set();
   
+  // Ключи из шаблона Каспи
   if (window.mapper2State && window.mapper2State.sysToHumanMap) {
     Object.keys(window.mapper2State.sysToHumanMap).forEach(k => allKeys.add(k));
   }
+  // Ключи из временных атрибутов
   if (window.tempAttrs) {
     Object.keys(window.tempAttrs).forEach(k => allKeys.add(k));
   }
+
+  // ПУНКТ 1 и 3: Принудительно добавляем системные ключи POS, чтобы они не терялись
+  const posFields = {
+      "name": "Название / Наименование",
+      "barcode": "Код / Штрихкод",
+      "price": "Цена",
+      "qty": "Количество"
+  };
+  Object.keys(posFields).forEach(k => allKeys.add(k));
 
   let dicts = window.kaspiDicts || (window.mapper2State && window.mapper2State.dictionary) || {};
 
@@ -6568,40 +6579,37 @@ window.renderEditorMainUI = function (item) {
 
   Array.from(allKeys).forEach((k) => {
     let val = window.tempAttrs ? (window.tempAttrs[k] || "") : "";
-    let humanName = window.mapper2State && window.mapper2State.sysToHumanMap ? window.mapper2State.sysToHumanMap[k] : null;
+    
+    // Строгое автозаполнение системных полей из БД товара
+    if (k === 'name') val = val || item.item_name || item.name || "";
+    if (k === 'barcode') val = val || item.barcode || "";
+    if (k === 'price') val = val || item.price || "";
+    if (k === 'qty') val = val || item.stock || item.qty || "";
+
+    let humanName = (window.mapper2State && window.mapper2State.sysToHumanMap && window.mapper2State.sysToHumanMap[k]) 
+                    || posFields[k] 
+                    || null;
 
     let displayKey = humanName || k.split("*").pop().replace(/tires/gi, "").replace(/additional/gi, "").replace(/general/gi, "").replace(/\./g, "").trim();
     if (!displayKey) displayKey = k;
 
     let cleanDisplayKey = displayKey.replace('*', '').trim();
 
-    // ПУНКТ 3: Подтягиваем базовые поля, если они не попали в tempAttrs
-    if (!val && item) {
-        let lowerDisp = cleanDisplayKey.toLowerCase();
-        let lowerK = k.toLowerCase();
-        if (lowerDisp.includes("название") || lowerDisp.includes("наименование") || lowerK === "name") {
-            val = item.item_name || item.name || "";
-        } else if (lowerDisp.includes("цена") || lowerK === "price") {
-            val = item.price || "";
-        } else if (lowerDisp.includes("штрихкод") || lowerK === "barcode") {
-            val = item.barcode || "";
-        }
-    }
-
+    // Проверка обязательности из предыдущего экрана
     let isReq = false;
     let prevCard = document.querySelector(`.req-card[onclick*="'${k}'"]`);
     if (prevCard && prevCard.querySelector('.required')) {
         isReq = true;
     }
     
-    // Страховка обязательности
+    // Страховка обязательности: базовые поля всегда важны
     let lowerDispForReq = cleanDisplayKey.toLowerCase();
-    if (lowerDispForReq.includes('бренд') || lowerDispForReq.includes('название') || lowerDispForReq.includes('наименование') || lowerDispForReq.includes('штрихкод') || lowerDispForReq.includes('цена')) {
+    if (posFields[k] || lowerDispForReq === 'бренд' || lowerDispForReq === 'артикул') {
         isReq = true;
     }
 
     let isGlobal = window.applyToAllMap && window.applyToAllMap[k] !== undefined;
-    let isSku = k.toLowerCase().includes("sku") || cleanDisplayKey.toLowerCase().includes("артикул");
+    let isSku = k.toLowerCase().includes("sku") || lowerDispForReq === "артикул";
     let isDict = dicts[cleanDisplayKey] && dicts[cleanDisplayKey].length > 0;
 
     if (isSku && !val) {
@@ -6618,7 +6626,7 @@ window.renderEditorMainUI = function (item) {
         isSku: isSku,
         isReq: isReq,
         isDict: isDict,
-        previewVal: val.length > 50 ? val.substring(0, 50) + "..." : val
+        previewVal: String(val).length > 50 ? String(val).substring(0, 50) + "..." : val
     };
 
     if (isReq) {
@@ -6636,12 +6644,10 @@ window.renderEditorMainUI = function (item) {
       fields.forEach(f => {
           let reqStar = f.isReq ? `<span style="color:#ff4444; margin-left:2px; font-weight:bold; font-size:14px;">*</span>` : "";
 
-          // ПУНКТ 1: Возвращаем надписи ВВОД и СПРАВОЧНИК
           let inputTypeIcon = f.isDict
               ? `<span style="font-size:9px; color:var(--text-muted); border: 1px solid var(--border-main, #444); border-radius:3px; padding:1px 4px; margin-left:6px; font-weight:normal;">СПРАВОЧНИК</span>`
               : `<span style="font-size:9px; color:var(--text-muted); border: 1px solid var(--border-main, #444); border-radius:3px; padding:1px 4px; margin-left:6px; font-weight:normal;">ВВОД</span>`;
 
-          // ПУНКТ 2: Визуальное отличие заполненных от пустых
           let titleStyle = f.val
               ? `font-size:10px; color:var(--text-muted); text-transform:uppercase; margin-bottom:4px;`
               : `font-size:13px; color:var(--text-main); font-weight:bold; text-transform:uppercase; margin-bottom:4px;`;
@@ -6654,9 +6660,12 @@ window.renderEditorMainUI = function (item) {
 
           let rightIcon = f.isSku ? '&#10003;' : '&#10095;';
           let iconColor = f.isSku ? 'var(--text-muted)' : 'var(--accent-blue)';
+          
+          // ПУНКТ 2: Задаем зеленоватый фон для заполненных полей
+          let rowBg = f.val ? 'background: rgba(76, 175, 80, 0.05);' : 'background: transparent;';
 
           html += `
-          <div class="param-row" onclick="window.openEditorField('${f.k}')" style="display:flex; justify-content:space-between; align-items:center; padding:14px 16px; border-bottom:1px solid var(--border-light, rgba(128,128,128,0.2)); cursor:pointer; transition: background 0.2s;">
+          <div class="param-row" onclick="window.openEditorField('${f.k}')" style="display:flex; justify-content:space-between; align-items:center; padding:14px 16px; border-bottom:1px solid var(--border-light, rgba(128,128,128,0.2)); cursor:pointer; transition: background 0.2s; ${rowBg}">
               <div style="flex: 1; min-width: 0; padding-right: 15px;">
                   <div style="${titleStyle} display:flex; align-items:center; flex-wrap:wrap; gap:6px;">
                       <span>${f.cleanDisplayKey}${reqStar}</span> ${inputTypeIcon}
