@@ -6559,10 +6559,10 @@ window.renderEditorMainUI = function (item) {
     Object.keys(window.tempAttrs).forEach(k => allKeys.add(k));
   }
 
-  // Принудительно добавляем системные ключи
+  // ТОЧНЫЕ названия базовых полей (как в окне спаривания)
   const posFields = {
       "name": "Наименование",
-      "price": "Цена",
+      "price": "Цена закупа",
       "barcode": "Код / Штрихкод",
       "qty": "Количество",
       "cbm": "Объем (CBM)",
@@ -6592,16 +6592,16 @@ window.renderEditorMainUI = function (item) {
     let lowerDisp = cleanDisplayKey.toLowerCase();
     let lowerK = k.toLowerCase();
 
-    // Бронебойное автозаполнение системных полей из БД (решение бага с ценой и кодом)
+    // СТРОГОЕ автозаполнение (Без .includes, чтобы Название модели не перехватывало Название товара)
     if (val === "" && item) {
-        if (lowerK === 'name' || lowerDisp.includes('название') || lowerDisp.includes('наименование')) {
+        if (lowerK === 'name' || lowerDisp === 'название товара' || lowerDisp === 'наименование') {
             val = item.item_name || item.name || item.title || "";
-        } else if (lowerK === 'price' || lowerDisp.includes('цена')) {
+        } else if (lowerK === 'price' || lowerDisp === 'цена закупа' || lowerDisp === 'цена') {
             let p = item.price !== undefined ? item.price : (item.sell_price !== undefined ? item.sell_price : item.price_out);
             val = (p !== undefined && p !== null) ? String(p) : "";
-        } else if (lowerK === 'barcode' || lowerDisp.includes('штрихкод') || lowerDisp.includes('код')) {
+        } else if (lowerK === 'barcode' || lowerDisp === 'код / штрихкод' || lowerDisp === 'штрихкод' || lowerDisp === 'код') {
             val = item.barcode || item.code || "";
-        } else if (lowerK === 'qty' || lowerDisp.includes('количество')) {
+        } else if (lowerK === 'qty' || lowerDisp === 'количество') {
             let q = item.stock !== undefined ? item.stock : item.qty;
             val = (q !== undefined && q !== null) ? String(q) : "";
         }
@@ -6624,7 +6624,7 @@ window.renderEditorMainUI = function (item) {
     let isDict = dicts[cleanDisplayKey] && dicts[cleanDisplayKey].length > 0;
 
     if (isSku && (val === "" || val === undefined)) {
-      val = t.inc_auto_fill || "Автоматически";
+      val = t.inc_auto_fill || "Заполняется автоматически";
     }
 
     let isEmpty = (val === "" || val === null || val === undefined);
@@ -6659,9 +6659,9 @@ window.renderEditorMainUI = function (item) {
           
           if (f.val) {
               // ЗАПОЛНЕНО: Зеленая плашка с галочкой и значением
-              let displayVal = f.isSku ? (t.inc_auto_fill || "Автоматически") : f.previewVal;
+              let displayVal = f.isSku ? (t.inc_auto_fill || "Заполняется автоматически") : f.previewVal;
               rightSideHtml = `
-                  <div style="border: 1px solid #4CAF50; background: rgba(76, 175, 80, 0.1); color: #4CAF50; padding: 5px 12px; border-radius: 4px; font-size: 12px; font-weight: bold; max-width: 160px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-right: 8px;">
+                  <div style="border: 1px solid #4CAF50; color: #4CAF50; padding: 5px 12px; border-radius: 4px; font-size: 11px; font-weight: bold; max-width: 160px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-right: 8px;">
                       ✓ ${displayVal}
                   </div>
               `;
