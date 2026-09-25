@@ -414,6 +414,7 @@ const translations = {
     prompt_category_title: "Укажите категорию шаблона",
     msg_tpl_exists_1: 'Шаблон "',
     msg_tpl_exists_2: '" уже существует.\nВы хотите перезаписать его?',
+    msg_connect_db: "Подключение к БД...",
   },
   kz: {
     btn_sale: "САТУ",
@@ -830,6 +831,7 @@ const translations = {
     prompt_category_title: "Шаблон санатын көрсетіңіз",
     msg_tpl_exists_1: '"',
     msg_tpl_exists_2: '" шаблоны бар.\nОны үстінен жазғыңыз келе ме?',
+    msg_connect_db: "Дерекқорға қосылуда...",
   },
 };
 
@@ -4701,10 +4703,11 @@ async function handleTemplateUpload(event) {
         }
 
         // 4. Подтягиваем динамические ключи из базы
-        window.showLoading("Подключение к БД...");
+        window.showLoading(translations[currentLang].msg_connect_db);
 
         if (fileNameSpan) {
-          fileNameSpan.innerText = `⏳ Подключение к БД...`;
+          fileNameSpan.innerText = `⏳ ${translations[currentLang].msg_connect_db}`;
+          fileNameSpan.style.color = "var(--accent-blue)";
         }
         const dbResponse = await window.smartFetch(
           APPS_SCRIPT_URL,
