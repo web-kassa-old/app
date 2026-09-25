@@ -6772,7 +6772,7 @@ window.saveAllEdits = function () {
 
 // === 2. ПОЛНОЭКРАННОЕ ОКНО ПРАВКИ ОДНОГО ПОЛЯ ===
 window.openEditorField = function (originalKey) {
-  const t = translations[currentLang];
+  const t = translations[currentLang] || {};
   let val = window.tempAttrs[originalKey] || "";
 
   // Достаем русское имя для заголовка
@@ -6816,9 +6816,22 @@ window.openEditorField = function (originalKey) {
     if (typeof dict === "object") dict = Object.values(dict);
   }
 
-  let isGlobal = window.applyToAllMap[originalKey] !== undefined;
+  let isGlobal = window.applyToAllMap && window.applyToAllMap[originalKey] !== undefined;
   let controlHtml = "";
   let listHtml = "";
+
+  // КНОПКА СБРОСА (Одинаковая для справочника и текста)
+  let clearBtnHtml = `
+      <div onclick="window.clearSingleField('${originalKey}')" style="display:flex; align-items:center; justify-content:center; gap:8px; margin-top:10px; padding:12px; background:rgba(255,68,68,0.1); color:#ff4444; border-radius:8px; border:1px solid rgba(255,68,68,0.3); font-size:14px; font-weight:bold; cursor:pointer; transition:background 0.2s;">
+          <span>✖</span> Очистить выбор
+      </div>`;
+
+  // ГЛОБАЛЬНАЯ ФУНКЦИЯ ДЛЯ КНОПКИ СБРОСА
+  window.clearSingleField = function(key) {
+      document.getElementById('singleFieldInput').value = ""; // Очищаем инпут
+      document.getElementById('singleFieldApplyAll').checked = false; // Снимаем галку
+      window.saveSingleField(key); // Сохраняем пустое значение и закрываем окно
+  };
 
   // Если словарь успешно найден -> РЕЖИМ СПИСКА
   if (dict && dict.length > 0) {
@@ -6834,6 +6847,7 @@ window.openEditorField = function (originalKey) {
                 <input type="checkbox" id="singleFieldApplyAll" ${isGlobal ? "checked" : ""} style="width:20px; height:20px;">
                 <span style="font-size:14px; color:var(--text-main);">${t.inc_apply_all || "Применить ко всем товарам"}</span>
             </label>
+            ${val ? clearBtnHtml : ''}
         </div>`;
 
     listHtml = `
@@ -6841,9 +6855,7 @@ window.openEditorField = function (originalKey) {
             <ul id="dictList" style="list-style:none; padding:0; margin:0; background:var(--bg-panel); border-radius:8px; border:1px solid var(--border-light);">
                 ${dict
                   .map(
-                    (
-                      d,
-                    ) => `<li onclick="window.selectPreviewDictValue('${String(d).replace(/'/g, "\\'")}')" class="param-row">
+                    (d) => `<li onclick="window.selectPreviewDictValue('${String(d).replace(/'/g, "\\'")}')" class="param-row">
                     <span style="color:var(--text-main);">${d}</span>${d === val ? `<span style="color:var(--accent-blue);">✔</span>` : ""}
                 </li>`,
                   )
@@ -6859,6 +6871,7 @@ window.openEditorField = function (originalKey) {
                 <input type="checkbox" id="singleFieldApplyAll" ${isGlobal ? "checked" : ""} style="width:20px; height:20px;">
                 <span style="font-size:14px; color:var(--text-main);">${t.inc_apply_all || "Применить ко всем товарам"}</span>
             </label>
+            ${val ? clearBtnHtml : ''}
         </div>`;
 
     listHtml = `
