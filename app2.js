@@ -7334,28 +7334,30 @@ document.addEventListener('keydown', function(e) {
     }
 });
 
-function switchIncomeTab(tabName) {
+window.switchIncomeTab = function(tabName) {
     const btnImport = document.getElementById('tab-btn-import');
     const btnNew = document.getElementById('tab-btn-new');
     const tabImport = document.getElementById('tab-import');
     const tabNew = document.getElementById('tab-new-product');
 
     if (tabName === 'import') {
-        tabImport.style.display = 'block';
-        tabNew.style.display = 'none';
+        // ИЗМЕНЕНИЕ: Используем flex вместо block
+        if (tabImport) tabImport.style.display = 'flex';
+        if (tabNew) tabNew.style.display = 'none';
         
         // Меняем классы
-        btnImport.className = 'modal-tab active';
-        btnNew.className = 'modal-tab inactive';
+        if (btnImport) btnImport.className = 'modal-tab active';
+        if (btnNew) btnNew.className = 'modal-tab inactive';
     } else {
-        tabImport.style.display = 'none';
-        tabNew.style.display = 'block';
+        if (tabImport) tabImport.style.display = 'none';
+        // ИЗМЕНЕНИЕ: Используем flex вместо block
+        if (tabNew) tabNew.style.display = 'flex';
         
         // Меняем классы
-        btnImport.className = 'modal-tab inactive';
-        btnNew.className = 'modal-tab active';
+        if (btnImport) btnImport.className = 'modal-tab inactive';
+        if (btnNew) btnNew.className = 'modal-tab active';
     }
-}
+};
 
 // Функция открытия/закрытия списка (с вращением стрелки)
 window.toggleNtCategoryDropdown = function(event) {
