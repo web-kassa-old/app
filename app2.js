@@ -6559,10 +6559,11 @@ window.renderEditorMainUI = function (item) {
     Object.keys(window.tempAttrs).forEach(k => allKeys.add(k));
   }
 
-  let dicts = window.kaspiDicts || (window.mapper2State && window.mapper2State.dictionary) || {};
-
-  let mandatoryFields = [];
-  let optionalFields = [];
+  // Создаем 4 корзины для строгой сортировки
+  let mandatoryEmpty = [];
+  let mandatoryFilled = [];
+  let optionalEmpty = [];
+  let optionalFilled = [];
 
   Array.from(allKeys).forEach((k) => {
     let val = window.tempAttrs ? (window.tempAttrs[k] || "") : "";
@@ -6572,96 +6573,98 @@ window.renderEditorMainUI = function (item) {
     if (!displayKey) displayKey = k;
 
     let cleanDisplayKey = displayKey.replace('*', '').trim();
-    let isReq = displayKey.includes('*');
-    let isDict = dicts[cleanDisplayKey] && dicts[cleanDisplayKey].length > 0;
-    let isGlobal = window.applyToAllMap && window.applyToAllMap[k] !== undefined;
 
-    // Жесткая проверка: Артикул всегда обязателен и авто-заполняем
-    let isSku = k.toLowerCase().includes("sku") || cleanDisplayKey.toLowerCase().includes("артикул");
-    if (isSku && !val) {
-      val = t.inc_auto_fill || "Автоматически";
-      isReq = true; 
+    // ХИТРОСТЬ: Читаем статус обязательности из HTML предыдущего экрана маппинга
+    let isReq = false;
+    let prevCard = document.querySelector(`.req-card[onclick*="'${k}'"]`);
+    if (prevCard && prevCard.querySelector('.required')) {
+        isReq = true;
     }
-
-    // Страховка: Если звездочка потерялась, принудительно делаем базовые поля обязательными
+    
+    // Страховка на случай, если HTML недоступен
     let lowerDisp = cleanDisplayKey.toLowerCase();
     if (lowerDisp.includes('бренд') || lowerDisp.includes('название') || lowerDisp.includes('наименование') || lowerDisp.includes('штрихкод') || lowerDisp.includes('цена')) {
         isReq = true;
     }
 
+    let isGlobal = window.applyToAllMap && window.applyToAllMap[k] !== undefined;
+    let isSku = k.toLowerCase().includes("sku") || cleanDisplayKey.toLowerCase().includes("артикул");
+
+    if (isSku && !val) {
+      val = t.inc_auto_fill || "Автоматически";
+      isReq = true;
+    }
+
+    let isEmpty = (val === "" || val === undefined);
     let fieldObj = {
         k: k,
         cleanDisplayKey: cleanDisplayKey,
         val: val,
-        isDict: isDict,
         isGlobal: isGlobal,
         isSku: isSku,
         isReq: isReq,
         previewVal: val.length > 50 ? val.substring(0, 50) + "..." : val
     };
 
-    if (isReq || isSku) {
-        mandatoryFields.push(fieldObj);
+    // Раскидываем по корзинам
+    if (isReq) {
+        if (isEmpty) mandatoryEmpty.push(fieldObj);
+        else mandatoryFilled.push(fieldObj);
     } else {
-        optionalFields.push(fieldObj);
+        if (isEmpty) optionalEmpty.push(fieldObj);
+        else optionalFilled.push(fieldObj);
     }
   });
 
-  // 2. СОРТИРОВКА (Сначала пустые, потом заполненные)
-  const sortFields = (a, b) => {
-      let aEmpty = (a.val === "" || a.val === undefined) ? 0 : 1;
-      let bEmpty = (b.val === "" || b.val === undefined) ? 0 : 1;
-      return aEmpty - bEmpty; // 0 (пустые) всплывают наверх
-  };
-
-  mandatoryFields.sort(sortFields);
-  optionalFields.sort(sortFields);
-
-  // 3. ФУНКЦИЯ ОТРИСОВКИ СПИСКА (С динамическим акцентом)
+  // 2. ФУНКЦИЯ ОТРИСОВКИ СПИСКА
   const renderList = (fields) => {
       let html = "";
       fields.forEach(f => {
-          let inputTypeIcon = f.isDict
-              ? `<span style="font-size:9px; color:var(--accent-blue); opacity:0.8; padding: 2px 4px; border: 1px solid rgba(50, 157, 250, 0.3); border-radius: 3px;">СПРАВОЧНИК</span>`
-              : `<span style="font-size:9px; color:#888; opacity:0.8; padding: 2px 4px; border: 1px solid rgba(136, 136, 136, 0.3); border-radius: 3px;">ВВОД</span>`;
-
           let reqStar = f.isReq ? `<span style="color:#ff4444; margin-left:2px; font-weight:bold; font-size:14px;">*</span>` : "";
 
-          // УМНЫЙ ВИЗУАЛ: Если пустое - название крупное. Если заполнено - название мелкое.
+          // АКЦЕНТ: Если пустое - название крупное. Если заполнено - название мелкое, уходит наверх.
           let titleStyle = f.val
               ? `font-size:10px; color:var(--text-muted); text-transform:uppercase; margin-bottom:4px;`
               : `font-size:14px; color:var(--text-main); font-weight:bold; text-transform:uppercase; margin-bottom:0;`;
+
+          // ГАЛОЧКА: Только для артикула. Для остальных синяя стрелочка.
+          let rightIcon = f.isSku ? '&#10003;' : '&#10095;';
+          let iconColor = f.isSku ? 'var(--text-muted)' : 'var(--accent-blue)';
 
           html += `
           <div class="param-row" onclick="window.openEditorField('${f.k}')" style="display:flex; justify-content:space-between; align-items:center; padding:14px 16px; border-bottom:1px solid var(--border-light, rgba(128,128,128,0.2)); cursor:pointer; transition: background 0.2s;">
               <div style="flex: 1; min-width: 0; padding-right: 15px;">
                   <div style="${titleStyle} display:flex; align-items:center; flex-wrap:wrap; gap:6px;">
-                      <span>${f.cleanDisplayKey}${reqStar}</span> ${inputTypeIcon}
+                      <span>${f.cleanDisplayKey}${reqStar}</span>
                       ${f.isGlobal ? `<span style="background:rgba(50, 157, 250, 0.15); color:var(--accent-blue); padding:2px 6px; border-radius:4px; font-size:9px; font-weight:bold;">${t.inc_apply_all_badge || "Ко всем"}</span>` : ""}
                   </div>
-                  ${f.val ? `<div style="font-size:15px; font-weight:bold; color:${f.isSku ? 'var(--text-muted)' : 'var(--accent-green)'}; word-break: break-word; line-height: 1.3;">${f.previewVal}</div>` : ""}
+                  ${f.val ? `<div style="font-size:15px; font-weight:bold; color:${f.isSku ? 'var(--text-muted)' : 'var(--text-main)'}; word-break: break-word; line-height: 1.3;">${f.previewVal}</div>` : ""}
               </div>
-              <div style="flex-shrink: 0; color:${f.val ? 'var(--text-muted)' : 'var(--accent-blue)'}; font-size:18px;">${f.val ? '&#10003;' : '&#10095;'}</div>
+              <div style="flex-shrink: 0; color:${iconColor}; font-size:18px;">${rightIcon}</div>
           </div>`;
       });
       return html;
   };
 
-  // 4. СКЛЕИВАЕМ БЛОКИ С ЗАГОЛОВКАМИ
+  // 3. СКЛЕИВАЕМ БЛОКИ (Сначала пустые, потом заполненные внутри каждого блока)
   let finalHtml = "";
+  
+  // Объединяем пустые и заполненные для каждого блока
+  let mandatoryAll = mandatoryEmpty.concat(mandatoryFilled);
+  let optionalAll = optionalEmpty.concat(optionalFilled);
 
-  if (mandatoryFields.length > 0) {
+  if (mandatoryAll.length > 0) {
       finalHtml += `
       <div style="padding: 24px 16px 8px; font-size: 11px; color: #ff4444; text-transform: uppercase; font-weight: bold; letter-spacing: 1px; text-align: left; display: flex; align-items: center; gap: 6px; background: rgba(255,68,68,0.05);">
         <div style="width:8px; height:8px; border-radius:50%; background:#ff4444;"></div> Обязательные параметры
-      </div>` + renderList(mandatoryFields);
+      </div>` + renderList(mandatoryAll);
   }
 
-  if (optionalFields.length > 0) {
+  if (optionalAll.length > 0) {
       finalHtml += `
       <div style="padding: 24px 16px 8px; font-size: 11px; color: var(--accent-blue); text-transform: uppercase; font-weight: bold; letter-spacing: 1px; text-align: left; display: flex; align-items: center; gap: 6px; background: rgba(50,157,250,0.05);">
         <div style="width:8px; height:8px; border-radius:50%; background:var(--accent-blue);"></div> Дополнительные параметры
-      </div>` + renderList(optionalFields);
+      </div>` + renderList(optionalAll);
   }
 
   let modalContainer = document.getElementById("modalContainer");
