@@ -1,39 +1,58 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ru">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
     <title>Trade Control v5.5.0</title>
 
     <script src="config.js?v=6.0.0"></script>
 
-    <link rel="manifest" href="manifest.json">
-    <link rel="icon" type="image/png" href="icon-512.png">
-    <link rel="apple-touch-icon" href="icon.png">
-    <meta name="mobile-web-app-capable" content="yes"> <meta name="apple-mobile-web-app-capable" content="yes"> <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <link rel="manifest" href="manifest.json" />
+    <link rel="icon" type="image/png" href="icon-512.png" />
+    <link rel="apple-touch-icon" href="icon.png" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
 
-    <meta name="google-site-verification" content="tVEMyhwnt22QkX5IOJYMit7h7tQXTuvqhE-GnzDYkq4" />
+    <meta
+      name="google-site-verification"
+      content="tVEMyhwnt22QkX5IOJYMit7h7tQXTuvqhE-GnzDYkq4"
+    />
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@400;700&family=Roboto:wght@400;700;900&display=swap" rel="stylesheet">
-    
-    <link rel="stylesheet" href="style.css?v=6.0.0">
-    <script src="https://accounts.google.com/gsi/client" onload="initGoogleAuth()" async defer></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@400;700&family=Roboto:wght@400;700;900&display=swap"
+      rel="stylesheet"
+    />
+
+    <link rel="stylesheet" href="style.css?v=6.0.0" />
+    <script
+      src="https://accounts.google.com/gsi/client"
+      onload="initGoogleAuth()"
+      async
+      defer
+    ></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
-</head>
-<body>
-
+  </head>
+  <body>
     <script>
-    // 1. Агрессивный детектор In-App браузеров СРАЗУ при запуске
-    (function checkBadBrowser() {
+      // 1. Агрессивный детектор In-App браузеров СРАЗУ при запуске
+      (function checkBadBrowser() {
         const ua = navigator.userAgent || navigator.vendor || window.opera;
-        const isBad = (ua.indexOf('Telegram') > -1 || ua.indexOf('Instagram') > -1 || ua.indexOf('FBAN') > -1 || ua.indexOf('FBAV') > -1);
-        
+        const isBad =
+          ua.indexOf("Telegram") > -1 ||
+          ua.indexOf("Instagram") > -1 ||
+          ua.indexOf("FBAN") > -1 ||
+          ua.indexOf("FBAV") > -1;
+
         if (isBad) {
-            document.documentElement.innerHTML = `
+          document.documentElement.innerHTML = `
                 <head>
                     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
                     <style>
@@ -53,133 +72,464 @@
                     </div>
                 </body>
             `;
-            window.stop(); 
+          window.stop();
         }
-    })();
-</script>
+      })();
+    </script>
 
-    <div id="google-screen" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100dvh; z-index: 10000; display: flex; flex-direction: column; align-items: center; justify-content: center; background: var(--bg-body); color: var(--text-main);">
-    <div style="text-align: center; margin-bottom: 30px;">
-        <h1 style="font-family: 'Roboto Condensed', sans-serif; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px;">TRADE CONTROL</h1>
-        <p data-i18n="app_subtitle" style="color: var(--text-muted); font-size: 14px;">Система автоматизации торговли</p>
-    </div>
-    
-    <div style="background: var(--bg-panel); border: 1px solid var(--border-main); padding: 30px; border-radius: 8px; text-align: center; max-width: 360px; width: 90%;">
-        <h2 data-i18n="auth_title" style="font-size: 18px; margin-bottom: 15px;">Авторизация</h2>
-        <p data-i18n="auth_desc" style="color: var(--text-muted); font-size: 13px; margin-bottom: 25px; line-height: 1.5;">
-            Для получения доступа к кассовому терминалу и синхронизации с базой данных, пожалуйста, войдите под своим рабочим Google-аккаунтом.
+    <div
+      id="google-screen"
+      style="
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100dvh;
+        z-index: 10000;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background: var(--bg-body);
+        color: var(--text-main);
+      "
+    >
+      <div style="text-align: center; margin-bottom: 30px">
+        <h1
+          style="
+            font-family: &quot;Roboto Condensed&quot;, sans-serif;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+          "
+        >
+          TRADE CONTROL
+        </h1>
+        <p
+          data-i18n="app_subtitle"
+          style="color: var(--text-muted); font-size: 14px"
+        >
+          Система автоматизации торговли
         </p>
-        
-        <button type="button" id="login-btn" onclick="loginWithGoogle(event)" style="background: #4285F4; color: white; border: none; padding: 12px 20px; border-radius: 4px; font-weight: bold; width: 100%; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px;">
-            <svg width="18" height="18" viewBox="0 0 18 18"><path d="M17.64 9.2c0-.63-.06-1.25-.16-1.84H9v3.47h4.84c-.21 1.12-.84 2.07-1.8 2.71v2.24h2.91c1.7-1.56 2.69-3.86 2.69-6.58z" fill="#4285F4"/><path d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.91-2.24c-.8.54-1.84.87-3.05.87-2.34 0-4.33-1.57-5.03-3.68H.95v2.3A9 9 0 0 0 9 18z" fill="#34A853"/><path d="M3.97 10.77c-.18-.54-.28-1.11-.28-1.7 0-.59.1-1.16.28-1.7V5.07H.95A8.99 8.99 0 0 0 0 9c0 1.45.35 2.82.95 4.07l3.02-2.3z" fill="#FBBC05"/><path d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.59C13.47.89 11.43 0 9 0 5.48 0 2.44 2.02.95 5.07l3.02 2.3c.7-2.11 2.69-3.68 5.03-3.68z" fill="#EA4335"/></svg>
-            <span data-i18n="btn_google">ВОЙТИ ЧЕРЕЗ GOOGLE</span>
-        </button>
-    </div>
-    <div id="version-google" style="position: absolute; bottom: 20px; font-size: 11px; color: var(--text-muted); letter-spacing: 1px;">v: ---</div>
-</div>
+      </div>
 
-    <div id="pin-screen" style="display: none;">
-        <div class="login-label" data-i18n="login_title">ВХОД</div>
-        <input type="password" id="pin-field" class="pin-input" placeholder="****" readonly>
-        <div id="login-error">НЕВЕРНЫЙ ПИН-КОД</div>
-        
-        <div class="numpad">
-            <div class="num-btn" onclick="addPin('1')">1</div>
-            <div class="num-btn" onclick="addPin('2')">2</div>
-            <div class="num-btn" onclick="addPin('3')">3</div>
-            <div class="num-btn" onclick="addPin('4')">4</div>
-            <div class="num-btn" onclick="addPin('5')">5</div>
-            <div class="num-btn" onclick="addPin('6')">6</div>
-            <div class="num-btn" onclick="addPin('7')">7</div>
-            <div class="num-btn" onclick="addPin('8')">8</div>
-            <div class="num-btn" onclick="addPin('9')">9</div>
-            <div id="btn-clear-pin" class="num-btn btn-clear"
-                onmousedown="startResetHold(this, event)"
-                onmouseup="cancelResetHold(this, event)"
-                onmouseleave="cancelResetHold(this, event)"
-                ontouchstart="startResetHold(this, event)"
-                ontouchend="cancelResetHold(this, event)"
-                ontouchcancel="cancelResetHold(this, event)">
-                C
-            </div>
-            <div class="num-btn" onclick="addPin('0')">0</div>
-            <div class="num-btn btn-clear" onclick="delPin()">⌫</div>
+      <div
+        style="
+          background: var(--bg-panel);
+          border: 1px solid var(--border-main);
+          padding: 30px;
+          border-radius: 8px;
+          text-align: center;
+          max-width: 360px;
+          width: 90%;
+        "
+      >
+        <h2 data-i18n="auth_title" style="font-size: 18px; margin-bottom: 15px">
+          Авторизация
+        </h2>
+        <p
+          data-i18n="auth_desc"
+          style="
+            color: var(--text-muted);
+            font-size: 13px;
+            margin-bottom: 25px;
+            line-height: 1.5;
+          "
+        >
+          Для получения доступа к кассовому терминалу и синхронизации с базой
+          данных, пожалуйста, войдите под своим рабочим Google-аккаунтом.
+        </p>
+
+        <button
+          type="button"
+          id="login-btn"
+          onclick="loginWithGoogle(event)"
+          style="
+            background: #4285f4;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 4px;
+            font-weight: bold;
+            width: 100%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+          "
+        >
+          <svg width="18" height="18" viewBox="0 0 18 18">
+            <path
+              d="M17.64 9.2c0-.63-.06-1.25-.16-1.84H9v3.47h4.84c-.21 1.12-.84 2.07-1.8 2.71v2.24h2.91c1.7-1.56 2.69-3.86 2.69-6.58z"
+              fill="#4285F4"
+            />
+            <path
+              d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.91-2.24c-.8.54-1.84.87-3.05.87-2.34 0-4.33-1.57-5.03-3.68H.95v2.3A9 9 0 0 0 9 18z"
+              fill="#34A853"
+            />
+            <path
+              d="M3.97 10.77c-.18-.54-.28-1.11-.28-1.7 0-.59.1-1.16.28-1.7V5.07H.95A8.99 8.99 0 0 0 0 9c0 1.45.35 2.82.95 4.07l3.02-2.3z"
+              fill="#FBBC05"
+            />
+            <path
+              d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.59C13.47.89 11.43 0 9 0 5.48 0 2.44 2.02.95 5.07l3.02 2.3c.7-2.11 2.69-3.68 5.03-3.68z"
+              fill="#EA4335"
+            />
+          </svg>
+          <span data-i18n="btn_google">ВОЙТИ ЧЕРЕЗ GOOGLE</span>
+        </button>
+      </div>
+      <div
+        id="version-google"
+        style="
+          position: absolute;
+          bottom: 20px;
+          font-size: 11px;
+          color: var(--text-muted);
+          letter-spacing: 1px;
+        "
+      >
+        v: ---
+      </div>
+    </div>
+
+    <div id="pin-screen" style="display: none">
+      <div class="login-label" data-i18n="login_title">ВХОД</div>
+      <input
+        type="password"
+        id="pin-field"
+        class="pin-input"
+        placeholder="****"
+        readonly
+      />
+      <div id="login-error">НЕВЕРНЫЙ ПИН-КОД</div>
+
+      <div class="numpad">
+        <div class="num-btn" onclick="addPin('1')">1</div>
+        <div class="num-btn" onclick="addPin('2')">2</div>
+        <div class="num-btn" onclick="addPin('3')">3</div>
+        <div class="num-btn" onclick="addPin('4')">4</div>
+        <div class="num-btn" onclick="addPin('5')">5</div>
+        <div class="num-btn" onclick="addPin('6')">6</div>
+        <div class="num-btn" onclick="addPin('7')">7</div>
+        <div class="num-btn" onclick="addPin('8')">8</div>
+        <div class="num-btn" onclick="addPin('9')">9</div>
+        <div
+          id="btn-clear-pin"
+          class="num-btn btn-clear"
+          onmousedown="startResetHold(this, event)"
+          onmouseup="cancelResetHold(this, event)"
+          onmouseleave="cancelResetHold(this, event)"
+          ontouchstart="startResetHold(this, event)"
+          ontouchend="cancelResetHold(this, event)"
+          ontouchcancel="cancelResetHold(this, event)"
+        >
+          C
         </div>
-        <div id="version-pin" style="position: absolute; bottom: max(80px, env(safe-area-inset-bottom)); left: 0; width: 100%; text-align: center; color: var(--text-muted); font-size: 11px; font-weight: bold; z-index: 99; pointer-events: none;"></div>
+        <div class="num-btn" onclick="addPin('0')">0</div>
+        <div class="num-btn btn-clear" onclick="delPin()">⌫</div>
+      </div>
+      <div
+        id="version-pin"
+        style="
+          position: absolute;
+          bottom: max(80px, env(safe-area-inset-bottom));
+          left: 0;
+          width: 100%;
+          text-align: center;
+          color: var(--text-muted);
+          font-size: 11px;
+          font-weight: bold;
+          z-index: 99;
+          pointer-events: none;
+        "
+      ></div>
     </div>
 
     <div class="header-area">
-        <div class="modes">
-            <button id="ms" class="m-btn active-s" onclick="sm('sale')" data-i18n="btn_sale">ПРОДАЖА</button>
-            <button id="mr" class="m-btn" onclick="sm('return')" data-i18n="btn_return">ВОЗВРАТ</button>
-            <button class="btn-exit-top" onclick="logout()">✖</button>
+      <div class="modes">
+        <button
+          id="ms"
+          class="m-btn active-s"
+          onclick="sm('sale')"
+          data-i18n="btn_sale"
+        >
+          ПРОДАЖА
+        </button>
+        <button
+          id="mr"
+          class="m-btn"
+          onclick="sm('return')"
+          data-i18n="btn_return"
+        >
+          ВОЗВРАТ
+        </button>
+        <button class="btn-exit-top" onclick="logout()">✖</button>
+      </div>
+
+      <div class="search-area">
+        <div class="s-input-container">
+          <input
+            type="text"
+            id="sb"
+            class="s-input"
+            data-i18n-placeholder="search_placeholder"
+            placeholder="ПОИСК..."
+            oninput="handleSearchInput()"
+          />
+          <span
+            id="clear-search"
+            onclick="clearSearch()"
+            style="
+              position: absolute;
+              right: 10px;
+              top: 50%;
+              transform: translateY(-50%);
+              color: var(--text-muted);
+              font-size: 16px;
+              cursor: pointer;
+              display: none;
+              padding: 5px;
+              height: 100%;
+              align-items: center;
+              justify-content: center;
+            "
+            >✕</span
+          >
         </div>
-        
-        <div class="search-area">
-    <div class="s-input-container">
-        <input type="text" id="sb" class="s-input" data-i18n-placeholder="search_placeholder" placeholder="ПОИСК..." oninput="handleSearchInput()">
-        <span id="clear-search" onclick="clearSearch()" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-size: 16px; cursor: pointer; display: none; padding: 5px; height: 100%; align-items: center; justify-content: center;">✕</span>
-    </div>
-    
-    <button id="btn-sync-data" class="header-action-btn header-btn-sync" title="Обновить остатки и цены (удерживайте для полной загрузки)">↻</button>
-    
-    <button class="header-action-btn header-btn-report" onclick="openReport()">📊</button>
-    
-    <!-- Кнопка ПРИЕМКИ (Зеленая) -->
-    <button id="btn-income" class="header-action-btn" title="Приемка" onclick="toggleIncomeModule()" style="background: var(--accent-green, #27ae60); border-color: var(--accent-green, #27ae60); color: #ffffff; min-width: 42px; padding: 0; display: flex; justify-content: center; align-items: center;">
-        <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 5v14M19 12l-7 7-7-7"/>
-        </svg>
-    </button>
 
-    <!-- Кнопка ЭКСПОРТА (Синяя) -->
-    <button id="btn-export" class="header-action-btn" title="Экспорт" onclick="toggleExportModule()" style="background: var(--accent-blue, #2980b9); border-color: var(--accent-blue, #2980b9); color: #ffffff; min-width: 42px; padding: 0; display: flex; justify-content: center; align-items: center;">
-        <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 19V5M5 12l7-7 7 7"/>
-        </svg>
-    </button>
-    
-    <button id="btn-settings" class="header-action-btn header-btn-settings" onclick="openSettings()" style="background: var(--bg-panel); border-color: var(--border-light); color: var(--text-main);">
-        <span id="sync-icon">⚙️</span>
-        <span id="queue-counter" class="queue-badge" style="display: none;">1</span>
-    </button>
-</div>
+        <button
+          id="btn-sync-data"
+          class="header-action-btn header-btn-sync"
+          title="Обновить остатки и цены (удерживайте для полной загрузки)"
+        >
+          ↻
+        </button>
 
-<!-- МОДУЛЬ ЭКСПОРТА И МАППИНГА -->
-<div id="export-modal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: var(--bg-overlay); z-index: 10000; justify-content: center; align-items: flex-start; padding-top: 4vh; backdrop-filter: blur(3px); touch-action: none;">
-    
-    <div style="background: var(--bg-modal); border: 1px solid var(--border-light); border-radius: 8px; width: 95%; max-width: 600px; padding: 20px; color: var(--text-main); max-height: 80vh; display: flex; flex-direction: column; position: relative; box-sizing: border-box; overscroll-behavior: none;">
-        
-        <button onclick="toggleExportModule()" style="position: absolute; right: 15px; top: 15px; background: transparent; border: none; color: #ff4d4d; font-size: 20px; cursor: pointer; font-weight: bold;">✕</button>
-        
-        <h3 style="margin-bottom: 20px; color: var(--accent-blue);">
-            <span style="font-size: 1.2em; vertical-align: middle;">📤</span> <span data-i18n="export_title">НАСТРОЙКА ЭКСПОРТА</span>
-        </h3>
+        <button
+          class="header-action-btn header-btn-report"
+          onclick="openReport()"
+        >
+          📊
+        </button>
 
-        <div class="file-input-wrapper" style="margin-bottom: 15px;">
-            <label for="templateFileInput" class="file-upload-label" style="padding: 12px; border: 1px dashed var(--border-main); border-radius: 4px; display: flex; align-items: center; justify-content: center; cursor: pointer; background: var(--bg-body); transition: background-color 0.2s;">
-                <span id="templateFileName" style="font-size: 14px; color: var(--text-main);" data-i18n="upload_template">📄 Загрузить пустой шаблон (.xlsx)</span>
+        <!-- Кнопка ПРИЕМКИ (Зеленая) -->
+        <button
+          id="btn-income"
+          class="header-action-btn"
+          title="Приемка"
+          onclick="toggleIncomeModule()"
+          style="
+            background: var(--accent-green, #27ae60);
+            border-color: var(--accent-green, #27ae60);
+            color: #ffffff;
+            min-width: 42px;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+          "
+        >
+          <svg
+            viewBox="0 0 24 24"
+            width="22"
+            height="22"
+            stroke="currentColor"
+            stroke-width="2.5"
+            fill="none"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M12 5v14M19 12l-7 7-7-7" />
+          </svg>
+        </button>
+
+        <!-- Кнопка ЭКСПОРТА (Синяя) -->
+        <button
+          id="btn-export"
+          class="header-action-btn"
+          title="Экспорт"
+          onclick="toggleExportModule()"
+          style="
+            background: var(--accent-blue, #2980b9);
+            border-color: var(--accent-blue, #2980b9);
+            color: #ffffff;
+            min-width: 42px;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+          "
+        >
+          <svg
+            viewBox="0 0 24 24"
+            width="22"
+            height="22"
+            stroke="currentColor"
+            stroke-width="2.5"
+            fill="none"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M12 19V5M5 12l7-7 7 7" />
+          </svg>
+        </button>
+
+        <button
+          id="btn-settings"
+          class="header-action-btn header-btn-settings"
+          onclick="openSettings()"
+          style="
+            background: var(--bg-panel);
+            border-color: var(--border-light);
+            color: var(--text-main);
+          "
+        >
+          <span id="sync-icon">⚙️</span>
+          <span id="queue-counter" class="queue-badge" style="display: none"
+            >1</span
+          >
+        </button>
+      </div>
+
+      <!-- МОДУЛЬ ЭКСПОРТА И МАППИНГА -->
+      <div
+        id="export-modal"
+        style="
+          display: none;
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: var(--bg-overlay);
+          z-index: 10000;
+          justify-content: center;
+          align-items: flex-start;
+          padding-top: 4vh;
+          backdrop-filter: blur(3px);
+          touch-action: none;
+        "
+      >
+        <div
+          style="
+            background: var(--bg-modal);
+            border: 1px solid var(--border-light);
+            border-radius: 8px;
+            width: 95%;
+            max-width: 600px;
+            padding: 20px;
+            color: var(--text-main);
+            max-height: 80vh;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            box-sizing: border-box;
+            overscroll-behavior: none;
+          "
+        >
+          <button
+            onclick="toggleExportModule()"
+            style="
+              position: absolute;
+              right: 15px;
+              top: 15px;
+              background: transparent;
+              border: none;
+              color: #ff4d4d;
+              font-size: 20px;
+              cursor: pointer;
+              font-weight: bold;
+            "
+          >
+            ✕
+          </button>
+
+          <h3 style="margin-bottom: 20px; color: var(--accent-blue)">
+            <span style="font-size: 1.2em; vertical-align: middle">📤</span>
+            <span data-i18n="export_title">НАСТРОЙКА ЭКСПОРТА</span>
+          </h3>
+
+          <div class="file-input-wrapper" style="margin-bottom: 15px">
+            <label
+              for="templateFileInput"
+              class="file-upload-label"
+              style="
+                padding: 12px;
+                border: 1px dashed var(--border-main);
+                border-radius: 4px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                cursor: pointer;
+                background: var(--bg-body);
+                transition: background-color 0.2s;
+              "
+            >
+              <span
+                id="templateFileName"
+                style="font-size: 14px; color: var(--text-main)"
+                data-i18n="upload_template"
+                >📄 Загрузить пустой шаблон (.xlsx)</span
+              >
             </label>
-            <input type="file" id="templateFileInput" accept=".xml, text/xml, application/xml, .xls, .xlsx, .xlsm" style="display: none;" onchange="handleTemplateUpload(event)">
-        </div>
+            <input
+              type="file"
+              id="templateFileInput"
+              accept=".xml, text/xml, application/xml, .xls, .xlsx, .xlsm"
+              style="display: none"
+              onchange="handleTemplateUpload(event)"
+            />
+          </div>
 
-        <div id="exportMapperArea" style="display: none; flex-direction: column; overflow-y: auto; max-height: 50vh; padding-right: 5px; -webkit-overflow-scrolling: touch;">
+          <div
+            id="exportMapperArea"
+            style="
+              display: none;
+              flex-direction: column;
+              overflow-y: auto;
+              max-height: 50vh;
+              padding-right: 5px;
+              -webkit-overflow-scrolling: touch;
+            "
+          >
             <!-- Селекты маппинга -->
-        </div>
+          </div>
 
-        <button id="generateExportBtn" class="btn-primary blue" style="display: none; margin-top: 15px;" onclick="generateExportFile()" data-i18n="generate_price">СГЕНЕРИРОВАТЬ ПРАЙС</button>
-    </div>
-</div>
-        
-        <div class="list-header">
-            <div style="flex-grow: 1; display: flex; align-items: center; gap: 10px;">
-                <span data-i18n="header_name">НАИМЕНОВАНИЕ</span>
-                <span id="app-version" class="badge">v: ---</span>
-                <span id="cashier-info" class="cashier-badge" style="display: none;">👤 ---</span>
-            </div>
-            <div style="width: 85px; text-align: right;" data-i18n="header_price">ЦЕНА</div>
-            <div style="width: 50px; text-align: right; padding-right: 4px;" data-i18n="header_stock">ОСТ</div>
+          <button
+            id="generateExportBtn"
+            class="btn-primary blue"
+            style="display: none; margin-top: 15px"
+            onclick="generateExportFile()"
+            data-i18n="generate_price"
+          >
+            СГЕНЕРИРОВАТЬ ПРАЙС
+          </button>
         </div>
+      </div>
+
+      <div class="list-header">
+        <div
+          style="flex-grow: 1; display: flex; align-items: center; gap: 10px"
+        >
+          <span data-i18n="header_name">НАИМЕНОВАНИЕ</span>
+          <span id="app-version" class="badge">v: ---</span>
+          <span id="cashier-info" class="cashier-badge" style="display: none"
+            >👤 ---</span
+          >
+        </div>
+        <div style="width: 85px; text-align: right" data-i18n="header_price">
+          ЦЕНА
+        </div>
+        <div
+          style="width: 50px; text-align: right; padding-right: 4px"
+          data-i18n="header_stock"
+        >
+          ОСТ
+        </div>
+      </div>
     </div>
 
     <div class="cat-bar" id="categoryBar"></div>
@@ -187,643 +537,2644 @@
     <div id="catalog"></div>
 
     <div id="cs" class="cart-sec">
-        <div id="cart-list"></div>
-        <div class="footer">
-            <div class="total-box"><span id="tl" data-i18n="total_label_sale">ИТОГО:</span><span id="ta">0 ₸</span></div>
-            <div class="pay-row-5">
-                <button class="pay-btn" style="background-color: #2ecc71;" onclick="initPay('cash', 'Наличные')">
-                    <span class="pay-title" data-i18n="pay_cash_full">НАЛИЧНЫЕ</span>
-                    <span class="pay-sum" id="sum-cash">0 ₸</span>
-                </button>
-                <button class="pay-btn" style="background-color: #e74c3c;" onclick="initPay('qr_kaspi', 'Kaspi QR')">
-                    <span class="pay-title" data-i18n="pay_qr_full">QR</span>
-                    <span class="pay-sum" id="sum-qr">0 ₸</span>
-                </button>
-                <button class="pay-btn" style="background-color: #9b59b6;" onclick="initPay('installment', 'Рассрочка')">
-                    <span class="pay-title" data-i18n="pay_red_full">РАССРОЧКА</span>
-                    <span class="pay-sum" id="sum-red">0 ₸</span>
-                </button>
-                <button class="pay-btn" style="background-color: #2980b9;" onclick="initPay('pos_terminal', 'Терминал')">
-                    <span class="pay-title" data-i18n="pay_card_full">ТЕРМИНАЛ</span>
-                    <span class="pay-sum" id="sum-card">0 ₸</span>
-                </button>
-                <button class="pay-btn" style="background-color: #f39c12;" onclick="initPay('transfer', 'Перевод')">
-                    <span class="pay-title" data-i18n="pay_trans_full">ПЕРЕВОД</span>
-                    <span class="pay-sum" id="sum-trans">0 ₸</span>
-                </button>
-            </div>
+      <div id="cart-list"></div>
+      <div class="footer">
+        <div class="total-box">
+          <span id="tl" data-i18n="total_label_sale">ИТОГО:</span
+          ><span id="ta">0 ₸</span>
         </div>
+        <div class="pay-row-5">
+          <button
+            class="pay-btn"
+            style="background-color: #2ecc71"
+            onclick="initPay('cash', 'Наличные')"
+          >
+            <span class="pay-title" data-i18n="pay_cash_full">НАЛИЧНЫЕ</span>
+            <span class="pay-sum" id="sum-cash">0 ₸</span>
+          </button>
+          <button
+            class="pay-btn"
+            style="background-color: #e74c3c"
+            onclick="initPay('qr_kaspi', 'Kaspi QR')"
+          >
+            <span class="pay-title" data-i18n="pay_qr_full">QR</span>
+            <span class="pay-sum" id="sum-qr">0 ₸</span>
+          </button>
+          <button
+            class="pay-btn"
+            style="background-color: #9b59b6"
+            onclick="initPay('installment', 'Рассрочка')"
+          >
+            <span class="pay-title" data-i18n="pay_red_full">РАССРОЧКА</span>
+            <span class="pay-sum" id="sum-red">0 ₸</span>
+          </button>
+          <button
+            class="pay-btn"
+            style="background-color: #2980b9"
+            onclick="initPay('pos_terminal', 'Терминал')"
+          >
+            <span class="pay-title" data-i18n="pay_card_full">ТЕРМИНАЛ</span>
+            <span class="pay-sum" id="sum-card">0 ₸</span>
+          </button>
+          <button
+            class="pay-btn"
+            style="background-color: #f39c12"
+            onclick="initPay('transfer', 'Перевод')"
+          >
+            <span class="pay-title" data-i18n="pay_trans_full">ПЕРЕВОД</span>
+            <span class="pay-sum" id="sum-trans">0 ₸</span>
+          </button>
+        </div>
+      </div>
     </div>
 
     <div id="receipt-modal" class="modal-overlay">
-        <div class="receipt-box">
-            <div id="r-title" class="r-title">ПОДТВЕРЖДЕНИЕ</div>
-            <div id="r-method" class="r-method">Метод оплаты</div>
-            <div id="r-items-list"></div>
-            <div id="r-total" class="r-total">ИТОГО: 0 ₸</div>
-            <div class="modal-btns">
-                <button class="cancel-btn" onclick="cancelTx()" data-i18n="btn_cancel">ОТМЕНА</button>
-                <button id="btn-confirm" class="confirm-btn" onclick="confirmTx()" data-i18n="btn_confirm">ПОДТВЕРДИТЬ</button>
-            </div>
+      <div class="receipt-box">
+        <div id="r-title" class="r-title">ПОДТВЕРЖДЕНИЕ</div>
+        <div id="r-method" class="r-method">Метод оплаты</div>
+        <div id="r-items-list"></div>
+        <div id="r-total" class="r-total">ИТОГО: 0 ₸</div>
+        <div class="modal-btns">
+          <button
+            class="cancel-btn"
+            onclick="cancelTx()"
+            data-i18n="btn_cancel"
+          >
+            ОТМЕНА
+          </button>
+          <button
+            id="btn-confirm"
+            class="confirm-btn"
+            onclick="confirmTx()"
+            data-i18n="btn_confirm"
+          >
+            ПОДТВЕРДИТЬ
+          </button>
         </div>
+      </div>
     </div>
 
-    <div id="report-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: var(--bg-body); z-index: 9999; flex-direction: column;">
-        
-        <div style="padding: 12px 15px; text-align: center; border-bottom: 1px solid var(--border-main); position: relative; display: flex; align-items: center; justify-content: center;">
-            <h2 id="rep-header-title" style="margin: 0; font-size: 14px; color: var(--text-main); letter-spacing: 1px; text-transform: uppercase;">ОТЧЕТ ЗА ПЕРИОД</h2>
-            
-            <div onclick="closeReport()" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); font-size: 18px; color: var(--text-muted); cursor: pointer; padding: 5px; line-height: 1;">✕</div>
-        </div>
+    <div
+      id="report-modal"
+      style="
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background: var(--bg-body);
+        z-index: 9999;
+        flex-direction: column;
+      "
+    >
+      <div
+        style="
+          padding: 12px 15px;
+          text-align: center;
+          border-bottom: 1px solid var(--border-main);
+          position: relative;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        "
+      >
+        <h2
+          id="rep-header-title"
+          style="
+            margin: 0;
+            font-size: 14px;
+            color: var(--text-main);
+            letter-spacing: 1px;
+            text-transform: uppercase;
+          "
+        >
+          ОТЧЕТ ЗА ПЕРИОД
+        </h2>
 
-        <div style="padding: 8px 10px; border-bottom: 1px solid var(--border-main);">
-            <div id="date-range-controls" style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
-                <div class="date-wrap"><input type="date" id="rep-date-start" onchange="renderReport()"></div>
-                <div style="color:var(--text-muted)">—</div>
-                <div class="date-wrap"><input type="date" id="rep-date-end" onchange="renderReport()"></div>
-            </div>
-            <div style="position: relative;">
-                <input type="text" id="rep-search" placeholder="ПОИСК..." oninput="filterReport()" 
-                    style="width: 100%; padding: 6px 8px; background: var(--bg-panel); border: 1px solid var(--border-main); color: var(--text-main); border-radius: 4px; font-size: 13px; outline: none; box-sizing: border-box;">
-                <div id="rep-clear-search" onclick="clearReportSearch()" style="display:none; position:absolute; right:10px; top:50%; transform:translateY(-50%); color:var(--accent-red); font-weight:bold; cursor:pointer; font-size:16px; line-height:1;">✕</div>
-            </div>
+        <div
+          onclick="closeReport()"
+          style="
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 18px;
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 5px;
+            line-height: 1;
+          "
+        >
+          ✕
         </div>
+      </div>
 
-        <div class="methods-scroll">
-            <div class="method-card active-all" id="card-all" onclick="setReportMethod('all', this, 'active-all')">
-                <div class="m-title" data-i18n="cat_all">ВСЕ</div>
-                <div class="m-sum" id="rep-sum-all">0 ₸</div>
-            </div>
-            <div class="method-card" id="card-market" onclick="setReportMethod('market', this, 'active-market')">
-                <div class="m-title" style="color: var(--pay-market)" data-i18n="pay_market_full">МАРКЕТЫ</div>
-                <div class="m-sum" id="rep-sum-market">0 ₸</div>
-            </div>
-            <div class="method-card" id="card-cash" onclick="setReportMethod('cash', this, 'active-cash')">
-                <div class="m-title" style="color: var(--pay-cash)" data-i18n="pay_cash_full">НАЛИЧНЫЕ</div>
-                <div class="m-sum" id="rep-sum-cash">0 ₸</div>
-            </div>
-            <div class="method-card" id="card-qr" onclick="setReportMethod('qr_kaspi', this, 'active-qr')">
-                <div class="m-title" style="color: var(--pay-qr)">KASPI QR</div>
-                <div class="m-sum" id="rep-sum-qr">0 ₸</div>
-            </div>
-            <div class="method-card" id="card-card" onclick="setReportMethod('pos_terminal', this, 'active-card')">
-                <div class="m-title" style="color: var(--pay-card)" data-i18n="pay_card_full">ТЕРМИНАЛ</div>
-                <div class="m-sum" id="rep-sum-card">0 ₸</div>
-            </div>
-            <div class="method-card" id="card-red" onclick="setReportMethod('installment', this, 'active-red')">
-                <div class="m-title" style="color: var(--pay-red)" data-i18n="pay_red_full">KASPI RED</div>
-                <div class="m-sum" id="rep-sum-red">0 ₸</div>
-            </div>
-            <div class="method-card" id="card-trans" onclick="setReportMethod('transfer', this, 'active-trans')">
-                <div class="m-title" style="color: var(--pay-trans)" data-i18n="pay_trans_full">ПЕРЕВОД</div>
-                <div class="m-sum" id="rep-sum-trans">0 ₸</div>
-            </div>
+      <div
+        style="padding: 8px 10px; border-bottom: 1px solid var(--border-main)"
+      >
+        <div
+          id="date-range-controls"
+          style="
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 6px;
+          "
+        >
+          <div class="date-wrap">
+            <input type="date" id="rep-date-start" onchange="renderReport()" />
+          </div>
+          <div style="color: var(--text-muted)">—</div>
+          <div class="date-wrap">
+            <input type="date" id="rep-date-end" onchange="renderReport()" />
+          </div>
         </div>
-
-        <div class="toggles-row" id="rep-toggles-row" style="display: none;">
-            <div class="t-group">
-                <div class="t-btn s-sale active" id="t-sale" onclick="setReportType('sale')" data-i18n="report_sales">ПРОДАЖИ</div>
-                <div class="t-btn s-return" id="t-return" onclick="setReportType('return')" data-i18n="report_returns">ВОЗВРАТЫ</div>
-            </div>
-            <div class="t-divider">|</div>
-            <div class="t-group">
-                <div class="t-btn s-item active" id="t-item" onclick="setReportView('items')" data-i18n="report_items">ТОВАРЫ</div>
-                <div class="t-btn s-date" id="t-date" onclick="setReportView('dates')" data-i18n="report_receipts">ЧЕКИ</div>
-            </div>
+        <div style="position: relative">
+          <input
+            type="text"
+            id="rep-search"
+            placeholder="ПОИСК..."
+            oninput="filterReport()"
+            style="
+              width: 100%;
+              padding: 6px 8px;
+              background: var(--bg-panel);
+              border: 1px solid var(--border-main);
+              color: var(--text-main);
+              border-radius: 4px;
+              font-size: 13px;
+              outline: none;
+              box-sizing: border-box;
+            "
+          />
+          <div
+            id="rep-clear-search"
+            onclick="clearReportSearch()"
+            style="
+              display: none;
+              position: absolute;
+              right: 10px;
+              top: 50%;
+              transform: translateY(-50%);
+              color: var(--accent-red);
+              font-weight: bold;
+              cursor: pointer;
+              font-size: 16px;
+              line-height: 1;
+            "
+          >
+            ✕
+          </div>
         </div>
+      </div>
 
-        <div style="flex: 1; overflow-y: auto; padding: 8px 10px;">
-            <div class="list-header-v3">
-                <div style="flex:1" data-i18n="report_name">Наименование</div>
-                <div style="width:35px; text-align:center;" data-i18n="report_qty">Кол.</div>
-                <div style="width:85px; text-align:right;" data-i18n="report_sum">Сумма</div>
-            </div>
-            <div id="rep-list">
-                </div>
+      <div class="methods-scroll">
+        <div
+          class="method-card active-all"
+          id="card-all"
+          onclick="setReportMethod('all', this, 'active-all')"
+        >
+          <div class="m-title" data-i18n="cat_all">ВСЕ</div>
+          <div class="m-sum" id="rep-sum-all">0 ₸</div>
         </div>
-
-        <div class="footer-fixed">
-            <div id="rep-totals">
-                </div>
-            <button class="btn-close-rep" onclick="closeReport()" data-i18n="btn_close_report">ЗАКРЫТЬ ОТЧЕТ</button>
+        <div
+          class="method-card"
+          id="card-market"
+          onclick="setReportMethod('market', this, 'active-market')"
+        >
+          <div
+            class="m-title"
+            style="color: var(--pay-market)"
+            data-i18n="pay_market_full"
+          >
+            МАРКЕТЫ
+          </div>
+          <div class="m-sum" id="rep-sum-market">0 ₸</div>
         </div>
+        <div
+          class="method-card"
+          id="card-cash"
+          onclick="setReportMethod('cash', this, 'active-cash')"
+        >
+          <div
+            class="m-title"
+            style="color: var(--pay-cash)"
+            data-i18n="pay_cash_full"
+          >
+            НАЛИЧНЫЕ
+          </div>
+          <div class="m-sum" id="rep-sum-cash">0 ₸</div>
+        </div>
+        <div
+          class="method-card"
+          id="card-qr"
+          onclick="setReportMethod('qr_kaspi', this, 'active-qr')"
+        >
+          <div class="m-title" style="color: var(--pay-qr)">KASPI QR</div>
+          <div class="m-sum" id="rep-sum-qr">0 ₸</div>
+        </div>
+        <div
+          class="method-card"
+          id="card-card"
+          onclick="setReportMethod('pos_terminal', this, 'active-card')"
+        >
+          <div
+            class="m-title"
+            style="color: var(--pay-card)"
+            data-i18n="pay_card_full"
+          >
+            ТЕРМИНАЛ
+          </div>
+          <div class="m-sum" id="rep-sum-card">0 ₸</div>
+        </div>
+        <div
+          class="method-card"
+          id="card-red"
+          onclick="setReportMethod('installment', this, 'active-red')"
+        >
+          <div
+            class="m-title"
+            style="color: var(--pay-red)"
+            data-i18n="pay_red_full"
+          >
+            KASPI RED
+          </div>
+          <div class="m-sum" id="rep-sum-red">0 ₸</div>
+        </div>
+        <div
+          class="method-card"
+          id="card-trans"
+          onclick="setReportMethod('transfer', this, 'active-trans')"
+        >
+          <div
+            class="m-title"
+            style="color: var(--pay-trans)"
+            data-i18n="pay_trans_full"
+          >
+            ПЕРЕВОД
+          </div>
+          <div class="m-sum" id="rep-sum-trans">0 ₸</div>
+        </div>
+      </div>
 
+      <div class="toggles-row" id="rep-toggles-row" style="display: none">
+        <div class="t-group">
+          <div
+            class="t-btn s-sale active"
+            id="t-sale"
+            onclick="setReportType('sale')"
+            data-i18n="report_sales"
+          >
+            ПРОДАЖИ
+          </div>
+          <div
+            class="t-btn s-return"
+            id="t-return"
+            onclick="setReportType('return')"
+            data-i18n="report_returns"
+          >
+            ВОЗВРАТЫ
+          </div>
+        </div>
+        <div class="t-divider">|</div>
+        <div class="t-group">
+          <div
+            class="t-btn s-item active"
+            id="t-item"
+            onclick="setReportView('items')"
+            data-i18n="report_items"
+          >
+            ТОВАРЫ
+          </div>
+          <div
+            class="t-btn s-date"
+            id="t-date"
+            onclick="setReportView('dates')"
+            data-i18n="report_receipts"
+          >
+            ЧЕКИ
+          </div>
+        </div>
+      </div>
+
+      <div style="flex: 1; overflow-y: auto; padding: 8px 10px">
+        <div class="list-header-v3">
+          <div style="flex: 1" data-i18n="report_name">Наименование</div>
+          <div style="width: 35px; text-align: center" data-i18n="report_qty">
+            Кол.
+          </div>
+          <div style="width: 85px; text-align: right" data-i18n="report_sum">
+            Сумма
+          </div>
+        </div>
+        <div id="rep-list"></div>
+      </div>
+
+      <div class="footer-fixed">
+        <div id="rep-totals"></div>
+        <button
+          class="btn-close-rep"
+          onclick="closeReport()"
+          data-i18n="btn_close_report"
+        >
+          ЗАКРЫТЬ ОТЧЕТ
+        </button>
+      </div>
     </div>
 
     <div id="settings-modal" class="modal-overlay">
-    <div class="settings-box">
-        <div class="r-title" style="margin-bottom: 20px;" data-i18n="settings_title">НАСТРОЙКИ</div>
-        
-        <div class="s-group">
-            <div class="s-title" data-i18n="settings_lang">Язык интерфейса</div>
-            <div class="lang-row">
-                <button id="lang-ru" class="lang-btn active" onclick="applyLanguage('ru')">RU</button>
-                <button id="lang-kz" class="lang-btn" onclick="applyLanguage('kz')">KZ</button>
-            </div>
-        </div>
-        
-        <div class="s-group">
-            <div class="s-title" data-i18n="settings_sync">Синхронизация</div>
-            <div class="lang-row">
-                <!-- Кнопка: Отправить чеки -->
-                <button class="s-btn" onclick="manualSync()" style="flex: 1; margin: 0; padding: 12px 10px;">
-                    <span data-i18n="btn_sync">Отправить чеки</span>
-                    <span id="sync-status">📡</span>
-                </button>
-                
-                <!-- Новая кнопка: Шаблоны Kaspi -->
-                <button id="btn-settings-kaspi" class="s-btn" onclick="openKaspiManager()" style="flex: 1; margin: 0; padding: 12px 10px;">
-                    <span data-i18n="btn_kaspi_templates">Шаблоны Kaspi</span>
-                    <span>🛒</span>
-                </button>
-            </div>
-        </div>
-        
-        <div class="s-group">
-            <div class="s-title" data-i18n="settings_system">Система</div>
-            <div class="lang-row">
-                <button class="s-btn" onclick="forceAppUpdate()" style="flex: 1; margin: 0; padding: 12px 10px;">
-                    <span data-i18n="btn_update">Обновить кэш</span>
-                    <span id="update-status">🔄</span>
-                </button>
-                
-                <!-- Кнопка с ID для скрытия от кассиров -->
-                <button id="btn-settings-drive" class="s-btn" onclick="openDriveBase()" style="flex: 1; margin: 0; padding: 12px 10px;">
-                    <span data-i18n="btn_base">База</span>
-                    <span>📁</span>
-                </button>
-            </div>
-        </div>
-        
-        <div class="s-group">
-            <div class="s-title" data-i18n="settings_theme">Оформление</div>
-            <button class="s-btn" onclick="toggleTheme()">
-                <span data-i18n="theme_toggle">СМЕНА ТЕМЫ</span><span>🌓</span>
-            </button>
+      <div class="settings-box">
+        <div
+          class="r-title"
+          style="margin-bottom: 20px"
+          data-i18n="settings_title"
+        >
+          НАСТРОЙКИ
         </div>
 
-        <div class="s-group" style="border: none; padding-bottom: 0;">
-            <div class="s-title" data-i18n="settings_help">Справка</div>
-            <button class="s-btn" onclick="openHelpDocument()">
-                <span data-i18n="btn_help">Руководство пользователя</span><span>❓</span>
+        <div class="s-group">
+          <div class="s-title" data-i18n="settings_lang">Язык интерфейса</div>
+          <div class="lang-row">
+            <button
+              id="lang-ru"
+              class="lang-btn active"
+              onclick="applyLanguage('ru')"
+            >
+              RU
             </button>
+            <button id="lang-kz" class="lang-btn" onclick="applyLanguage('kz')">
+              KZ
+            </button>
+          </div>
         </div>
 
-        <button class="cancel-btn" style="width: 100%; margin-top: 10px;" onclick="closeSettings()" data-i18n="btn_close">ЗАКРЫТЬ</button>
+        <div class="s-group">
+          <div class="s-title" data-i18n="settings_sync">Синхронизация</div>
+          <div class="lang-row">
+            <!-- Кнопка: Отправить чеки -->
+            <button
+              class="s-btn"
+              onclick="manualSync()"
+              style="flex: 1; margin: 0; padding: 12px 10px"
+            >
+              <span data-i18n="btn_sync">Отправить чеки</span>
+              <span id="sync-status">📡</span>
+            </button>
+
+            <!-- Новая кнопка: Шаблоны Kaspi -->
+            <button
+              id="btn-settings-kaspi"
+              class="s-btn"
+              onclick="openKaspiManager()"
+              style="flex: 1; margin: 0; padding: 12px 10px"
+            >
+              <span data-i18n="btn_kaspi_templates">Шаблоны Kaspi</span>
+              <span>🛒</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="s-group">
+          <div class="s-title" data-i18n="settings_system">Система</div>
+          <div class="lang-row">
+            <button
+              class="s-btn"
+              onclick="forceAppUpdate()"
+              style="flex: 1; margin: 0; padding: 12px 10px"
+            >
+              <span data-i18n="btn_update">Обновить кэш</span>
+              <span id="update-status">🔄</span>
+            </button>
+
+            <!-- Кнопка с ID для скрытия от кассиров -->
+            <button
+              id="btn-settings-drive"
+              class="s-btn"
+              onclick="openDriveBase()"
+              style="flex: 1; margin: 0; padding: 12px 10px"
+            >
+              <span data-i18n="btn_base">База</span>
+              <span>📁</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="s-group">
+          <div class="s-title" data-i18n="settings_theme">Оформление</div>
+          <button class="s-btn" onclick="toggleTheme()">
+            <span data-i18n="theme_toggle">СМЕНА ТЕМЫ</span><span>🌓</span>
+          </button>
+        </div>
+
+        <div class="s-group" style="border: none; padding-bottom: 0">
+          <div class="s-title" data-i18n="settings_help">Справка</div>
+          <button class="s-btn" onclick="openHelpDocument()">
+            <span data-i18n="btn_help">Руководство пользователя</span
+            ><span>❓</span>
+          </button>
+        </div>
+
+        <button
+          class="cancel-btn"
+          style="width: 100%; margin-top: 10px"
+          onclick="closeSettings()"
+          data-i18n="btn_close"
+        >
+          ЗАКРЫТЬ
+        </button>
+      </div>
     </div>
-</div>
 
-<!-- Подмодалка: Менеджер шаблонов Kaspi -->
-<div id="kaspi-modal" class="modal-overlay" style="display: none; z-index: 10001;">
-    <div class="settings-box">
-        <div class="r-title" style="margin-bottom: 20px;" data-i18n="kaspi_tpl_title">ШАБЛОНЫ KASPI</div>
-        
+    <!-- Подмодалка: Менеджер шаблонов Kaspi -->
+    <div
+      id="kaspi-modal"
+      class="modal-overlay"
+      style="display: none; z-index: 10001"
+    >
+      <div class="settings-box">
+        <div
+          class="r-title"
+          style="margin-bottom: 20px"
+          data-i18n="kaspi_tpl_title"
+        >
+          ШАБЛОНЫ KASPI
+        </div>
+
         <div class="s-group">
-            <div class="s-title" data-i18n="kaspi_tpl_name">Название категории:</div>
-            <!-- Поле ввода названия -->
-            <input type="text" id="kaspi-category-name" style="width: 100%; padding: 10px; margin-bottom: 15px; border-radius: 4px; border: 1px solid #555; background: var(--bg-color); color: var(--text-color);" data-i18n-placeholder="kaspi_tpl_name_ph">
-            
-            <div class="s-title" data-i18n="kaspi_tpl_file">Файл пустого шаблона (.xlsx):</div>
-            <!-- Поле выбора файла -->
-            <input type="file" id="kaspi-template-file" accept=".xlsx, .xlsm" style="width: 100%; margin-bottom: 10px; color: var(--text-color);">
+          <div class="s-title" data-i18n="kaspi_tpl_name">
+            Название категории:
+          </div>
+          <!-- Поле ввода названия -->
+          <input
+            type="text"
+            id="kaspi-category-name"
+            style="
+              width: 100%;
+              padding: 10px;
+              margin-bottom: 15px;
+              border-radius: 4px;
+              border: 1px solid #555;
+              background: var(--bg-color);
+              color: var(--text-color);
+            "
+            data-i18n-placeholder="kaspi_tpl_name_ph"
+          />
+
+          <div class="s-title" data-i18n="kaspi_tpl_file">
+            Файл пустого шаблона (.xlsx):
+          </div>
+          <!-- Поле выбора файла -->
+          <input
+            type="file"
+            id="kaspi-template-file"
+            accept=".xlsx, .xlsm"
+            style="width: 100%; margin-bottom: 10px; color: var(--text-color)"
+          />
         </div>
 
         <!-- Блок для вывода статуса (успех/ошибка) -->
-        <div id="kaspi-status" style="margin-bottom: 15px; text-align: center; font-size: 14px; min-height: 20px;"></div>
+        <div
+          id="kaspi-status"
+          style="
+            margin-bottom: 15px;
+            text-align: center;
+            font-size: 14px;
+            min-height: 20px;
+          "
+        ></div>
 
         <div class="lang-row">
-            <!-- Кнопка сохранения -->
-            <button class="s-btn" id="btn-save-kaspi" onclick="processKaspiTemplate()" style="flex: 1; margin: 0; padding: 12px 10px;">
-                <span data-i18n="btn_save_tpl">Сохранить</span><span>💾</span>
-            </button>
-            
-            <!-- Кнопка закрытия -->
-            <button class="cancel-btn" onclick="closeKaspiManager()" style="flex: 1; margin: 0; margin-left: 10px; padding: 12px 10px;" data-i18n="btn_close">ЗАКРЫТЬ</button>
+          <!-- Кнопка сохранения -->
+          <button
+            class="s-btn"
+            id="btn-save-kaspi"
+            onclick="processKaspiTemplate()"
+            style="flex: 1; margin: 0; padding: 12px 10px"
+          >
+            <span data-i18n="btn_save_tpl">Сохранить</span><span>💾</span>
+          </button>
+
+          <!-- Кнопка закрытия -->
+          <button
+            class="cancel-btn"
+            onclick="closeKaspiManager()"
+            style="flex: 1; margin: 0; margin-left: 10px; padding: 12px 10px"
+            data-i18n="btn_close"
+          >
+            ЗАКРЫТЬ
+          </button>
         </div>
+      </div>
     </div>
-</div>
 
     <div id="category-markup-modal" class="modal-overlay">
-        <div class="markup-box">
-            <div class="r-title" style="margin-bottom: 5px;" data-i18n="markup_title">НАЦЕНКА КАТЕГОРИИ</div>
-            <div id="markup-category-name" style="text-align: center; color: var(--accent-green); font-size: 12px; font-weight: bold; margin-bottom: 20px; text-transform: uppercase;">КАТЕГОРИЯ</div>
-            
-            <div class="m-toggle">
-                <input type="radio" id="catTypePercent" name="catMarkupType" value="percent" checked>
-                <label for="catTypePercent" data-i18n="markup_type_perc">% Процент</label>
-                
-                <input type="radio" id="catTypeFix" name="catMarkupType" value="fix">
-                <label for="catTypeFix" data-i18n="markup_type_fix">₸ Сумма</label>
-            </div>
-
-            <input type="text" inputmode="decimal" id="catMarkupValue" data-i18n-placeholder="markup_placeholder" placeholder="Значение..." onkeydown="if(event.key === 'Enter') applyCategoryMarkup()" style="width: 100%; box-sizing: border-box; padding: 15px; background: var(--bg-card); border: 1px solid var(--border-focus); color: var(--text-main); border-radius: 6px; font-size: 18px; margin-bottom: 20px; outline: none; text-align: center; font-weight: bold;">
-            
-            <button onclick="applyCategoryMarkup()" style="width: 100%; padding: 15px; font-size: 14px; background-color: var(--accent-green); color: var(--text-dark); border: none; border-radius: 6px; cursor: pointer; font-weight: bold; text-transform: uppercase; margin-bottom: 10px;" data-i18n="markup_apply">
-                ПРИМЕНИТЬ
-            </button>
-            <button class="cancel-btn" style="width: 100%;" onclick="closeCategoryMarkup()" data-i18n="btn_cancel">ОТМЕНА</button>
+      <div class="markup-box">
+        <div
+          class="r-title"
+          style="margin-bottom: 5px"
+          data-i18n="markup_title"
+        >
+          НАЦЕНКА КАТЕГОРИИ
         </div>
-    </div>
-
-    <div id="item-menu-modal" class="modal-overlay" onclick="handleCancelModal()">
-        <div class="settings-box" onclick="event.stopPropagation()">
-            <div id="menu-item-name" class="r-title" style="font-size: 14px; margin-bottom: 20px;">Название товара</div>
-            <div id="photo-preview" style="text-align: center; margin: 10px 0; min-height: 20px;"></div>
-            
-            <button id="btn-add-cart" onclick="confirmAddFromMenu()" style="background: var(--bg-success-dim); color: var(--accent-green); border-color: var(--accent-green); margin-bottom: 12px; width: 100%; padding: 15px; border-radius: 8px; font-weight: bold; font-size: 14px; text-transform: uppercase; border: 1px solid; cursor: pointer;">🛒 <span data-i18n="btn_add_cart">В КОРЗИНУ</span></button>
-            <button id="btn-save-db" onclick="confirmUpload()" style="display: none; background: var(--bg-panel); color: var(--accent-blue); border-color: var(--accent-blue); margin-bottom: 12px; width: 100%; padding: 15px; border-radius: 8px; font-weight: bold; font-size: 14px; text-transform: uppercase; border: 1px solid; cursor: pointer;">💾 <span data-i18n="btn_save_db">СОХРАНИТЬ В БАЗУ</span></button>
-
-            <div id="btn-take-photo" style="margin-bottom: 12px; width: 100%;">
-                <div style="display: flex; gap: 10px;">
-                    <button onclick="triggerCamera()" style="flex: 1; background: var(--bg-hover); color: var(--text-main); border-color: var(--border-focus); padding: 15px; border-radius: 8px; font-weight: bold; font-size: 13px; text-transform: uppercase; border: 1px solid; cursor: pointer;">📸 <span data-i18n="btn_camera">КАМЕРА</span></button>
-                    <button onclick="triggerGallery()" style="flex: 1; background: var(--bg-hover); color: var(--text-main); border-color: var(--border-focus); padding: 15px; border-radius: 8px; font-weight: bold; font-size: 13px; text-transform: uppercase; border: 1px solid; cursor: pointer;">📂 <span data-i18n="btn_gallery">ГАЛЕРЕЯ</span></button>
-                </div>
-            </div>
-            <div id="btn-retake-photo" style="display: none; margin-bottom: 12px; width: 100%;">
-                <div style="display: flex; gap: 10px;">
-                    <button onclick="triggerCamera()" style="flex: 1; background: var(--bg-hover); color: var(--text-main); border-color: var(--border-focus); padding: 15px; border-radius: 8px; font-weight: bold; font-size: 13px; text-transform: uppercase; border: 1px solid; cursor: pointer;">🔄 <span data-i18n="btn_camera">КАМЕРА</span></button>
-                    <button onclick="triggerGallery()" style="flex: 1; background: var(--bg-hover); color: var(--text-main); border-color: var(--border-focus); padding: 15px; border-radius: 8px; font-weight: bold; font-size: 13px; text-transform: uppercase; border: 1px solid; cursor: pointer;">🔄 <span data-i18n="btn_gallery">ГАЛЕРЕЯ</span></button>
-                </div>
-            </div>
-
-            <button id="btn-delete-photo" onclick="deletePhoto()" style="display: none; background: var(--bg-hover); color: var(--accent-red); border-color: var(--accent-red); margin-bottom: 12px; width: 100%; padding: 15px; border-radius: 8px; font-weight: bold; font-size: 14px; text-transform: uppercase; border: 1px solid; cursor: pointer;">
-            🗑️ <span id="delete-photo-text" data-i18n="btn_delete_photo">УДАЛИТЬ ФОТО</span>
-            </button>
-            <button id="btn-cancel-modal" class="cancel-btn" style="width: 100%; margin-top: 10px; background: var(--bg-danger-dim); color: var(--accent-red); border-color: var(--accent-red); padding: 15px; border-radius: 8px; font-weight: bold; font-size: 14px; text-transform: uppercase; border: 1px solid; cursor: pointer;" onclick="handleCancelModal()">ЗАКРЬІТЬ</button>
+        <div
+          id="markup-category-name"
+          style="
+            text-align: center;
+            color: var(--accent-green);
+            font-size: 12px;
+            font-weight: bold;
+            margin-bottom: 20px;
+            text-transform: uppercase;
+          "
+        >
+          КАТЕГОРИЯ
         </div>
+
+        <div class="m-toggle">
+          <input
+            type="radio"
+            id="catTypePercent"
+            name="catMarkupType"
+            value="percent"
+            checked
+          />
+          <label for="catTypePercent" data-i18n="markup_type_perc"
+            >% Процент</label
+          >
+
+          <input
+            type="radio"
+            id="catTypeFix"
+            name="catMarkupType"
+            value="fix"
+          />
+          <label for="catTypeFix" data-i18n="markup_type_fix">₸ Сумма</label>
+        </div>
+
+        <input
+          type="text"
+          inputmode="decimal"
+          id="catMarkupValue"
+          data-i18n-placeholder="markup_placeholder"
+          placeholder="Значение..."
+          onkeydown="if (event.key === 'Enter') applyCategoryMarkup();"
+          style="
+            width: 100%;
+            box-sizing: border-box;
+            padding: 15px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-focus);
+            color: var(--text-main);
+            border-radius: 6px;
+            font-size: 18px;
+            margin-bottom: 20px;
+            outline: none;
+            text-align: center;
+            font-weight: bold;
+          "
+        />
+
+        <button
+          onclick="applyCategoryMarkup()"
+          style="
+            width: 100%;
+            padding: 15px;
+            font-size: 14px;
+            background-color: var(--accent-green);
+            color: var(--text-dark);
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            text-transform: uppercase;
+            margin-bottom: 10px;
+          "
+          data-i18n="markup_apply"
+        >
+          ПРИМЕНИТЬ
+        </button>
+        <button
+          class="cancel-btn"
+          style="width: 100%"
+          onclick="closeCategoryMarkup()"
+          data-i18n="btn_cancel"
+        >
+          ОТМЕНА
+        </button>
+      </div>
     </div>
 
-    <div id="fullscreen-photo" class="modal-overlay" style="z-index: 2000; flex-direction: column;" onclick="closeFullscreen(event)">
-        <div style="position: absolute; top: 15px; right: 20px; background: rgba(0,0,0,0.6); color: #fff; width: 40px; height: 40px; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 20px; font-weight: bold; cursor: pointer; z-index: 2001;" onclick="forceCloseFs()">✕</div>
-        <img id="fullscreen-img" style="max-width: 95%; max-height: 95%; object-fit: contain; border-radius: 8px; touch-action: none;">
+    <div
+      id="item-menu-modal"
+      class="modal-overlay"
+      onclick="handleCancelModal()"
+    >
+      <div class="settings-box" onclick="event.stopPropagation()">
+        <div
+          id="menu-item-name"
+          class="r-title"
+          style="font-size: 14px; margin-bottom: 20px"
+        >
+          Название товара
+        </div>
+        <div
+          id="photo-preview"
+          style="text-align: center; margin: 10px 0; min-height: 20px"
+        ></div>
+
+        <button
+          id="btn-add-cart"
+          onclick="confirmAddFromMenu()"
+          style="
+            background: var(--bg-success-dim);
+            color: var(--accent-green);
+            border-color: var(--accent-green);
+            margin-bottom: 12px;
+            width: 100%;
+            padding: 15px;
+            border-radius: 8px;
+            font-weight: bold;
+            font-size: 14px;
+            text-transform: uppercase;
+            border: 1px solid;
+            cursor: pointer;
+          "
+        >
+          🛒 <span data-i18n="btn_add_cart">В КОРЗИНУ</span>
+        </button>
+        <button
+          id="btn-save-db"
+          onclick="confirmUpload()"
+          style="
+            display: none;
+            background: var(--bg-panel);
+            color: var(--accent-blue);
+            border-color: var(--accent-blue);
+            margin-bottom: 12px;
+            width: 100%;
+            padding: 15px;
+            border-radius: 8px;
+            font-weight: bold;
+            font-size: 14px;
+            text-transform: uppercase;
+            border: 1px solid;
+            cursor: pointer;
+          "
+        >
+          💾 <span data-i18n="btn_save_db">СОХРАНИТЬ В БАЗУ</span>
+        </button>
+
+        <div id="btn-take-photo" style="margin-bottom: 12px; width: 100%">
+          <div style="display: flex; gap: 10px">
+            <button
+              onclick="triggerCamera()"
+              style="
+                flex: 1;
+                background: var(--bg-hover);
+                color: var(--text-main);
+                border-color: var(--border-focus);
+                padding: 15px;
+                border-radius: 8px;
+                font-weight: bold;
+                font-size: 13px;
+                text-transform: uppercase;
+                border: 1px solid;
+                cursor: pointer;
+              "
+            >
+              📸 <span data-i18n="btn_camera">КАМЕРА</span>
+            </button>
+            <button
+              onclick="triggerGallery()"
+              style="
+                flex: 1;
+                background: var(--bg-hover);
+                color: var(--text-main);
+                border-color: var(--border-focus);
+                padding: 15px;
+                border-radius: 8px;
+                font-weight: bold;
+                font-size: 13px;
+                text-transform: uppercase;
+                border: 1px solid;
+                cursor: pointer;
+              "
+            >
+              📂 <span data-i18n="btn_gallery">ГАЛЕРЕЯ</span>
+            </button>
+          </div>
+        </div>
+        <div
+          id="btn-retake-photo"
+          style="display: none; margin-bottom: 12px; width: 100%"
+        >
+          <div style="display: flex; gap: 10px">
+            <button
+              onclick="triggerCamera()"
+              style="
+                flex: 1;
+                background: var(--bg-hover);
+                color: var(--text-main);
+                border-color: var(--border-focus);
+                padding: 15px;
+                border-radius: 8px;
+                font-weight: bold;
+                font-size: 13px;
+                text-transform: uppercase;
+                border: 1px solid;
+                cursor: pointer;
+              "
+            >
+              🔄 <span data-i18n="btn_camera">КАМЕРА</span>
+            </button>
+            <button
+              onclick="triggerGallery()"
+              style="
+                flex: 1;
+                background: var(--bg-hover);
+                color: var(--text-main);
+                border-color: var(--border-focus);
+                padding: 15px;
+                border-radius: 8px;
+                font-weight: bold;
+                font-size: 13px;
+                text-transform: uppercase;
+                border: 1px solid;
+                cursor: pointer;
+              "
+            >
+              🔄 <span data-i18n="btn_gallery">ГАЛЕРЕЯ</span>
+            </button>
+          </div>
+        </div>
+
+        <button
+          id="btn-delete-photo"
+          onclick="deletePhoto()"
+          style="
+            display: none;
+            background: var(--bg-hover);
+            color: var(--accent-red);
+            border-color: var(--accent-red);
+            margin-bottom: 12px;
+            width: 100%;
+            padding: 15px;
+            border-radius: 8px;
+            font-weight: bold;
+            font-size: 14px;
+            text-transform: uppercase;
+            border: 1px solid;
+            cursor: pointer;
+          "
+        >
+          🗑️
+          <span id="delete-photo-text" data-i18n="btn_delete_photo"
+            >УДАЛИТЬ ФОТО</span
+          >
+        </button>
+        <button
+          id="btn-cancel-modal"
+          class="cancel-btn"
+          style="
+            width: 100%;
+            margin-top: 10px;
+            background: var(--bg-danger-dim);
+            color: var(--accent-red);
+            border-color: var(--accent-red);
+            padding: 15px;
+            border-radius: 8px;
+            font-weight: bold;
+            font-size: 14px;
+            text-transform: uppercase;
+            border: 1px solid;
+            cursor: pointer;
+          "
+          onclick="handleCancelModal()"
+        >
+          ЗАКРЬІТЬ
+        </button>
+      </div>
     </div>
 
-    <input type="file" id="camera-input" accept="image/*" capture="environment" style="display: none;" onchange="handlePhoto(event)">
-    <input type="file" id="gallery-input" accept="image/*" style="display: none;" onchange="handlePhoto(event)">
-    <canvas id="resize-canvas" style="display: none;"></canvas>
+    <div
+      id="fullscreen-photo"
+      class="modal-overlay"
+      style="z-index: 2000; flex-direction: column"
+      onclick="closeFullscreen(event)"
+    >
+      <div
+        style="
+          position: absolute;
+          top: 15px;
+          right: 20px;
+          background: rgba(0, 0, 0, 0.6);
+          color: #fff;
+          width: 40px;
+          height: 40px;
+          border-radius: 50%;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          font-size: 20px;
+          font-weight: bold;
+          cursor: pointer;
+          z-index: 2001;
+        "
+        onclick="forceCloseFs()"
+      >
+        ✕
+      </div>
+      <img
+        id="fullscreen-img"
+        style="
+          max-width: 95%;
+          max-height: 95%;
+          object-fit: contain;
+          border-radius: 8px;
+          touch-action: none;
+        "
+      />
+    </div>
+
+    <input
+      type="file"
+      id="camera-input"
+      accept="image/*"
+      capture="environment"
+      style="display: none"
+      onchange="handlePhoto(event)"
+    />
+    <input
+      type="file"
+      id="gallery-input"
+      accept="image/*"
+      style="display: none"
+      onchange="handlePhoto(event)"
+    />
+    <canvas id="resize-canvas" style="display: none"></canvas>
 
     <!-- Прием Нового товара -->
-    <div id="income-modal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: var(--bg-overlay); z-index: 10000; justify-content: center; align-items: flex-start; padding-top: 4vh; backdrop-filter: blur(3px); overflow: hidden; touch-action: none;">
-    <div style="background: var(--bg-modal); border: 1px solid var(--border-light); border-radius: 8px; width: 95%; max-width: 600px; padding: 20px; color: var(--text-main); max-height: 80vh; display: flex; flex-direction: column; position: relative; box-sizing: border-box; overscroll-behavior: none;">
-            
-            <button onclick="toggleIncomeModule()" style="position: absolute; right: 15px; top: 15px; background: transparent; border: none; color: #ff4d4d; font-size: 20px; cursor: pointer; font-weight: bold;">✕</button>
-            
-            <h3 style="margin-bottom: 15px; color: var(--accent-green);">
-                📦 <span data-i18n="modal_income_title">ПРИЕМКА ТОВАРА</span>
-            </h3>
+    <div
+      id="income-modal"
+      style="
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: var(--bg-overlay);
+        z-index: 10000;
+        justify-content: center;
+        align-items: flex-start;
+        padding-top: 4vh;
+        backdrop-filter: blur(3px);
+        overflow: hidden;
+        touch-action: none;
+      "
+    >
+      <div
+        style="
+          background: var(--bg-modal);
+          border: 1px solid var(--border-light);
+          border-radius: 8px;
+          width: 95%;
+          max-width: 600px;
+          padding: 20px;
+          color: var(--text-main);
+          max-height: 80vh;
+          display: flex;
+          flex-direction: column;
+          position: relative;
+          box-sizing: border-box;
+          overscroll-behavior: none;
+        "
+      >
+        <button
+          onclick="toggleIncomeModule()"
+          style="
+            position: absolute;
+            right: 15px;
+            top: 15px;
+            background: transparent;
+            border: none;
+            color: #ff4d4d;
+            font-size: 20px;
+            cursor: pointer;
+            font-weight: bold;
+          "
+        >
+          ✕
+        </button>
 
-            <!-- ПЕРЕКЛЮЧАТЕЛЬ ВКЛАДОК -->
-            <!-- Добавили id="mapperTabsContainer" -->
-            <div id="mapperTabsContainer" style="display: flex; gap: 10px; margin-bottom: 20px; flex-shrink: 0;">
-                <button id="tab-btn-import" onclick="switchIncomeTab('import')" class="modal-tab active" data-i18n="tab_import">ИМПОРТ EXCEL</button>
-                <button id="tab-btn-new" onclick="switchIncomeTab('new')" class="modal-tab inactive" data-i18n="tab_new">НОВЫЙ ТОВАР</button>
-            </div>
+        <h3 style="margin-bottom: 15px; color: var(--accent-green)">
+          📦 <span data-i18n="modal_income_title">ПРИЕМКА ТОВАРА</span>
+        </h3>
 
-            <!-- ВКЛАДКА 1: ОРИГИНАЛЬНЫЙ ИМПОРТ -->
-           <div id="tab-import" style="display: flex; flex-direction: column; width: 100%; min-width: 0; max-width: 100%; box-sizing: border-box;">
-                
-                <!-- === ШАГ 1: БЛОК НАСТРОЕК И ЗАГРУЗКИ ФАЙЛА === -->
-                <div id="uploadStepArea" style="display: block;">
-                    <div class="minimal-input-container" style="display: flex; flex-direction: column; gap: 15px; margin-bottom: 20px;">
-        
-                        <!-- 1. Выбор валюты -->
-                        <div id="mapperCurrencyBlock" style="display: flex; align-items: center; justify-content: space-between; background: var(--bg-body, rgba(0,0,0,0.03)); padding: 10px 15px; border-radius: 8px; border: 1px dashed var(--border-main);">
-                            <!-- ИЗМЕНЕНИЕ: Перенесли data-i18n на span, чтобы сохранить эмодзи -->
-                            <label style="font-size: 13px; font-weight: bold; color: var(--text-main); margin: 0; display: flex; align-items: center; gap: 8px;">
-                                💵 <span data-i18n="inc_currency_label">Валюта цен в накладной:</span>
-                            </label>
-                            
-                            <div class="currency-minimal-container" style="position: relative; width: 90px;">
-                                <div class="currency-minimal-header" id="dropdownHeader" onclick="toggleDropdown()" style="font-size: 15px; padding: 8px 12px; background: var(--bg-modal, #fff); border: 1px solid var(--border-main); border-radius: 4px; display: flex; justify-content: space-between; align-items: center; cursor: pointer;">
-                                    <span id="dropdownSelectedCode" style="color: var(--accent-yellow, #FFD700);">USD</span>
-                                    <span class="curr-arrow-mini" style="color: var(--text-muted); font-size: 10px;">▼</span>
-                                </div>
-                                <div class="currency-minimal-list" id="dropdownList" style="position: absolute; top: calc(100% + 4px); left: 0; width: 100%; z-index: 9999; background: var(--bg-modal); border: 1px solid var(--border-light); border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
-                                    <div class="currency-minimal-item" onclick="selectCurrency('KZT')">KZT</div>
-                                    <div class="currency-minimal-item selected" onclick="selectCurrency('USD')">USD</div>
-                                    <div class="currency-minimal-item" onclick="selectCurrency('CNY')">CNY</div>
-                                    <div class="currency-minimal-item" onclick="selectCurrency('EUR')">EUR</div>
-                                    <div class="currency-minimal-item" onclick="selectCurrency('RUB')">RUB</div>
-                                </div>
-                                <input type="hidden" id="invoiceCurrency" value="USD">
-                            </div>
-                        </div>
-
-                        <!-- 2. ФАЗА 1: Блок выбора режима импорта -->
-                        <div id="importModeContainer">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                                <!-- ИЗМЕНЕНИЕ: Обернули текст в span и задали новый ключ -->
-                                <label style="font-size: 14px; font-weight: bold; color: var(--text-main);">
-                                    ⚙️ <span data-i18n="inc_select_mode">Выберите режим приёмки:</span>
-                                </label>
-                                <button type="button" onclick="showImportHelp()" style="background: none; border: none; color: #3498db; cursor: pointer; font-size: 16px;" title="Справка">
-                                    [?]
-                                </button>
-                            </div>
-                            
-                            <div style="display: flex; gap: 10px; margin-bottom: 15px; overflow: hidden;">
-                                <div id="btnModeInternal" onclick="selectImportMode('internal')" style="flex: 1; min-width: 0; padding: 12px 2px; border: 2px solid var(--border-main); border-radius: 8px; text-align: center; cursor: pointer; background: var(--bg-body); transition: 0.2s;">
-                                    <div style="font-size: 24px; margin-bottom: 5px;">📥</div>
-                                    <!-- ИЗМЕНЕНИЕ: Ключи для Быстрой приемки -->
-                                    <div style="font-size: 12px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" data-i18n="inc_mode_db_only">Только в базу</div>
-                                    <div style="font-size: 10px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" data-i18n="inc_mode_fast">Быстрая приёмка</div>
-                                </div>
-                                
-                                <div id="btnModeKaspi" onclick="selectImportMode('kaspi')" style="flex: 1; min-width: 0; padding: 12px 2px; border: 2px solid var(--border-main); border-radius: 8px; text-align: center; cursor: pointer; background: var(--bg-body); transition: 0.2s;">
-                                    <div style="font-size: 24px; margin-bottom: 5px;">🛒</div>
-                                    <!-- ИЗМЕНЕНИЕ: База + Kaspi не переводим (это бренд), а вот Умный импорт переводим -->
-                                    <div style="font-size: 12px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">База + Kaspi</div>
-                                    <div style="font-size: 10px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" data-i18n="inc_mode_smart">Умный импорт</div>
-                                </div>
-                            </div>
-
-                            <div id="kaspiTemplateBlock" style="display: none; margin-bottom: 15px;">
-                                <!-- ИЗМЕНЕНИЕ: Ключ для шаблона -->
-                                <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 5px;" data-i18n="inc_marketplace_template">Шаблон маркетплейса:</label>
-                                <select id="kaspiTemplateSelect" onchange="handleTemplateChange(event)" style="width: 100%; padding: 12px; min-height: 46px; font-size: 15px; border-radius: 4px; border: 1px solid var(--border-main); background: var(--bg-body); color: var(--text-main);">
-                                </select>
-                                <input type="file" id="templateFileInput" accept=".xlsx" class="visually-hidden" onchange="handleTemplateUpload(event)">
-                            </div>
-                        </div>
-
-                        <!-- 3. Кнопка загрузки накладной -->
-                        <div class="file-input-wrapper" id="invoiceUploadWrapper" style="width: 100%; opacity: 0.5; pointer-events: none; transition: opacity 0.3s;">
-                            <label for="invoiceFileInput" id="fileInputLabel" class="file-upload-label" style="padding: 12px; border: 1px solid var(--border-main) !important; border-radius: 4px; display: flex; align-items: center; justify-content: center; cursor: pointer; background: var(--bg-body, rgba(0,0,0,0.03)); transition: background-color 0.2s; width: 100%; box-sizing: border-box;">
-                                <div class="file-content" style="display: flex; gap: 8px; align-items: center; max-width: 100%; overflow: hidden;">
-                                    <span style="color: var(--text-muted); font-size: 16px; flex-shrink: 0;">🔒</span>
-                                    <span id="fileNameTextCompact" class="file-placeholder-text" style="font-size: 14px; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" data-i18n="tpl_select_mode">Сначала выберите режим</span>
-                                </div>
-                            </label>
-                            <input type="file" id="invoiceFileInput" accept=".csv, .xls, .xlsx" style="display: none;" multiple onchange="updateFileNameCompactUI(this)">
-                        </div>
-                    </div>
-                    
-                    <button id="parseInvoiceBtn" onclick="processInvoiceFile()" class="btn-primary green" data-i18n="income_parse">ОБРАБОТАТЬ ФАЙЛ</button>
-                    
-                    <div id="debug-container" style="display: none; margin-top: 15px; flex-direction: column; overflow-y: auto; max-height: 40vh;"></div>
-                </div> <!-- Конец uploadStepArea -->
-
-                <!-- === ШАГ 2: МАППЕР 2.0 === -->
-                <div id="mapper2Area" style="display: none; margin-top: -15px; flex-direction: column; height: 75vh; width: 100%; box-sizing: border-box;">
-                    
-                    <!-- ИЗМЕНЕНИЕ: Ключ для заголовка шага 2 -->
-                    <div style="font-weight: bold; margin-bottom: 10px; color: var(--accent-yellow); font-size: 14px; text-align: center; flex-shrink: 0;" data-i18n="inc_fill_kaspi_reqs">ЗАПОЛНИТЕ ТРЕБОВАНИЯ KASPI</div>
-                    
-                    <div id="mapper2CardsContainer" style="overflow-y: auto; flex: 1; min-height: 0; margin-bottom: 15px; padding-right: 5px; -webkit-overflow-scrolling: touch;"></div>
-                    
-                    <div style="display: flex; gap: 15px; margin-top: auto; flex-shrink: 0; padding-bottom: 5px;">
-                        <!-- ИЗМЕНЕНИЕ: Ключ для НАЗАД -->
-                        <button type="button" onclick="navigateIncomeStep(1)" style="flex: 1; padding: 12px; background: var(--bg-secondary); border: 1px solid var(--border-light); color: var(--text-main); border-radius: 4px; font-weight: bold; cursor: pointer;" data-i18n="inc_back">⬅ НАЗАД</button>
-                        
-                        <!-- ИЗМЕНЕНИЕ: Обернули текст в span, чтобы галка ✅ не пропала -->
-                        <button id="applyMapper2Btn" onclick="applyMapper2Logic()" class="btn-primary" style="flex: 2; padding: 12px; display: none;">✅ <span data-i18n="inc_build_invoice">СОБРАТЬ НАКЛАДНУЮ</span></button>
-                    </div>
-                </div>
-
-                <!-- === BOTTOM SHEET (ШТОРКА ВЫБОРА КОЛОНКИ) === -->
-                <div class="sheet-overlay" id="sheet-overlay" onclick="closeSheet()"></div>
-                <div class="bottom-sheet" id="bottom-sheet">
-                    <div class="sheet-drag-handle"></div>
-                    <div class="sheet-header">
-                        <span class="sheet-title" id="sheet-title">Выбор колонки</span>
-                        <span class="close-btn" onclick="closeSheet()">×</span>
-                    </div>
-                    <div class="btn-global" id="btn-global-dict" style="display: none;" onclick="openGlobalDictionary()">
-                        🔍 Задать единое значение из словаря
-                    </div>
-                    <div class="col-list" id="sheet-col-list"></div>
-                </div>
-
-                <!-- === ШАГ 3: ПРЕДПРОСМОТР === -->
-                <div id="invoicePreviewArea" style="display: none; flex-direction: column; height: 75vh; width: 100%; box-sizing: border-box; margin-top: -5px;">
-                    
-                    <div id="invoiceMetadata" style="margin-bottom: 10px; font-weight: bold; color: var(--accent-yellow); font-size: 14px; text-align: center; flex-shrink: 0;"></div>
-                    
-                    <div id="invoiceTableContainer" style="overflow-y: auto; flex: 1; min-height: 0; border: 1px solid var(--border-light); margin-bottom: 15px; width: 100%; box-sizing: border-box; -webkit-overflow-scrolling: touch;">
-                        <table style="width: 100%; border-collapse: collapse; font-size: 13px; color: var(--text-main);">
-                            <thead style="position: sticky; top: -1px; background: var(--bg-body); z-index: 10;">
-                                <tr style="border-bottom: 1px solid var(--border-light);">
-                                    <th class="col-min" style="padding: 10px 8px; text-align: left; text-transform: uppercase; color: var(--text-muted); font-size: 11px;" data-i18n="inc_code">Код</th>
-                                    <th class="col-main" style="padding: 10px 8px; text-align: left; text-transform: uppercase; color: var(--text-muted); font-size: 11px;" data-i18n="inc_item_params">Товар и параметры</th>
-                                    <th class="col-min" style="padding: 10px 8px; text-align: right; text-transform: uppercase; color: var(--text-muted); font-size: 11px; line-height: 1.4; white-space: nowrap;">
-                                        <div data-i18n="income_qty" style="color: var(--text-muted); font-size: 10px;">Кол-во</div>
-                                        <div>
-                                            <span data-i18n="income_price">Цена</span>, <span id="dynamicCurrencySpan" style="color:var(--accent-yellow); font-weight:bold;">USD</span>
-                                        </div>
-                                    </th>
-                                </tr>
-                            </thead>
-                            <tbody id="invoiceTableBody"></tbody>
-                        </table>
-                    </div>
-                    
-                    <div id="status-container" style="display: none; margin-bottom: 10px; padding: 10px; background: var(--bg-body); border: 1px solid var(--border-light); border-radius: 4px; flex-shrink: 0;">
-                        <div style="display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 13px;">
-                            <span id="status-text" style="color: var(--accent-green);">Подготовка...</span>
-                            <span id="status-percent" style="color: var(--text-muted);">0%</span>
-                        </div>
-                        <div style="width: 100%; height: 6px; background: var(--border-main); border-radius: 3px; overflow: hidden;">
-                            <div id="status-bar" style="width: 0%; height: 100%; background: var(--accent-green); transition: width 0.3s;"></div>
-                        </div>
-                    </div>
-                    
-                    <div style="display: flex; gap: 15px; flex-shrink: 0; margin-top: auto; padding-bottom: 5px;">
-                        <!-- ИЗМЕНЕНИЕ: Ключ для НАЗАД -->
-                        <button type="button" onclick="navigateIncomeStep(2)" style="flex: 1; padding: 12px; background: var(--bg-secondary); border: 1px solid var(--border-light); color: var(--text-main); border-radius: 4px; font-weight: bold; cursor: pointer;" data-i18n="inc_back">⬅ НАЗАД</button>
-                        
-                        <!-- ИЗМЕНЕНИЕ: Старый ключ income_confirm оставлен для совместимости, но добавлен span для эмодзи -->
-                        <button id="sendInvoiceBtn" onclick="sendInvoiceToBackend()" class="btn-primary blue" style="flex: 2; padding: 12px;">✅ <span data-i18n="income_confirm">ОПРИХОДОВАТЬ</span></button>
-                    </div>
-                </div>
-
-<!-- ========================================= -->
-<!-- ОКНО БЫСТРОГО РЕДАКТИРОВАНИЯ (QUICK EDIT) -->
-<!-- ========================================= -->
-<div id="modal-quick-edit" class="modal-overlay" style="display: none;" onclick="closeQuickEdit()">
-    <div class="settings-box" onclick="event.stopPropagation()">
-        <div class="r-title" style="margin-bottom: 20px;">РЕДАКТИРОВАНИЕ</div>
-        
-        <input type="hidden" id="qe-item-id">
-        
-        <div class="field-group" style="margin-bottom: 15px;">
-            <label style="font-size: 12px; color: var(--text-muted);">Наименование (используйте сканер)</label>
-            <input type="text" id="qe-name" readonly onclick="setQeActiveField('qe-name')" style="width: 100%; padding: 12px; margin-top: 5px; background: var(--bg-card); border: 1px solid var(--border-main); color: var(--text-main); border-radius: 4px; box-sizing: border-box;">
+        <!-- ПЕРЕКЛЮЧАТЕЛЬ ВКЛАДОК -->
+        <!-- Добавили id="mapperTabsContainer" -->
+        <div
+          id="mapperTabsContainer"
+          style="display: flex; gap: 10px; margin-bottom: 20px; flex-shrink: 0"
+        >
+          <button
+            id="tab-btn-import"
+            onclick="switchIncomeTab('import')"
+            class="modal-tab active"
+            data-i18n="tab_import"
+          >
+            ИМПОРТ EXCEL
+          </button>
+          <button
+            id="tab-btn-new"
+            onclick="switchIncomeTab('new')"
+            class="modal-tab inactive"
+            data-i18n="tab_new"
+          >
+            НОВЫЙ ТОВАР
+          </button>
         </div>
 
-        <div class="grid-row" style="display: flex; gap: 10px; margin-bottom: 20px;">
-            <div class="field-group" style="flex: 1;">
-                <label style="font-size: 12px; color: var(--text-muted);">Цена</label>
-                <input type="text" id="qe-price" readonly onclick="setQeActiveField('qe-price')" style="width: 100%; padding: 12px; margin-top: 5px; background: var(--bg-card); border: 2px solid var(--accent-blue); color: var(--text-main); border-radius: 4px; box-sizing: border-box; text-align: center; font-size: 18px; font-weight: bold;">
+        <!-- ВКЛАДКА 1: ОРИГИНАЛЬНЫЙ ИМПОРТ -->
+        <div
+          id="tab-import"
+          style="
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            min-width: 0;
+            max-width: 100%;
+            box-sizing: border-box;
+          "
+        >
+          <!-- === ШАГ 1: БЛОК НАСТРОЕК И ЗАГРУЗКИ ФАЙЛА === -->
+          <div id="uploadStepArea" style="display: block">
+            <div
+              class="minimal-input-container"
+              style="
+                display: flex;
+                flex-direction: column;
+                gap: 15px;
+                margin-bottom: 20px;
+              "
+            >
+              <!-- 1. Выбор валюты -->
+              <div
+                id="mapperCurrencyBlock"
+                style="
+                  display: flex;
+                  align-items: center;
+                  justify-content: space-between;
+                  background: var(--bg-body, rgba(0, 0, 0, 0.03));
+                  padding: 10px 15px;
+                  border-radius: 8px;
+                  border: 1px dashed var(--border-main);
+                "
+              >
+                <!-- ИЗМЕНЕНИЕ: Перенесли data-i18n на span, чтобы сохранить эмодзи -->
+                <label
+                  style="
+                    font-size: 13px;
+                    font-weight: bold;
+                    color: var(--text-main);
+                    margin: 0;
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                  "
+                >
+                  💵
+                  <span data-i18n="inc_currency_label"
+                    >Валюта цен в накладной:</span
+                  >
+                </label>
+
+                <div
+                  class="currency-minimal-container"
+                  style="position: relative; width: 90px"
+                >
+                  <div
+                    class="currency-minimal-header"
+                    id="dropdownHeader"
+                    onclick="toggleDropdown()"
+                    style="
+                      font-size: 15px;
+                      padding: 8px 12px;
+                      background: var(--bg-modal, #fff);
+                      border: 1px solid var(--border-main);
+                      border-radius: 4px;
+                      display: flex;
+                      justify-content: space-between;
+                      align-items: center;
+                      cursor: pointer;
+                    "
+                  >
+                    <span
+                      id="dropdownSelectedCode"
+                      style="color: var(--accent-yellow, #ffd700)"
+                      >USD</span
+                    >
+                    <span
+                      class="curr-arrow-mini"
+                      style="color: var(--text-muted); font-size: 10px"
+                      >▼</span
+                    >
+                  </div>
+                  <div
+                    class="currency-minimal-list"
+                    id="dropdownList"
+                    style="
+                      position: absolute;
+                      top: calc(100% + 4px);
+                      left: 0;
+                      width: 100%;
+                      z-index: 9999;
+                      background: var(--bg-modal);
+                      border: 1px solid var(--border-light);
+                      border-radius: 4px;
+                      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+                    "
+                  >
+                    <div
+                      class="currency-minimal-item"
+                      onclick="selectCurrency('KZT')"
+                    >
+                      KZT
+                    </div>
+                    <div
+                      class="currency-minimal-item selected"
+                      onclick="selectCurrency('USD')"
+                    >
+                      USD
+                    </div>
+                    <div
+                      class="currency-minimal-item"
+                      onclick="selectCurrency('CNY')"
+                    >
+                      CNY
+                    </div>
+                    <div
+                      class="currency-minimal-item"
+                      onclick="selectCurrency('EUR')"
+                    >
+                      EUR
+                    </div>
+                    <div
+                      class="currency-minimal-item"
+                      onclick="selectCurrency('RUB')"
+                    >
+                      RUB
+                    </div>
+                  </div>
+                  <input type="hidden" id="invoiceCurrency" value="USD" />
+                </div>
+              </div>
+
+              <!-- 2. ФАЗА 1: Блок выбора режима импорта -->
+              <div id="importModeContainer">
+                <div
+                  style="
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    margin-bottom: 10px;
+                  "
+                >
+                  <!-- ИЗМЕНЕНИЕ: Обернули текст в span и задали новый ключ -->
+                  <label
+                    style="
+                      font-size: 14px;
+                      font-weight: bold;
+                      color: var(--text-main);
+                    "
+                  >
+                    ⚙️
+                    <span data-i18n="inc_select_mode"
+                      >Выберите режим приёмки:</span
+                    >
+                  </label>
+                  <button
+                    type="button"
+                    onclick="showImportHelp()"
+                    style="
+                      background: none;
+                      border: none;
+                      color: #3498db;
+                      cursor: pointer;
+                      font-size: 16px;
+                    "
+                    title="Справка"
+                  >
+                    [?]
+                  </button>
+                </div>
+
+                <div
+                  style="
+                    display: flex;
+                    gap: 10px;
+                    margin-bottom: 15px;
+                    overflow: hidden;
+                  "
+                >
+                  <div
+                    id="btnModeInternal"
+                    onclick="selectImportMode('internal')"
+                    style="
+                      flex: 1;
+                      min-width: 0;
+                      padding: 12px 2px;
+                      border: 2px solid var(--border-main);
+                      border-radius: 8px;
+                      text-align: center;
+                      cursor: pointer;
+                      background: var(--bg-body);
+                      transition: 0.2s;
+                    "
+                  >
+                    <div style="font-size: 24px; margin-bottom: 5px">📥</div>
+                    <!-- ИЗМЕНЕНИЕ: Ключи для Быстрой приемки -->
+                    <div
+                      style="
+                        font-size: 12px;
+                        font-weight: bold;
+                        white-space: nowrap;
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                      "
+                      data-i18n="inc_mode_db_only"
+                    >
+                      Только в базу
+                    </div>
+                    <div
+                      style="
+                        font-size: 10px;
+                        color: var(--text-muted);
+                        white-space: nowrap;
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                      "
+                      data-i18n="inc_mode_fast"
+                    >
+                      Быстрая приёмка
+                    </div>
+                  </div>
+
+                  <div
+                    id="btnModeKaspi"
+                    onclick="selectImportMode('kaspi')"
+                    style="
+                      flex: 1;
+                      min-width: 0;
+                      padding: 12px 2px;
+                      border: 2px solid var(--border-main);
+                      border-radius: 8px;
+                      text-align: center;
+                      cursor: pointer;
+                      background: var(--bg-body);
+                      transition: 0.2s;
+                    "
+                  >
+                    <div style="font-size: 24px; margin-bottom: 5px">🛒</div>
+                    <!-- ИЗМЕНЕНИЕ: База + Kaspi не переводим (это бренд), а вот Умный импорт переводим -->
+                    <div
+                      style="
+                        font-size: 12px;
+                        font-weight: bold;
+                        white-space: nowrap;
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                      "
+                    >
+                      База + Kaspi
+                    </div>
+                    <div
+                      style="
+                        font-size: 10px;
+                        color: var(--text-muted);
+                        white-space: nowrap;
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                      "
+                      data-i18n="inc_mode_smart"
+                    >
+                      Умный импорт
+                    </div>
+                  </div>
+                </div>
+
+                <div
+                  id="kaspiTemplateBlock"
+                  style="display: none; margin-bottom: 15px"
+                >
+                  <!-- ИЗМЕНЕНИЕ: Ключ для шаблона -->
+                  <label
+                    style="
+                      font-size: 12px;
+                      color: var(--text-muted);
+                      display: block;
+                      margin-bottom: 5px;
+                    "
+                    data-i18n="inc_marketplace_template"
+                    >Шаблон маркетплейса:</label
+                  >
+                  <select
+                    id="kaspiTemplateSelect"
+                    onchange="handleTemplateChange(event)"
+                    style="
+                      width: 100%;
+                      padding: 12px;
+                      min-height: 46px;
+                      font-size: 15px;
+                      border-radius: 4px;
+                      border: 1px solid var(--border-main);
+                      background: var(--bg-body);
+                      color: var(--text-main);
+                    "
+                  ></select>
+                  <input
+                    type="file"
+                    id="templateFileInput"
+                    accept=".xlsx"
+                    class="visually-hidden"
+                    onchange="handleTemplateUpload(event)"
+                  />
+                </div>
+              </div>
+
+              <!-- 3. Кнопка загрузки накладной -->
+              <div
+                class="file-input-wrapper"
+                id="invoiceUploadWrapper"
+                style="
+                  width: 100%;
+                  opacity: 0.5;
+                  pointer-events: none;
+                  transition: opacity 0.3s;
+                "
+              >
+                <label
+                  for="invoiceFileInput"
+                  id="fileInputLabel"
+                  class="file-upload-label"
+                  style="
+                    padding: 12px;
+                    border: 1px solid var(--border-main) !important;
+                    border-radius: 4px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    cursor: pointer;
+                    background: var(--bg-body, rgba(0, 0, 0, 0.03));
+                    transition: background-color 0.2s;
+                    width: 100%;
+                    box-sizing: border-box;
+                  "
+                >
+                  <div
+                    class="file-content"
+                    style="
+                      display: flex;
+                      gap: 8px;
+                      align-items: center;
+                      max-width: 100%;
+                      overflow: hidden;
+                    "
+                  >
+                    <span
+                      style="
+                        color: var(--text-muted);
+                        font-size: 16px;
+                        flex-shrink: 0;
+                      "
+                      >🔒</span
+                    >
+                    <span
+                      id="fileNameTextCompact"
+                      class="file-placeholder-text"
+                      style="
+                        font-size: 14px;
+                        color: var(--text-main);
+                        white-space: nowrap;
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                      "
+                      data-i18n="tpl_select_mode"
+                      >Сначала выберите режим</span
+                    >
+                  </div>
+                </label>
+                <input
+                  type="file"
+                  id="invoiceFileInput"
+                  accept=".csv, .xls, .xlsx"
+                  style="display: none"
+                  multiple
+                  onchange="updateFileNameCompactUI(this)"
+                />
+              </div>
             </div>
-            <div class="field-group" style="flex: 1;">
-                <label style="font-size: 12px; color: var(--text-muted);">Остаток</label>
-                <input type="text" id="qe-stock" readonly onclick="setQeActiveField('qe-stock')" style="width: 100%; padding: 12px; margin-top: 5px; background: var(--bg-card); border: 1px solid var(--border-main); color: var(--text-main); border-radius: 4px; box-sizing: border-box; text-align: center; font-size: 18px; font-weight: bold;">
+
+            <button
+              id="parseInvoiceBtn"
+              onclick="processInvoiceFile()"
+              class="btn-primary green"
+              data-i18n="income_parse"
+            >
+              ОБРАБОТАТЬ ФАЙЛ
+            </button>
+
+            <div
+              id="debug-container"
+              style="
+                display: none;
+                margin-top: 15px;
+                flex-direction: column;
+                overflow-y: auto;
+                max-height: 40vh;
+              "
+            ></div>
+          </div>
+          <!-- Конец uploadStepArea -->
+
+          <!-- === ШАГ 2: МАППЕР 2.0 === -->
+          <div
+            id="mapper2Area"
+            style="
+              display: none;
+              margin-top: -15px;
+              flex-direction: column;
+              height: 75vh;
+              width: 100%;
+              box-sizing: border-box;
+            "
+          >
+            <!-- ИЗМЕНЕНИЕ: Ключ для заголовка шага 2 -->
+            <div
+              style="
+                font-weight: bold;
+                margin-bottom: 10px;
+                color: var(--accent-yellow);
+                font-size: 14px;
+                text-align: center;
+                flex-shrink: 0;
+              "
+              data-i18n="inc_fill_kaspi_reqs"
+            >
+              ЗАПОЛНИТЕ ТРЕБОВАНИЯ KASPI
             </div>
-        </div>
 
-        <!-- КАСТОМНАЯ КЛАВИАТУРА ДЛЯ РЕДАКТИРОВАНИЯ -->
-        <div class="numpad" style="margin-bottom: 20px; grid-template-columns: repeat(3, 1fr); gap: 10px; display: grid;">
-            <div class="num-btn" onmousedown="qeAddDigit('1', event)" ontouchstart="qeAddDigit('1', event)">1</div>
-            <div class="num-btn" onmousedown="qeAddDigit('2', event)" ontouchstart="qeAddDigit('2', event)">2</div>
-            <div class="num-btn" onmousedown="qeAddDigit('3', event)" ontouchstart="qeAddDigit('3', event)">3</div>
-            <div class="num-btn" onmousedown="qeAddDigit('4', event)" ontouchstart="qeAddDigit('4', event)">4</div>
-            <div class="num-btn" onmousedown="qeAddDigit('5', event)" ontouchstart="qeAddDigit('5', event)">5</div>
-            <div class="num-btn" onmousedown="qeAddDigit('6', event)" ontouchstart="qeAddDigit('6', event)">6</div>
-            <div class="num-btn" onmousedown="qeAddDigit('7', event)" ontouchstart="qeAddDigit('7', event)">7</div>
-            <div class="num-btn" onmousedown="qeAddDigit('8', event)" ontouchstart="qeAddDigit('8', event)">8</div>
-            <div class="num-btn" onmousedown="qeAddDigit('9', event)" ontouchstart="qeAddDigit('9', event)">9</div>
-            <div class="num-btn btn-clear" onmousedown="qeClearField(event)" ontouchstart="qeClearField(event)">C</div>
-            <div class="num-btn" onmousedown="qeAddDigit('0', event)" ontouchstart="qeAddDigit('0', event)">0</div>
-            <div class="num-btn btn-clear" onmousedown="qeDelDigit(event)" ontouchstart="qeDelDigit(event)">⌫</div>
-        </div>
+            <div
+              id="mapper2CardsContainer"
+              style="
+                overflow-y: auto;
+                flex: 1;
+                min-height: 0;
+                margin-bottom: 15px;
+                padding-right: 5px;
+                -webkit-overflow-scrolling: touch;
+              "
+            ></div>
 
-        <button class="btn-save-native" onclick="saveQuickEdit()" style="width: 100%; padding: 15px; background: var(--accent-green); color: white; border: none; border-radius: 4px; font-weight: bold; margin-bottom: 10px;">СОХРАНИТЬ</button>
-        <button class="cancel-btn" style="width: 100%; padding: 15px; background: transparent; border: 1px solid var(--border-main); color: var(--text-muted); border-radius: 4px;" onclick="closeQuickEdit()">ОТМЕНА</button>
-    </div>
-</div>
+            <div
+              style="
+                display: flex;
+                gap: 15px;
+                margin-top: auto;
+                flex-shrink: 0;
+                padding-bottom: 5px;
+              "
+            >
+              <!-- ИЗМЕНЕНИЕ: Ключ для НАЗАД -->
+              <button
+                type="button"
+                onclick="navigateIncomeStep(1)"
+                style="
+                  flex: 1;
+                  padding: 12px;
+                  background: var(--bg-secondary);
+                  border: 1px solid var(--border-light);
+                  color: var(--text-main);
+                  border-radius: 4px;
+                  font-weight: bold;
+                  cursor: pointer;
+                "
+                data-i18n="inc_back"
+              >
+                ⬅ НАЗАД
+              </button>
 
-<!-- ПОЛНОЭКРАННЫЙ ПОИСК ПОСТАВЩИКА -->
-<div id="supplier-fullscreen-modal" class="supp-modal-bg" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; overflow: hidden; background: #121212; z-index: 999999; flex-direction: column; transform: translateY(var(--vv-offset, 0px));">
-    
-    <!-- Шапка -->
-    <div class="supp-modal-header" style="flex-shrink: 0; display: flex; padding: 10px 15px; padding-top: max(10px, env(safe-area-inset-top)); background: #1e1e1e; border-bottom: 1px solid #333; gap: 10px;">
-        <input type="text" id="fullscreen-supplier-search" class="supp-modal-input" placeholder="Поиск или новый поставщик..." oninput="window.filterFullscreenSuppliers()" style="flex: 1; background: #000; color: #fff; border: 1px solid #333; padding: 10px; border-radius: 6px; font-size: 16px;">
-        <button onclick="window.closeFullscreenSupplier()" style="background: #d32f2f; color: #fff; border: none; padding: 0 15px; border-radius: 6px; font-size: 20px; font-weight: bold;">✕</button>
-    </div>
+              <!-- ИЗМЕНЕНИЕ: Обернули текст в span, чтобы галка ✅ не пропала -->
+              <button
+                id="applyMapper2Btn"
+                onclick="applyMapper2Logic()"
+                class="btn-primary"
+                style="flex: 2; padding: 12px; display: none"
+              >
+                ✅ <span data-i18n="inc_build_invoice">СОБРАТЬ НАКЛАДНУЮ</span>
+              </button>
+            </div>
+          </div>
 
-    <!-- Кнопка добавления -->
-    <div id="fullscreen-add-new-btn" style="display: none; flex-shrink: 0; padding: 15px; background: rgba(76, 175, 80, 0.1); border-bottom: 1px solid #2e7d32; text-align: center; color: #4CAF50; font-weight: bold; cursor: pointer;" onclick="window.selectFullscreenSupplier(document.getElementById('fullscreen-supplier-search').value)">
-        + Добавить: <span id="new-supplier-name-preview"></span>
-    </div>
+          <!-- === BOTTOM SHEET (ШТОРКА ВЫБОРА КОЛОНКИ) === -->
+          <div
+            class="sheet-overlay"
+            id="sheet-overlay"
+            onclick="closeSheet()"
+          ></div>
+          <div class="bottom-sheet" id="bottom-sheet">
+            <div class="sheet-drag-handle"></div>
+            <div class="sheet-header">
+              <span class="sheet-title" id="sheet-title">Выбор колонки</span>
+              <span class="close-btn" onclick="closeSheet()">×</span>
+            </div>
+            <div
+              class="btn-global"
+              id="btn-global-dict"
+              style="display: none"
+              onclick="openGlobalDictionary()"
+            >
+              🔍 Задать единое значение из словаря
+            </div>
+            <div class="col-list" id="sheet-col-list"></div>
+          </div>
 
-    <!-- Список -->
-    <div id="fullscreen-supplier-list" style="flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 0 15px; padding-bottom: max(15px, env(safe-area-inset-bottom));">
-        <!-- Результаты -->
-    </div>
-</div>
+          <!-- === ШАГ 3: ПРЕДПРОСМОТР === -->
+          <div
+            id="invoicePreviewArea"
+            style="
+              display: none;
+              flex-direction: column;
+              height: 75vh;
+              width: 100%;
+              box-sizing: border-box;
+              margin-top: -5px;
+            "
+          >
+            <div
+              id="invoiceMetadata"
+              style="
+                margin-bottom: 10px;
+                font-weight: bold;
+                color: var(--accent-yellow);
+                font-size: 14px;
+                text-align: center;
+                flex-shrink: 0;
+              "
+            ></div>
 
-<!-- МОДАЛКА БАЗЫ ДАННЫХ (DRIVE) -->
-    <div id="drive-base-modal" class="modal-overlay" style="display: none; background: rgba(0, 0, 0, 0.75); z-index: 9999;" onclick="closeDriveModal()">
-        
-        <div class="settings-box" onclick="event.stopPropagation()" style="position: relative; background: var(--bg-panel, #ffffff); border: 1px solid var(--border-focus); padding: 25px 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.3); border-radius: 16px; max-height: 90vh; overflow-y: auto;">
-    
-            <!-- НОВЫЙ КРАСНЫЙ КРЕСТИК ЗАКРЫТИЯ (С РАМКОЙ И ФОНОМ) -->
-            <button onclick="closeDriveModal()" style="position: absolute; top: 12px; right: 12px; width: 32px; height: 32px; background: rgba(234, 67, 53, 0.1); border: 1px solid #EA4335; border-radius: 6px; font-size: 22px; color: #EA4335; cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 10;">&times;</button>
+            <div
+              id="invoiceTableContainer"
+              style="
+                overflow-y: auto;
+                flex: 1;
+                min-height: 0;
+                border: 1px solid var(--border-light);
+                margin-bottom: 15px;
+                width: 100%;
+                box-sizing: border-box;
+                -webkit-overflow-scrolling: touch;
+              "
+            >
+              <table
+                style="
+                  width: 100%;
+                  border-collapse: collapse;
+                  font-size: 13px;
+                  color: var(--text-main);
+                "
+              >
+                <thead
+                  style="
+                    position: sticky;
+                    top: -1px;
+                    background: var(--bg-body);
+                    z-index: 10;
+                  "
+                >
+                  <tr style="border-bottom: 1px solid var(--border-light)">
+                    <th
+                      class="col-min"
+                      style="
+                        padding: 10px 8px;
+                        text-align: left;
+                        text-transform: uppercase;
+                        color: var(--text-muted);
+                        font-size: 11px;
+                      "
+                      data-i18n="inc_code"
+                    >
+                      Код
+                    </th>
+                    <th
+                      class="col-main"
+                      style="
+                        padding: 10px 8px;
+                        text-align: left;
+                        text-transform: uppercase;
+                        color: var(--text-muted);
+                        font-size: 11px;
+                      "
+                      data-i18n="inc_item_params"
+                    >
+                      Товар и параметры
+                    </th>
+                    <th
+                      class="col-min"
+                      style="
+                        padding: 10px 8px;
+                        text-align: right;
+                        text-transform: uppercase;
+                        color: var(--text-muted);
+                        font-size: 11px;
+                        line-height: 1.4;
+                        white-space: nowrap;
+                      "
+                    >
+                      <div
+                        data-i18n="income_qty"
+                        style="color: var(--text-muted); font-size: 10px"
+                      >
+                        Кол-во
+                      </div>
+                      <div>
+                        <span data-i18n="income_price">Цена</span>,
+                        <span
+                          id="dynamicCurrencySpan"
+                          style="color: var(--accent-yellow); font-weight: bold"
+                          >USD</span
+                        >
+                      </div>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody id="invoiceTableBody"></tbody>
+              </table>
+            </div>
 
-            <div class="r-title" style="font-size: 15px; margin-bottom: 25px; text-align: center; font-weight: bold; color: var(--text-main); text-transform: uppercase; letter-spacing: 1px;" data-i18n="drive_modal_title">БАЗА ДАННЫХ (DRIVE)</div>
-            
-            <!-- БЛОК 1: ФАЙЛЫ (Синий акцент #4285F4) -->
-            <button onclick="handleDriveClick(this, 'cashDbId', 'file')" style="background: var(--bg-panel); color: var(--text-main); margin-bottom: 12px; width: 100%; padding: 16px 20px; border-radius: 12px; font-weight: 600; font-size: 13px; text-transform: uppercase; border: 1px solid var(--border-light); border-left: 5px solid #4285F4; cursor: pointer; display: flex; align-items: center; justify-content: flex-start; text-align: left; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
-                <span style="font-size: 20px; width: 35px; display: inline-block;">📊</span>
-                <span style="flex: 1;" data-i18n="drive_db">ТАБЛИЦА: ТОВАРЫ И ЧЕКИ</span>
-            </button>
+            <div
+              id="status-container"
+              style="
+                display: none;
+                margin-bottom: 10px;
+                padding: 10px;
+                background: var(--bg-body);
+                border: 1px solid var(--border-light);
+                border-radius: 4px;
+                flex-shrink: 0;
+              "
+            >
+              <div
+                style="
+                  display: flex;
+                  justify-content: space-between;
+                  margin-bottom: 5px;
+                  font-size: 13px;
+                "
+              >
+                <span id="status-text" style="color: var(--accent-green)"
+                  >Подготовка...</span
+                >
+                <span id="status-percent" style="color: var(--text-muted)"
+                  >0%</span
+                >
+              </div>
+              <div
+                style="
+                  width: 100%;
+                  height: 6px;
+                  background: var(--border-main);
+                  border-radius: 3px;
+                  overflow: hidden;
+                "
+              >
+                <div
+                  id="status-bar"
+                  style="
+                    width: 0%;
+                    height: 100%;
+                    background: var(--accent-green);
+                    transition: width 0.3s;
+                  "
+                ></div>
+              </div>
+            </div>
 
-            <button onclick="handleDriveClick(this, 'configDbId', 'file')" style="background: var(--bg-panel); color: var(--text-main); margin-bottom: 25px; width: 100%; padding: 16px 20px; border-radius: 12px; font-weight: 600; font-size: 13px; text-transform: uppercase; border: 1px solid var(--border-light); border-left: 5px solid #4285F4; cursor: pointer; display: flex; align-items: center; justify-content: flex-start; text-align: left; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
-                <span style="font-size: 20px; width: 35px; display: inline-block;">⚙️</span>
-                <span style="flex: 1;" data-i18n="drive_config">ТАБЛИЦА: НАСТРОЙКИ</span>
-            </button>
+            <div
+              style="
+                display: flex;
+                gap: 15px;
+                flex-shrink: 0;
+                margin-top: auto;
+                padding-bottom: 5px;
+              "
+            >
+              <!-- ИЗМЕНЕНИЕ: Ключ для НАЗАД -->
+              <button
+                type="button"
+                onclick="navigateIncomeStep(2)"
+                style="
+                  flex: 1;
+                  padding: 12px;
+                  background: var(--bg-secondary);
+                  border: 1px solid var(--border-light);
+                  color: var(--text-main);
+                  border-radius: 4px;
+                  font-weight: bold;
+                  cursor: pointer;
+                "
+                data-i18n="inc_back"
+              >
+                ⬅ НАЗАД
+              </button>
 
-            <!-- БЛОК 2: ПАПКИ (Серый акцент #9AA0A6) -->
-            <button onclick="handleDriveClick(this, 'rootFolderId', 'root')" style="background: var(--bg-panel); color: var(--text-main); margin-bottom: 12px; width: 100%; padding: 16px 20px; border-radius: 12px; font-weight: 600; font-size: 13px; text-transform: uppercase; border: 1px solid var(--border-light); border-left: 5px solid #9AA0A6; cursor: pointer; display: flex; align-items: center; justify-content: flex-start; text-align: left; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
-                <span style="font-size: 20px; width: 35px; display: inline-block;">📁</span>
-                <span style="flex: 1;" data-i18n="drive_root">КОРНЕВАЯ ПАПКА</span>
-            </button>
+              <!-- ИЗМЕНЕНИЕ: Старый ключ income_confirm оставлен для совместимости, но добавлен span для эмодзи -->
+              <button
+                id="sendInvoiceBtn"
+                onclick="sendInvoiceToBackend()"
+                class="btn-primary blue"
+                style="flex: 2; padding: 12px"
+              >
+                ✅ <span data-i18n="income_confirm">ОПРИХОДОВАТЬ</span>
+              </button>
+            </div>
+          </div>
 
-            <button onclick="handleDriveClick(this, 'imagesFolderId', 'POS_Images')" style="background: var(--bg-panel); color: var(--text-main); margin-bottom: 12px; width: 100%; padding: 16px 20px; border-radius: 12px; font-weight: 600; font-size: 13px; text-transform: uppercase; border: 1px solid var(--border-light); border-left: 5px solid #9AA0A6; cursor: pointer; display: flex; align-items: center; justify-content: flex-start; text-align: left; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
-                <span style="font-size: 20px; width: 35px; display: inline-block;">🖼</span>
-                <span style="flex: 1;" data-i18n="drive_images">ПАПКА: ФОТОГРАФИИ</span>
-            </button>
+          <!-- ========================================= -->
+          <!-- ОКНО БЫСТРОГО РЕДАКТИРОВАНИЯ (QUICK EDIT) -->
+          <!-- ========================================= -->
+          <div
+            id="modal-quick-edit"
+            class="modal-overlay"
+            style="display: none"
+            onclick="closeQuickEdit()"
+          >
+            <div class="settings-box" onclick="event.stopPropagation()">
+              <div class="r-title" style="margin-bottom: 20px">
+                РЕДАКТИРОВАНИЕ
+              </div>
 
-            <button onclick="handleDriveClick(this, 'invoicesFolderId', 'POS_Invoices')" style="background: var(--bg-panel); color: var(--text-main); margin-bottom: 12px; width: 100%; padding: 16px 20px; border-radius: 12px; font-weight: 600; font-size: 13px; text-transform: uppercase; border: 1px solid var(--border-light); border-left: 5px solid #9AA0A6; cursor: pointer; display: flex; align-items: center; justify-content: flex-start; text-align: left; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
-                <span style="font-size: 20px; width: 35px; display: inline-block;">📄</span>
-                <span style="flex: 1;" data-i18n="drive_invoices">ПАПКА: НАКЛАДНЫЕ</span>
-            </button>
+              <input type="hidden" id="qe-item-id" />
 
-            <button onclick="handleDriveClick(this, 'backupsFolderId', 'POS_Backups')" style="background: var(--bg-panel); color: var(--text-main); margin-bottom: 12px; width: 100%; padding: 16px 20px; border-radius: 12px; font-weight: 600; font-size: 13px; text-transform: uppercase; border: 1px solid var(--border-light); border-left: 5px solid #9AA0A6; cursor: pointer; display: flex; align-items: center; justify-content: flex-start; text-align: left; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
-                <span style="font-size: 20px; width: 35px; display: inline-block;">📦</span>
-                <span style="flex: 1;" data-i18n="drive_backups">ПАПКА: РЕЗЕРВНЫЕ КОПИИ</span>
-            </button>
+              <div class="field-group" style="margin-bottom: 15px">
+                <label style="font-size: 12px; color: var(--text-muted)"
+                  >Наименование (используйте сканер)</label
+                >
+                <input
+                  type="text"
+                  id="qe-name"
+                  readonly
+                  onclick="setQeActiveField('qe-name')"
+                  style="
+                    width: 100%;
+                    padding: 12px;
+                    margin-top: 5px;
+                    background: var(--bg-card);
+                    border: 1px solid var(--border-main);
+                    color: var(--text-main);
+                    border-radius: 4px;
+                    box-sizing: border-box;
+                  "
+                />
+              </div>
 
-            <!-- БЛОК 3: Секретная папка (Фиолетовый/Темный акцент) -->
-            <button onclick="handleDriveClick(this, 'secretBackupsFolderId', 'POS_Secret_Backups')" style="background: var(--bg-panel); color: var(--text-main); margin-bottom: 25px; width: 100%; padding: 16px 20px; border-radius: 12px; font-weight: 600; font-size: 13px; text-transform: uppercase; border: 1px solid var(--border-light); border-left: 5px solid #9C27B0; cursor: pointer; display: flex; align-items: center; justify-content: flex-start; text-align: left; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
-                <span style="font-size: 20px; width: 35px; display: inline-block;">🔒</span>
-                <span style="flex: 1;" data-i18n="drive_secret">ПАПКА: СЕКРЕТНЫЕ КОПИИ</span>
-            </button>
+              <div
+                class="grid-row"
+                style="display: flex; gap: 10px; margin-bottom: 20px"
+              >
+                <div class="field-group" style="flex: 1">
+                  <label style="font-size: 12px; color: var(--text-muted)"
+                    >Цена</label
+                  >
+                  <input
+                    type="text"
+                    id="qe-price"
+                    readonly
+                    onclick="setQeActiveField('qe-price')"
+                    style="
+                      width: 100%;
+                      padding: 12px;
+                      margin-top: 5px;
+                      background: var(--bg-card);
+                      border: 2px solid var(--accent-blue);
+                      color: var(--text-main);
+                      border-radius: 4px;
+                      box-sizing: border-box;
+                      text-align: center;
+                      font-size: 18px;
+                      font-weight: bold;
+                    "
+                  />
+                </div>
+                <div class="field-group" style="flex: 1">
+                  <label style="font-size: 12px; color: var(--text-muted)"
+                    >Остаток</label
+                  >
+                  <input
+                    type="text"
+                    id="qe-stock"
+                    readonly
+                    onclick="setQeActiveField('qe-stock')"
+                    style="
+                      width: 100%;
+                      padding: 12px;
+                      margin-top: 5px;
+                      background: var(--bg-card);
+                      border: 1px solid var(--border-main);
+                      color: var(--text-main);
+                      border-radius: 4px;
+                      box-sizing: border-box;
+                      text-align: center;
+                      font-size: 18px;
+                      font-weight: bold;
+                    "
+                  />
+                </div>
+              </div>
 
-            <!-- НОВЫЙ БЛОК 4: УПРАВЛЕНИЕ ДАННЫМИ (Аварийные действия) -->
-            <div style="border-top: 1px solid var(--border-light); margin-top: 10px; margin-bottom: 20px; padding-top: 20px;">
-                <div class="r-title" style="font-size: 13px; margin-bottom: 15px; text-align: center; font-weight: bold; color: var(--text-muted, #888); text-transform: uppercase; letter-spacing: 1px;" data-i18n="drive_danger_zone">ОПЕРАТИВНЫЕ ДЕЙСТВИЯ</div>
-                
-                <button onclick="startDatabaseClear()" style="background: var(--bg-panel); color: var(--text-main); margin-bottom: 12px; width: 100%; padding: 16px 20px; border-radius: 12px; font-weight: 600; font-size: 13px; text-transform: uppercase; border: 1px solid var(--border-light); border-left: 5px solid #EA4335; cursor: pointer; display: flex; align-items: center; justify-content: flex-start; text-align: left; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
-                    <span style="font-size: 20px; width: 35px; display: inline-block;">⚠️</span>
-                    <span style="flex: 1;" data-i18n="drive_clear_btn">ОЧИСТИТЬ БАЗУ ДАННЫХ</span>
+              <!-- КАСТОМНАЯ КЛАВИАТУРА ДЛЯ РЕДАКТИРОВАНИЯ -->
+              <div
+                class="numpad"
+                style="
+                  margin-bottom: 20px;
+                  grid-template-columns: repeat(3, 1fr);
+                  gap: 10px;
+                  display: grid;
+                "
+              >
+                <div
+                  class="num-btn"
+                  onmousedown="qeAddDigit('1', event)"
+                  ontouchstart="qeAddDigit('1', event)"
+                >
+                  1
+                </div>
+                <div
+                  class="num-btn"
+                  onmousedown="qeAddDigit('2', event)"
+                  ontouchstart="qeAddDigit('2', event)"
+                >
+                  2
+                </div>
+                <div
+                  class="num-btn"
+                  onmousedown="qeAddDigit('3', event)"
+                  ontouchstart="qeAddDigit('3', event)"
+                >
+                  3
+                </div>
+                <div
+                  class="num-btn"
+                  onmousedown="qeAddDigit('4', event)"
+                  ontouchstart="qeAddDigit('4', event)"
+                >
+                  4
+                </div>
+                <div
+                  class="num-btn"
+                  onmousedown="qeAddDigit('5', event)"
+                  ontouchstart="qeAddDigit('5', event)"
+                >
+                  5
+                </div>
+                <div
+                  class="num-btn"
+                  onmousedown="qeAddDigit('6', event)"
+                  ontouchstart="qeAddDigit('6', event)"
+                >
+                  6
+                </div>
+                <div
+                  class="num-btn"
+                  onmousedown="qeAddDigit('7', event)"
+                  ontouchstart="qeAddDigit('7', event)"
+                >
+                  7
+                </div>
+                <div
+                  class="num-btn"
+                  onmousedown="qeAddDigit('8', event)"
+                  ontouchstart="qeAddDigit('8', event)"
+                >
+                  8
+                </div>
+                <div
+                  class="num-btn"
+                  onmousedown="qeAddDigit('9', event)"
+                  ontouchstart="qeAddDigit('9', event)"
+                >
+                  9
+                </div>
+                <div
+                  class="num-btn btn-clear"
+                  onmousedown="qeClearField(event)"
+                  ontouchstart="qeClearField(event)"
+                >
+                  C
+                </div>
+                <div
+                  class="num-btn"
+                  onmousedown="qeAddDigit('0', event)"
+                  ontouchstart="qeAddDigit('0', event)"
+                >
+                  0
+                </div>
+                <div
+                  class="num-btn btn-clear"
+                  onmousedown="qeDelDigit(event)"
+                  ontouchstart="qeDelDigit(event)"
+                >
+                  ⌫
+                </div>
+              </div>
+
+              <button
+                class="btn-save-native"
+                onclick="saveQuickEdit()"
+                style="
+                  width: 100%;
+                  padding: 15px;
+                  background: var(--accent-green);
+                  color: white;
+                  border: none;
+                  border-radius: 4px;
+                  font-weight: bold;
+                  margin-bottom: 10px;
+                "
+              >
+                СОХРАНИТЬ
+              </button>
+              <button
+                class="cancel-btn"
+                style="
+                  width: 100%;
+                  padding: 15px;
+                  background: transparent;
+                  border: 1px solid var(--border-main);
+                  color: var(--text-muted);
+                  border-radius: 4px;
+                "
+                onclick="closeQuickEdit()"
+              >
+                ОТМЕНА
+              </button>
+            </div>
+          </div>
+
+          <!-- ПОЛНОЭКРАННЫЙ ПОИСК ПОСТАВЩИКА -->
+          <div
+            id="supplier-fullscreen-modal"
+            class="supp-modal-bg"
+            style="
+              display: none;
+              position: fixed;
+              top: 0;
+              left: 0;
+              width: 100%;
+              height: 100%;
+              overflow: hidden;
+              background: #121212;
+              z-index: 999999;
+              flex-direction: column;
+              transform: translateY(var(--vv-offset, 0px));
+            "
+          >
+            <!-- Шапка -->
+            <div
+              class="supp-modal-header"
+              style="
+                flex-shrink: 0;
+                display: flex;
+                padding: 10px 15px;
+                padding-top: max(10px, env(safe-area-inset-top));
+                background: #1e1e1e;
+                border-bottom: 1px solid #333;
+                gap: 10px;
+              "
+            >
+              <input
+                type="text"
+                id="fullscreen-supplier-search"
+                class="supp-modal-input"
+                placeholder="Поиск или новый поставщик..."
+                oninput="window.filterFullscreenSuppliers()"
+                style="
+                  flex: 1;
+                  background: #000;
+                  color: #fff;
+                  border: 1px solid #333;
+                  padding: 10px;
+                  border-radius: 6px;
+                  font-size: 16px;
+                "
+              />
+              <button
+                onclick="window.closeFullscreenSupplier()"
+                style="
+                  background: #d32f2f;
+                  color: #fff;
+                  border: none;
+                  padding: 0 15px;
+                  border-radius: 6px;
+                  font-size: 20px;
+                  font-weight: bold;
+                "
+              >
+                ✕
+              </button>
+            </div>
+
+            <!-- Кнопка добавления -->
+            <div
+              id="fullscreen-add-new-btn"
+              style="
+                display: none;
+                flex-shrink: 0;
+                padding: 15px;
+                background: rgba(76, 175, 80, 0.1);
+                border-bottom: 1px solid #2e7d32;
+                text-align: center;
+                color: #4caf50;
+                font-weight: bold;
+                cursor: pointer;
+              "
+              onclick="
+                window.selectFullscreenSupplier(
+                  document.getElementById('fullscreen-supplier-search').value,
+                )
+              "
+            >
+              + Добавить: <span id="new-supplier-name-preview"></span>
+            </div>
+
+            <!-- Список -->
+            <div
+              id="fullscreen-supplier-list"
+              style="
+                flex: 1;
+                overflow-y: auto;
+                -webkit-overflow-scrolling: touch;
+                padding: 0 15px;
+                padding-bottom: max(15px, env(safe-area-inset-bottom));
+              "
+            >
+              <!-- Результаты -->
+            </div>
+          </div>
+
+          <!-- МОДАЛКА БАЗЫ ДАННЫХ (DRIVE) -->
+          <div
+            id="drive-base-modal"
+            class="modal-overlay"
+            style="
+              display: none;
+              background: rgba(0, 0, 0, 0.75);
+              z-index: 9999;
+            "
+            onclick="closeDriveModal()"
+          >
+            <div
+              class="settings-box"
+              onclick="event.stopPropagation()"
+              style="
+                position: relative;
+                background: var(--bg-panel, #ffffff);
+                border: 1px solid var(--border-focus);
+                padding: 25px 20px;
+                box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+                border-radius: 16px;
+                max-height: 90vh;
+                overflow-y: auto;
+              "
+            >
+              <!-- НОВЫЙ КРАСНЫЙ КРЕСТИК ЗАКРЫТИЯ (С РАМКОЙ И ФОНОМ) -->
+              <button
+                onclick="closeDriveModal()"
+                style="
+                  position: absolute;
+                  top: 12px;
+                  right: 12px;
+                  width: 32px;
+                  height: 32px;
+                  background: rgba(234, 67, 53, 0.1);
+                  border: 1px solid #ea4335;
+                  border-radius: 6px;
+                  font-size: 22px;
+                  color: #ea4335;
+                  cursor: pointer;
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  z-index: 10;
+                "
+              >
+                &times;
+              </button>
+
+              <div
+                class="r-title"
+                style="
+                  font-size: 15px;
+                  margin-bottom: 25px;
+                  text-align: center;
+                  font-weight: bold;
+                  color: var(--text-main);
+                  text-transform: uppercase;
+                  letter-spacing: 1px;
+                "
+                data-i18n="drive_modal_title"
+              >
+                БАЗА ДАННЫХ (DRIVE)
+              </div>
+
+              <!-- БЛОК 1: ФАЙЛЫ (Синий акцент #4285F4) -->
+              <button
+                onclick="handleDriveClick(this, 'cashDbId', 'file')"
+                style="
+                  background: var(--bg-panel);
+                  color: var(--text-main);
+                  margin-bottom: 12px;
+                  width: 100%;
+                  padding: 16px 20px;
+                  border-radius: 12px;
+                  font-weight: 600;
+                  font-size: 13px;
+                  text-transform: uppercase;
+                  border: 1px solid var(--border-light);
+                  border-left: 5px solid #4285f4;
+                  cursor: pointer;
+                  display: flex;
+                  align-items: center;
+                  justify-content: flex-start;
+                  text-align: left;
+                  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+                "
+              >
+                <span
+                  style="font-size: 20px; width: 35px; display: inline-block"
+                  >📊</span
+                >
+                <span style="flex: 1" data-i18n="drive_db"
+                  >ТАБЛИЦА: ТОВАРЫ И ЧЕКИ</span
+                >
+              </button>
+
+              <button
+                onclick="handleDriveClick(this, 'configDbId', 'file')"
+                style="
+                  background: var(--bg-panel);
+                  color: var(--text-main);
+                  margin-bottom: 25px;
+                  width: 100%;
+                  padding: 16px 20px;
+                  border-radius: 12px;
+                  font-weight: 600;
+                  font-size: 13px;
+                  text-transform: uppercase;
+                  border: 1px solid var(--border-light);
+                  border-left: 5px solid #4285f4;
+                  cursor: pointer;
+                  display: flex;
+                  align-items: center;
+                  justify-content: flex-start;
+                  text-align: left;
+                  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+                "
+              >
+                <span
+                  style="font-size: 20px; width: 35px; display: inline-block"
+                  >⚙️</span
+                >
+                <span style="flex: 1" data-i18n="drive_config"
+                  >ТАБЛИЦА: НАСТРОЙКИ</span
+                >
+              </button>
+
+              <!-- БЛОК 2: ПАПКИ (Серый акцент #9AA0A6) -->
+              <button
+                onclick="handleDriveClick(this, 'rootFolderId', 'root')"
+                style="
+                  background: var(--bg-panel);
+                  color: var(--text-main);
+                  margin-bottom: 12px;
+                  width: 100%;
+                  padding: 16px 20px;
+                  border-radius: 12px;
+                  font-weight: 600;
+                  font-size: 13px;
+                  text-transform: uppercase;
+                  border: 1px solid var(--border-light);
+                  border-left: 5px solid #9aa0a6;
+                  cursor: pointer;
+                  display: flex;
+                  align-items: center;
+                  justify-content: flex-start;
+                  text-align: left;
+                  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+                "
+              >
+                <span
+                  style="font-size: 20px; width: 35px; display: inline-block"
+                  >📁</span
+                >
+                <span style="flex: 1" data-i18n="drive_root"
+                  >КОРНЕВАЯ ПАПКА</span
+                >
+              </button>
+
+              <button
+                onclick="handleDriveClick(this, 'imagesFolderId', 'POS_Images')"
+                style="
+                  background: var(--bg-panel);
+                  color: var(--text-main);
+                  margin-bottom: 12px;
+                  width: 100%;
+                  padding: 16px 20px;
+                  border-radius: 12px;
+                  font-weight: 600;
+                  font-size: 13px;
+                  text-transform: uppercase;
+                  border: 1px solid var(--border-light);
+                  border-left: 5px solid #9aa0a6;
+                  cursor: pointer;
+                  display: flex;
+                  align-items: center;
+                  justify-content: flex-start;
+                  text-align: left;
+                  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+                "
+              >
+                <span
+                  style="font-size: 20px; width: 35px; display: inline-block"
+                  >🖼</span
+                >
+                <span style="flex: 1" data-i18n="drive_images"
+                  >ПАПКА: ФОТОГРАФИИ</span
+                >
+              </button>
+
+              <button
+                onclick="
+                  handleDriveClick(this, 'invoicesFolderId', 'POS_Invoices')
+                "
+                style="
+                  background: var(--bg-panel);
+                  color: var(--text-main);
+                  margin-bottom: 12px;
+                  width: 100%;
+                  padding: 16px 20px;
+                  border-radius: 12px;
+                  font-weight: 600;
+                  font-size: 13px;
+                  text-transform: uppercase;
+                  border: 1px solid var(--border-light);
+                  border-left: 5px solid #9aa0a6;
+                  cursor: pointer;
+                  display: flex;
+                  align-items: center;
+                  justify-content: flex-start;
+                  text-align: left;
+                  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+                "
+              >
+                <span
+                  style="font-size: 20px; width: 35px; display: inline-block"
+                  >📄</span
+                >
+                <span style="flex: 1" data-i18n="drive_invoices"
+                  >ПАПКА: НАКЛАДНЫЕ</span
+                >
+              </button>
+
+              <button
+                onclick="
+                  handleDriveClick(this, 'backupsFolderId', 'POS_Backups')
+                "
+                style="
+                  background: var(--bg-panel);
+                  color: var(--text-main);
+                  margin-bottom: 12px;
+                  width: 100%;
+                  padding: 16px 20px;
+                  border-radius: 12px;
+                  font-weight: 600;
+                  font-size: 13px;
+                  text-transform: uppercase;
+                  border: 1px solid var(--border-light);
+                  border-left: 5px solid #9aa0a6;
+                  cursor: pointer;
+                  display: flex;
+                  align-items: center;
+                  justify-content: flex-start;
+                  text-align: left;
+                  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+                "
+              >
+                <span
+                  style="font-size: 20px; width: 35px; display: inline-block"
+                  >📦</span
+                >
+                <span style="flex: 1" data-i18n="drive_backups"
+                  >ПАПКА: РЕЗЕРВНЫЕ КОПИИ</span
+                >
+              </button>
+
+              <!-- БЛОК 3: Секретная папка (Фиолетовый/Темный акцент) -->
+              <button
+                onclick="
+                  handleDriveClick(
+                    this,
+                    'secretBackupsFolderId',
+                    'POS_Secret_Backups',
+                  )
+                "
+                style="
+                  background: var(--bg-panel);
+                  color: var(--text-main);
+                  margin-bottom: 25px;
+                  width: 100%;
+                  padding: 16px 20px;
+                  border-radius: 12px;
+                  font-weight: 600;
+                  font-size: 13px;
+                  text-transform: uppercase;
+                  border: 1px solid var(--border-light);
+                  border-left: 5px solid #9c27b0;
+                  cursor: pointer;
+                  display: flex;
+                  align-items: center;
+                  justify-content: flex-start;
+                  text-align: left;
+                  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+                "
+              >
+                <span
+                  style="font-size: 20px; width: 35px; display: inline-block"
+                  >🔒</span
+                >
+                <span style="flex: 1" data-i18n="drive_secret"
+                  >ПАПКА: СЕКРЕТНЫЕ КОПИИ</span
+                >
+              </button>
+
+              <!-- НОВЫЙ БЛОК 4: УПРАВЛЕНИЕ ДАННЫМИ (Аварийные действия) -->
+              <div
+                style="
+                  border-top: 1px solid var(--border-light);
+                  margin-top: 10px;
+                  margin-bottom: 20px;
+                  padding-top: 20px;
+                "
+              >
+                <div
+                  class="r-title"
+                  style="
+                    font-size: 13px;
+                    margin-bottom: 15px;
+                    text-align: center;
+                    font-weight: bold;
+                    color: var(--text-muted, #888);
+                    text-transform: uppercase;
+                    letter-spacing: 1px;
+                  "
+                  data-i18n="drive_danger_zone"
+                >
+                  ОПЕРАТИВНЫЕ ДЕЙСТВИЯ
+                </div>
+
+                <button
+                  onclick="startDatabaseClear()"
+                  style="
+                    background: var(--bg-panel);
+                    color: var(--text-main);
+                    margin-bottom: 12px;
+                    width: 100%;
+                    padding: 16px 20px;
+                    border-radius: 12px;
+                    font-weight: 600;
+                    font-size: 13px;
+                    text-transform: uppercase;
+                    border: 1px solid var(--border-light);
+                    border-left: 5px solid #ea4335;
+                    cursor: pointer;
+                    display: flex;
+                    align-items: center;
+                    justify-content: flex-start;
+                    text-align: left;
+                    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+                  "
+                >
+                  <span
+                    style="font-size: 20px; width: 35px; display: inline-block"
+                    >⚠️</span
+                  >
+                  <span style="flex: 1" data-i18n="drive_clear_btn"
+                    >ОЧИСТИТЬ БАЗУ ДАННЫХ</span
+                  >
                 </button>
 
-                <button onclick="startDatabaseRestore()" style="background: var(--bg-panel); color: var(--text-main); margin-bottom: 12px; width: 100%; padding: 16px 20px; border-radius: 12px; font-weight: 600; font-size: 13px; text-transform: uppercase; border: 1px solid var(--border-light); border-left: 5px solid #FBBC04; cursor: pointer; display: flex; align-items: center; justify-content: flex-start; text-align: left; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
-                    <span style="font-size: 20px; width: 35px; display: inline-block;">🚑</span>
-                    <span style="flex: 1;" data-i18n="drive_restore_btn">ВОССТАНОВИТЬ ДАННЫЕ</span>
+                <button
+                  onclick="startDatabaseRestore()"
+                  style="
+                    background: var(--bg-panel);
+                    color: var(--text-main);
+                    margin-bottom: 12px;
+                    width: 100%;
+                    padding: 16px 20px;
+                    border-radius: 12px;
+                    font-weight: 600;
+                    font-size: 13px;
+                    text-transform: uppercase;
+                    border: 1px solid var(--border-light);
+                    border-left: 5px solid #fbbc04;
+                    cursor: pointer;
+                    display: flex;
+                    align-items: center;
+                    justify-content: flex-start;
+                    text-align: left;
+                    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+                  "
+                >
+                  <span
+                    style="font-size: 20px; width: 35px; display: inline-block"
+                    >🚑</span
+                  >
+                  <span style="flex: 1" data-i18n="drive_restore_btn"
+                    >ВОССТАНОВИТЬ ДАННЫЕ</span
+                  >
                 </button>
 
                 <!-- НОВАЯ КНОПКА: SMART MERGE -->
-                <button onclick="openDeepRestoreModal()" style="background: var(--bg-panel); color: var(--text-main); margin-bottom: 25px; width: 100%; padding: 16px 20px; border-radius: 12px; font-weight: 600; font-size: 13px; text-transform: uppercase; border: 1px solid var(--border-light); border-left: 5px solid #3F51B5; cursor: pointer; display: flex; align-items: center; justify-content: flex-start; text-align: left; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
-                    <span style="font-size: 20px; width: 35px; display: inline-block;">💽</span>
-                    <span style="flex: 1;" data-i18n="drive_deep_restore_btn">ВОССТАНОВИТЬ ИЗ БЭКАПА</span>
+                <button
+                  onclick="openDeepRestoreModal()"
+                  style="
+                    background: var(--bg-panel);
+                    color: var(--text-main);
+                    margin-bottom: 25px;
+                    width: 100%;
+                    padding: 16px 20px;
+                    border-radius: 12px;
+                    font-weight: 600;
+                    font-size: 13px;
+                    text-transform: uppercase;
+                    border: 1px solid var(--border-light);
+                    border-left: 5px solid #3f51b5;
+                    cursor: pointer;
+                    display: flex;
+                    align-items: center;
+                    justify-content: flex-start;
+                    text-align: left;
+                    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+                  "
+                >
+                  <span
+                    style="font-size: 20px; width: 35px; display: inline-block"
+                    >💽</span
+                  >
+                  <span style="flex: 1" data-i18n="drive_deep_restore_btn"
+                    >ВОССТАНОВИТЬ ИЗ БЭКАПА</span
+                  >
                 </button>
+              </div>
             </div>
+          </div>
 
-        </div>
-    </div>
-    
-<!-- МОДАЛКА ВЫБОРА БЭКАПА (SMART MERGE) -->
-    <div id="deep-restore-modal" class="modal-overlay" style="display: none; background: rgba(0, 0, 0, 0.75); z-index: 10000;" onclick="closeDeepRestoreModal()">
-        
-        <div class="settings-box" onclick="event.stopPropagation()" style="position: relative; background: var(--bg-panel, #ffffff); border: 1px solid var(--border-focus); padding: 25px 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.3); border-radius: 16px; max-width: 400px; width: 90%; max-height: 80vh; overflow-y: auto; margin: 10vh auto;">
-            
-            <!-- Крестик закрытия -->
-            <button onclick="closeDeepRestoreModal()" style="position: absolute; top: 12px; right: 12px; width: 32px; height: 32px; background: rgba(234, 67, 53, 0.1); border: 1px solid #EA4335; border-radius: 6px; font-size: 22px; color: #EA4335; cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 10;">&times;</button>
+          <!-- МОДАЛКА ВЫБОРА БЭКАПА (SMART MERGE) -->
+          <div
+            id="deep-restore-modal"
+            class="modal-overlay"
+            style="
+              display: none;
+              background: rgba(0, 0, 0, 0.75);
+              z-index: 10000;
+            "
+            onclick="closeDeepRestoreModal()"
+          >
+            <div
+              class="settings-box"
+              onclick="event.stopPropagation()"
+              style="
+                position: relative;
+                background: var(--bg-panel, #ffffff);
+                border: 1px solid var(--border-focus);
+                padding: 25px 20px;
+                box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+                border-radius: 16px;
+                max-width: 400px;
+                width: 90%;
+                max-height: 80vh;
+                overflow-y: auto;
+                margin: 10vh auto;
+              "
+            >
+              <!-- Крестик закрытия -->
+              <button
+                onclick="closeDeepRestoreModal()"
+                style="
+                  position: absolute;
+                  top: 12px;
+                  right: 12px;
+                  width: 32px;
+                  height: 32px;
+                  background: rgba(234, 67, 53, 0.1);
+                  border: 1px solid #ea4335;
+                  border-radius: 6px;
+                  font-size: 22px;
+                  color: #ea4335;
+                  cursor: pointer;
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  z-index: 10;
+                "
+              >
+                &times;
+              </button>
 
-            <div class="r-title" style="font-size: 15px; margin-bottom: 25px; text-align: center; font-weight: bold; color: var(--text-main); text-transform: uppercase; letter-spacing: 1px;" data-i18n="deep_restore_title">ВЫБОР БЭКАПА</div>
+              <div
+                class="r-title"
+                style="
+                  font-size: 15px;
+                  margin-bottom: 25px;
+                  text-align: center;
+                  font-weight: bold;
+                  color: var(--text-main);
+                  text-transform: uppercase;
+                  letter-spacing: 1px;
+                "
+                data-i18n="deep_restore_title"
+              >
+                ВЫБОР БЭКАПА
+              </div>
 
-            <!-- Состояние 1: Загрузка (Спиннер) -->
-            <div id="deep-restore-loader" style="text-align: center; padding: 30px 0;">
-                <div style="display: inline-block; width: 40px; height: 40px; border: 4px solid var(--border-light); border-top: 4px solid #3F51B5; border-radius: 50%; animation: spin 1s linear infinite;"></div>
-                <div style="margin-top: 15px; font-size: 13px; color: var(--text-muted);" data-i18n="deep_restore_loading">Поиск файлов на Диске...</div>
-            </div>
+              <!-- Состояние 1: Загрузка (Спиннер) -->
+              <div
+                id="deep-restore-loader"
+                style="text-align: center; padding: 30px 0"
+              >
+                <div
+                  style="
+                    display: inline-block;
+                    width: 40px;
+                    height: 40px;
+                    border: 4px solid var(--border-light);
+                    border-top: 4px solid #3f51b5;
+                    border-radius: 50%;
+                    animation: spin 1s linear infinite;
+                  "
+                ></div>
+                <div
+                  style="
+                    margin-top: 15px;
+                    font-size: 13px;
+                    color: var(--text-muted);
+                  "
+                  data-i18n="deep_restore_loading"
+                >
+                  Поиск файлов на Диске...
+                </div>
+              </div>
 
-            <!-- Состояние 2: Список файлов (Скрыт по умолчанию) -->
-            <div id="deep-restore-list" style="display: none; flex-direction: column; gap: 10px;">
+              <!-- Состояние 2: Список файлов (Скрыт по умолчанию) -->
+              <div
+                id="deep-restore-list"
+                style="display: none; flex-direction: column; gap: 10px"
+              >
                 <!-- Сюда JS будет вставлять кнопки с датами -->
+              </div>
             </div>
-            
+          </div>
+
+          <style>
+            @keyframes spin {
+              0% {
+                transform: rotate(0deg);
+              }
+              100% {
+                transform: rotate(360deg);
+              }
+            }
+          </style>
+
+          <!-- === КАСТОМНЫЙ PROMPT ДЛЯ КАТЕГОРИИ === -->
+          <div
+            id="custom-prompt-modal"
+            class="modal-overlay"
+            style="
+              display: none;
+              position: fixed;
+              top: 0;
+              left: 0;
+              right: 0;
+              bottom: 0;
+              background: rgba(0, 0, 0, 0.7);
+              z-index: 100000;
+              justify-content: center;
+              align-items: flex-start;
+              padding-top: 10px;
+              overflow-y: auto;
+              backdrop-filter: blur(3px);
+            "
+          >
+            <div
+              style="
+                position: absolute;
+                top: 15px;
+                left: 50%;
+                transform: translateX(-50%);
+                background: var(--bg-modal);
+                padding: 20px;
+                border-radius: 8px;
+                width: 90%;
+                max-width: 320px;
+                border: 1px solid var(--border-light);
+                box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+                box-sizing: border-box;
+              "
+            >
+              <h3
+                data-i18n="prompt_category_title"
+                style="
+                  margin-top: 0;
+                  margin-bottom: 15px;
+                  color: var(--text-main);
+                  font-size: 16px;
+                  text-align: center;
+                "
+              >
+                Укажите категорию шаблона
+              </h3>
+
+              <!-- Само поле ввода -->
+              <input
+                type="text"
+                id="custom-prompt-input"
+                onfocus="this.select()"
+                onclick="this.select()"
+                style="
+                  width: 100%;
+                  font-size: 16px;
+                  background: var(--bg-body);
+                  border: 1px solid var(--border-main);
+                  color: var(--text-main);
+                  padding: 12px;
+                  border-radius: 4px;
+                  box-sizing: border-box;
+                  margin-bottom: 20px;
+                "
+              />
+
+              <div style="display: flex; gap: 10px">
+                <button
+                  type="button"
+                  id="custom-prompt-cancel"
+                  style="
+                    flex: 1;
+                    padding: 10px;
+                    background: transparent;
+                    border: 1px solid var(--text-muted);
+                    color: var(--text-main);
+                    border-radius: 4px;
+                    cursor: pointer;
+                  "
+                  data-i18n="btn_cancel"
+                >
+                  Отмена
+                </button>
+                <button
+                  type="button"
+                  id="custom-prompt-ok"
+                  style="
+                    flex: 1;
+                    padding: 10px;
+                    background: var(--accent-green, #4caf50);
+                    color: #fff;
+                    border: none;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    font-weight: bold;
+                  "
+                  data-i18n="btn_ok"
+                >
+                  ОК
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
+      </div>
     </div>
-
-    <style>
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-    </style>
-
-<!-- === КАСТОМНЫЙ PROMPT ДЛЯ КАТЕГОРИИ === -->
-<div id="custom-prompt-modal" class="modal-overlay" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 100000; justify-content: center; align-items: flex-start; padding-top: 10px; overflow-y: auto; backdrop-filter: blur(3px);">
-    <div style="position: absolute; top: 15px; left: 50%; transform: translateX(-50%); background: var(--bg-modal); padding: 20px; border-radius: 8px; width: 90%; max-width: 320px; border: 1px solid var(--border-light); box-shadow: 0 4px 15px rgba(0,0,0,0.3); box-sizing: border-box;">
-        <h3 data-i18n="prompt_category_title" style="margin-top: 0; margin-bottom: 15px; color: var(--text-main); font-size: 16px; text-align: center;">Укажите категорию шаблона</h3>
-        
-        <!-- Само поле ввода -->
-        <input type="text" id="custom-prompt-input" onfocus="this.select()" onclick="this.select()" style="width: 100%; font-size: 16px; background: var(--bg-body); border: 1px solid var(--border-main); color: var(--text-main); padding: 12px; border-radius: 4px; box-sizing: border-box; margin-bottom: 20px;">
-        
-        <div style="display: flex; gap: 10px;">
-            <button type="button" id="custom-prompt-cancel" style="flex: 1; padding: 10px; background: transparent; border: 1px solid var(--text-muted); color: var(--text-main); border-radius: 4px; cursor: pointer;" data-i18n="btn_cancel">Отмена</button>
-            <button type="button" id="custom-prompt-ok" style="flex: 1; padding: 10px; background: var(--accent-green, #4CAF50); color: #fff; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;" data-i18n="btn_ok">ОК</button>
-        </div>
-    </div>
-</div>
-
-<!-- Контейнер для полноэкранных модальных окон Маппера 2.0 -->
+    <!-- Контейнер для полноэкранных модальных окон Маппера 2.0 -->
     <div id="modalContainer"></div>
 
-<script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
-<!-- Библиотека Quagga2 для видео-сканирования штрихкодов -->
-<script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2/dist/quagga.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-<script src="app2.js?v=004"></script>
-</body>
+    <script
+      src="https://unpkg.com/html5-qrcode"
+      type="text/javascript"
+    ></script>
+    <!-- Библиотека Quagga2 для видео-сканирования штрихкодов -->
+    <script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2/dist/quagga.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="app2.js?v=004"></script>
+  </body>
 </html>
