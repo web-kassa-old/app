@@ -6547,48 +6547,85 @@ window.openEditorMain = function (index) {
 };
 
 window.renderEditorMainUI = function (item) {
-  const t = translations[currentLang];
-  let fieldsHtml = "";
+  const t = translations[currentLang] || {};
+  
+  // 1. СОБИРАЕМ ВСЕ КЛЮЧИ (из накладной + из полного шаблона Каспи)
+  let allKeys = new Set();
+  
+  // Добавляем все колонки эталонного шаблона
+  if (window.mapper2State && window.mapper2State.sysToHumanMap) {
+    Object.keys(window.mapper2State.sysToHumanMap).forEach(k => allKeys.add(k));
+  }
+  
+  // Добавляем ключи, которые могли прийти из базы/накладной, но их нет в словаре
+  if (window.tempAttrs) {
+    Object.keys(window.tempAttrs).forEach(k => allKeys.add(k));
+  }
 
-  // === ИСПРАВЛЕНИЕ: Берем ключи напрямую из временных атрибутов товара ===
-  let keysToEdit = window.tempAttrs ? Object.keys(window.tempAttrs) : [];
+  let keysToEdit = Array.from(allKeys);
+
+  let htmlRequired = "";
+  let htmlOptional = "";
+  let htmlFilled = "";
 
   keysToEdit.forEach((k) => {
-    let val = window.tempAttrs[k] || "";
+    let val = window.tempAttrs ? (window.tempAttrs[k] || "") : "";
 
     // Достаем русское имя из памяти шаблона
-    let humanName = window.mapper2State.sysToHumanMap
+    let humanName = window.mapper2State && window.mapper2State.sysToHumanMap
       ? window.mapper2State.sysToHumanMap[k]
       : null;
-    let displayKey =
-      humanName ||
-      k
-        .split("*")
-        .pop()
-        .replace(/tires/gi, "")
-        .replace(/additional/gi, "")
-        .replace(/general/gi, "")
-        .replace(/\./g, "")
-        .trim();
+      
+    let displayKey = humanName || k
+        .split("*").pop()
+        .replace(/tires/gi, "").replace(/additional/gi, "").replace(/general/gi, "").replace(/\./g, "").trim();
+        
     if (!displayKey) displayKey = k;
 
-    // Добавлена безопасная проверка для applyToAllMap
-    let isGlobal =
-      window.applyToAllMap && window.applyToAllMap[k] !== undefined;
+    // Определяем, обязательное ли поле (по наличию *)
+    let isReq = displayKey.includes('*');
+    let cleanDisplayKey = displayKey.replace('*', '').trim(); // Убираем звездочку для чистоты визуала
+
+    let isGlobal = window.applyToAllMap && window.applyToAllMap[k] !== undefined;
     let previewVal = val.length > 50 ? val.substring(0, 50) + "..." : val;
 
-    fieldsHtml += `
-        <div class="param-row" onclick="window.openEditorField('${k}')">
+    // 2. ГЕНЕРИРУЕМ HTML КАРТОЧКИ
+    let cardHtml = `
+        <div class="param-row" onclick="window.openEditorField('${k}')" style="display:flex; justify-content:space-between; align-items:center; padding:12px 16px; border-bottom:1px solid var(--border-light, #2a2a2a); cursor:pointer; transition: background 0.2s;">
             <div style="flex: 1; min-width: 0; padding-right: 15px;">
-                <div style="font-size:11px; color:var(--text-muted); text-transform:uppercase; margin-bottom:4px;">${displayKey}</div>
-                <div style="font-size:15px; font-weight:bold; color:var(--text-main); word-break: break-word; line-height: 1.3;">${previewVal || `<span style="color:var(--text-muted); font-weight:normal;">${t.inc_not_specified || "Не указано"}</span>`}</div>
+                <div style="font-size:10px; color:var(--text-muted); text-transform:uppercase; margin-bottom:4px; display:flex; align-items:center; gap:8px;">
+                    ${cleanDisplayKey}
+                    ${isGlobal ? `<span style="background:rgba(50, 157, 250, 0.15); color:var(--accent-blue); border:1px solid rgba(50, 157, 250, 0.3); padding:2px 6px; border-radius:4px; font-size:9px; font-weight:bold; text-transform:none;">${t.inc_apply_all_badge || "Ко всем"}</span>` : ""}
+                </div>
+                <div style="font-size:15px; font-weight:bold; color:${val ? 'var(--text-main)' : '#ffb74d'}; word-break: break-word; line-height: 1.3;">
+                    ${previewVal || `<span style="font-weight:normal; color:#ffb74d;">${t.inc_select || "Выбрать..."}</span>`}
+                </div>
             </div>
-            <div style="flex-shrink: 0; display:flex; align-items:center; gap: 10px;">
-                ${isGlobal ? `<span style="font-size:10px; color:var(--accent-green); background:rgba(76,175,80,0.1); padding:4px 6px; border-radius:4px;">${t.inc_apply_all_badge || "ко всем"}</span>` : ""}
-                <span style="color:var(--text-muted); font-size:18px;">&#10095;</span>
-            </div>
+            <div style="flex-shrink: 0; color:var(--text-muted); font-size:18px;">&#10095;</div>
         </div>`;
+
+    // 3. РАСПРЕДЕЛЯЕМ ПО КОРЗИНАМ
+    if (val) {
+      htmlFilled += cardHtml;
+    } else if (isReq) {
+      htmlRequired += cardHtml;
+    } else {
+      htmlOptional += cardHtml;
+    }
   });
+
+  // 4. СКЛЕИВАЕМ ИТОГОВЫЙ СПИСОК С ЗАГОЛОВКАМИ
+  let finalHtml = "";
+  
+  if (htmlRequired) {
+    finalHtml += `<div style="padding: 24px 16px 8px; font-size: 11px; color: #ff4444; text-transform: uppercase; font-weight: bold; letter-spacing: 1px;">🔴 Обязательные для заполнения</div>` + htmlRequired;
+  }
+  if (htmlOptional) {
+    finalHtml += `<div style="padding: 24px 16px 8px; font-size: 11px; color: var(--accent-blue); text-transform: uppercase; font-weight: bold; letter-spacing: 1px;">🔵 Дополнительные параметры</div>` + htmlOptional;
+  }
+  if (htmlFilled) {
+    finalHtml += `<div style="padding: 24px 16px 8px; font-size: 11px; color: var(--text-muted); text-transform: uppercase; font-weight: bold; letter-spacing: 1px;">✅ Заполнены</div>` + htmlFilled;
+  }
 
   let modalContainer = document.getElementById("modalContainer");
   if (!modalContainer) {
@@ -6608,7 +6645,7 @@ window.renderEditorMainUI = function (item) {
                 <div style="color:var(--accent-blue); font-weight:bold; font-size:14px;">${item.item_name}</div>
             </div>
             <div style="flex:1; overflow-y:auto; background:var(--bg-body);">
-                ${fieldsHtml || `<div style="padding:20px; text-align:center; color:var(--text-muted);">Нет доступных параметров</div>`}
+                ${finalHtml || `<div style="padding:20px; text-align:center; color:var(--text-muted);">Нет доступных параметров</div>`}
             </div>
         </div>
     `;
