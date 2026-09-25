@@ -6549,15 +6549,12 @@ window.openEditorMain = function (index) {
 window.renderEditorMainUI = function (item) {
   const t = translations[currentLang] || {};
   
-  // 1. СОБИРАЕМ ВСЕ КЛЮЧИ (из накладной + из полного шаблона Каспи)
+  // 1. СОБИРАЕМ ВСЕ КЛЮЧИ
   let allKeys = new Set();
   
-  // Добавляем все колонки эталонного шаблона
   if (window.mapper2State && window.mapper2State.sysToHumanMap) {
     Object.keys(window.mapper2State.sysToHumanMap).forEach(k => allKeys.add(k));
   }
-  
-  // Добавляем ключи, которые могли прийти из базы/накладной, но их нет в словаре
   if (window.tempAttrs) {
     Object.keys(window.tempAttrs).forEach(k => allKeys.add(k));
   }
@@ -6568,44 +6565,57 @@ window.renderEditorMainUI = function (item) {
   let htmlOptional = "";
   let htmlFilled = "";
 
+  // Подхватываем справочники для проверки типа поля (выбор из списка или ручной ввод)
+  let dicts = window.kaspiDicts || (window.mapper2State && window.mapper2State.dictionary) || {};
+
   keysToEdit.forEach((k) => {
     let val = window.tempAttrs ? (window.tempAttrs[k] || "") : "";
 
-    // Достаем русское имя из памяти шаблона
     let humanName = window.mapper2State && window.mapper2State.sysToHumanMap
       ? window.mapper2State.sysToHumanMap[k]
       : null;
       
-    let displayKey = humanName || k
-        .split("*").pop()
-        .replace(/tires/gi, "").replace(/additional/gi, "").replace(/general/gi, "").replace(/\./g, "").trim();
-        
+    let displayKey = humanName || k.split("*").pop().replace(/tires/gi, "").replace(/additional/gi, "").replace(/general/gi, "").replace(/\./g, "").trim();
     if (!displayKey) displayKey = k;
 
-    // Определяем, обязательное ли поле (по наличию *)
+    // Очищаем имя от звездочки для поиска в справочниках и вывода
+    let cleanDisplayKey = displayKey.replace('*', '').trim();
+    
+    // Проверки статусов поля
     let isReq = displayKey.includes('*');
-    let cleanDisplayKey = displayKey.replace('*', '').trim(); // Убираем звездочку для чистоты визуала
-
+    let isDict = dicts[cleanDisplayKey] && dicts[cleanDisplayKey].length > 0;
     let isGlobal = window.applyToAllMap && window.applyToAllMap[k] !== undefined;
-    let previewVal = val.length > 50 ? val.substring(0, 50) + "..." : val;
+    
+    // ПУНКТ 4: Артикул всегда идет в заполненные
+    let isSku = k.toLowerCase().includes("sku") || cleanDisplayKey.toLowerCase().includes("артикул");
+    if (isSku && !val) {
+      val = t.inc_auto_fill || "Заполняется автоматически";
+    }
 
-    // 2. ГЕНЕРИРУЕМ HTML КАРТОЧКИ
+    let previewVal = val.length > 50 ? val.substring(0, 50) + "..." : val;
+    
+    // ПУНКТ 3: Разное оформление для справочника и текстового ввода
+    let emptyText = isDict ? (t.inc_select || "ВЫБРАТЬ") : (t.inc_enter_text || "ВВЕСТИ ТЕКСТ");
+    let inputTypeIcon = isDict ? `<span style="font-size:10px; color:var(--accent-blue); margin-left:6px; opacity:0.8;">[Справочник]</span>` : `<span style="font-size:10px; color:#888; margin-left:6px; opacity:0.8;">[Ввод]</span>`;
+    
+    // ПУНКТ 2: Красная звездочка для обязательных
+    let reqStar = isReq ? `<span style="color:#ff4444; margin-left:2px; font-weight:bold; font-size:12px;">*</span>` : "";
+
     let cardHtml = `
-        <div class="param-row" onclick="window.openEditorField('${k}')" style="display:flex; justify-content:space-between; align-items:center; padding:12px 16px; border-bottom:1px solid var(--border-light, #2a2a2a); cursor:pointer; transition: background 0.2s;">
+        <div class="param-row" onclick="window.openEditorField('${k}')" style="display:flex; justify-content:space-between; align-items:center; padding:12px 16px; border-bottom:1px solid var(--border-light, rgba(128,128,128,0.2)); cursor:pointer; transition: background 0.2s;">
             <div style="flex: 1; min-width: 0; padding-right: 15px;">
-                <div style="font-size:10px; color:var(--text-muted); text-transform:uppercase; margin-bottom:4px; display:flex; align-items:center; gap:8px;">
-                    ${cleanDisplayKey}
+                <div style="font-size:10px; color:var(--text-muted); text-transform:uppercase; margin-bottom:4px; display:flex; align-items:center; flex-wrap:wrap; gap:4px;">
+                    ${cleanDisplayKey}${reqStar} ${inputTypeIcon}
                     ${isGlobal ? `<span style="background:rgba(50, 157, 250, 0.15); color:var(--accent-blue); border:1px solid rgba(50, 157, 250, 0.3); padding:2px 6px; border-radius:4px; font-size:9px; font-weight:bold; text-transform:none;">${t.inc_apply_all_badge || "Ко всем"}</span>` : ""}
                 </div>
-                <div style="font-size:15px; font-weight:bold; color:${val ? 'var(--text-main)' : '#ffb74d'}; word-break: break-word; line-height: 1.3;">
-                    ${previewVal || `<span style="font-weight:normal; color:#ffb74d;">${t.inc_select || "Выбрать..."}</span>`}
+                <div style="font-size:15px; font-weight:bold; color:${val && !isSku ? 'var(--text-main)' : (isSku ? 'var(--text-muted)' : '#ffb74d')}; word-break: break-word; line-height: 1.3;">
+                    ${val ? previewVal : `<span style="font-weight:normal; color:#ffb74d; text-transform:uppercase;">${emptyText}</span>`}
                 </div>
             </div>
             <div style="flex-shrink: 0; color:var(--text-muted); font-size:18px;">&#10095;</div>
         </div>`;
 
-    // 3. РАСПРЕДЕЛЯЕМ ПО КОРЗИНАМ
-    if (val) {
+    if (isSku || val) {
       htmlFilled += cardHtml;
     } else if (isReq) {
       htmlRequired += cardHtml;
@@ -6614,17 +6624,26 @@ window.renderEditorMainUI = function (item) {
     }
   });
 
-  // 4. СКЛЕИВАЕМ ИТОГОВЫЙ СПИСОК С ЗАГОЛОВКАМИ
+  // ПУНКТ 1: Заголовки блоков выровнены по левому краю с кружками-индикаторами
   let finalHtml = "";
   
   if (htmlRequired) {
-    finalHtml += `<div style="padding: 24px 16px 8px; font-size: 11px; color: #ff4444; text-transform: uppercase; font-weight: bold; letter-spacing: 1px;">🔴 Обязательные для заполнения</div>` + htmlRequired;
+    finalHtml += `
+      <div style="padding: 24px 16px 8px; font-size: 11px; color: #ff4444; text-transform: uppercase; font-weight: bold; letter-spacing: 1px; text-align: left; display: flex; align-items: center; gap: 6px;">
+        <div style="width:10px; height:10px; border-radius:50%; background:#ff4444;"></div> Обязательные параметры
+      </div>` + htmlRequired;
   }
   if (htmlOptional) {
-    finalHtml += `<div style="padding: 24px 16px 8px; font-size: 11px; color: var(--accent-blue); text-transform: uppercase; font-weight: bold; letter-spacing: 1px;">🔵 Дополнительные параметры</div>` + htmlOptional;
+    finalHtml += `
+      <div style="padding: 24px 16px 8px; font-size: 11px; color: var(--accent-blue); text-transform: uppercase; font-weight: bold; letter-spacing: 1px; text-align: left; display: flex; align-items: center; gap: 6px;">
+        <div style="width:10px; height:10px; border-radius:50%; background:var(--accent-blue);"></div> Дополнительные параметры
+      </div>` + htmlOptional;
   }
   if (htmlFilled) {
-    finalHtml += `<div style="padding: 24px 16px 8px; font-size: 11px; color: var(--text-muted); text-transform: uppercase; font-weight: bold; letter-spacing: 1px;">✅ Заполнены</div>` + htmlFilled;
+    finalHtml += `
+      <div style="padding: 24px 16px 8px; font-size: 11px; color: var(--text-muted); text-transform: uppercase; font-weight: bold; letter-spacing: 1px; text-align: left; display: flex; align-items: center; gap: 6px;">
+        <div style="width:10px; height:10px; border-radius:50%; background:var(--text-muted);"></div> Заполненные
+      </div>` + htmlFilled;
   }
 
   let modalContainer = document.getElementById("modalContainer");
