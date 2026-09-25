@@ -5449,8 +5449,8 @@ window.renderMapper2Cards = function (templateData) {
       window.mapper2State.sysToHumanMap[sysKey] = humName;
 
       let reqText = (requirements[i] || "").toLowerCase();
-      let isReq =
-        reqText.includes("обязательн") && !reqText.includes("необязательн");
+      // Вот твой родной флаг обязательности, мы будем на него опираться:
+      let isReq = reqText.includes("обязательн") && !reqText.includes("необязательн");
 
       allReqs.push({
         sysKey,
@@ -5463,69 +5463,32 @@ window.renderMapper2Cards = function (templateData) {
   }
 
   const posBaseFields = [
-    {
-      sysKey: "name",
-      name: "Наименование",
-      req: true,
-      desc: "Обязательно",
-      isKaspi: false,
-    },
-    {
-      sysKey: "qty",
-      name: "Количество",
-      req: true,
-      desc: "На складе (POS)",
-      isKaspi: false,
-    },
-    {
-      sysKey: "price",
-      name: "Цена закупа",
-      req: true,
-      desc: "В валюте накладной",
-      isKaspi: false,
-    },
-    {
-      sysKey: "barcode",
-      name: "Код / Штрихкод",
-      req: false,
-      desc: "Связь с ID товара в POS",
-      isKaspi: false,
-    },
-    {
-      sysKey: "cbm",
-      name: "Объем (CBM)",
-      req: false,
-      desc: "Для расчета",
-      isKaspi: false,
-    },
-    {
-      sysKey: "weight",
-      name: "Вес (кг)",
-      req: false,
-      desc: "Для расчета",
-      isKaspi: false,
-    },
+    { sysKey: "name", name: "Наименование", req: true, desc: "Обязательно", isKaspi: false },
+    { sysKey: "qty", name: "Количество", req: true, desc: "На складе (POS)", isKaspi: false },
+    { sysKey: "price", name: "Цена закупа", req: true, desc: "В валюте накладной", isKaspi: false },
+    { sysKey: "barcode", name: "Код / Штрихкод", req: false, desc: "Связь с ID товара в POS", isKaspi: false },
+    { sysKey: "cbm", name: "Объем (CBM)", req: false, desc: "Для расчета", isKaspi: false },
+    { sysKey: "weight", name: "Вес (кг)", req: false, desc: "Для расчета", isKaspi: false },
   ];
 
   posBaseFields.forEach((field) => {
     if (!allReqs.some((r) => r.sysKey === field.sysKey)) allReqs.push(field);
   });
 
-  const globalSynonyms =
-    typeof invoiceSynonyms !== "undefined" ? invoiceSynonyms : {};
-  const headersLower = (window.mapper2State.invoiceHeaders || []).map((h) =>
-    String(h || "")
-      .trim()
-      .toLowerCase(),
-  );
+  const globalSynonyms = typeof invoiceSynonyms !== "undefined" ? invoiceSynonyms : {};
+  const headersLower = (window.mapper2State.invoiceHeaders || []).map((h) => String(h || "").trim().toLowerCase());
 
-  let html = "";
+  // === СОЗДАЕМ 3 КОРЗИНЫ ДЛЯ КАРТОЧЕК ===
+  let htmlRequired = "";
+  let htmlOptional = "";
+  let htmlFilled = "";
+
   allReqs.forEach((req) => {
-    let isKaspiSku =
-      req.sysKey.toLowerCase().includes("sku") ||
-      req.name.toLowerCase().includes("артикул");
+    let isKaspiSku = req.sysKey.toLowerCase().includes("sku") || req.name.toLowerCase().includes("артикул");
+    
+    // 1. Артикул всегда идет в "Заполненные", так как генерируется автоматически
     if (isKaspiSku) {
-      html += `
+      htmlFilled += `
             <div class="req-card" style="opacity: 0.6; filter: grayscale(1); cursor: not-allowed; background: var(--bg-panel); border-color: var(--border-light);">
                 <div class="req-info">
                     <span class="req-title required" style="color: var(--text-main);">${req.name}</span>
@@ -5538,36 +5501,22 @@ window.renderMapper2Cards = function (templateData) {
 
     let learned = learnedSynonyms[req.sysKey] || [];
     let baseRaw = [];
-    if (globalSynonyms[req.sysKey])
-      baseRaw = baseRaw.concat(globalSynonyms[req.sysKey]);
-    if (globalSynonyms[req.name])
-      baseRaw = baseRaw.concat(globalSynonyms[req.name]);
-    if (req.isDict && globalSynonyms["Brand"])
-      baseRaw = baseRaw.concat(globalSynonyms["Brand"]);
+    if (globalSynonyms[req.sysKey]) baseRaw = baseRaw.concat(globalSynonyms[req.sysKey]);
+    if (globalSynonyms[req.name]) baseRaw = baseRaw.concat(globalSynonyms[req.name]);
+    if (req.isDict && globalSynonyms["Brand"]) baseRaw = baseRaw.concat(globalSynonyms["Brand"]);
 
-    let base = baseRaw
-      .map((w) => String(w).trim().toLowerCase())
-      .filter(Boolean);
+    let base = baseRaw.map((w) => String(w).trim().toLowerCase()).filter(Boolean);
     let foundIndex = -1;
 
     foundIndex = headersLower.findIndex((h) => h && learned.includes(h));
-    if (foundIndex === -1)
-      foundIndex = headersLower.findIndex((h) => h && base.includes(h));
-    if (foundIndex === -1)
-      foundIndex = headersLower.findIndex(
-        (h) => h && learned.some((w) => w.length > 2 && h.includes(w)),
-      );
-    if (foundIndex === -1)
-      foundIndex = headersLower.findIndex(
-        (h) => h && base.some((w) => w.length > 2 && h.includes(w)),
-      );
+    if (foundIndex === -1) foundIndex = headersLower.findIndex((h) => h && base.includes(h));
+    if (foundIndex === -1) foundIndex = headersLower.findIndex((h) => h && learned.some((w) => w.length > 2 && h.includes(w)));
+    if (foundIndex === -1) foundIndex = headersLower.findIndex((h) => h && base.some((w) => w.length > 2 && h.includes(w)));
 
     if (foundIndex !== -1) window.mapper2State.colMap[req.sysKey] = foundIndex;
 
     let mappedIndex = window.mapper2State.colMap[req.sysKey];
-    let dictValue =
-      window.mapper2State.dictValues &&
-      window.mapper2State.dictValues[req.sysKey];
+    let dictValue = window.mapper2State.dictValues && window.mapper2State.dictValues[req.sysKey];
 
     let statusClass = "status-empty";
     let statusText = t.inc_select || "ВЫБРАТЬ";
@@ -5576,41 +5525,26 @@ window.renderMapper2Cards = function (templateData) {
 
     if (dictValue) {
       statusClass = "status-filled";
-      let shortVal =
-        dictValue.length > 15 ? dictValue.substring(0, 15) + "..." : dictValue;
+      let shortVal = dictValue.length > 15 ? dictValue.substring(0, 15) + "..." : dictValue;
       statusText = `📖 ${shortVal}`;
-      statusStyle =
-        "border: 1px solid #4CAF50; color: #4CAF50; background: rgba(76, 175, 80, 0.1); font-weight: bold;";
+      statusStyle = "border: 1px solid #4CAF50; color: #4CAF50; background: rgba(76, 175, 80, 0.1); font-weight: bold;";
     } else if (mappedIndex !== undefined) {
       statusClass = "status-filled";
-      let colName =
-        window.mapper2State.invoiceHeaders[mappedIndex] ||
-        `Колонка ${mappedIndex + 1}`;
+      let colName = window.mapper2State.invoiceHeaders[mappedIndex] || `Колонка ${mappedIndex + 1}`;
 
-      let splitData =
-        window.mapper2State.splitRules &&
-        window.mapper2State.splitRules[req.sysKey];
+      let splitData = window.mapper2State.splitRules && window.mapper2State.splitRules[req.sysKey];
       let ruleIndices = [];
       if (Array.isArray(splitData)) ruleIndices = splitData;
-      else if (splitData && Array.isArray(splitData.rule))
-        ruleIndices = splitData.rule;
-      else if (splitData && Array.isArray(splitData.tokens))
-        ruleIndices = splitData.tokens;
+      else if (splitData && Array.isArray(splitData.rule)) ruleIndices = splitData.rule;
+      else if (splitData && Array.isArray(splitData.tokens)) ruleIndices = splitData.tokens;
 
       if (ruleIndices.length > 0) {
         statusText = `✂️ ${colName}`;
-        statusStyle =
-          "border: 1px solid #4CAF50; color: #4CAF50; background: rgba(76, 175, 80, 0.1); font-weight: bold;";
+        statusStyle = "border: 1px solid #4CAF50; color: #4CAF50; background: rgba(76, 175, 80, 0.1); font-weight: bold;";
 
         let sampleText = "";
-        for (
-          let i = 0;
-          i < Math.min(10, window.mapper2State.invoiceRows.length);
-          i++
-        ) {
-          let val = String(
-            window.mapper2State.invoiceRows[i][mappedIndex] || "",
-          ).trim();
+        for (let i = 0; i < Math.min(10, window.mapper2State.invoiceRows.length); i++) {
+          let val = String(window.mapper2State.invoiceRows[i][mappedIndex] || "").trim();
           if (val) {
             sampleText = val;
             break;
@@ -5621,15 +5555,13 @@ window.renderMapper2Cards = function (templateData) {
           const regex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,]/g;
           let tokens = sampleText.match(regex) || [];
 
-          let highlighted = tokens
-            .map((tok, i) => {
-              if (ruleIndices.map(Number).includes(i)) {
-                return `<b style="color:#000; background:var(--accent-green, #4CAF50); padding:0 3px; border-radius:3px;">${tok}</b>`;
-              } else {
-                return `<span style="color:#666; text-decoration:line-through;">${tok}</span>`;
-              }
-            })
-            .join("");
+          let highlighted = tokens.map((tok, i) => {
+            if (ruleIndices.map(Number).includes(i)) {
+              return `<b style="color:#000; background:var(--accent-green, #4CAF50); padding:0 3px; border-radius:3px;">${tok}</b>`;
+            } else {
+              return `<span style="color:#666; text-decoration:line-through;">${tok}</span>`;
+            }
+          }).join("");
 
           extraPreviewHtml = `
                     <div id="preview-${req.sysKey}" style="margin-top: 6px; font-size: 11px; background: rgba(255,255,255,0.05); padding: 4px 8px; border-radius: 4px; display: inline-block;">
@@ -5638,12 +5570,12 @@ window.renderMapper2Cards = function (templateData) {
         }
       } else {
         statusText = `✅ ${colName}`;
-        statusStyle =
-          "border: 1px solid #4CAF50; color: #4CAF50; background: rgba(76, 175, 80, 0.1); font-weight: bold;";
+        statusStyle = "border: 1px solid #4CAF50; color: #4CAF50; background: rgba(76, 175, 80, 0.1); font-weight: bold;";
       }
     }
 
-    html += `
+    // 2. Генерируем саму карточку
+    let cardHtml = `
         <div class="req-card" onclick="openColumnSelector('${req.sysKey}', '${req.name.replace(/'/g, "\\'")}', ${req.isKaspi === true})">
             <div class="req-info">
                 <span class="req-title ${req.req ? "required" : ""}">${req.name}</span>
@@ -5652,10 +5584,33 @@ window.renderMapper2Cards = function (templateData) {
             </div>
             <div class="req-status ${statusClass}" id="status-${req.sysKey}" style="${statusStyle}">${statusText}</div>
         </div>`;
+
+    // 3. Распределяем карточку по корзинам
+    if (statusClass === "status-filled") {
+      htmlFilled += cardHtml;
+    } else if (req.req) {
+      htmlRequired += cardHtml;
+    } else {
+      htmlOptional += cardHtml;
+    }
   });
 
-  container.innerHTML = html;
+  // === СКЛЕИВАЕМ ИТОГОВЫЙ HTML ===
+  let finalHtml = "";
+  
+  if (htmlRequired) {
+    finalHtml += `<div class="section-header" style="color: #ff4444; padding: 15px 10px 5px; font-size: 11px; text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px;">🔴 Обязательные для заполнения</div>` + htmlRequired;
+  }
+  if (htmlOptional) {
+    finalHtml += `<div class="section-header" style="color: var(--accent-blue); padding: 15px 10px 5px; font-size: 11px; text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px;">🔵 Дополнительные параметры</div>` + htmlOptional;
+  }
+  if (htmlFilled) {
+    finalHtml += `<div class="section-header" style="color: var(--accent-green); padding: 15px 10px 5px; font-size: 11px; text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px;">✅ Из накладной и системы</div>` + htmlFilled;
+  }
 
+  container.innerHTML = finalHtml;
+
+  // === Скрытие остальных элементов интерфейса (осталось без изменений) ===
   const parseBtn = document.getElementById("parseInvoiceBtn");
   if (parseBtn) parseBtn.style.display = "none";
 
