@@ -6559,7 +6559,8 @@ window.renderEditorMainUI = function (item) {
     Object.keys(window.tempAttrs).forEach(k => allKeys.add(k));
   }
 
-  // Создаем 4 корзины для строгой сортировки
+  let dicts = window.kaspiDicts || (window.mapper2State && window.mapper2State.dictionary) || {};
+
   let mandatoryEmpty = [];
   let mandatoryFilled = [];
   let optionalEmpty = [];
@@ -6574,21 +6575,34 @@ window.renderEditorMainUI = function (item) {
 
     let cleanDisplayKey = displayKey.replace('*', '').trim();
 
-    // ХИТРОСТЬ: Читаем статус обязательности из HTML предыдущего экрана маппинга
+    // ПУНКТ 3: Подтягиваем базовые поля, если они не попали в tempAttrs
+    if (!val && item) {
+        let lowerDisp = cleanDisplayKey.toLowerCase();
+        let lowerK = k.toLowerCase();
+        if (lowerDisp.includes("название") || lowerDisp.includes("наименование") || lowerK === "name") {
+            val = item.item_name || item.name || "";
+        } else if (lowerDisp.includes("цена") || lowerK === "price") {
+            val = item.price || "";
+        } else if (lowerDisp.includes("штрихкод") || lowerK === "barcode") {
+            val = item.barcode || "";
+        }
+    }
+
     let isReq = false;
     let prevCard = document.querySelector(`.req-card[onclick*="'${k}'"]`);
     if (prevCard && prevCard.querySelector('.required')) {
         isReq = true;
     }
     
-    // Страховка на случай, если HTML недоступен
-    let lowerDisp = cleanDisplayKey.toLowerCase();
-    if (lowerDisp.includes('бренд') || lowerDisp.includes('название') || lowerDisp.includes('наименование') || lowerDisp.includes('штрихкод') || lowerDisp.includes('цена')) {
+    // Страховка обязательности
+    let lowerDispForReq = cleanDisplayKey.toLowerCase();
+    if (lowerDispForReq.includes('бренд') || lowerDispForReq.includes('название') || lowerDispForReq.includes('наименование') || lowerDispForReq.includes('штрихкод') || lowerDispForReq.includes('цена')) {
         isReq = true;
     }
 
     let isGlobal = window.applyToAllMap && window.applyToAllMap[k] !== undefined;
     let isSku = k.toLowerCase().includes("sku") || cleanDisplayKey.toLowerCase().includes("артикул");
+    let isDict = dicts[cleanDisplayKey] && dicts[cleanDisplayKey].length > 0;
 
     if (isSku && !val) {
       val = t.inc_auto_fill || "Автоматически";
@@ -6603,10 +6617,10 @@ window.renderEditorMainUI = function (item) {
         isGlobal: isGlobal,
         isSku: isSku,
         isReq: isReq,
+        isDict: isDict,
         previewVal: val.length > 50 ? val.substring(0, 50) + "..." : val
     };
 
-    // Раскидываем по корзинам
     if (isReq) {
         if (isEmpty) mandatoryEmpty.push(fieldObj);
         else mandatoryFilled.push(fieldObj);
@@ -6622,12 +6636,22 @@ window.renderEditorMainUI = function (item) {
       fields.forEach(f => {
           let reqStar = f.isReq ? `<span style="color:#ff4444; margin-left:2px; font-weight:bold; font-size:14px;">*</span>` : "";
 
-          // АКЦЕНТ: Если пустое - название крупное. Если заполнено - название мелкое, уходит наверх.
+          // ПУНКТ 1: Возвращаем надписи ВВОД и СПРАВОЧНИК
+          let inputTypeIcon = f.isDict
+              ? `<span style="font-size:9px; color:var(--text-muted); border: 1px solid var(--border-main, #444); border-radius:3px; padding:1px 4px; margin-left:6px; font-weight:normal;">СПРАВОЧНИК</span>`
+              : `<span style="font-size:9px; color:var(--text-muted); border: 1px solid var(--border-main, #444); border-radius:3px; padding:1px 4px; margin-left:6px; font-weight:normal;">ВВОД</span>`;
+
+          // ПУНКТ 2: Визуальное отличие заполненных от пустых
           let titleStyle = f.val
               ? `font-size:10px; color:var(--text-muted); text-transform:uppercase; margin-bottom:4px;`
-              : `font-size:14px; color:var(--text-main); font-weight:bold; text-transform:uppercase; margin-bottom:0;`;
+              : `font-size:13px; color:var(--text-main); font-weight:bold; text-transform:uppercase; margin-bottom:4px;`;
+              
+          let emptyPlaceholder = f.isDict ? (t.inc_select || "Выбрать...") : (t.inc_enter_text || "Ввести...");
+          
+          let valueDisplay = f.val
+              ? `<div style="font-size:15px; font-weight:bold; color:${f.isSku ? 'var(--text-muted)' : 'var(--text-main)'}; word-break: break-word; line-height: 1.3;">${f.previewVal}</div>`
+              : `<div style="font-size:12px; color:#ffb74d; opacity:0.8; font-weight:normal;">${emptyPlaceholder}</div>`;
 
-          // ГАЛОЧКА: Только для артикула. Для остальных синяя стрелочка.
           let rightIcon = f.isSku ? '&#10003;' : '&#10095;';
           let iconColor = f.isSku ? 'var(--text-muted)' : 'var(--accent-blue)';
 
@@ -6635,10 +6659,10 @@ window.renderEditorMainUI = function (item) {
           <div class="param-row" onclick="window.openEditorField('${f.k}')" style="display:flex; justify-content:space-between; align-items:center; padding:14px 16px; border-bottom:1px solid var(--border-light, rgba(128,128,128,0.2)); cursor:pointer; transition: background 0.2s;">
               <div style="flex: 1; min-width: 0; padding-right: 15px;">
                   <div style="${titleStyle} display:flex; align-items:center; flex-wrap:wrap; gap:6px;">
-                      <span>${f.cleanDisplayKey}${reqStar}</span>
+                      <span>${f.cleanDisplayKey}${reqStar}</span> ${inputTypeIcon}
                       ${f.isGlobal ? `<span style="background:rgba(50, 157, 250, 0.15); color:var(--accent-blue); padding:2px 6px; border-radius:4px; font-size:9px; font-weight:bold;">${t.inc_apply_all_badge || "Ко всем"}</span>` : ""}
                   </div>
-                  ${f.val ? `<div style="font-size:15px; font-weight:bold; color:${f.isSku ? 'var(--text-muted)' : 'var(--text-main)'}; word-break: break-word; line-height: 1.3;">${f.previewVal}</div>` : ""}
+                  ${valueDisplay}
               </div>
               <div style="flex-shrink: 0; color:${iconColor}; font-size:18px;">${rightIcon}</div>
           </div>`;
@@ -6646,10 +6670,9 @@ window.renderEditorMainUI = function (item) {
       return html;
   };
 
-  // 3. СКЛЕИВАЕМ БЛОКИ (Сначала пустые, потом заполненные внутри каждого блока)
+  // 3. СКЛЕИВАЕМ БЛОКИ
   let finalHtml = "";
   
-  // Объединяем пустые и заполненные для каждого блока
   let mandatoryAll = mandatoryEmpty.concat(mandatoryFilled);
   let optionalAll = optionalEmpty.concat(optionalFilled);
 
@@ -6682,7 +6705,7 @@ window.renderEditorMainUI = function (item) {
                 <span onclick="window.saveAllEdits()" style="color:var(--accent-green); font-size:16px; font-weight:bold; cursor:pointer;">${t.inc_ready || "Готово"}</span>
             </div>
             <div class="kaspi-modal-subheader">
-                <div style="color:var(--accent-blue); font-weight:bold; font-size:14px;">${item.item_name}</div>
+                <div style="color:var(--accent-blue); font-weight:bold; font-size:14px;">${item.item_name || item.name || ""}</div>
             </div>
             <div style="flex:1; overflow-y:auto; background:var(--bg-body);">
                 ${finalHtml || `<div style="padding:20px; text-align:center; color:var(--text-muted);">Нет доступных параметров</div>`}
