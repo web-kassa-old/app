@@ -6549,7 +6549,7 @@ window.openEditorMain = function (index) {
 window.renderEditorMainUI = function (item) {
   const t = translations[currentLang] || {};
   
-  // 1. СОБИРАЕМ КЛЮЧИ ТОЛЬКО ИЗ ШАБЛОНА И НАКЛАДНОЙ (Убрали искусственное добавление "Цены закупа")
+  // 1. СОБИРАЕМ КЛЮЧИ
   let allKeys = new Set();
   
   if (window.mapper2State && window.mapper2State.sysToHumanMap) {
@@ -6559,7 +6559,6 @@ window.renderEditorMainUI = function (item) {
     Object.keys(window.tempAttrs).forEach(k => allKeys.add(k));
   }
 
-  // Словарь только для резервных человеческих названий
   const posFieldsNames = {
       "name": "Наименование",
       "price": "Цена",
@@ -6577,7 +6576,6 @@ window.renderEditorMainUI = function (item) {
   let optionalFilled = [];
 
   Array.from(allKeys).forEach((k) => {
-    // Безопасное извлечение значения (защита от "undefined" строкой)
     let rawVal = window.tempAttrs ? window.tempAttrs[k] : "";
     if (rawVal === "undefined" || rawVal === "null" || rawVal === null || rawVal === undefined) rawVal = "";
     let val = String(rawVal).trim();
@@ -6608,14 +6606,12 @@ window.renderEditorMainUI = function (item) {
         }
     }
 
-    // Проверка обязательности
     let isReq = false;
     let prevCard = document.querySelector(`.req-card[onclick*="'${k}'"]`);
     if (prevCard && prevCard.querySelector('.required')) {
         isReq = true;
     }
     
-    // Страховка обязательности базовых параметров
     if (lowerDisp === 'бренд' || lowerDisp === 'артикул' || lowerK === 'name' || lowerK === 'price' || lowerK === 'qty') {
         isReq = true;
     }
@@ -6654,12 +6650,16 @@ window.renderEditorMainUI = function (item) {
       let html = "";
       fields.forEach(f => {
           let reqStar = f.isReq ? `<span style="color:#ff4444; margin-left:4px; font-weight:bold; font-size:16px;">*</span>` : "";
-          let applyAllBadge = f.isGlobal ? `<span style="background:rgba(50, 157, 250, 0.15); color:var(--accent-blue); padding:2px 6px; border-radius:4px; font-size:9px; font-weight:bold; margin-left: 8px;">${t.inc_apply_all_badge || "Ко всем"}</span>` : "";
+          
+          // Обновленная плашка "КО ВСЕМ"
+          let applyAllText = t.inc_apply_all_badge ? t.inc_apply_all_badge.toUpperCase() : "КО ВСЕМ";
+          let applyAllBadge = f.isGlobal 
+              ? `<span style="background:rgba(50, 157, 250, 0.15); color:var(--accent-blue); padding:2px 6px; border-radius:4px; font-size:10px; font-weight:bold; margin-left: 8px; display:inline-flex; align-items:center; gap:3px;">✓ ${applyAllText}</span>` 
+              : "";
 
           let rightSideHtml = "";
           
           if (f.val) {
-              // ЗАПОЛНЕНО: Зеленая плашка с галочкой
               let displayVal = f.isSku ? (t.inc_auto_fill || "Заполняется автоматически") : f.previewVal;
               rightSideHtml = `
                   <div style="border: 1px solid #4CAF50; color: #4CAF50; padding: 5px 12px; border-radius: 4px; font-size: 11px; font-weight: bold; max-width: 160px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-right: ${f.isSku ? '0' : '8px'};">
@@ -6667,7 +6667,6 @@ window.renderEditorMainUI = function (item) {
                   </div>
               `;
           } else {
-              // ПУСТО: Красная плашка
               let actionText = f.isDict ? "Справочник" : "Ввод";
               rightSideHtml = `
                   <div style="border: 1px solid #ff4444; color: #ff4444; padding: 5px 12px; border-radius: 4px; font-size: 11px; font-weight: bold; text-transform: uppercase; margin-right: 8px;">
@@ -6676,7 +6675,6 @@ window.renderEditorMainUI = function (item) {
               `;
           }
 
-          // ЗАМОРОЗКА АРТИКУЛА
           let onclickAttr = f.isSku ? "" : `onclick="window.openEditorField('${f.k}')"`;
           let rowStyle = f.isSku 
               ? "background: rgba(0,0,0,0.1); opacity: 0.6; cursor: not-allowed; pointer-events: none;" 
@@ -6686,8 +6684,8 @@ window.renderEditorMainUI = function (item) {
           html += `
           <div class="param-row" ${onclickAttr} style="display:flex; justify-content:space-between; align-items:center; padding:16px; border-bottom:1px solid var(--border-light, rgba(128,128,128,0.2)); ${rowStyle}">
               <div style="flex: 1; min-width: 0; padding-right: 15px; display:flex; align-items:center;">
-                  <div style="font-size:14px; color:var(--text-main); font-weight:bold; text-transform:uppercase;">
-                      ${f.cleanDisplayKey}${reqStar} ${applyAllBadge}
+                  <div style="font-size:14px; color:var(--text-main); font-weight:bold; text-transform:uppercase; display:flex; align-items:center; flex-wrap:wrap;">
+                      <span>${f.cleanDisplayKey}${reqStar}</span> ${applyAllBadge}
                   </div>
               </div>
               <div style="flex-shrink: 0; display:flex; align-items:center;">
