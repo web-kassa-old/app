@@ -6567,6 +6567,7 @@ window.renderEditorMainUI = function (item) {
       "cbm": "Объем (CBM)",
       "weight": "Вес (кг)"
   };
+  Object.keys(posFieldsNames).forEach(k => allKeys.add(k));
 
   let dicts = window.kaspiDicts || (window.mapper2State && window.mapper2State.dictionary) || {};
 
@@ -6574,6 +6575,9 @@ window.renderEditorMainUI = function (item) {
   let mandatoryFilled = [];
   let optionalEmpty = [];
   let optionalFilled = [];
+
+  // Инициализируем карту глобальных параметров, если её еще нет
+  if (!window.applyToAllMap) window.applyToAllMap = {};
 
   Array.from(allKeys).forEach((k) => {
     let rawVal = window.tempAttrs ? window.tempAttrs[k] : "";
@@ -6612,11 +6616,19 @@ window.renderEditorMainUI = function (item) {
         isReq = true;
     }
     
-    if (lowerDisp === 'бренд' || lowerDisp === 'артикул' || lowerK === 'name' || lowerK === 'price' || lowerK === 'qty') {
+    let isPosField = (lowerK === 'name' || lowerK === 'price' || lowerK === 'qty' || lowerK === 'barcode' || lowerDisp === 'артикул' || lowerDisp.includes('штрихкод') || lowerDisp.includes('код'));
+    
+    if (isPosField || lowerDisp === 'бренд') {
         isReq = true;
     }
 
-    let isGlobal = window.applyToAllMap && window.applyToAllMap[k] !== undefined;
+    // ЛОГИКА ГЛОБАЛЬНОГО ВЫБОРА ПО УМОЛЧАНИЮ
+    if (window.applyToAllMap[k] === undefined) {
+        // Если это не системное поле (как цена или штрихкод), делаем его глобальным по умолчанию
+        window.applyToAllMap[k] = !isPosField;
+    }
+    let isGlobal = window.applyToAllMap[k];
+
     let isSku = lowerK.includes("sku") || lowerDisp === "артикул";
     let isDict = dicts[cleanDisplayKey] && dicts[cleanDisplayKey].length > 0;
 
@@ -6651,8 +6663,10 @@ window.renderEditorMainUI = function (item) {
       fields.forEach(f => {
           let reqStar = f.isReq ? `<span style="color:#ff4444; margin-left:4px; font-weight:bold; font-size:16px;">*</span>` : "";
           
-          // Обновленная плашка "КО ВСЕМ"
-          let applyAllText = t.inc_apply_all_badge ? t.inc_apply_all_badge.toUpperCase() : "КО ВСЕМ";
+          // Исправляем двойные галочки (удаляем имеющиеся из перевода)
+          let applyAllText = t.inc_apply_all_badge ? String(t.inc_apply_all_badge).toUpperCase() : "КО ВСЕМ";
+          applyAllText = applyAllText.replace(/[✓✔]/g, '').trim();
+          
           let applyAllBadge = f.isGlobal 
               ? `<span style="background:rgba(50, 157, 250, 0.15); color:var(--accent-blue); padding:2px 6px; border-radius:4px; font-size:10px; font-weight:bold; margin-left: 8px; display:inline-flex; align-items:center; gap:3px;">✓ ${applyAllText}</span>` 
               : "";
