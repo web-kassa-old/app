@@ -415,6 +415,8 @@ const translations = {
     msg_tpl_exists_1: 'Шаблон "',
     msg_tpl_exists_2: '" уже существует.\nВы хотите перезаписать его?',
     msg_connect_db: "Подключение к БД...",
+    msg_dict_empty_1: "Справочник для поля \"",
+    msg_dict_empty_2: "\" пуст или не найден."
   },
   kz: {
     btn_sale: "САТУ",
@@ -832,6 +834,8 @@ const translations = {
     msg_tpl_exists_1: '"',
     msg_tpl_exists_2: '" шаблоны бар.\nОны үстінен жазғыңыз келе ме?',
     msg_connect_db: "Дерекқорға қосылуда...",
+    msg_dict_empty_1: "\"",
+    msg_dict_empty_2: "\" өрісі үшін анықтамалық бос немесе табылмады."
   },
 };
 
@@ -5837,11 +5841,11 @@ window.openKaspiDictSearch = function () {
   let reqName = window.mapper2State.currentReqName;
 
   // Ищем словарь по человеческому имени колонки (например, "Бренд")
-  let dict = window.kaspiDicts[reqName] || [];
+let dict = window.kaspiDicts[reqName] || [];
 
-  if (dict.length === 0) {
-    return alert(`Справочник для поля "${reqName}" пуст или не найден.`);
-  }
+if (dict.length === 0) {
+  return alert(translations[currentLang].msg_dict_empty_1 + reqName + translations[currentLang].msg_dict_empty_2);
+}
 
   // Прячем нижнюю шторку маппера
   document.getElementById("bottom-sheet").style.transform = "translateY(100%)";
