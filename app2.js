@@ -6549,7 +6549,7 @@ window.openEditorMain = function (index) {
 window.renderEditorMainUI = function (item) {
   const t = translations[currentLang] || {};
   
-  // 1. СОБИРАЕМ КЛЮЧИ
+  // 1. БЕРЕМ КЛЮЧИ СТРОГО ИЗ ШАБЛОНА КАСПИ И НАКЛАДНОЙ (Без искусственного добавления Цены/Штрихкода)
   let allKeys = new Set();
   
   if (window.mapper2State && window.mapper2State.sysToHumanMap) {
@@ -6558,16 +6558,6 @@ window.renderEditorMainUI = function (item) {
   if (window.tempAttrs) {
     Object.keys(window.tempAttrs).forEach(k => allKeys.add(k));
   }
-
-  const posFieldsNames = {
-      "name": "Наименование",
-      "price": "Цена",
-      "barcode": "Код / Штрихкод",
-      "qty": "Количество",
-      "cbm": "Объем (CBM)",
-      "weight": "Вес (кг)"
-  };
-  Object.keys(posFieldsNames).forEach(k => allKeys.add(k));
 
   let dicts = window.kaspiDicts || (window.mapper2State && window.mapper2State.dictionary) || {};
 
@@ -6584,9 +6574,7 @@ window.renderEditorMainUI = function (item) {
     if (rawVal === "undefined" || rawVal === "null" || rawVal === null || rawVal === undefined) rawVal = "";
     let val = String(rawVal).trim();
     
-    let humanName = (window.mapper2State && window.mapper2State.sysToHumanMap && window.mapper2State.sysToHumanMap[k]) 
-                    || posFieldsNames[k] 
-                    || null;
+    let humanName = window.mapper2State && window.mapper2State.sysToHumanMap ? window.mapper2State.sysToHumanMap[k] : null;
 
     let displayKey = humanName || k.split("*").pop().replace(/tires/gi, "").replace(/additional/gi, "").replace(/general/gi, "").replace(/\./g, "").trim();
     if (!displayKey) displayKey = k;
@@ -6594,14 +6582,14 @@ window.renderEditorMainUI = function (item) {
     let lowerDisp = cleanDisplayKey.toLowerCase();
     let lowerK = k.toLowerCase();
 
-    // БРОНЕБОЙНОЕ АВТОЗАПОЛНЕНИЕ из базы товара
+    // Автозаполнение (сработает, только если параметр реально есть в шаблоне)
     if (val === "" && item) {
         if (lowerK === 'name' || lowerDisp === 'название товара' || lowerDisp === 'наименование') {
             val = item.item_name || item.name || item.title || "";
         } else if (lowerK === 'price' || lowerDisp.includes('цена')) {
             let p = item.price !== undefined ? item.price : (item.sell_price !== undefined ? item.sell_price : item.price_out);
             val = (p !== undefined && p !== null && p !== "") ? String(p) : "";
-        } else if (lowerK === 'barcode' || lowerDisp.includes('штрихкод') || lowerDisp.includes('код')) {
+        } else if (lowerK === 'barcode' || lowerDisp.includes('штрихкод') || lowerDisp === 'код') {
             let b = item.barcode || item.code || item.item_code || item.sku;
             val = (b !== undefined && b !== null && b !== "") ? String(b) : "";
         } else if (lowerK === 'qty' || lowerDisp.includes('количество')) {
@@ -6610,27 +6598,26 @@ window.renderEditorMainUI = function (item) {
         }
     }
 
+    // Проверка обязательности строго из предыдущего экрана
     let isReq = false;
     let prevCard = document.querySelector(`.req-card[onclick*="'${k}'"]`);
     if (prevCard && prevCard.querySelector('.required')) {
         isReq = true;
     }
     
-    let isPosField = (lowerK === 'name' || lowerK === 'price' || lowerK === 'qty' || lowerK === 'barcode' || lowerDisp === 'артикул' || lowerDisp.includes('штрихкод') || lowerDisp.includes('код'));
-    
-    if (isPosField || lowerDisp === 'бренд') {
+    // Принудительно обязательные только базовые
+    if (lowerDisp === 'бренд' || lowerDisp === 'артикул') {
         isReq = true;
     }
 
-    // ЛОГИКА ГЛОБАЛЬНОГО ВЫБОРА ПО УМОЛЧАНИЮ
-    if (window.applyToAllMap[k] === undefined) {
-        // Если это не системное поле (как цена или штрихкод), делаем его глобальным по умолчанию
-        window.applyToAllMap[k] = !isPosField;
-    }
-    let isGlobal = window.applyToAllMap[k];
-
     let isSku = lowerK.includes("sku") || lowerDisp === "артикул";
     let isDict = dicts[cleanDisplayKey] && dicts[cleanDisplayKey].length > 0;
+
+    // ИСПРАВЛЕНИЕ ЛОГИКИ "КО ВСЕМ": по умолчанию ставим ТОЛЬКО на Справочники
+    if (window.applyToAllMap[k] === undefined) {
+        window.applyToAllMap[k] = isDict;
+    }
+    let isGlobal = window.applyToAllMap[k];
 
     if (isSku && val === "") {
       val = t.inc_auto_fill || "Заполняется автоматически";
@@ -6663,7 +6650,6 @@ window.renderEditorMainUI = function (item) {
       fields.forEach(f => {
           let reqStar = f.isReq ? `<span style="color:#ff4444; margin-left:4px; font-weight:bold; font-size:16px;">*</span>` : "";
           
-          // Исправляем двойные галочки (удаляем имеющиеся из перевода)
           let applyAllText = t.inc_apply_all_badge ? String(t.inc_apply_all_badge).toUpperCase() : "КО ВСЕМ";
           applyAllText = applyAllText.replace(/[✓✔]/g, '').trim();
           
