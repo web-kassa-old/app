@@ -4504,19 +4504,85 @@ function toggleIncomeModule() {
   }
 }
 
-function toggleExportModule() {
+// 1. Открытие модалки экспорта и загрузка списка категорий
+window.openExportModal = async function() {
+    const modal = document.getElementById('export-modal');
+    const select = document.getElementById('exportCategorySelect');
+    const btnArea = document.getElementById('exportActionButtons');
+    
+    if (modal) modal.style.display = 'flex';
+    if (btnArea) btnArea.style.display = 'none'; // Прячем кнопки до выбора
+    
+    select.innerHTML = '<option value="">-- Загрузка... --</option>';
+
+    try {
+        const url = typeof APPS_SCRIPT_URL !== "undefined" ? APPS_SCRIPT_URL : window.APPS_SCRIPT_URL;
+        // Запрашиваем список доступных шаблонов (категорий)
+        const payload = { action: 'getKaspiCategories', api_key: CLIENT_API_KEY };
+        const res = await window.smartFetch(url, payload, 'kaspi_categories', 3);
+
+        if (res && res.success && res.categories) {
+            select.innerHTML = '<option value="">-- Выберите категорию --</option>';
+            res.categories.forEach(cat => {
+                select.innerHTML += `<option value="${cat}">${cat}</option>`;
+            });
+        } else {
+            select.innerHTML = '<option value="">Нет сохраненных категорий</option>';
+        }
+    } catch (e) {
+        console.error("Ошибка загрузки категорий:", e);
+        select.innerHTML = '<option value="">Ошибка загрузки</option>';
+    }
+};
+
+window.closeExportModal = function() {
   const modal = document.getElementById("export-modal");
-  if (modal.style.display === "none" || modal.style.display === "") {
-    modal.style.display = "flex";
-  } else {
-    modal.style.display = "none";
-    document.getElementById("templateFileInput").value = "";
-    document.getElementById("templateFileName").innerText =
-      "📄 Загрузить пустой шаблон (.xlsx)";
-    document.getElementById("exportMapperArea").style.display = "none";
-    document.getElementById("generateExportBtn").style.display = "none";
-  }
-}
+  const select = document.getElementById("exportCategorySelect");
+  const btnArea = document.getElementById("exportActionButtons");
+  const mapperArea = document.getElementById("exportMapperArea");
+
+  if (modal) modal.style.display = "none";
+  
+  // Сбрасываем селекты и прячем кнопки при закрытии окна
+  if (select) select.innerHTML = '<option value="">-- Выберите категорию --</option>';
+  if (btnArea) btnArea.style.display = "none";
+  if (mapperArea) mapperArea.style.display = "none";
+};
+
+// 2. Обработка выбора категории из списка
+window.handleCategorySelectForExport = async function(event) {
+    const category = event.target.value.trim();
+    const btnArea = document.getElementById('exportActionButtons');
+
+    if (!category) {
+        btnArea.style.display = 'none';
+        return;
+    }
+
+    if (typeof window.showLoading === 'function') window.showLoading(null, 'kaspi_loading');
+
+    try {
+        const url = typeof APPS_SCRIPT_URL !== "undefined" ? APPS_SCRIPT_URL : window.APPS_SCRIPT_URL;
+        // Запрашиваем сам шаблон (Base64 и ключи) для выбранной категории
+        const payload = { action: 'getKaspiTemplateData', api_key: CLIENT_API_KEY, category: category };
+        const res = await window.smartFetch(url, payload);
+
+        if (res && res.success && res.templateBase64) {
+            // Сохраняем оригинальный бланк в память для генератора ExcelJS
+            window.rawKaspiTemplateBuffer = res.templateBase64;
+            // Показываем кнопки "Скачать" и "Сохранить на Диск"
+            btnArea.style.display = 'flex';
+        } else {
+            alert("Не удалось загрузить бланк шаблона для этой категории.");
+            btnArea.style.display = 'none';
+        }
+    } catch (e) {
+        console.error("Ошибка загрузки шаблона:", e);
+        alert("Ошибка сети при загрузке шаблона.");
+    } finally {
+        if (typeof window.hideLoading === 'function') window.hideLoading();
+    }
+};
 
 window.askCategoryName = function (defaultText) {
   return new Promise((resolve) => {
