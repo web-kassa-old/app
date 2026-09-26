@@ -438,13 +438,13 @@ const translations = {
     inc_optional_params: "Дополнительные параметры",
     inc_no_params: "Нет доступных параметров",
     req_fill_title: "ОБЯЗАТЕЛЬНЫЕ ДЛЯ ЗАПОЛНЕНИЯ",
-add_params_title: "ДОПОЛНИТЕЛЬНЫЕ ПАРАМЕТРЫ",
-desc_calc: "Для расчета",
-desc_invoice_sys: "из накладной и системы",
-desc_stock: "На складе (POS)",
-desc_currency: "В валюте накладной",
-desc_id_link: "Связь с ID товара в POS",
-pos_name: "Наименование",
+    add_params_title: "ДОПОЛНИТЕЛЬНЫЕ ПАРАМЕТРЫ",
+    desc_calc: "Для расчета",
+    desc_invoice_sys: "из накладной и системы",
+    desc_stock: "На складе (POS)",
+    desc_currency: "В валюте накладной",
+    desc_id_link: "Связь с ID товара в POS",
+    pos_name: "Наименование",
     pos_qty: "Количество",
     pos_price: "Цена закупа",
     pos_barcode: "Код / Штрихкод",
@@ -454,7 +454,9 @@ pos_name: "Наименование",
     desc_stock: "На складе (POS)",
     desc_currency: "В валюте накладной",
     desc_id_link: "Связь с ID товара в POS",
-    desc_calc: "Для расчета"
+    desc_calc: "Для расчета",
+    err_min_chars: "Слишком коротко! Минимум символов: ",
+    err_max_chars: "Превышен лимит! Максимум символов: ",
   },
   kz: {
     btn_sale: "САТУ",
@@ -895,13 +897,13 @@ pos_name: "Наименование",
     inc_optional_params: "Қосымша параметрлер",
     inc_no_params: "Қолжетімді параметрлер жоқ",
     req_fill_title: "ТОЛТЫРУҒА МІНДЕТТІ",
-add_params_title: "ҚОСЫМША ПАРАМЕТРЛЕР",
-desc_calc: "Есептеу үшін",
-desc_invoice_sys: "Жүкқұжаттан және жүйеден",
-desc_stock: "Қоймада (POS)",
-desc_currency: "Жүкқұжат валютасында",
-desc_id_link: "POS-тағы тауар ID-мен байланыс",
-pos_name: "Атауы",
+    add_params_title: "ҚОСЫМША ПАРАМЕТРЛЕР",
+    desc_calc: "Есептеу үшін",
+    desc_invoice_sys: "Жүкқұжаттан және жүйеден",
+    desc_stock: "Қоймада (POS)",
+    desc_currency: "Жүкқұжат валютасында",
+    desc_id_link: "POS-тағы тауар ID-мен байланыс",
+    pos_name: "Атауы",
     pos_qty: "Саны",
     pos_price: "Сатып алу бағасы",
     pos_barcode: "Код / Штрихкод",
@@ -911,7 +913,9 @@ pos_name: "Атауы",
     desc_stock: "Қоймада (POS)",
     desc_currency: "Жүкқұжат валютасында",
     desc_id_link: "POS-тағы тауар ID-мен байланыс",
-    desc_calc: "Есептеу үшін"
+    desc_calc: "Есептеу үшін",
+    err_min_chars: "Тым қысқа! Минималды таңбалар саны: ",
+    err_max_chars: "Лимиттен асты! Максималды таңбалар саны: ",
   },
 };
 
@@ -5513,7 +5517,8 @@ window.renderMapper2Cards = function (templateData) {
       window.mapper2State.sysToHumanMap[sysKey] = humName;
 
       let reqText = (requirements[i] || "").toLowerCase();
-      let isReq = reqText.includes("обязательн") && !reqText.includes("необязательн");
+      let isReq =
+        reqText.includes("обязательн") && !reqText.includes("необязательн");
 
       allReqs.push({
         sysKey,
@@ -5531,7 +5536,7 @@ window.renderMapper2Cards = function (templateData) {
     {
       sysKey: "name",
       name: t.pos_name || "Наименование",
-      nameKey: "pos_name", 
+      nameKey: "pos_name",
       req: true,
       desc: t.desc_req || "Обязательно",
       descKey: "desc_req",
@@ -5588,9 +5593,12 @@ window.renderMapper2Cards = function (templateData) {
     if (!allReqs.some((r) => r.sysKey === field.sysKey)) allReqs.push(field);
   });
 
-  const globalSynonyms = typeof invoiceSynonyms !== "undefined" ? invoiceSynonyms : {};
+  const globalSynonyms =
+    typeof invoiceSynonyms !== "undefined" ? invoiceSynonyms : {};
   const headersLower = (window.mapper2State.invoiceHeaders || []).map((h) =>
-    String(h || "").trim().toLowerCase(),
+    String(h || "")
+      .trim()
+      .toLowerCase(),
   );
 
   // === СОЗДАЕМ 3 КОРЗИНЫ ДЛЯ КАРТОЧЕК ===
@@ -5599,7 +5607,9 @@ window.renderMapper2Cards = function (templateData) {
   let htmlFilled = "";
 
   allReqs.forEach((req) => {
-    let isKaspiSku = req.sysKey.toLowerCase().includes("sku") || req.name.toLowerCase().includes("артикул");
+    let isKaspiSku =
+      req.sysKey.toLowerCase().includes("sku") ||
+      req.name.toLowerCase().includes("артикул");
 
     // 1. Артикул всегда идет в "Заполненные"
     if (isKaspiSku) {
@@ -5618,22 +5628,36 @@ window.renderMapper2Cards = function (templateData) {
 
     let learned = learnedSynonyms[req.sysKey] || [];
     let baseRaw = [];
-    if (globalSynonyms[req.sysKey]) baseRaw = baseRaw.concat(globalSynonyms[req.sysKey]);
-    if (globalSynonyms[req.name]) baseRaw = baseRaw.concat(globalSynonyms[req.name]);
-    if (req.isDict && globalSynonyms["Brand"]) baseRaw = baseRaw.concat(globalSynonyms["Brand"]);
+    if (globalSynonyms[req.sysKey])
+      baseRaw = baseRaw.concat(globalSynonyms[req.sysKey]);
+    if (globalSynonyms[req.name])
+      baseRaw = baseRaw.concat(globalSynonyms[req.name]);
+    if (req.isDict && globalSynonyms["Brand"])
+      baseRaw = baseRaw.concat(globalSynonyms["Brand"]);
 
-    let base = baseRaw.map((w) => String(w).trim().toLowerCase()).filter(Boolean);
+    let base = baseRaw
+      .map((w) => String(w).trim().toLowerCase())
+      .filter(Boolean);
     let foundIndex = -1;
 
     foundIndex = headersLower.findIndex((h) => h && learned.includes(h));
-    if (foundIndex === -1) foundIndex = headersLower.findIndex((h) => h && base.includes(h));
-    if (foundIndex === -1) foundIndex = headersLower.findIndex((h) => h && learned.some((w) => w.length > 2 && h.includes(w)));
-    if (foundIndex === -1) foundIndex = headersLower.findIndex((h) => h && base.some((w) => w.length > 2 && h.includes(w)));
+    if (foundIndex === -1)
+      foundIndex = headersLower.findIndex((h) => h && base.includes(h));
+    if (foundIndex === -1)
+      foundIndex = headersLower.findIndex(
+        (h) => h && learned.some((w) => w.length > 2 && h.includes(w)),
+      );
+    if (foundIndex === -1)
+      foundIndex = headersLower.findIndex(
+        (h) => h && base.some((w) => w.length > 2 && h.includes(w)),
+      );
 
     if (foundIndex !== -1) window.mapper2State.colMap[req.sysKey] = foundIndex;
 
     let mappedIndex = window.mapper2State.colMap[req.sysKey];
-    let dictValue = window.mapper2State.dictValues && window.mapper2State.dictValues[req.sysKey];
+    let dictValue =
+      window.mapper2State.dictValues &&
+      window.mapper2State.dictValues[req.sysKey];
 
     let statusClass = "status-empty";
     let statusText = t.inc_select || "ВЫБРАТЬ";
@@ -5643,28 +5667,43 @@ window.renderMapper2Cards = function (templateData) {
 
     if (dictValue) {
       statusClass = "status-filled";
-      let shortVal = dictValue.length > 15 ? dictValue.substring(0, 15) + "..." : dictValue;
+      let shortVal =
+        dictValue.length > 15 ? dictValue.substring(0, 15) + "..." : dictValue;
       statusText = `📖 ${shortVal}`;
       statusI18n = ""; // Если значение выбрано, data-i18n убираем, чтобы не перетереть текст
-      statusStyle = "border: 1px solid #4CAF50; color: #4CAF50; background: rgba(76, 175, 80, 0.1); font-weight: bold;";
+      statusStyle =
+        "border: 1px solid #4CAF50; color: #4CAF50; background: rgba(76, 175, 80, 0.1); font-weight: bold;";
     } else if (mappedIndex !== undefined) {
       statusClass = "status-filled";
-      let colName = window.mapper2State.invoiceHeaders[mappedIndex] || `Колонка ${mappedIndex + 1}`;
+      let colName =
+        window.mapper2State.invoiceHeaders[mappedIndex] ||
+        `Колонка ${mappedIndex + 1}`;
 
-      let splitData = window.mapper2State.splitRules && window.mapper2State.splitRules[req.sysKey];
+      let splitData =
+        window.mapper2State.splitRules &&
+        window.mapper2State.splitRules[req.sysKey];
       let ruleIndices = [];
       if (Array.isArray(splitData)) ruleIndices = splitData;
-      else if (splitData && Array.isArray(splitData.rule)) ruleIndices = splitData.rule;
-      else if (splitData && Array.isArray(splitData.tokens)) ruleIndices = splitData.tokens;
+      else if (splitData && Array.isArray(splitData.rule))
+        ruleIndices = splitData.rule;
+      else if (splitData && Array.isArray(splitData.tokens))
+        ruleIndices = splitData.tokens;
 
       if (ruleIndices.length > 0) {
         statusText = `✂️ ${colName}`;
         statusI18n = "";
-        statusStyle = "border: 1px solid #4CAF50; color: #4CAF50; background: rgba(76, 175, 80, 0.1); font-weight: bold;";
+        statusStyle =
+          "border: 1px solid #4CAF50; color: #4CAF50; background: rgba(76, 175, 80, 0.1); font-weight: bold;";
 
         let sampleText = "";
-        for (let i = 0; i < Math.min(10, window.mapper2State.invoiceRows.length); i++) {
-          let val = String(window.mapper2State.invoiceRows[i][mappedIndex] || "").trim();
+        for (
+          let i = 0;
+          i < Math.min(10, window.mapper2State.invoiceRows.length);
+          i++
+        ) {
+          let val = String(
+            window.mapper2State.invoiceRows[i][mappedIndex] || "",
+          ).trim();
           if (val) {
             sampleText = val;
             break;
@@ -5675,13 +5714,15 @@ window.renderMapper2Cards = function (templateData) {
           const regex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,]/g;
           let tokens = sampleText.match(regex) || [];
 
-          let highlighted = tokens.map((tok, i) => {
-            if (ruleIndices.map(Number).includes(i)) {
-              return `<b style="color:#000; background:var(--accent-green, #4CAF50); padding:0 3px; border-radius:3px;">${tok}</b>`;
-            } else {
-              return `<span style="color:#666; text-decoration:line-through;">${tok}</span>`;
-            }
-          }).join("");
+          let highlighted = tokens
+            .map((tok, i) => {
+              if (ruleIndices.map(Number).includes(i)) {
+                return `<b style="color:#000; background:var(--accent-green, #4CAF50); padding:0 3px; border-radius:3px;">${tok}</b>`;
+              } else {
+                return `<span style="color:#666; text-decoration:line-through;">${tok}</span>`;
+              }
+            })
+            .join("");
 
           extraPreviewHtml = `
                     <div id="preview-${req.sysKey}" style="margin-top: 6px; font-size: 11px; background: rgba(255,255,255,0.05); padding: 4px 8px; border-radius: 4px; display: inline-block;">
@@ -5691,7 +5732,8 @@ window.renderMapper2Cards = function (templateData) {
       } else {
         statusText = `✅ ${colName}`;
         statusI18n = "";
-        statusStyle = "border: 1px solid #4CAF50; color: #4CAF50; background: rgba(76, 175, 80, 0.1); font-weight: bold;";
+        statusStyle =
+          "border: 1px solid #4CAF50; color: #4CAF50; background: rgba(76, 175, 80, 0.1); font-weight: bold;";
       }
     }
 
@@ -6595,7 +6637,9 @@ window.renderPreviewTable = function () {
   if (currency) currency.style.display = "none";
 
   // Хитрый трюк: вешаем перевод на статус поставщика, только если он реально не указан
-  const supplierI18nAttr = !state.supplier ? `data-i18n="inc_not_specified"` : "";
+  const supplierI18nAttr = !state.supplier
+    ? `data-i18n="inc_not_specified"`
+    : "";
 
   document.getElementById("invoiceMetadata").innerHTML = `
         <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; padding: 10px; background: var(--bg-panel); border-radius: 8px; border: 1px solid var(--border-light);">
@@ -6821,7 +6865,9 @@ window.renderEditorMainUI = function (item) {
                   </div>
               `;
       } else {
-        let actionText = f.isDict ? (t.inc_dict_badge || "Справочник") : (t.inc_input_badge || "Ввод");
+        let actionText = f.isDict
+          ? t.inc_dict_badge || "Справочник"
+          : t.inc_input_badge || "Ввод";
         rightSideHtml = `
                   <div style="border: 1px solid #ff4444; color: #ff4444; padding: 5px 12px; border-radius: 4px; font-size: 11px; font-weight: bold; text-transform: uppercase; margin-right: 8px;">
                       ${actionText}
@@ -6951,14 +6997,14 @@ window.openEditorField = function (originalKey) {
   // === 1. ПАРСИНГ ЛИМИТОВ ИЗ НАЗВАНИЯ ===
   let minChars = 0;
   let maxChars = 0;
-  
+
   // Ищем "мин" и забираем цифры (игнорируя пробелы, например "7 000")
   let minMatch = displayKey.match(/мин[^\d]*(\d[\d\s]*)/i);
-  if(minMatch) minChars = parseInt(minMatch[1].replace(/\s/g, ''));
-  
+  if (minMatch) minChars = parseInt(minMatch[1].replace(/\s/g, ""));
+
   // Ищем "макс" и забираем цифры
   let maxMatch = displayKey.match(/макс[^\d]*(\d[\d\s]*)/i);
-  if(maxMatch) maxChars = parseInt(maxMatch[1].replace(/\s/g, ''));
+  if (maxMatch) maxChars = parseInt(maxMatch[1].replace(/\s/g, ""));
 
   let dict = null;
   if (window.kaspiDicts) {
@@ -7003,46 +7049,50 @@ window.openEditorField = function (originalKey) {
   };
 
   // === 2. ГЛОБАЛЬНАЯ ФУНКЦИЯ ВАЛИДАЦИИ (С ПЕРЕВОДАМИ) ===
-  window.validateAndSaveField = function(key, min, max) {
-      let input = document.getElementById('singleFieldInput');
-      if(!input) return window.saveSingleField(key); 
-      
-      let len = input.value.trim().length;
-      if (len > 0) { 
-          if (min > 0 && len < min) {
-              return alert((t.err_min_chars || "Слишком коротко! Минимум символов: ") + min);
-          }
-          if (max > 0 && len > max) {
-              return alert((t.err_max_chars || "Превышен лимит! Максимум символов: ") + max);
-          }
+  window.validateAndSaveField = function (key, min, max) {
+    let input = document.getElementById("singleFieldInput");
+    if (!input) return window.saveSingleField(key);
+
+    let len = input.value.trim().length;
+    if (len > 0) {
+      if (min > 0 && len < min) {
+        return alert(
+          (t.err_min_chars || "Слишком коротко! Минимум символов: ") + min,
+        );
       }
-      window.saveSingleField(key);
+      if (max > 0 && len > max) {
+        return alert(
+          (t.err_max_chars || "Превышен лимит! Максимум символов: ") + max,
+        );
+      }
+    }
+    window.saveSingleField(key);
   };
 
   // === 3. ЛОГИКА СЧЕТЧИКА ===
   let counterHtml = "";
   let onInputAttr = "";
-  
-  window.updateCharCount = function(min, max) {
-      let el = document.getElementById('singleFieldInput');
-      let counter = document.getElementById('charCounterSpan');
-      if(!el || !counter) return;
-      
-      let len = el.value.trim().length;
-      let color = "var(--text-muted)";
-      
-      if (min > 0 && len > 0 && len < min) color = "#ff4444"; 
-      else if (max > 0 && len > max) color = "#ff4444"; 
-      else if (len > 0) color = "var(--accent-green)"; 
-      
-      counter.style.color = color;
-      counter.innerText = len + (max > 0 ? " / " + max : "");
+
+  window.updateCharCount = function (min, max) {
+    let el = document.getElementById("singleFieldInput");
+    let counter = document.getElementById("charCounterSpan");
+    if (!el || !counter) return;
+
+    let len = el.value.trim().length;
+    let color = "var(--text-muted)";
+
+    if (min > 0 && len > 0 && len < min) color = "#ff4444";
+    else if (max > 0 && len > max) color = "#ff4444";
+    else if (len > 0) color = "var(--accent-green)";
+
+    counter.style.color = color;
+    counter.innerText = len + (max > 0 ? " / " + max : "");
   };
 
   if (minChars > 0 || maxChars > 0) {
-      // Счетчик будет размещен в шапке
-      counterHtml = `<div id="charCounterSpan" style="font-size: 11px; font-weight: bold; color: var(--text-muted); margin-top: 2px;">0</div>`;
-      onInputAttr = `oninput="window.updateCharCount(${minChars}, ${maxChars})"`;
+    // Счетчик будет размещен в шапке
+    counterHtml = `<div id="charCounterSpan" style="font-size: 11px; font-weight: bold; color: var(--text-muted); margin-top: 2px;">0</div>`;
+    onInputAttr = `oninput="window.updateCharCount(${minChars}, ${maxChars})"`;
   }
 
   if (dict && dict.length > 0) {
@@ -7115,10 +7165,10 @@ window.openEditorField = function (originalKey) {
   document.getElementById("modalContainer").appendChild(fieldModal);
 
   // Инициализируем счетчик при открытии
-  if(minChars > 0 || maxChars > 0) {
-      setTimeout(() => {
-          if(window.updateCharCount) window.updateCharCount(minChars, maxChars);
-      }, 10);
+  if (minChars > 0 || maxChars > 0) {
+    setTimeout(() => {
+      if (window.updateCharCount) window.updateCharCount(minChars, maxChars);
+    }, 10);
   }
 };
 
