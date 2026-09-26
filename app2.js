@@ -437,6 +437,24 @@ const translations = {
     inc_mandatory_params: "Обязательные параметры",
     inc_optional_params: "Дополнительные параметры",
     inc_no_params: "Нет доступных параметров",
+    req_fill_title: "ОБЯЗАТЕЛЬНЫЕ ДЛЯ ЗАПОЛНЕНИЯ",
+add_params_title: "ДОПОЛНИТЕЛЬНЫЕ ПАРАМЕТРЫ",
+desc_calc: "Для расчета",
+desc_invoice_sys: "из накладной и системы",
+desc_stock: "На складе (POS)",
+desc_currency: "В валюте накладной",
+desc_id_link: "Связь с ID товара в POS",
+pos_name: "Наименование",
+    pos_qty: "Количество",
+    pos_price: "Цена закупа",
+    pos_barcode: "Код / Штрихкод",
+    pos_cbm: "Объем (CBM)",
+    pos_weight: "Вес (кг)",
+    desc_req: "Обязательно",
+    desc_stock: "На складе (POS)",
+    desc_currency: "В валюте накладной",
+    desc_id_link: "Связь с ID товара в POS",
+    desc_calc: "Для расчета"
   },
   kz: {
     btn_sale: "САТУ",
@@ -876,6 +894,24 @@ const translations = {
     inc_mandatory_params: "Міндетті параметрлер",
     inc_optional_params: "Қосымша параметрлер",
     inc_no_params: "Қолжетімді параметрлер жоқ",
+    req_fill_title: "ТОЛТЫРУҒА МІНДЕТТІ",
+add_params_title: "ҚОСЫМША ПАРАМЕТРЛЕР",
+desc_calc: "Есептеу үшін",
+desc_invoice_sys: "Жүкқұжаттан және жүйеден",
+desc_stock: "Қоймада (POS)",
+desc_currency: "Жүкқұжат валютасында",
+desc_id_link: "POS-тағы тауар ID-мен байланыс",
+pos_name: "Атауы",
+    pos_qty: "Саны",
+    pos_price: "Сатып алу бағасы",
+    pos_barcode: "Код / Штрихкод",
+    pos_cbm: "Көлем (CBM)",
+    pos_weight: "Салмағы (кг)",
+    desc_req: "Міндетті түрде",
+    desc_stock: "Қоймада (POS)",
+    desc_currency: "Жүкқұжат валютасында",
+    desc_id_link: "POS-тағы тауар ID-мен байланыс",
+    desc_calc: "Есептеу үшін"
   },
 };
 
@@ -5477,61 +5513,73 @@ window.renderMapper2Cards = function (templateData) {
       window.mapper2State.sysToHumanMap[sysKey] = humName;
 
       let reqText = (requirements[i] || "").toLowerCase();
-      // Вот твой родной флаг обязательности, мы будем на него опираться:
-      let isReq =
-        reqText.includes("обязательн") && !reqText.includes("необязательн");
+      let isReq = reqText.includes("обязательн") && !reqText.includes("необязательн");
 
       allReqs.push({
         sysKey,
         name: humName,
         req: isReq,
         desc: t.inc_dict_or_splitter || "Словарь или Сплиттер",
+        descKey: "inc_dict_or_splitter", // Ключ для автоматического перевода подписи
         isKaspi: true,
       });
     }
   }
 
+  // Внедряем ключи nameKey и descKey для связки со словарем
   const posBaseFields = [
     {
       sysKey: "name",
-      name: "Наименование",
+      name: t.pos_name || "Наименование",
+      nameKey: "pos_name", 
       req: true,
-      desc: "Обязательно",
+      desc: t.desc_req || "Обязательно",
+      descKey: "desc_req",
       isKaspi: false,
     },
     {
       sysKey: "qty",
-      name: "Количество",
+      name: t.pos_qty || "Количество",
+      nameKey: "pos_qty",
       req: true,
-      desc: "На складе (POS)",
+      desc: t.desc_stock || "На складе (POS)",
+      descKey: "desc_stock",
       isKaspi: false,
     },
     {
       sysKey: "price",
-      name: "Цена закупа",
+      name: t.pos_price || "Цена закупа",
+      nameKey: "pos_price",
       req: true,
-      desc: "В валюте накладной",
+      desc: t.desc_currency || "В валюте накладной",
+      descKey: "desc_currency",
       isKaspi: false,
     },
     {
       sysKey: "barcode",
-      name: "Код / Штрихкод",
+      name: t.pos_barcode || "Код / Штрихкод",
+      nameKey: "pos_barcode",
       req: false,
-      desc: "Связь с ID товара в POS",
+      desc: t.desc_id_link || "Связь с ID товара в POS",
+      descKey: "desc_id_link",
       isKaspi: false,
     },
     {
       sysKey: "cbm",
-      name: "Объем (CBM)",
+      name: t.pos_cbm || "Объем (CBM)",
+      nameKey: "pos_cbm",
       req: false,
-      desc: "Для расчета",
+      desc: t.desc_calc || "Для расчета",
+      descKey: "desc_calc",
       isKaspi: false,
     },
     {
       sysKey: "weight",
-      name: "Вес (кг)",
+      name: t.pos_weight || "Вес (кг)",
+      nameKey: "pos_weight",
       req: false,
-      desc: "Для расчета",
+      desc: t.desc_calc || "Для расчета",
+      descKey: "desc_calc",
       isKaspi: false,
     },
   ];
@@ -5540,12 +5588,9 @@ window.renderMapper2Cards = function (templateData) {
     if (!allReqs.some((r) => r.sysKey === field.sysKey)) allReqs.push(field);
   });
 
-  const globalSynonyms =
-    typeof invoiceSynonyms !== "undefined" ? invoiceSynonyms : {};
+  const globalSynonyms = typeof invoiceSynonyms !== "undefined" ? invoiceSynonyms : {};
   const headersLower = (window.mapper2State.invoiceHeaders || []).map((h) =>
-    String(h || "")
-      .trim()
-      .toLowerCase(),
+    String(h || "").trim().toLowerCase(),
   );
 
   // === СОЗДАЕМ 3 КОРЗИНЫ ДЛЯ КАРТОЧЕК ===
@@ -5554,98 +5599,72 @@ window.renderMapper2Cards = function (templateData) {
   let htmlFilled = "";
 
   allReqs.forEach((req) => {
-    let isKaspiSku =
-      req.sysKey.toLowerCase().includes("sku") ||
-      req.name.toLowerCase().includes("артикул");
+    let isKaspiSku = req.sysKey.toLowerCase().includes("sku") || req.name.toLowerCase().includes("артикул");
 
-    // 1. Артикул всегда идет в "Заполненные", так как генерируется автоматически
+    // 1. Артикул всегда идет в "Заполненные"
     if (isKaspiSku) {
       htmlFilled += `
             <div class="req-card" style="opacity: 0.6; filter: grayscale(1); cursor: not-allowed; background: var(--bg-panel); border-color: var(--border-light);">
                 <div class="req-info">
                     <span class="req-title required" style="color: var(--text-main);">${req.name}</span>
-                    <span class="req-subtitle" style="color: var(--text-muted);">${t.inc_auto_fill || "Заполняется автоматически"}</span>
+                    <span class="req-subtitle" data-i18n="inc_auto_fill" style="color: var(--text-muted);">${t.inc_auto_fill || "Заполняется автоматически"}</span>
                 </div>
-                <div class="req-status status-dict" style="background: var(--bg-body); border-color: var(--border-light); color: var(--text-muted);">🔒 ${t.inc_db_barcode || "Штрихкод БД"}</div>
+                <div class="req-status status-dict" style="background: var(--bg-body); border-color: var(--border-light); color: var(--text-muted);">
+                    <span data-i18n="inc_db_barcode">🔒 ${t.inc_db_barcode || "Штрихкод БД"}</span>
+                </div>
             </div>`;
       return;
     }
 
     let learned = learnedSynonyms[req.sysKey] || [];
     let baseRaw = [];
-    if (globalSynonyms[req.sysKey])
-      baseRaw = baseRaw.concat(globalSynonyms[req.sysKey]);
-    if (globalSynonyms[req.name])
-      baseRaw = baseRaw.concat(globalSynonyms[req.name]);
-    if (req.isDict && globalSynonyms["Brand"])
-      baseRaw = baseRaw.concat(globalSynonyms["Brand"]);
+    if (globalSynonyms[req.sysKey]) baseRaw = baseRaw.concat(globalSynonyms[req.sysKey]);
+    if (globalSynonyms[req.name]) baseRaw = baseRaw.concat(globalSynonyms[req.name]);
+    if (req.isDict && globalSynonyms["Brand"]) baseRaw = baseRaw.concat(globalSynonyms["Brand"]);
 
-    let base = baseRaw
-      .map((w) => String(w).trim().toLowerCase())
-      .filter(Boolean);
+    let base = baseRaw.map((w) => String(w).trim().toLowerCase()).filter(Boolean);
     let foundIndex = -1;
 
     foundIndex = headersLower.findIndex((h) => h && learned.includes(h));
-    if (foundIndex === -1)
-      foundIndex = headersLower.findIndex((h) => h && base.includes(h));
-    if (foundIndex === -1)
-      foundIndex = headersLower.findIndex(
-        (h) => h && learned.some((w) => w.length > 2 && h.includes(w)),
-      );
-    if (foundIndex === -1)
-      foundIndex = headersLower.findIndex(
-        (h) => h && base.some((w) => w.length > 2 && h.includes(w)),
-      );
+    if (foundIndex === -1) foundIndex = headersLower.findIndex((h) => h && base.includes(h));
+    if (foundIndex === -1) foundIndex = headersLower.findIndex((h) => h && learned.some((w) => w.length > 2 && h.includes(w)));
+    if (foundIndex === -1) foundIndex = headersLower.findIndex((h) => h && base.some((w) => w.length > 2 && h.includes(w)));
 
     if (foundIndex !== -1) window.mapper2State.colMap[req.sysKey] = foundIndex;
 
     let mappedIndex = window.mapper2State.colMap[req.sysKey];
-    let dictValue =
-      window.mapper2State.dictValues &&
-      window.mapper2State.dictValues[req.sysKey];
+    let dictValue = window.mapper2State.dictValues && window.mapper2State.dictValues[req.sysKey];
 
     let statusClass = "status-empty";
     let statusText = t.inc_select || "ВЫБРАТЬ";
+    let statusI18n = `data-i18n="inc_select"`;
     let statusStyle = "";
     let extraPreviewHtml = "";
 
     if (dictValue) {
       statusClass = "status-filled";
-      let shortVal =
-        dictValue.length > 15 ? dictValue.substring(0, 15) + "..." : dictValue;
+      let shortVal = dictValue.length > 15 ? dictValue.substring(0, 15) + "..." : dictValue;
       statusText = `📖 ${shortVal}`;
-      statusStyle =
-        "border: 1px solid #4CAF50; color: #4CAF50; background: rgba(76, 175, 80, 0.1); font-weight: bold;";
+      statusI18n = ""; // Если значение выбрано, data-i18n убираем, чтобы не перетереть текст
+      statusStyle = "border: 1px solid #4CAF50; color: #4CAF50; background: rgba(76, 175, 80, 0.1); font-weight: bold;";
     } else if (mappedIndex !== undefined) {
       statusClass = "status-filled";
-      let colName =
-        window.mapper2State.invoiceHeaders[mappedIndex] ||
-        `Колонка ${mappedIndex + 1}`;
+      let colName = window.mapper2State.invoiceHeaders[mappedIndex] || `Колонка ${mappedIndex + 1}`;
 
-      let splitData =
-        window.mapper2State.splitRules &&
-        window.mapper2State.splitRules[req.sysKey];
+      let splitData = window.mapper2State.splitRules && window.mapper2State.splitRules[req.sysKey];
       let ruleIndices = [];
       if (Array.isArray(splitData)) ruleIndices = splitData;
-      else if (splitData && Array.isArray(splitData.rule))
-        ruleIndices = splitData.rule;
-      else if (splitData && Array.isArray(splitData.tokens))
-        ruleIndices = splitData.tokens;
+      else if (splitData && Array.isArray(splitData.rule)) ruleIndices = splitData.rule;
+      else if (splitData && Array.isArray(splitData.tokens)) ruleIndices = splitData.tokens;
 
       if (ruleIndices.length > 0) {
         statusText = `✂️ ${colName}`;
-        statusStyle =
-          "border: 1px solid #4CAF50; color: #4CAF50; background: rgba(76, 175, 80, 0.1); font-weight: bold;";
+        statusI18n = "";
+        statusStyle = "border: 1px solid #4CAF50; color: #4CAF50; background: rgba(76, 175, 80, 0.1); font-weight: bold;";
 
         let sampleText = "";
-        for (
-          let i = 0;
-          i < Math.min(10, window.mapper2State.invoiceRows.length);
-          i++
-        ) {
-          let val = String(
-            window.mapper2State.invoiceRows[i][mappedIndex] || "",
-          ).trim();
+        for (let i = 0; i < Math.min(10, window.mapper2State.invoiceRows.length); i++) {
+          let val = String(window.mapper2State.invoiceRows[i][mappedIndex] || "").trim();
           if (val) {
             sampleText = val;
             break;
@@ -5656,15 +5675,13 @@ window.renderMapper2Cards = function (templateData) {
           const regex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,]/g;
           let tokens = sampleText.match(regex) || [];
 
-          let highlighted = tokens
-            .map((tok, i) => {
-              if (ruleIndices.map(Number).includes(i)) {
-                return `<b style="color:#000; background:var(--accent-green, #4CAF50); padding:0 3px; border-radius:3px;">${tok}</b>`;
-              } else {
-                return `<span style="color:#666; text-decoration:line-through;">${tok}</span>`;
-              }
-            })
-            .join("");
+          let highlighted = tokens.map((tok, i) => {
+            if (ruleIndices.map(Number).includes(i)) {
+              return `<b style="color:#000; background:var(--accent-green, #4CAF50); padding:0 3px; border-radius:3px;">${tok}</b>`;
+            } else {
+              return `<span style="color:#666; text-decoration:line-through;">${tok}</span>`;
+            }
+          }).join("");
 
           extraPreviewHtml = `
                     <div id="preview-${req.sysKey}" style="margin-top: 6px; font-size: 11px; background: rgba(255,255,255,0.05); padding: 4px 8px; border-radius: 4px; display: inline-block;">
@@ -5673,20 +5690,23 @@ window.renderMapper2Cards = function (templateData) {
         }
       } else {
         statusText = `✅ ${colName}`;
-        statusStyle =
-          "border: 1px solid #4CAF50; color: #4CAF50; background: rgba(76, 175, 80, 0.1); font-weight: bold;";
+        statusI18n = "";
+        statusStyle = "border: 1px solid #4CAF50; color: #4CAF50; background: rgba(76, 175, 80, 0.1); font-weight: bold;";
       }
     }
 
-    // 2. Генерируем саму карточку
+    // 2. Генерируем саму карточку, добавляя атрибуты перевода
+    let nameI18nAttr = req.nameKey ? `data-i18n="${req.nameKey}"` : "";
+    let descI18nAttr = req.descKey ? `data-i18n="${req.descKey}"` : "";
+
     let cardHtml = `
         <div class="req-card" onclick="openColumnSelector('${req.sysKey}', '${req.name.replace(/'/g, "\\'")}', ${req.isKaspi === true})">
             <div class="req-info">
-                <span class="req-title ${req.req ? "required" : ""}">${req.name}</span>
-                <span class="req-subtitle" id="subtitle-${req.sysKey}">${req.desc}</span>
+                <span class="req-title ${req.req ? "required" : ""}" ${nameI18nAttr}>${req.name}</span>
+                <span class="req-subtitle" id="subtitle-${req.sysKey}" ${descI18nAttr}>${req.desc}</span>
                 ${extraPreviewHtml}
             </div>
-            <div class="req-status ${statusClass}" id="status-${req.sysKey}" style="${statusStyle}">${statusText}</div>
+            <div class="req-status ${statusClass}" id="status-${req.sysKey}" style="${statusStyle}" ${statusI18n}>${statusText}</div>
         </div>`;
 
     // 3. Распределяем карточку по корзинам
@@ -5704,23 +5724,23 @@ window.renderMapper2Cards = function (templateData) {
 
   if (htmlRequired) {
     finalHtml +=
-      `<div class="section-header" style="color: #ff4444; padding: 15px 10px 5px; font-size: 11px; text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px;">🔴 Обязательные для заполнения</div>` +
+      `<div class="section-header" data-i18n="req_fill_title" style="color: #ff4444; padding: 15px 10px 5px; font-size: 11px; text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px;">🔴 ${t.req_fill_title || "Обязательные для заполнения"}</div>` +
       htmlRequired;
   }
   if (htmlOptional) {
     finalHtml +=
-      `<div class="section-header" style="color: var(--accent-blue); padding: 15px 10px 5px; font-size: 11px; text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px;">🔵 Дополнительные параметры</div>` +
+      `<div class="section-header" data-i18n="add_params_title" style="color: var(--accent-blue); padding: 15px 10px 5px; font-size: 11px; text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px;">🔵 ${t.add_params_title || "Дополнительные параметры"}</div>` +
       htmlOptional;
   }
   if (htmlFilled) {
     finalHtml +=
-      `<div class="section-header" style="color: var(--accent-green); padding: 15px 10px 5px; font-size: 11px; text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px;">✅ Из накладной и системы</div>` +
+      `<div class="section-header" data-i18n="desc_invoice_sys" style="color: var(--accent-green); padding: 15px 10px 5px; font-size: 11px; text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px;">✅ ${t.desc_invoice_sys || "Из накладной и системы"}</div>` +
       htmlFilled;
   }
 
   container.innerHTML = finalHtml;
 
-  // === Скрытие остальных элементов интерфейса (осталось без изменений) ===
+  // === Скрытие остальных элементов интерфейса ===
   const parseBtn = document.getElementById("parseInvoiceBtn");
   if (parseBtn) parseBtn.style.display = "none";
 
