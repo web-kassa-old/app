@@ -4528,8 +4528,7 @@ window.openExportModal = async function() {
             });
         } else {
           select.innerHTML = '<option value="">Нет сохраненных категорий</option>';
-          alert("Ответ сервера: " + JSON.stringify(res));
-          console.log("Ответ бэкенда:", res);
+          console.log("Ответ бэкенда:", res); // Тихий дебаг для разработчика
         }
     } catch (e) {
         console.error("Ошибка загрузки категорий:", e);
