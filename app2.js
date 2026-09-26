@@ -4517,21 +4517,25 @@ window.openExportModal = async function() {
 
     try {
         const url = typeof APPS_SCRIPT_URL !== "undefined" ? APPS_SCRIPT_URL : window.APPS_SCRIPT_URL;
-        // Запрашиваем список доступных шаблонов (категорий)
-        const payload = { action: 'getKaspiCategories', api_key: CLIENT_API_KEY };
-        const res = await window.smartFetch(url, payload, 'kaspi_categories', 3);
+        
+        // === ЗАПРАШИВАЕМ ПАРТИИ, ОЖИДАЮЩИЕ ВЫГРУЗКИ ===
+        const payload = { action: 'getPendingExportsBackend', api_key: CLIENT_API_KEY };
+        
+        // Ставим кэш на 0, чтобы всегда получать свежие данные после новой загрузки
+        const res = await window.smartFetch(url, payload, 'kaspi_pending_exports', 0);
 
-        if (res && res.success && res.categories) {
-            select.innerHTML = '<option value="">-- Выберите категорию --</option>';
-            res.categories.forEach(cat => {
-                select.innerHTML += `<option value="${cat}">${cat}</option>`;
+        if (res && res.success && res.pendingGroups && res.pendingGroups.length > 0) {
+            select.innerHTML = '<option value="">-- Выберите партию для выгрузки --</option>';
+            res.pendingGroups.forEach(group => {
+                // Отображаем понятное имя и количество товаров в очереди, но value = хэш
+                select.innerHTML += `<option value="${group.hash}">${group.name} (ожидает: ${group.count} шт.)</option>`;
             });
         } else {
-          select.innerHTML = '<option value="">Нет сохраненных категорий</option>';
-          console.log("Ответ бэкенда:", res); // Тихий дебаг для разработчика
+            // Если массив пуст, значит все товары уже выгружены или Incomes пуст
+            select.innerHTML = '<option value="">Нет партий, ожидающих выгрузки</option>';
         }
     } catch (e) {
-        console.error("Ошибка загрузки категорий:", e);
+        console.error("Ошибка загрузки данных для экспорта:", e);
         select.innerHTML = '<option value="">Ошибка загрузки</option>';
     }
 };
