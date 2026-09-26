@@ -4846,11 +4846,11 @@ async function handleTemplateUpload(event) {
         if (templateSelect) {
           if (!isDuplicate) {
             const newOption = document.createElement("option");
-            newOption.value = categoryName;
-            newOption.text = categoryName;
+            newOption.value = hashPrefix; // Подставляем сгенерированный хэш (12 символов)
+            newOption.text = categoryName; // Текст остается читаемым
             templateSelect.appendChild(newOption);
           }
-          templateSelect.value = categoryName;
+          templateSelect.value = hashPrefix; // Выбираем этот хэш в селекте
         }
 
         // 4. Подтягиваем динамические ключи из базы
@@ -11087,7 +11087,9 @@ window.loadKaspiTemplatesFromServer = async function (isSilent = false) {
     ) {
       result.templates.forEach((tpl) => {
         if (typeof tpl === "object" && tpl !== null) {
-          optionsHTML += `<option value="${tpl.name}" data-hash="${tpl.hash}">${tpl.name}</option>`;
+          // === ГЛАВНОЕ ИЗМЕНЕНИЕ: value теперь берет хэш ===
+          const optValue = tpl.hash ? tpl.hash : tpl.name;
+          optionsHTML += `<option value="${optValue}" data-name="${tpl.name}">${tpl.name}</option>`;
         } else {
           optionsHTML += `<option value="${tpl}">${tpl}</option>`;
         }
