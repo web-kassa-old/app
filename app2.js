@@ -4527,7 +4527,9 @@ window.openExportModal = async function() {
                 select.innerHTML += `<option value="${cat}">${cat}</option>`;
             });
         } else {
-            select.innerHTML = '<option value="">Нет сохраненных категорий</option>';
+          select.innerHTML = '<option value="">Нет сохраненных категорий</option>';
+          alert("Ответ сервера: " + JSON.stringify(res));
+          console.log("Ответ бэкенда:", res);
         }
     } catch (e) {
         console.error("Ошибка загрузки категорий:", e);
