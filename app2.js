@@ -6948,6 +6948,19 @@ window.openEditorField = function (originalKey) {
       .trim();
   if (!displayKey) displayKey = originalKey;
 
+  // === НОВОЕ: ПАРСИНГ ЛИМИТОВ ИЗ НАЗВАНИЯ ===
+  let minChars = 0;
+  let maxChars = 0;
+  
+  // Ищем "мин" и забираем цифры (игнорируя пробелы, например "7 000")
+  let minMatch = displayKey.match(/мин[^\d]*(\d[\d\s]*)/i);
+  if(minMatch) minChars = parseInt(minMatch[1].replace(/\s/g, ''));
+  
+  // Ищем "макс" и забираем цифры
+  let maxMatch = displayKey.match(/макс[^\d]*(\d[\d\s]*)/i);
+  if(maxMatch) maxChars = parseInt(maxMatch[1].replace(/\s/g, ''));
+  // ==========================================
+
   let dict = null;
   if (window.kaspiDicts) {
     let cleanOrig = originalKey.toLowerCase().trim();
@@ -6990,6 +7003,24 @@ window.openEditorField = function (originalKey) {
     window.saveSingleField(key);
   };
 
+  // === НОВОЕ: ГЛОБАЛЬНАЯ ФУНКЦИЯ ВАЛИДАЦИИ ===
+  window.validateAndSaveField = function(key, min, max) {
+      let input = document.getElementById('singleFieldInput');
+      if(!input) return window.saveSingleField(key); // Если это справочник, просто сохраняем
+      
+      let len = input.value.trim().length;
+      if (len > 0) { // Валидируем только если поле не пустое
+          if (min > 0 && len < min) {
+              return alert((t.err_min_chars || "Слишком коротко! Минимум символов: ") + min);
+          }
+          if (max > 0 && len > max) {
+              return alert((t.err_max_chars || "Превышен лимит! Максимум символов: ") + max);
+          }
+      }
+      window.saveSingleField(key);
+  };
+  // ===========================================
+
   if (dict && dict.length > 0) {
     window.currentFieldDict = dict;
     controlHtml = `
@@ -7021,6 +7052,32 @@ window.openEditorField = function (originalKey) {
             </ul>
         </div>`;
   } else {
+    // === НОВОЕ: СЧЕТЧИК СИМВОЛОВ ===
+    let counterHtml = "";
+    let onInputAttr = "";
+    
+    window.updateCharCount = function(min, max) {
+        let el = document.getElementById('singleFieldInput');
+        let counter = document.getElementById('charCounterSpan');
+        if(!el || !counter) return;
+        
+        let len = el.value.trim().length;
+        let color = "var(--text-muted)";
+        
+        if (min > 0 && len > 0 && len < min) color = "#ff4444"; 
+        else if (max > 0 && len > max) color = "#ff4444"; 
+        else if (len > 0) color = "#4CAF50"; 
+        
+        counter.style.color = color;
+        counter.innerText = len + (max > 0 ? " / " + max : "");
+    };
+
+    if (minChars > 0 || maxChars > 0) {
+        counterHtml = `<div style="text-align: right; padding-top: 5px; font-size: 11px; font-weight: bold;"><span id="charCounterSpan">0</span></div>`;
+        onInputAttr = `oninput="window.updateCharCount(${minChars}, ${maxChars})"`;
+    }
+    // =================================
+
     controlHtml = `
         <div style="padding:15px 20px 10px 20px; background:var(--bg-body); flex-shrink:0; z-index:2;">
             <label style="display:flex; align-items:center; gap:10px; padding:15px; background:var(--bg-panel); border-radius:8px; border:1px solid var(--border-light); cursor:pointer;">
@@ -7033,7 +7090,9 @@ window.openEditorField = function (originalKey) {
     listHtml = `
         <div style="flex:1; overflow-y:auto; padding: 10px 20px 20px 20px; display:flex; flex-direction:column; -webkit-overflow-scrolling: touch;">
             <textarea id="singleFieldInput" class="kaspi-input-field" placeholder="${displayKey}..." 
+                ${onInputAttr}
                 style="flex:1; min-height:250px; resize:none; line-height:1.5; font-family:inherit;">${val}</textarea>
+            ${counterHtml}
         </div>`;
   }
 
@@ -7041,18 +7100,26 @@ window.openEditorField = function (originalKey) {
   fieldModal.id = "editorFieldModal";
   fieldModal.className = "kaspi-modal-overlay";
 
+  // === НОВОЕ: ВЫРАВНИВАНИЕ ХЕДЕРА И КНОПКА OK ===
   fieldModal.innerHTML = `
-        <div class="kaspi-modal-header">
-            <span onclick="document.getElementById('editorFieldModal').remove()" style="color:var(--accent-blue); font-size:16px; cursor:pointer; display:flex; align-items:center; gap:5px;">
+        <div class="kaspi-modal-header" style="display: flex; align-items: center; justify-content: space-between;">
+            <span onclick="document.getElementById('editorFieldModal').remove()" style="color:var(--accent-blue); font-size:16px; cursor:pointer; display:flex; align-items:center; gap:5px; flex-shrink: 0;">
                 <span style="font-size:20px; margin-top:-2px;">&#10094;</span> 
             </span>
-            <b style="font-size:14px; color:var(--text-main); text-transform:uppercase; text-overflow:ellipsis; overflow:hidden; white-space:nowrap; max-width:150px; text-align:center;">${displayKey}</b>
-            <span onclick="window.saveSingleField('${originalKey}')" style="color:var(--accent-green); font-size:16px; font-weight:bold; cursor:pointer;">${t.inc_save || "OK"}</span>
+            <b style="font-size:14px; color:var(--text-main); text-transform:uppercase; text-overflow:ellipsis; overflow:hidden; white-space:nowrap; flex: 1; text-align: left; padding: 0 10px;">${displayKey}</b>
+            <span onclick="window.validateAndSaveField('${originalKey}', ${minChars}, ${maxChars})" style="color:var(--accent-green); font-size:16px; font-weight:bold; cursor:pointer; flex-shrink: 0;">${t.inc_save || "OK"}</span>
         </div>
         ${controlHtml}
         ${listHtml}
     `;
   document.getElementById("modalContainer").appendChild(fieldModal);
+
+  // Инициализируем счетчик при открытии
+  if(minChars > 0 || maxChars > 0) {
+      setTimeout(() => {
+          if(window.updateCharCount) window.updateCharCount(minChars, maxChars);
+      }, 10);
+  }
 };
 
 // === АЛГОРИТМ УМНОГО ПОИСКА ===
