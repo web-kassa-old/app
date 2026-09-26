@@ -376,7 +376,7 @@ const translations = {
     inc_code: "Код",
     inc_item_params: "Товар и параметры",
     inc_qty_price: "Кол-во / Цена",
-    inc_edit_params: "✏️ Изменить параметры",
+    inc_edit_params: "Изменить параметры",
     inc_cancel: "Отмена",
     inc_ready: "Готово",
     inc_save: "ОК",
@@ -833,7 +833,7 @@ pos_name: "Наименование",
     inc_code: "Код",
     inc_item_params: "Тауар және параметрлер",
     inc_qty_price: "Саны / Бағасы",
-    inc_edit_params: "✏️ Параметрлерді өзгерту",
+    inc_edit_params: "Параметрлерді өзгерту",
     inc_cancel: "Болдырмау",
     inc_ready: "Дайын",
     inc_save: "ОК",
@@ -6582,7 +6582,7 @@ window.currentFieldDict = [];
 // === ОТРИСОВКА ГЛАВНОЙ ТАБЛИЦЫ ===
 window.renderPreviewTable = function () {
   const state = window.mapper2State;
-  const t = translations[currentLang];
+  const t = translations[currentLang] || translations["ru"];
 
   // === НОВОЕ: Запускаем авто-дописывание параметров перед рендером ===
   window.autoCleanInvoiceAttributes();
@@ -6594,11 +6594,14 @@ window.renderPreviewTable = function () {
   const currency = document.getElementById("mapperCurrencyBlock");
   if (currency) currency.style.display = "none";
 
+  // Хитрый трюк: вешаем перевод на статус поставщика, только если он реально не указан
+  const supplierI18nAttr = !state.supplier ? `data-i18n="inc_not_specified"` : "";
+
   document.getElementById("invoiceMetadata").innerHTML = `
         <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; padding: 10px; background: var(--bg-panel); border-radius: 8px; border: 1px solid var(--border-light);">
-            <div><span style="color:var(--text-muted);">${t.inc_supplier}</span> <b style="color:var(--accent-yellow);">${state.supplier || t.inc_not_specified || "Не указан"}</b></div>
-            <div><span style="color:var(--text-muted);">${t.inc_doc_short}</span> <b style="color:var(--accent-yellow);">${state.docNo}</b></div>
-            <div><span style="color:var(--text-muted);">${t.inc_pos}</span> <b style="color:var(--accent-yellow);">${window.parsedInvoiceData.length}</b></div>
+            <div><span data-i18n="inc_supplier" style="color:var(--text-muted);">${t.inc_supplier || "Пост:"}</span> <b ${supplierI18nAttr} style="color:var(--accent-yellow);">${state.supplier || t.inc_not_specified || "Не указан"}</b></div>
+            <div><span data-i18n="inc_doc_short" style="color:var(--text-muted);">${t.inc_doc_short || "Док:"}</span> <b style="color:var(--accent-yellow);">${state.docNo}</b></div>
+            <div><span data-i18n="inc_pos" style="color:var(--text-muted);">${t.inc_pos || "Поз:"}</span> <b style="color:var(--accent-yellow);">${window.parsedInvoiceData.length}</b></div>
         </div>
     `;
 
@@ -6613,7 +6616,6 @@ window.renderPreviewTable = function () {
               `<div style="display: flex; flex-direction: column; gap: 4px; margin-top: 8px;">` +
               Object.keys(parsed)
                 .map((k) => {
-                  // === ИЗМЕНЕНИЕ: Применяем наш переводчик sysToHumanMap здесь ===
                   let humanName = window.mapper2State.sysToHumanMap
                     ? window.mapper2State.sysToHumanMap[k]
                     : null;
@@ -6628,7 +6630,6 @@ window.renderPreviewTable = function () {
                       .replace(/\./g, "")
                       .trim();
                   if (!displayKey) displayKey = k;
-                  // ================================================================
 
                   let val = parsed[k];
                   if (val.length > 30) val = val.substring(0, 30) + "...";
@@ -6652,7 +6653,9 @@ window.renderPreviewTable = function () {
             <td class="col-main" style="padding:12px 8px; vertical-align: top;">
                 <div style="font-weight:bold; font-size:13px; line-height:1.2;">${item.item_name}</div>
                 ${attrsHtml}
-                <button onclick="window.openEditorMain(${index})" style="width: 100%; background: rgba(128,128,128,0.05); border: 1px dashed var(--border-light); color: var(--text-muted); cursor: pointer; border-radius: 4px; font-size: 11px; margin-top: 10px; padding: 10px;">${t.inc_edit_params}</button>
+                <button onclick="window.openEditorMain(${index})" style="width: 100%; background: rgba(128,128,128,0.05); border: 1px dashed var(--border-light); color: var(--text-muted); cursor: pointer; border-radius: 4px; font-size: 11px; margin-top: 10px; padding: 10px;">
+                    ✏️ <span data-i18n="inc_edit_params">${t.inc_edit_params || "Изменить параметры"}</span>
+                </button>
             </td>
             <td class="col-min" style="padding:12px 8px; vertical-align: top; text-align:right;">
                 <div style="font-size:12px; color:var(--text-muted); margin-bottom: 4px;">${Number(item.qty).toLocaleString("ru-RU")}</div>
