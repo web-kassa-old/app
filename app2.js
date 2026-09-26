@@ -7444,6 +7444,10 @@ async function sendInvoiceToBackend() {
     }
   }
 
+  // === 1. ПОЛУЧАЕМ ВЫБРАННЫЙ ШАБЛОН ===
+  const templateDropdown = document.getElementById("kaspiTemplateSelect");
+  const selectedCategory = templateDropdown ? templateDropdown.value.trim() : "";
+
   const btn = document.getElementById("sendInvoiceBtn");
   const statusContainer = document.getElementById("status-container");
   const statusBar = document.getElementById("status-bar");
@@ -7504,6 +7508,7 @@ async function sendInvoiceToBackend() {
         "кол";
       group.items.forEach((item) => (item.file_code = fp));
 
+      // === 2. ОТПРАВЛЯЕМ ДАННЫЕ НА БЭКЕНД ===
       const response = await fetch(GATEWAY_URL, {
         method: "POST",
         body: JSON.stringify({
@@ -7515,6 +7520,8 @@ async function sendInvoiceToBackend() {
           docNo: docNo,
           currency: document.getElementById("invoiceCurrency").value,
           fingerprint: fp,
+          market_category: selectedCategory, // Передаем категорию из селекта
+          market_status: "pending"           // Передаем начальный статус
         }),
       });
 
