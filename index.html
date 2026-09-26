@@ -452,38 +452,40 @@
             <span data-i18n="export_title">НАСТРОЙКА ЭКСПОРТА</span>
           </h3>
 
+          <!-- ИЗМЕНЕНИЕ 1: Вместо загрузки файла - выбор категории -->
           <div class="file-input-wrapper" style="margin-bottom: 15px">
             <label
-              for="templateFileInput"
-              class="file-upload-label"
               style="
-                padding: 12px;
-                border: 1px dashed var(--border-main);
-                border-radius: 4px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                cursor: pointer;
-                background: var(--bg-body);
-                transition: background-color 0.2s;
+                font-size: 12px;
+                color: var(--text-muted);
+                margin-bottom: 5px;
+                display: block;
               "
+              data-i18n="select_category_export"
             >
-              <span
-                id="templateFileName"
-                style="font-size: 14px; color: var(--text-main)"
-                data-i18n="upload_template"
-                >📄 Загрузить пустой шаблон (.xlsx)</span
-              >
+              Выберите категорию для выгрузки:
             </label>
-            <input
-              type="file"
-              id="templateFileInput"
-              accept=".xml, text/xml, application/xml, .xls, .xlsx, .xlsm"
-              style="display: none"
-              onchange="handleTemplateUpload(event)"
-            />
+            <select
+              id="exportCategorySelect"
+              class="mapper-select"
+              style="
+                width: 100%;
+                padding: 12px;
+                background: var(--bg-body);
+                color: var(--text-main);
+                border: 1px solid var(--border-main);
+                border-radius: 4px;
+              "
+              onchange="window.handleCategorySelectForExport(event)"
+            >
+              <option value="" data-i18n="loading_categories">
+                -- Выберите категорию --
+              </option>
+              <!-- Сюда скриптом подтянутся категории из базы -->
+            </select>
           </div>
 
+          <!-- Блок маппинга остается без изменений (он нужен для generateExportFile) -->
           <div
             id="exportMapperArea"
             style="
@@ -498,15 +500,39 @@
             <!-- Селекты маппинга -->
           </div>
 
-          <button
-            id="generateExportBtn"
-            class="btn-primary blue"
-            style="display: none; margin-top: 15px"
-            onclick="window.generateExportFile('local')"
-            data-i18n="generate_price"
+          <!-- ИЗМЕНЕНИЕ 2: Блок с двумя кнопками вместо одной -->
+          <div
+            id="exportActionButtons"
+            style="
+              display: none;
+              flex-direction: column;
+              gap: 10px;
+              margin-top: 15px;
+            "
           >
-            СГЕНЕРИРОВАТЬ ПРАЙС
-          </button>
+            <button
+              id="generateExportBtn"
+              class="btn-primary blue"
+              onclick="window.generateExportFile('local')"
+              data-i18n="download_local"
+            >
+              📥 СКАЧАТЬ ФАЙЛ (.xlsm)
+            </button>
+
+            <button
+              id="saveToDriveBtn"
+              class="btn-primary"
+              style="
+                background: var(--bg-body);
+                border: 1px solid var(--border-main);
+                color: var(--text-main);
+              "
+              onclick="window.generateExportFile('drive')"
+              data-i18n="save_drive"
+            >
+              ☁️ СОХРАНИТЬ НА ДИСК
+            </button>
+          </div>
         </div>
       </div>
 

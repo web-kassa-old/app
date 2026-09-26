@@ -10594,7 +10594,7 @@ document.addEventListener("DOMContentLoaded", () => {
 window.generateExportFile = async function (target = 'local') {
   const btn = document.getElementById("generateExportBtn");
   const originalText = btn ? btn.innerText : "Выгрузить";
-  const t = translations[currentLang] || translations["ru"] || ((k, d) => d);
+  const t = typeof translations !== 'undefined' && translations[currentLang] ? translations[currentLang] : (k, d) => d;
 
   if (btn) {
       btn.innerText = "⏳ Формирование...";
@@ -10614,16 +10614,11 @@ window.generateExportFile = async function (target = 'local') {
       mappingConfig.push({ index: colIndex, ourSource: select.value });
     });
 
-    // 2. Скачиваем свежие товары (pending)
-    const url = typeof APPS_SCRIPT_URL !== "undefined" ? APPS_SCRIPT_URL : window.APPS_SCRIPT_URL;
-    const fetchPayload = { action: "getKaspiItemsData", api_key: CLIENT_API_KEY };
-    const dbResponse = await window.smartFetch(url, fetchPayload, "kaspi_items_temp", 3);
-
-    if (!dbResponse || !dbResponse.success) {
-      throw new Error(dbResponse ? dbResponse.error : "Сервер не ответил");
+    // 2. БЕРЕМ ТОВАРЫ С ЭКРАНА (из текущей накладной)
+    const items = window.parsedInvoiceData; 
+    if (!items || items.length === 0) {
+      throw new Error("Нет товаров в накладной для выгрузки. Загрузите инвойс.");
     }
-
-    const items = dbResponse.items;
     
     // 3. Собираем массив строк
     const exportData = [];
@@ -10635,13 +10630,16 @@ window.generateExportFile = async function (target = 'local') {
         const source = config.ourSource;
         let value = "";
 
-        if (source === "barcode") value = item.barcode;
-        else if (source === "name") value = String(item.name);
-        else if (source === "price") value = Number(item.price) || 0;
-        else if (source === "qty") value = Number(item.qty) || 0;
+        // Адаптируем ключи под структуру твоей накладной (с двойной проверкой полей)
+        if (source === "barcode") value = item.barcode || item.item_id || "";
+        else if (source === "name") value = String(item.name || item.item_name || "");
+        else if (source === "price") value = Number(item.price || item.cost || item.retail_price) || 0;
+        else if (source === "qty") value = Number(item.qty || item.quantity) || 0;
         else if (source.startsWith("json_")) {
           const key = source.replace("json_", "");
-          if (item.attributes && item.attributes[key]) value = item.attributes[key];
+          // Парсим атрибуты, если они хранятся строкой
+          let attrs = typeof item.attributes === 'string' ? JSON.parse(item.attributes || '{}') : (item.attributes || {});
+          if (attrs[key]) value = attrs[key];
         } else if (source.startsWith("static_")) {
           value = source.replace("static_", "");
         }
@@ -10652,8 +10650,6 @@ window.generateExportFile = async function (target = 'local') {
 
       if (hasData) exportData.push(row);
     });
-
-    if (exportData.length === 0) throw new Error("Нет товаров для выгрузки");
 
     // 4. Заполняем оригинальный xlsm шаблон
     if (!window.rawKaspiTemplateBuffer) {
@@ -10690,12 +10686,11 @@ window.generateExportFile = async function (target = 'local') {
       });
     });
 
-    // 5. Формируем финальный буфер
+    // 5. Формируем финальный буфер и качаем локально
     const buffer = await workbook.xlsx.writeBuffer();
     const dateStr = new Date().toISOString().slice(0, 10);
     const fileName = `Kaspi_Export_${dateStr}.xlsm`;
 
-    // 6. МАРШРУТИЗАЦИЯ (Локально или на Диск)
     if (target === 'local') {
       const blob = new Blob([buffer], { type: "application/vnd.ms-excel.sheet.macroEnabled.12" });
       const link = document.createElement("a");
@@ -10706,32 +10701,8 @@ window.generateExportFile = async function (target = 'local') {
       document.body.removeChild(link);
 
       alert(typeof t === "function" ? t("export_success", "✅ Файл скачан на устройство!") : "✅ Файл скачан на устройство!");
-
-    } else if (target === 'drive') {
-      if (btn) btn.innerText = "⏳ Отправка на Диск...";
-      
-      // Конвертируем ArrayBuffer в Base64 без переполнения стека
-      let binary = '';
-      const bytes = new Uint8Array(buffer);
-      const len = bytes.byteLength;
-      for (let i = 0; i < len; i++) {
-          binary += String.fromCharCode(bytes[i]);
-      }
-      const base64String = window.btoa(binary);
-
-      const drivePayload = {
-          action: "saveKaspiExportToDrive",
-          api_key: CLIENT_API_KEY,
-          fileName: fileName,
-          fileBase64: base64String
-      };
-
-      const driveResponse = await window.smartFetch(url, drivePayload);
-      if (!driveResponse || !driveResponse.success) {
-          throw new Error(driveResponse ? driveResponse.error : "Ошибка сохранения на Диск");
-      }
-
-      alert(typeof t === "function" ? t("export_drive_success", "✅ Прайс успешно сохранен на Google Диск!") : "✅ Прайс успешно сохранен на Google Диск!");
+    } else {
+       alert("Сохранение на диск (drive) пока не подключено. Используем local.");
     }
 
   } catch (err) {
