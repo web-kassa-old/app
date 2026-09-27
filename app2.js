@@ -4511,32 +4511,30 @@ window.openExportModal = async function() {
     const btnArea = document.getElementById('exportActionButtons');
     
     if (modal) modal.style.display = 'flex';
-    if (btnArea) btnArea.style.display = 'none'; // Прячем кнопки до выбора
+    if (btnArea) btnArea.style.display = 'none'; 
     
     select.innerHTML = '<option value="">-- Загрузка... --</option>';
 
     try {
         const url = typeof APPS_SCRIPT_URL !== "undefined" ? APPS_SCRIPT_URL : window.APPS_SCRIPT_URL;
-        
-        // === ЗАПРАШИВАЕМ ПАРТИИ, ОЖИДАЮЩИЕ ВЫГРУЗКИ ===
         const payload = { action: 'getPendingExportsBackend', api_key: CLIENT_API_KEY };
         
-        // Ставим кэш на 0, чтобы всегда получать свежие данные после новой загрузки
         const res = await window.smartFetch(url, payload, 'kaspi_pending_exports', 0);
 
         if (res && res.success && res.pendingGroups && res.pendingGroups.length > 0) {
             select.innerHTML = '<option value="">-- Выберите партию для выгрузки --</option>';
             res.pendingGroups.forEach(group => {
-                // Отображаем понятное имя и количество товаров в очереди, но value = хэш
                 select.innerHTML += `<option value="${group.hash}">${group.name} (ожидает: ${group.count} шт.)</option>`;
             });
         } else {
-            // Если массив пуст, значит все товары уже выгружены или Incomes пуст
-            select.innerHTML = '<option value="">Нет партий, ожидающих выгрузки</option>';
+            // === ВЫВОДИМ ТОЧНУЮ ОШИБКУ ОТ БЭКЕНДА ПРЯМО В ИНТЕРФЕЙС ===
+            const errorMsg = res && res.error ? res.error : "Массив пуст (ошибок нет)";
+            select.innerHTML = `<option value="">⚠️ Причина: ${errorMsg}</option>`;
+            console.log("Полный ответ бэкенда:", res);
         }
     } catch (e) {
         console.error("Ошибка загрузки данных для экспорта:", e);
-        select.innerHTML = '<option value="">Ошибка загрузки</option>';
+        select.innerHTML = '<option value="">Ошибка сети или фронтенда</option>';
     }
 };
 
