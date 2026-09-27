@@ -10814,7 +10814,9 @@ window.generateExportFile = async function (target = 'local') {
 
     console.log(`Успешно обработано товаров: ${insertedCount} из ${items.length}`);
     if (insertedCount === 0) {
-        alert("⚠️ Скрипт сработал, но данные не подошли под колонки Kaspi! Проверь ключи.");
+        const sample = items[0];
+        const availableKeys = Object.keys(sample).join("\n- ");
+        alert(`⚠️ Данные не вставились!\nВот какие колонки пришли из базы:\n- ${availableKeys}\n\nПришли мне этот список!`);
     }
 
     // 5. Генерируем финальный буфер
