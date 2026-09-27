@@ -4511,7 +4511,7 @@ window.openExportModal = async function() {
     const btnArea = document.getElementById('exportActionButtons');
     
     if (modal) modal.style.display = 'flex';
-    if (btnArea) btnArea.style.display = 'none'; // Прячем кнопки до выбора
+    if (btnArea) btnArea.style.display = 'none'; 
     
     select.innerHTML = '<option value="">-- Загрузка... --</option>';
 
@@ -4519,9 +4519,12 @@ window.openExportModal = async function() {
         const url = typeof APPS_SCRIPT_URL !== "undefined" ? APPS_SCRIPT_URL : window.APPS_SCRIPT_URL;
         const payload = { action: 'getPendingExportsBackend', api_key: CLIENT_API_KEY };
         
-        // Используем smartFetch, но с уникальным ключом, чтобы всегда получать свежие остатки
-        const cacheKey = 'kaspi_pending_' + Date.now();
-        const res = await window.smartFetch(url, payload, cacheKey, 0);
+        // === ПРЯМОЙ ЗАПРОС: Всегда свежие данные, никакого кэша ===
+        const response = await fetch(url, {
+            method: 'POST',
+            body: JSON.stringify(payload)
+        });
+        const res = await response.json();
 
         if (res && res.success && res.pendingGroups && res.pendingGroups.length > 0) {
             select.innerHTML = '<option value="">-- Выберите партию для выгрузки --</option>';
@@ -4529,12 +4532,14 @@ window.openExportModal = async function() {
                 select.innerHTML += `<option value="${group.hash}">${group.name} (ожидает: ${group.count} шт.)</option>`;
             });
         } else {
+            // Если сервер вернул ошибку, покажем её. Если просто пусто - покажем стандартный текст.
             const errorMsg = res && res.error ? res.error : "Нет партий, ожидающих выгрузки";
             select.innerHTML = `<option value="">${errorMsg}</option>`;
+            if (res && res.error) console.log("ОТВЕТ СЕРВЕРА:", res);
         }
     } catch (e) {
         console.error("Ошибка загрузки данных для экспорта:", e);
-        select.innerHTML = '<option value="">Ошибка загрузки</option>';
+        select.innerHTML = '<option value="">Ошибка сети (см. консоль)</option>';
     }
 };
 
