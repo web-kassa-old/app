@@ -10693,24 +10693,42 @@ window.generateExportFile = async function (target = 'local') {
   if (typeof window.showLoading === "function") window.showLoading(null, "kaspi_saving");
 
   try {
-    // 1. Читаем настройки колонок
-    const selects = document.querySelectorAll(".mapper-select");
-    const mappingConfig = [];
+    // 1. ОПРЕДЕЛЯЕМ ИСТОЧНИК ТОВАРОВ И НАСТРОЕК
+    let items = [];
+    let mappingConfig = [];
     let maxColIndex = 0;
 
-    selects.forEach((select) => {
-      const colIndex = parseInt(select.getAttribute("data-col-index"));
-      if (colIndex > maxColIndex) maxColIndex = colIndex;
-      mappingConfig.push({ index: colIndex, ourSource: select.value });
-    });
-
-    // 2. БЕРЕМ ТОВАРЫ С ЭКРАНА (из текущей накладной)
-    const items = window.parsedInvoiceData; 
-    if (!items || items.length === 0) {
-      throw new Error("Нет товаров в накладной для выгрузки. Загрузите инвойс.");
+    // Режим А: Выгрузка партии с сервера (из модального окна)
+    if (window.kaspiExportItems && window.kaspiExportItems.length > 0) {
+        items = window.kaspiExportItems;
+        
+        // Достаем сохраненные настройки колонок из JSON шаблона
+        // (Проверяем оба популярных варианта названия массива)
+        mappingConfig = window.kaspiExportConfig.mappingConfig || window.kaspiExportConfig.mappings || [];
+        if (mappingConfig.length === 0) {
+            throw new Error("В сохраненном шаблоне нет настроек маппинга колонок.");
+        }
+        
+        mappingConfig.forEach(c => {
+            if (c.index > maxColIndex) maxColIndex = c.index;
+        });
+    } 
+    // Режим Б: Старая выгрузка прямо с экрана (если товары загружены в интерфейс)
+    else {
+        const selects = document.querySelectorAll(".mapper-select");
+        selects.forEach((select) => {
+          const colIndex = parseInt(select.getAttribute("data-col-index"));
+          if (colIndex > maxColIndex) maxColIndex = colIndex;
+          mappingConfig.push({ index: colIndex, ourSource: select.value });
+        });
+        items = window.parsedInvoiceData; 
     }
-    
-    // 3. Собираем массив строк
+
+    if (!items || items.length === 0) {
+      throw new Error("Нет товаров для выгрузки. Выберите партию или загрузите инвойс.");
+    }
+
+    // 2. Собираем массив строк
     const exportData = [];
     items.forEach((item) => {
       const row = new Array(maxColIndex + 1).fill("");
@@ -10720,14 +10738,12 @@ window.generateExportFile = async function (target = 'local') {
         const source = config.ourSource;
         let value = "";
 
-        // Адаптируем ключи под структуру твоей накладной (с двойной проверкой полей)
         if (source === "barcode") value = item.barcode || item.item_id || "";
         else if (source === "name") value = String(item.name || item.item_name || "");
         else if (source === "price") value = Number(item.price || item.cost || item.retail_price) || 0;
         else if (source === "qty") value = Number(item.qty || item.quantity) || 0;
         else if (source.startsWith("json_")) {
           const key = source.replace("json_", "");
-          // Парсим атрибуты, если они хранятся строкой
           let attrs = typeof item.attributes === 'string' ? JSON.parse(item.attributes || '{}') : (item.attributes || {});
           if (attrs[key]) value = attrs[key];
         } else if (source.startsWith("static_")) {
@@ -10735,20 +10751,20 @@ window.generateExportFile = async function (target = 'local') {
         }
 
         row[config.index] = value;
-        if (value) hasData = true;
+        if (value !== "" && value !== undefined && value !== null) hasData = true;
       });
 
       if (hasData) exportData.push(row);
     });
 
-    // 4. Заполняем оригинальный xlsm шаблон
+    // 3. Заполняем xlsm шаблон
     if (!window.rawKaspiTemplateBuffer) {
       throw new Error("Шаблон не найден. Выберите категорию заново.");
     }
 
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(window.rawKaspiTemplateBuffer);
-    const worksheet = workbook.getWorksheet(window.kaspiTargetSheetName) || workbook.worksheets[0];
+    const worksheet = window.kaspiTargetSheetName ? workbook.getWorksheet(window.kaspiTargetSheetName) : workbook.worksheets[0];
 
     const totalRows = Math.min(worksheet.actualRowCount || worksheet.rowCount, 5000);
     let lastRowWithData = 0;
@@ -10776,7 +10792,7 @@ window.generateExportFile = async function (target = 'local') {
       });
     });
 
-    // 5. Формируем финальный буфер и качаем локально
+    // 4. Формируем финальный буфер и качаем локально
     const buffer = await workbook.xlsx.writeBuffer();
     const dateStr = new Date().toISOString().slice(0, 10);
     const fileName = `Kaspi_Export_${dateStr}.xlsm`;
@@ -10791,6 +10807,24 @@ window.generateExportFile = async function (target = 'local') {
       document.body.removeChild(link);
 
       alert(typeof t === "function" ? t("export_success", "✅ Файл скачан на устройство!") : "✅ Файл скачан на устройство!");
+      
+      // === НОВОЕ: ОТПРАВЛЯЕМ СИГНАЛ НА СЕРВЕР ДЛЯ СМЕНЫ СТАТУСА ===
+      if (window.kaspiExportRowIndexes && window.kaspiExportRowIndexes.length > 0) {
+         const url = typeof APPS_SCRIPT_URL !== "undefined" ? APPS_SCRIPT_URL : window.APPS_SCRIPT_URL;
+         fetch(url, {
+             method: 'POST',
+             body: JSON.stringify({
+                 action: 'markKaspiExportedBackend',
+                 api_key: CLIENT_API_KEY,
+                 rowIndexes: window.kaspiExportRowIndexes
+             })
+         }).then(() => {
+             // Очищаем переменные после успешной выгрузки
+             window.kaspiExportItems = null;
+             window.kaspiExportRowIndexes = null;
+         }).catch(e => console.error("Ошибка при обновлении статусов", e));
+      }
+
     } else {
        alert("Сохранение на диск (drive) пока не подключено. Используем local.");
     }
