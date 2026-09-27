@@ -10713,12 +10713,26 @@ window.generateExportFile = async function (target = 'local') {
     // Режим А: Выгрузка партии с сервера (из модального окна)
     if (window.kaspiExportItems && window.kaspiExportItems.length > 0) {
         items = window.kaspiExportItems;
+        const config = window.kaspiExportConfig;
         
-        // Достаем сохраненные настройки колонок из JSON шаблона
-        // (Проверяем оба популярных варианта названия массива)
-        mappingConfig = window.kaspiExportConfig.mappingConfig || window.kaspiExportConfig.mappings || [];
-        if (mappingConfig.length === 0) {
-            throw new Error("В сохраненном шаблоне нет настроек маппинга колонок.");
+        if (config.mappingConfig && config.mappingConfig.length > 0) {
+            mappingConfig = config.mappingConfig;
+        } else if (config.mappings && config.mappings.length > 0) {
+            mappingConfig = config.mappings;
+        } else if (config.systemKeys && config.systemKeys.length > 0) {
+            // === АВТО-МАППИНГ НА ЛЕТУ ИЗ РОДНЫХ КЛЮЧЕЙ KASPI ===
+            mappingConfig = config.systemKeys.map((key, index) => {
+                let source = `json_${key}`; 
+                
+                if (key === 'merchant_sku' || key === 'sku') source = 'barcode';
+                if (key === 'name' || key === 'title') source = 'name';
+                if (key === 'price') source = 'price';
+                if (key === 'quantity' || key === 'qty') source = 'qty';
+                
+                return { index: index, ourSource: source };
+            });
+        } else {
+            throw new Error("В шаблоне нет структуры колонок (systemKeys или mappingConfig).");
         }
         
         mappingConfig.forEach(c => {
