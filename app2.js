@@ -9880,7 +9880,15 @@ window.processKaspiTemplate = async function () {
   const saveBtn = document.getElementById("btn-save-kaspi");
   const categoryName = nameInput.value.trim();
 
-  // Сбрасываем стили статуса
+  // === АВТО-ФИКС ДЛЯ ФАЙЛОВ .xlsm ===
+  // Расширяем фильтр файлов на лету, чтобы окно увидело .xlsm
+  if (fileInput) {
+      let acceptAttr = fileInput.getAttribute("accept") || "";
+      if (!acceptAttr.includes(".xlsm")) {
+          fileInput.setAttribute("accept", acceptAttr ? acceptAttr + ", .xlsm, .xml" : ".xlsm, .xlsx, .xls, .xml");
+      }
+  }
+
   statusDiv.innerText = "";
   statusDiv.style.color = "";
 
@@ -9894,29 +9902,19 @@ window.processKaspiTemplate = async function () {
     return;
   }
 
-  // === ФРОНТЕНД ЗАЩИТА ОТ ДУБЛИКАТОВ ПО ИМЕНИ (РОДНАЯ) ===
   const templateSelect = document.getElementById("kaspiTemplateSelect");
   if (templateSelect) {
-    const existingOptions = Array.from(templateSelect.options).map((opt) =>
-      opt.text.trim().toLowerCase(),
-    );
+    const existingOptions = Array.from(templateSelect.options).map((opt) => opt.text.trim().toLowerCase());
     if (existingOptions.includes(categoryName.toLowerCase())) {
-      // Выводим ошибку прямо в статус модалки
-      statusDiv.innerText =
-        "⚠️ " + translations[currentLang]["kaspi_dup_error"];
+      statusDiv.innerText = "⚠️ Категория с таким именем уже существует!";
       statusDiv.style.color = "#ff4444";
       nameInput.style.borderColor = "#ff4444";
-      setTimeout(() => {
-        nameInput.style.borderColor = "#555";
-      }, 2000);
+      setTimeout(() => { nameInput.style.borderColor = "#555"; }, 2000);
       return;
     }
   }
 
-  // === ГЛОБАЛЬНЫЙ ЛОАДЕР (ПО ДОКУМЕНТАЦИИ POS NOIR) ===
-  if (typeof window.showLoading === "function") {
-    window.showLoading(null, "kaspi_saving");
-  }
+  if (typeof window.showLoading === "function") window.showLoading(null, "kaspi_saving");
   saveBtn.disabled = true;
 
   try {
@@ -9925,22 +9923,30 @@ window.processKaspiTemplate = async function () {
 
     reader.onload = async function (e) {
       try {
-        const data = new Uint8Array(e.target.result);
-        const workbook = XLSX.read(data, { type: "array" });
+        const workbook = new ExcelJS.Workbook();
+        await workbook.xlsx.load(e.target.result);
 
-        let targetSheet = workbook.SheetNames.find(
-          (name) => name.toLowerCase() === "attributes",
-        );
-        if (!targetSheet) {
-          targetSheet =
-            workbook.SheetNames.length > 1
-              ? workbook.SheetNames[1]
-              : workbook.SheetNames[0];
-        }
-        const sheet = workbook.Sheets[targetSheet];
-        const jsonData = XLSX.utils.sheet_to_json(sheet, {
-          header: 1,
-          defval: "",
+        const getSafeText = (cell) => {
+            if (!cell || cell.value === null || cell.value === undefined) return "";
+            if (typeof cell.value === 'object') {
+                if (cell.value.richText) return cell.value.richText.map(rt => rt.text).join('').trim();
+                if (cell.value.result !== undefined) return String(cell.value.result).trim();
+            }
+            return String(cell.value).trim();
+        };
+
+        let targetSheet = workbook.worksheets.find(s => s.name.toLowerCase() === "attributes");
+        if (!targetSheet) targetSheet = workbook.worksheets.length > 1 ? workbook.worksheets[1] : workbook.worksheets[0];
+
+        const jsonData = [];
+        targetSheet.eachRow((row, rowNumber) => {
+          if (rowNumber > 20) return;
+          let rowData = [];
+          const maxCols = targetSheet.columnCount > 0 ? targetSheet.columnCount : 100;
+          for (let i = 1; i <= maxCols; i++) {
+            rowData.push(getSafeText(row.getCell(i)));
+          }
+          jsonData.push(rowData);
         });
 
         let requirements = [];
@@ -9954,76 +9960,52 @@ window.processKaspiTemplate = async function () {
           if (!rowText.trim()) continue;
 
           let humMatch = 0;
-          humMarkers.forEach((m) => {
-            if (rowText.includes(m)) humMatch++;
-          });
-          if (humMatch >= 2) {
-            humanNames = jsonData[i];
-            continue;
-          }
+          humMarkers.forEach((m) => { if (rowText.includes(m)) humMatch++; });
+          if (humMatch >= 2) { humanNames = jsonData[i]; continue; }
 
           let sysMatch = 0;
-          sysMarkers.forEach((m) => {
-            if (rowText.includes(m)) sysMatch++;
-          });
-          if (sysMatch >= 2) {
-            systemKeys = jsonData[i];
-            continue;
-          }
+          sysMarkers.forEach((m) => { if (rowText.includes(m)) sysMatch++; });
+          if (sysMatch >= 2) { systemKeys = jsonData[i]; continue; }
 
-          if (rowText.includes("обязательное") || rowText.includes("обязат.")) {
-            requirements = jsonData[i];
-            continue;
-          }
+          if (rowText.includes("обязательное") || rowText.includes("обязат.")) { requirements = jsonData[i]; continue; }
         }
 
         if (humanNames.length === 0 || systemKeys.length === 0) {
           throw new Error("Не удалось распознать структуру шаблона.");
         }
 
-        // === ГЕНЕРАЦИЯ ХЭША (Для гибридной памяти) ===
+        while (humanNames.length > 0 && !humanNames[humanNames.length - 1]) humanNames.pop();
+        while (systemKeys.length > 0 && !systemKeys[systemKeys.length - 1]) systemKeys.pop();
+
+        // === ГЕНЕРАЦИЯ ХЭША ===
         const hashData = new TextEncoder().encode(systemKeys.join("|"));
         const hashBuffer = await crypto.subtle.digest("SHA-256", hashData);
         const hashArray = Array.from(new Uint8Array(hashBuffer));
-        const templateHash =
-          "hash_" +
-          hashArray
-            .map((b) => b.toString(16).padStart(2, "0"))
-            .join("")
-            .substring(0, 12);
+        const templateHash = "hash_" + hashArray.map((b) => b.toString(16).padStart(2, "0")).join("").substring(0, 12);
 
-        // === НОВАЯ: ФРОНТЕНД ЗАЩИТА ОТ ДУБЛИКАТОВ ПО ХЭШУ (ЩИТ) ===
         if (templateSelect) {
-          const matchingOption = Array.from(templateSelect.options).find(
-            (opt) => opt.getAttribute("data-hash") === templateHash,
-          );
+          const matchingOption = Array.from(templateSelect.options).find(opt => opt.getAttribute("data-hash") === templateHash || opt.value === templateHash);
           if (matchingOption) {
             if (typeof window.hideLoading === "function") window.hideLoading();
-            statusDiv.innerText =
-              "⚠️ " +
-              translations[currentLang]["kaspi_dup_hash_front"].replace(
-                "{name}",
-                matchingOption.text,
-              );
+            statusDiv.innerText = "⚠️ Шаблон с такой структурой уже загружен!";
             statusDiv.style.color = "#ff4444";
             saveBtn.disabled = false;
-            return; // Мгновенный стоп без отправки на сервер!
+            return; 
           }
         }
 
         let dictionary = {};
-        const valueSheetName = workbook.SheetNames.find(
-          (name) =>
-            name.toLowerCase() === "values" ||
-            name.toLowerCase() === "value" ||
-            name.toLowerCase() === "значения",
-        );
+        let valueSheet = workbook.worksheets.find(s => s.name.toLowerCase() === "values" || s.name.toLowerCase() === "value" || s.name.toLowerCase() === "значения");
 
-        if (valueSheetName) {
-          const valueSheet = workbook.Sheets[valueSheetName];
-          const rowsData = XLSX.utils.sheet_to_json(valueSheet, {
-            header: 1,
-            defval: "",
+        if (valueSheet) {
+          const rowsData = [];
+          valueSheet.eachRow((row) => {
+             let rData = [];
+             const maxCols = valueSheet.columnCount > 0 ? valueSheet.columnCount : 50;
+             for (let i = 1; i <= maxCols; i++) {
+                 rData.push(getSafeText(row.getCell(i)));
+             }
+             rowsData.push(rData);
           });
 
           if (rowsData.length > 0) {
@@ -10034,11 +10016,7 @@ window.processKaspiTemplate = async function () {
               let colValues = [];
               for (let i = 1; i < rowsData.length; i++) {
                 let cellValue = rowsData[i][colIndex];
-                if (
-                  cellValue !== undefined &&
-                  cellValue !== null &&
-                  cellValue !== ""
-                ) {
+                if (cellValue !== undefined && cellValue !== null && cellValue !== "") {
                   colValues.push(String(cellValue).trim());
                 }
               }
@@ -10049,15 +10027,13 @@ window.processKaspiTemplate = async function () {
             });
           }
         }
-        // ==================================
 
-        // === 2. ОБНОВЛЯЕШЬ ЭТОТ БЛОК ===
         const extractedHeaders = {
           templateHash: templateHash,
           humanNames: humanNames,
           systemKeys: systemKeys,
           requirements: requirements,
-          dictionary: dictionary, // <--- добавляем наш собранный объект
+          dictionary: dictionary,
         };
 
         const base64Reader = new FileReader();
@@ -10066,86 +10042,60 @@ window.processKaspiTemplate = async function () {
         base64Reader.onload = async function () {
           try {
             const base64String = base64Reader.result.split(",")[1];
-
             const payload = {
               action: "saveKaspiTemplate",
-              api_key:
-                typeof CLIENT_API_KEY !== "undefined"
-                  ? CLIENT_API_KEY
-                  : window.CLIENT_API_KEY,
-              category: nameInput.value.trim(),
+              api_key: typeof CLIENT_API_KEY !== "undefined" ? CLIENT_API_KEY : window.CLIENT_API_KEY,
+              category: categoryName,
               headersJson: JSON.stringify(extractedHeaders),
               fileBase64: base64String,
             };
 
             const res = await window.smartFetch(
-              typeof APPS_SCRIPT_URL !== "undefined"
-                ? APPS_SCRIPT_URL
-                : window.APPS_SCRIPT_URL,
+              typeof APPS_SCRIPT_URL !== "undefined" ? APPS_SCRIPT_URL : window.APPS_SCRIPT_URL,
               payload,
             );
 
             if (res && res.success) {
-              console.log(
-                `🎉 Успешно! Файл базы: "${res.dbName}", Строка: ${res.row}`,
-              );
+              
+              // === ПРАВИЛЬНОЕ ДОБАВЛЕНИЕ В СПИСОК С НУЖНЫМ ХЭШЕМ ===
+              if (templateSelect) {
+                const newOption = document.createElement("option");
+                newOption.value = templateHash; 
+                newOption.text = categoryName;
+                newOption.setAttribute("data-hash", templateHash);
+                templateSelect.appendChild(newOption);
+                templateSelect.value = templateHash; 
+              }
+              
+              if (typeof window.hideLoading === "function") window.hideLoading();
+              statusDiv.innerText = "✅ Успешно сохранено!";
 
-              // Скрываем глобальный лоадер и показываем зеленую галочку
-              if (typeof window.hideLoading === "function")
-                window.hideLoading();
-              statusDiv.innerText =
-                "✅ " + translations[currentLang]["kaspi_success"];
-
-              // Ждем 1 секунду, чтобы юзер увидел галочку, и закрываем
               setTimeout(async () => {
-                if (typeof closeKaspiManager === "function")
-                  closeKaspiManager();
+                if (typeof closeKaspiManager === "function") closeKaspiManager();
 
-                // === МАРШРУТИЗАТОР ===
                 if (window.kaspiModalSource === "income") {
-                  if (
-                    typeof window.loadKaspiTemplatesFromServer === "function"
-                  ) {
+                  if (typeof window.loadKaspiTemplatesFromServer === "function") {
                     await window.loadKaspiTemplatesFromServer();
                     if (templateSelect) {
-                      for (let i = 0; i < templateSelect.options.length; i++) {
-                        if (
-                          templateSelect.options[i].text
-                            .trim()
-                            .toLowerCase() === categoryName.toLowerCase()
-                        ) {
-                          templateSelect.selectedIndex = i;
-                          templateSelect.dispatchEvent(new Event("change"));
-                          break;
-                        }
-                      }
+                      templateSelect.value = templateHash;
+                      templateSelect.dispatchEvent(new Event("change"));
                     }
                   }
                 }
               }, 1000);
             } else {
-              // Проверка на срабатывание серверной защиты (Сейф)
               if (res && res.error === "kaspi_dup_hash") {
-                throw new Error(
-                  "⚠️ " +
-                    translations[currentLang]["kaspi_dup_hash_back"].replace(
-                      "{name}",
-                      res.existingName,
-                    ),
-                );
+                throw new Error("⚠️ Дубликат шаблона! (такая структура уже загружена)");
               }
               throw new Error(res ? res.error : "Пустой ответ");
             }
           } catch (err) {
             console.error("Ошибка отправки:", err);
             if (typeof window.hideLoading === "function") window.hideLoading();
-
-            // Если сработала защита по хэшу - выводим её текст, иначе стандартную ошибку сети
             if (err.message && err.message.includes("⚠️")) {
               statusDiv.innerText = err.message;
             } else {
-              statusDiv.innerText =
-                "❌ " + translations[currentLang]["kaspi_err_net"];
+              statusDiv.innerText = "❌ Ошибка соединения с сервером";
             }
             statusDiv.style.color = "#ff4444";
           } finally {
@@ -10157,10 +10107,9 @@ window.processKaspiTemplate = async function () {
           throw new Error("Ошибка чтения Base64");
         };
       } catch (err) {
-        console.error("Ошибка парсинга XLSX:", err);
+        console.error("Ошибка парсинга XLSX/ExcelJS:", err);
         if (typeof window.hideLoading === "function") window.hideLoading();
-        statusDiv.innerText =
-          "❌ " + translations[currentLang]["kaspi_err_file"];
+        statusDiv.innerText = "❌ Ошибка парсинга файла: " + err.message;
         statusDiv.style.color = "#ff4444";
         saveBtn.disabled = false;
       }
@@ -10170,7 +10119,7 @@ window.processKaspiTemplate = async function () {
   } catch (error) {
     console.error("Критическая ошибка:", error);
     if (typeof window.hideLoading === "function") window.hideLoading();
-    statusDiv.innerText = "❌ " + translations[currentLang]["kaspi_err_sys"];
+    statusDiv.innerText = "❌ Системная ошибка";
     statusDiv.style.color = "#ff4444";
     saveBtn.disabled = false;
   }
