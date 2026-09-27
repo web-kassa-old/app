@@ -4934,14 +4934,12 @@ async function handleTemplateUpload(event) {
         }
 
         const dbResponse = await window.smartFetch(
-          typeof APPS_SCRIPT_URL !== "undefined" ? APPS_SCRIPT_URL : (window.APPS_SCRIPT_URL || ""),
-          {
-            action: "getKaspiExportData",
-            api_key: typeof CLIENT_API_KEY !== "undefined" ? CLIENT_API_KEY : "",
-          },
-          "kaspi_dynamic_keys_cache",
-          3,
-        );
+  typeof APPS_SCRIPT_URL !== "undefined" ? APPS_SCRIPT_URL : (window.APPS_SCRIPT_URL || ""),
+  {
+    action: "getKaspiExportData",
+    api_key: typeof CLIENT_API_KEY !== "undefined" ? CLIENT_API_KEY : "",
+  }
+);
 
         const dynKeys = dbResponse && dbResponse.success ? dbResponse.dynamicKeys : [];
 
