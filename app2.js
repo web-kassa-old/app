@@ -4723,11 +4723,9 @@ async function handleTemplateUpload(event) {
   const fileInput = document.getElementById("templateFileInput");
   const fileNameSpan = document.getElementById("templateFileName");
 
-  // Закрываем модалку выбора файла сразу после выбора
   const modal = document.getElementById("newTemplateModal");
   if (modal) modal.style.display = "none";
 
-  // Включаем оригинальный лоадер POS Noir
   window.showLoading(translations[currentLang].msg_analyze_template);
 
   if (fileNameSpan) {
@@ -4737,7 +4735,6 @@ async function handleTemplateUpload(event) {
   }
   fileInput.disabled = true;
 
-  // Используем setTimeout, чтобы дать интерфейсу время отрисовать лоадер
   setTimeout(() => {
     const reader = new FileReader();
     reader.onload = async function (e) {
@@ -4747,7 +4744,6 @@ async function handleTemplateUpload(event) {
         const workbook = new ExcelJS.Workbook();
         await workbook.xlsx.load(e.target.result);
 
-        // === НАШ НОВЫЙ ДЕШИФРАТОР СЛОЖНЫХ ЯЧЕЕК ===
         const getSafeText = (cell) => {
             if (!cell || cell.value === null || cell.value === undefined) return "";
             if (typeof cell.value === 'object') {
@@ -4757,34 +4753,22 @@ async function handleTemplateUpload(event) {
             return String(cell.value).trim();
         };
 
-        // 1. Читаем основной лист attributes
-        let targetSheet = workbook.worksheets.find(
-          (s) => s.name.toLowerCase() === "attributes",
-        );
-        if (!targetSheet)
-          targetSheet =
-            workbook.worksheets.length > 1
-              ? workbook.worksheets[1]
-              : workbook.worksheets[0];
+        let targetSheet = workbook.worksheets.find((s) => s.name.toLowerCase() === "attributes");
+        if (!targetSheet) targetSheet = workbook.worksheets.length > 1 ? workbook.worksheets[1] : workbook.worksheets[0];
         window.kaspiTargetSheetName = targetSheet.name;
 
         const jsonData = [];
         targetSheet.eachRow((row, rowNumber) => {
           if (rowNumber > 20) return;
           let rowData = [];
-          const maxCols =
-            targetSheet.columnCount > 0 ? targetSheet.columnCount : 100;
+          const maxCols = targetSheet.columnCount > 0 ? targetSheet.columnCount : 100;
           for (let i = 1; i <= maxCols; i++) {
-            const cell = row.getCell(i);
-            // ПРИМЕНЯЕМ ДЕШИФРАТОР ВМЕСТО cell.text
-            rowData.push(getSafeText(cell));
+            rowData.push(getSafeText(row.getCell(i)));
           }
           jsonData.push(rowData);
         });
 
-        let requirements = [],
-          systemKeys = [],
-          humanNames = [];
+        let requirements = [], systemKeys = [], humanNames = [];
         const humMarkers = ["артикул", "модель", "бренд", "цена"];
         const sysMarkers = ["merchant_sku", "model", "brand", "price"];
 
@@ -4793,27 +4777,14 @@ async function handleTemplateUpload(event) {
           if (!rowText.trim()) continue;
 
           let humMatch = 0;
-          humMarkers.forEach((m) => {
-            if (rowText.includes(m)) humMatch++;
-          });
-          if (humMatch >= 2) {
-            humanNames = jsonData[i];
-            continue;
-          }
+          humMarkers.forEach((m) => { if (rowText.includes(m)) humMatch++; });
+          if (humMatch >= 2) { humanNames = jsonData[i]; continue; }
 
           let sysMatch = 0;
-          sysMarkers.forEach((m) => {
-            if (rowText.includes(m)) sysMatch++;
-          });
-          if (sysMatch >= 2) {
-            systemKeys = jsonData[i];
-            continue;
-          }
+          sysMarkers.forEach((m) => { if (rowText.includes(m)) sysMatch++; });
+          if (sysMatch >= 2) { systemKeys = jsonData[i]; continue; }
 
-          if (rowText.includes("обязательное") || rowText.includes("обязат.")) {
-            requirements = jsonData[i];
-            continue;
-          }
+          if (rowText.includes("обязательное") || rowText.includes("обязат.")) { requirements = jsonData[i]; continue; }
         }
 
         if (humanNames.length === 0 || systemKeys.length === 0) {
@@ -4825,35 +4796,34 @@ async function handleTemplateUpload(event) {
           }
           return;
         }
+        
+        // Очищаем пустые хвосты
+        while (humanNames.length > 0 && !humanNames[humanNames.length - 1]) humanNames.pop();
+        while (systemKeys.length > 0 && !systemKeys[systemKeys.length - 1]) systemKeys.pop();
 
-        // 2. Читаем лист values (Справочники Kaspi) через ExcelJS
+        // === ГЕНЕРАЦИЯ ХЭША (РАНЕЕ ЭТОГО БЛОКА ЗДЕСЬ НЕ БЫЛО) ===
+        const hashData = new TextEncoder().encode(systemKeys.join("|"));
+        const hashBuffer = await crypto.subtle.digest("SHA-256", hashData);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        const templateHash = "hash_" + hashArray.map((b) => b.toString(16).padStart(2, "0")).join("").substring(0, 12);
+
         let valuesData = [];
-        let valuesSheet = workbook.worksheets.find(
-          (s) => s.name.toLowerCase() === "values",
-        );
+        let valuesSheet = workbook.worksheets.find((s) => s.name.toLowerCase() === "values" || s.name.toLowerCase() === "value" || s.name.toLowerCase() === "значения");
         if (valuesSheet) {
           valuesSheet.eachRow((row) => {
             let rData = [];
-            const maxCols =
-              valuesSheet.columnCount > 0 ? valuesSheet.columnCount : 50;
+            const maxCols = valuesSheet.columnCount > 0 ? valuesSheet.columnCount : 50;
             for (let i = 1; i <= maxCols; i++) {
-              let cell = row.getCell(i);
-              // ПРИМЕНЯЕМ ДЕШИФРАТОР ВМЕСТО cell.text
-              rData.push(getSafeText(cell));
+              rData.push(getSafeText(row.getCell(i)));
             }
             valuesData.push(rData);
           });
         }
 
-        // Временно прячем лоадер, чтобы показать prompt
         window.hideLoading();
 
-        // 3. Запрос категории (через кастомное модальное окно с автовыделением)
-        const defaultCategory = file.name
-          .replace(".xlsx", "")
-          .replace(".xls", "")
-          .trim();
-        let categoryName = await window.askCategoryName(defaultCategory); // ВАЖНО: теперь здесь let
+        const defaultCategory = file.name.replace(".xlsx", "").replace(".xls", "").replace(".xlsm", "").trim();
+        let categoryName = await window.askCategoryName(defaultCategory);
 
         if (!categoryName) {
           window.hideLoading();
@@ -4864,14 +4834,12 @@ async function handleTemplateUpload(event) {
           return;
         }
 
-        // === ПРОВЕРКА НА ДУБЛИКАТ ===
         const templateSelect = document.getElementById("kaspiTemplateSelect");
         let isDuplicate = false;
 
         if (templateSelect) {
-          // Ищем существующий шаблон без учета регистра
           const existingOption = Array.from(templateSelect.options).find(
-            (opt) => opt.value.toLowerCase() === categoryName.toLowerCase(),
+            (opt) => opt.value.toLowerCase() === categoryName.toLowerCase() || opt.getAttribute("data-hash") === templateHash || opt.value === templateHash
           );
 
           if (existingOption) {
@@ -4880,7 +4848,7 @@ async function handleTemplateUpload(event) {
 
             const overwrite = confirm(
               translations[currentLang].msg_tpl_exists_1 +
-                existingOption.value +
+                (existingOption.text || existingOption.value) +
                 translations[currentLang].msg_tpl_exists_2,
             );
 
@@ -4891,77 +4859,111 @@ async function handleTemplateUpload(event) {
               }
               return;
             }
-
-            // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: принудительно используем старое имя с его оригинальным регистром,
-            // чтобы сервер не создал дубликат (например, меняем "Шины" на существующие "шины")
-            categoryName = existingOption.value;
+            categoryName = existingOption.text || existingOption.value;
           }
         }
 
-        // Снова показываем лоадер для отправки на сервер
         window.showLoading(translations[currentLang].msg_save_server);
-
         if (fileNameSpan) {
           fileNameSpan.innerText = `⏳ ${translations[currentLang].msg_save_server}`;
           fileNameSpan.style.color = "var(--accent-blue)";
         }
-
-        await saveKaspiTemplateBackend(
-          categoryName,
-          window.rawKaspiTemplateBuffer,
-          { systemKeys, humanNames, requirements },
-        );
-
-        // === ДОБАВЛЕНИЕ ШАБЛОНА В СПИСОК (ТОЛЬКО ЕСЛИ НЕ ДУБЛИКАТ) ===
-        if (templateSelect) {
-          if (!isDuplicate) {
-            const newOption = document.createElement("option");
-            newOption.value = templateHash; // ИСПРАВЛЕНО: используем правильный хэш
-            newOption.text = categoryName;
-            newOption.setAttribute("data-hash", templateHash); // Привязываем хэш к элементу
-            templateSelect.appendChild(newOption);
-          }
-          templateSelect.value = templateHash; // ИСПРАВЛЕНО
+        
+        let dictionary = {};
+        if (valuesData.length > 0) {
+          const headersRow = valuesData[0];
+          headersRow.forEach((header, colIndex) => {
+            if (!header) return;
+            let colName = String(header).trim();
+            let colValues = [];
+            for (let i = 1; i < valuesData.length; i++) {
+              let cellValue = valuesData[i][colIndex];
+              if (cellValue !== undefined && cellValue !== null && cellValue !== "") {
+                colValues.push(String(cellValue).trim());
+              }
+            }
+            let uniqueValues = [...new Set(colValues)];
+            if (uniqueValues.length > 0) {
+              dictionary[colName] = uniqueValues;
+            }
+          });
         }
 
-        // 4. Подтягиваем динамические ключи из базы
-        window.showLoading(translations[currentLang].msg_connect_db);
+        const extractedHeaders = {
+          templateHash: templateHash,
+          humanNames: humanNames,
+          systemKeys: systemKeys,
+          requirements: requirements,
+          dictionary: dictionary,
+        };
 
+        // Перевод бинарных данных в Base64 для бэкенда
+        let binary = '';
+        const bytes = new Uint8Array(e.target.result);
+        const len = bytes.byteLength;
+        for (let i = 0; i < len; i++) {
+            binary += String.fromCharCode(bytes[i]);
+        }
+        const base64String = window.btoa(binary);
+
+        const payload = {
+          action: "saveKaspiTemplate",
+          api_key: typeof CLIENT_API_KEY !== "undefined" ? CLIENT_API_KEY : window.CLIENT_API_KEY,
+          category: categoryName,
+          headersJson: JSON.stringify(extractedHeaders),
+          fileBase64: base64String,
+        };
+
+        const res = await window.smartFetch(
+          typeof APPS_SCRIPT_URL !== "undefined" ? APPS_SCRIPT_URL : window.APPS_SCRIPT_URL,
+          payload,
+        );
+
+        if (res && res.success) {
+            if (templateSelect) {
+              if (!isDuplicate) {
+                const newOption = document.createElement("option");
+                newOption.value = templateHash; 
+                newOption.text = categoryName; 
+                newOption.setAttribute("data-hash", templateHash);
+                templateSelect.appendChild(newOption);
+              }
+              templateSelect.value = templateHash; 
+            }
+        } else {
+            if (res && res.error === "kaspi_dup_hash") {
+                throw new Error("⚠️ " + (typeof translations !== 'undefined' ? translations[currentLang]["kaspi_dup_hash_back"].replace("{name}", res.existingName) : "Шаблон уже существует"));
+            }
+            throw new Error(res ? res.error : "Пустой ответ от сервера");
+        }
+
+        window.showLoading(translations[currentLang].msg_connect_db);
         if (fileNameSpan) {
           fileNameSpan.innerText = `⏳ ${translations[currentLang].msg_connect_db}`;
           fileNameSpan.style.color = "var(--accent-blue)";
         }
+
         const dbResponse = await window.smartFetch(
-          APPS_SCRIPT_URL,
+          typeof APPS_SCRIPT_URL !== "undefined" ? APPS_SCRIPT_URL : window.APPS_SCRIPT_URL,
           {
             action: "getKaspiExportData",
-            api_key:
-              typeof CLIENT_API_KEY !== "undefined" ? CLIENT_API_KEY : "",
+            api_key: typeof CLIENT_API_KEY !== "undefined" ? CLIENT_API_KEY : "",
           },
           "kaspi_dynamic_keys_cache",
           3,
         );
 
-        const dynKeys =
-          dbResponse && dbResponse.success ? dbResponse.dynamicKeys : [];
+        const dynKeys = dbResponse && dbResponse.success ? dbResponse.dynamicKeys : [];
 
         if (fileNameSpan) {
           fileNameSpan.innerText = `✅ Шаблон готов (${categoryName})`;
           fileNameSpan.style.color = "var(--accent-green)";
         }
 
-        // 5. ОТРИСОВКА ИНТЕРФЕЙСА МАППЕРА
         if (typeof renderMapperUI === "function") {
-          renderMapperUI(
-            systemKeys,
-            humanNames,
-            valuesData,
-            requirements,
-            dynKeys,
-          );
+          renderMapperUI(systemKeys, humanNames, valuesData, requirements, dynKeys);
         }
 
-        // Разблокируем нижнюю кнопку экспорта
         if (typeof updateFileNameCompactUI === "function") {
           updateFileNameCompactUI(file.name);
         }
@@ -4977,10 +4979,12 @@ async function handleTemplateUpload(event) {
         window.hideLoading();
       }
     };
-
-    event.target.value = "";
     reader.readAsArrayBuffer(file);
-  }, 50);
+  } catch (error) {
+    console.error("Критическая ошибка:", error);
+    fileInput.disabled = false;
+    window.hideLoading();
+  }
 }
 
 // Глобальный объект для хранения словарей Каспи
@@ -11440,3 +11444,11 @@ window.loadKaspiTemplatesFromServer = async function (isSilent = false) {
       window.hideLoading();
   }
 };
+// === АВТОРАСШИРЕНИЕ ФИЛЬТРОВ ЗАГРУЗКИ ФАЙЛОВ ===
+document.addEventListener("DOMContentLoaded", () => {
+    const fileInputs = ["kaspi-template-file", "templateFileInput"];
+    fileInputs.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.setAttribute("accept", ".xlsx, .xls, .xlsm, .xml");
+    });
+});
