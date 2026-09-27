@@ -4572,30 +4572,42 @@ window.handleCategorySelectForExport = async function(event) {
     try {
         const url = typeof APPS_SCRIPT_URL !== "undefined" ? APPS_SCRIPT_URL : window.APPS_SCRIPT_URL;
         
-        // Запрашиваем всё разом: шаблон, настройки колонок и сами товары!
         const payload = { action: 'getKaspiExportItemsBackend', api_key: CLIENT_API_KEY, hash: selectedHash };
-        const res = await window.smartFetch(url, payload, 'kaspi_export_data_' + selectedHash + Date.now(), 0);
+        
+        // === ИСПОЛЬЗУЕМ ЧИСТЫЙ FETCH ВМЕСТО SMARTFETCH ===
+        const response = await fetch(url, {
+            method: 'POST',
+            body: JSON.stringify(payload)
+        });
+        
+        // Читаем ответ как текст, чтобы поймать системные ошибки Google
+        const text = await response.text(); 
+        let res;
+        try {
+            res = JSON.parse(text);
+        } catch (e) {
+            console.error("Сервер вернул не JSON:", text);
+            throw new Error("Сбой на сервере. Ответ: " + text.substring(0, 150));
+        }
 
-        if (res && res.success && res.templateBase64 && res.items.length > 0) {
-            
-            // Сохраняем всё в глобальные переменные, чтобы кнопка выгрузки могла их забрать
+        if (res && res.success && res.templateBase64 && res.items && res.items.length > 0) {
+            // Сохраняем всё в глобальные переменные
             window.rawKaspiTemplateBuffer = res.templateBase64;
-            window.kaspiExportItems = res.items;           // Товары, которые прислал сервер
-            window.kaspiExportConfig = res.templateConfig; // Настройки колонок (mapping) из JSON
-            window.kaspiExportRowIndexes = res.rowIndexes; // Для будущего перевода статусов в exported
-
-            // Если в JSON сохранен целевой лист (targetSheetName), сохраняем его
+            window.kaspiExportItems = res.items;           
+            window.kaspiExportConfig = res.templateConfig; 
+            window.kaspiExportRowIndexes = res.rowIndexes; 
             window.kaspiTargetSheetName = res.templateConfig.targetSheetName || null;
 
-            btnArea.style.display = 'flex';
+            btnArea.style.display = 'flex'; // Показываем кнопки
         } else {
             const err = res.error || "Не удалось загрузить данные или нет товаров для выгрузки.";
-            alert("Ошибка: " + err);
+            alert("⚠️ Ошибка сервера: " + err);
+            console.error("Полный ответ сервера:", res);
             btnArea.style.display = 'none';
         }
     } catch (e) {
-        console.error("Ошибка загрузки данных партии:", e);
-        alert("Ошибка сети при загрузке данных партии.");
+        console.error("Полная ошибка загрузки данных партии:", e);
+        alert("⚠️ Критическая ошибка: " + e.message);
     } finally {
         if (typeof window.hideLoading === 'function') window.hideLoading();
     }
