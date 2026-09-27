@@ -4519,7 +4519,12 @@ window.openExportModal = async function() {
         const url = typeof APPS_SCRIPT_URL !== "undefined" ? APPS_SCRIPT_URL : window.APPS_SCRIPT_URL;
         const payload = { action: 'getPendingExportsBackend', api_key: CLIENT_API_KEY };
         
-        const res = await window.smartFetch(url, payload, 'kaspi_pending_' + Date.now(), 0);
+        // === ПРЯМОЙ ЗАПРОС В ОБХОД КЭША (smartFetch отключен) ===
+        const response = await fetch(url, {
+            method: 'POST',
+            body: JSON.stringify(payload)
+        });
+        const res = await response.json();
 
         if (res && res.success && res.pendingGroups && res.pendingGroups.length > 0) {
             select.innerHTML = '<option value="">-- Выберите партию для выгрузки --</option>';
@@ -4527,14 +4532,14 @@ window.openExportModal = async function() {
                 select.innerHTML += `<option value="${group.hash}">${group.name} (ожидает: ${group.count} шт.)</option>`;
             });
         } else {
-            // === ВЫВОДИМ ТОЧНУЮ ОШИБКУ ОТ БЭКЕНДА ПРЯМО В ИНТЕРФЕЙС ===
-            const errorMsg = res && res.error ? res.error : "Массив пуст (ошибок нет)";
-            select.innerHTML = `<option value="">⚠️ Причина: ${errorMsg}</option>`;
-            console.log("Полный ответ бэкенда:", res);
+            // Если массив пуст, выводим вообще ВСЁ, что прислал сервер
+            const errorMsg = res && res.error ? res.error : JSON.stringify(res);
+            select.innerHTML = `<option value="">⚠️ Ответ сервера: ${errorMsg}</option>`;
+            console.log("ПОЛНЫЙ ОТВЕТ СЕРВЕРА:", res);
         }
     } catch (e) {
-        console.error("Ошибка загрузки данных для экспорта:", e);
-        select.innerHTML = '<option value="">Ошибка сети или фронтенда</option>';
+        console.error("Ошибка запроса:", e);
+        select.innerHTML = `<option value="">Критическая ошибка fetch: ${e.message}</option>`;
     }
 };
 
