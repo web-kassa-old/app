@@ -10851,10 +10851,12 @@ window.generateExportFile = async function (target = 'local') {
     // 4. Формируем финальный буфер и качаем локально
     const buffer = await workbook.xlsx.writeBuffer();
     const dateStr = new Date().toISOString().slice(0, 10);
-    const fileName = `Kaspi_Export_${dateStr}.xlsm`;
+    
+    // === ИЗМЕНЕНИЯ ЗДЕСЬ: Сохраняем как обычный Excel (.xlsx) ===
+    const fileName = `Kaspi_Export_${dateStr}.xlsx`;
 
     if (target === 'local') {
-      const blob = new Blob([buffer], { type: "application/vnd.ms-excel.sheet.macroEnabled.12" });
+      const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
       const link = document.createElement("a");
       link.href = URL.createObjectURL(blob);
       link.download = fileName;
