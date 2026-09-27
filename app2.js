@@ -10728,129 +10728,155 @@ window.generateExportFile = async function (target = 'local') {
   const originalText = btn ? btn.innerText : "Выгрузить";
 
   if (btn) {
-      btn.innerText = "⏳ Формирование...";
+      btn.innerText = "⏳ Загрузка товаров из базы...";
       btn.disabled = true;
   }
   if (typeof window.showLoading === "function") window.showLoading(null, "kaspi_saving");
 
   try {
-    // 1. Проверяем наличие товаров и ОРИГИНАЛЬНОГО шаблона в памяти
+    // 1. Считываем схему интерфейса (ТВОЙ ОРИГИНАЛЬНЫЙ КОД)
+    const selects = document.querySelectorAll(".mapper-select");
+    const mappingConfig = [];
+    let maxColIndex = 0;
+
+    const row1 = []; 
+    const row2 = []; 
+
+    selects.forEach((select) => {
+      const colIndex = parseInt(select.getAttribute("data-col-index"));
+      if (colIndex > maxColIndex) maxColIndex = colIndex;
+
+      mappingConfig.push({ index: colIndex, ourSource: select.value });
+
+      const rawColName = select.getAttribute("data-col-name") || "";
+      row1[colIndex] = rawColName.replace(/&quot;/g, '"');
+      row2[colIndex] = select.getAttribute("data-sys-key") || "";
+    });
+
+    // 2. Берем товары (ТВОЙ ОРИГИНАЛЬНЫЙ КОД, адаптированный под новую систему с очередью)
     if (!window.kaspiExportItems || window.kaspiExportItems.length === 0) {
         throw new Error("Нет товаров для выгрузки. Выберите партию заново.");
     }
-    if (!window.rawKaspiTemplateBuffer) {
-        throw new Error("Базовый шаблон не загружен. Выберите партию заново.");
-    }
-
     const items = window.kaspiExportItems;
-    const config = window.kaspiExportConfig;
-    const systemKeys = config.systemKeys || [];
-    
-    if (systemKeys.length === 0) {
-        throw new Error("В настройках шаблона нет ключей systemKeys.");
+    btn.innerText = "⏳ Формирование файла...";
+
+    // 3. Подготавливаем только данные товаров (ТВОЙ ОРИГИНАЛЬНЫЙ КОД)
+    const exportData = [];
+
+    items.forEach((item) => {
+      const row = new Array(maxColIndex + 1).fill("");
+      let hasData = false;
+
+      mappingConfig.forEach((config) => {
+        const source = config.ourSource;
+        let value = "";
+
+        // Применяем маппинг
+        if (source === "barcode") value = item.barcode || item.item_id || "";
+        else if (source === "name") value = String(item.name || item.item_name || "");
+        else if (source === "price") value = Number(item.price || item.cost || item.retail_price) || 0;
+        else if (source === "qty") value = Number(item.qty || item.quantity) || 0;
+        else if (source.startsWith("json_")) {
+          const key = source.replace("json_", "");
+          let attrs = typeof item.attributes === 'string' ? JSON.parse(item.attributes || '{}') : (item.attributes || {});
+          if (attrs[key] !== undefined && attrs[key] !== null) value = attrs[key];
+        } else if (source.startsWith("static_")) {
+          value = source.replace("static_", "");
+        }
+
+        row[config.index] = value;
+        if (value !== "" && value !== null && value !== undefined) hasData = true;
+      });
+
+      if (hasData) {
+        exportData.push(row);
+      }
+    });
+
+    if (exportData.length === 0) {
+       alert("⚠️ Скрипт отработал, но все значения пустые! Проверьте, заполнены ли товары в базе.");
+       throw new Error("Пустые данные");
     }
 
-    // 2. ЗАГРУЖАЕМ ШАБЛОН ИЗ BASE64
+    // 4. Вставляем данные в ОРИГИНАЛЬНЫЙ ШАБЛОН через ExcelJS
+    if (!window.rawKaspiTemplateBuffer) {
+      throw new Error("Оригинальный шаблон не найден в памяти. Пожалуйста, загрузите файл заново.");
+    }
+
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(window.rawKaspiTemplateBuffer);
+
+    // Ищем нужный лист (если в памяти есть имя листа - берем его)
+    let worksheet = window.kaspiTargetSheetName ? workbook.getWorksheet(window.kaspiTargetSheetName) : null;
     
-    // === УМНЫЙ ПОИСК ЛИСТА ===
-    let worksheet = null;
-    workbook.worksheets.forEach(ws => {
-        const row2 = ws.getRow(2);
-        if (row2) {
-            row2.eachCell(cell => {
-                if (String(cell.value).includes('merchant_sku')) {
-                    worksheet = ws;
-                }
-            });
-        }
-    });
+    // === НОВЫЙ ИДЕАЛЬНЫЙ ПОИСК СТРОКИ ===
+    let startRow = 4; // по умолчанию
     
-    // Если не нашли по ключу, берем целевой лист из конфига или самый первый
     if (!worksheet) {
-        worksheet = config.targetSheetName ? workbook.getWorksheet(config.targetSheetName) : workbook.worksheets[0];
-    }
-    
-    if (!worksheet) throw new Error("Не удалось найти рабочий лист в шаблоне.");
-
-    // 3. Данные у Kaspi ВСЕГДА начинаются с 4-й строки.
-    const startRow = 4;
-    let insertedCount = 0;
-
-    // 4. Заполняем товары напрямую в красивый шаблон
-    items.forEach((item, rowIndex) => {
-        const row = worksheet.getRow(startRow + rowIndex);
-        let rowHasData = false;
-        
-        systemKeys.forEach((key, colIndex) => {
-            let value = "";
-            
-            // Авто-маппинг
-            if (key === 'merchant_sku' || key === 'sku') {
-                value = item.barcode || item.item_id || "";
-            } else if (key === 'name' || key === 'title') {
-                value = String(item.name || item.item_name || "");
-            } else if (key === 'price') {
-                value = Number(item.price || item.cost || item.retail_price) || 0;
-            } else if (key === 'quantity' || key === 'qty') {
-                value = Number(item.qty || item.quantity) || 0;
-            } else {
-                // Ищем в JSON-атрибутах
-                let attrs = typeof item.attributes === 'string' ? JSON.parse(item.attributes || '{}') : (item.attributes || {});
-                if (attrs[key] !== undefined && attrs[key] !== null) {
-                    value = attrs[key];
+        // Если лист не был сохранен по имени, ищем его по наличию слова 'merchant_sku'
+        workbook.worksheets.forEach(ws => {
+            for (let i = 1; i <= 6; i++) {
+                const row = ws.getRow(i);
+                let found = false;
+                if (row) {
+                    row.eachCell(cell => {
+                        if (String(cell.value).trim() === 'merchant_sku') found = true;
+                    });
                 }
-            }
-
-            if (value !== "") {
-                row.getCell(colIndex + 1).value = value;
-                rowHasData = true;
+                if (found) {
+                    worksheet = ws;
+                    startRow = i + 2; // Нашли ключи? Пропускаем 1 строку (с требованиями) и пишем!
+                }
             }
         });
-        
-        if (rowHasData) insertedCount++;
+    }
+
+    if (!worksheet) {
+        worksheet = workbook.worksheets[0]; // Жесткий фоллбэк
+    }
+
+    // Бережно вписываем данные в ячейки, не ломая стили
+    exportData.forEach((rowData, rowIndex) => {
+      const row = worksheet.getRow(startRow + rowIndex);
+
+      rowData.forEach((val, colIndex) => {
+        if (val !== undefined && val !== null && val !== "") {
+          row.getCell(colIndex + 1).value = val;
+        }
+      });
     });
 
-    console.log(`Успешно обработано товаров: ${insertedCount} из ${items.length}`);
-    if (insertedCount === 0) {
-        const sample = items[0];
-        const availableKeys = Object.keys(sample).join("\n- ");
-        alert(`⚠️ Данные не вставились!\nВот какие колонки пришли из базы:\n- ${availableKeys}\n\nПришли мне этот список!`);
-    }
-
-    // 5. Генерируем финальный буфер
+    // 5. Упаковываем файл и отдаем как XLSX (НОВЫЙ БЕЗОПАСНЫЙ ФОРМАТ)
     const buffer = await workbook.xlsx.writeBuffer();
     const dateStr = new Date().toISOString().slice(0, 10);
-    
-    // МЕНЯЕМ ВЫВЕСКУ НА ВЫХОДЕ: отдаем XLSX
-    const fileName = `Kaspi_Export_${dateStr}.xlsx`;
+    const fileName = `Kaspi_Export_${dateStr}.xlsx`; // Сохраняем в XLSX, чтобы Excel не ругался
 
     if (target === 'local') {
-        const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-        const link = document.createElement("a");
-        link.href = URL.createObjectURL(blob);
-        link.download = fileName;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+      const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
 
-        // 6. Скрытно обновляем статусы на сервере
-        if (window.kaspiExportRowIndexes && window.kaspiExportRowIndexes.length > 0) {
-            const url = typeof APPS_SCRIPT_URL !== "undefined" ? APPS_SCRIPT_URL : window.APPS_SCRIPT_URL;
-            fetch(url, {
-                method: 'POST',
-                body: JSON.stringify({
-                    action: 'markKaspiExportedBackend',
-                    api_key: CLIENT_API_KEY,
-                    rowIndexes: window.kaspiExportRowIndexes
-                })
-            }).then(() => {
-                window.kaspiExportItems = null;
-                window.kaspiExportRowIndexes = null;
-            }).catch(e => console.error("Ошибка при обновлении статусов", e));
-        }
+      // 6. Скрытно обновляем статусы на сервере (pending -> exported)
+      if (window.kaspiExportRowIndexes && window.kaspiExportRowIndexes.length > 0) {
+          const url = typeof APPS_SCRIPT_URL !== "undefined" ? APPS_SCRIPT_URL : window.APPS_SCRIPT_URL;
+          fetch(url, {
+              method: 'POST',
+              body: JSON.stringify({
+                  action: 'markKaspiExportedBackend',
+                  api_key: CLIENT_API_KEY,
+                  rowIndexes: window.kaspiExportRowIndexes
+              })
+          }).then(() => {
+              window.kaspiExportItems = null;
+              window.kaspiExportRowIndexes = null;
+          }).catch(e => console.error("Ошибка при обновлении статусов", e));
+      }
     }
+
   } catch (err) {
     console.error("Ошибка при генерации прайса:", err);
     alert("Ошибка: " + err.message);
