@@ -4722,18 +4722,19 @@ async function handleTemplateUpload(event) {
 
   const fileInput = document.getElementById("templateFileInput");
   const fileNameSpan = document.getElementById("templateFileName");
-
   const modal = document.getElementById("newTemplateModal");
   if (modal) modal.style.display = "none";
 
-  window.showLoading(translations[currentLang].msg_analyze_template);
+  if (typeof window.showLoading === "function") {
+    window.showLoading(typeof translations !== 'undefined' && translations[currentLang] ? translations[currentLang].msg_analyze_template : "Анализ шаблона...");
+  }
 
   if (fileNameSpan) {
     fileNameSpan.removeAttribute("data-i18n");
-    fileNameSpan.innerText = `⏳ ${translations[currentLang].msg_analyze_template}`;
+    fileNameSpan.innerText = `⏳ Анализ шаблона...`;
     fileNameSpan.style.color = "var(--accent-blue)";
   }
-  fileInput.disabled = true;
+  if (fileInput) fileInput.disabled = true;
 
   setTimeout(() => {
     const reader = new FileReader();
@@ -4788,7 +4789,7 @@ async function handleTemplateUpload(event) {
         }
 
         if (humanNames.length === 0 || systemKeys.length === 0) {
-          window.hideLoading();
+          if (typeof window.hideLoading === "function") window.hideLoading();
           alert("Ошибка: Не удалось распознать структуру шаблона Kaspi.");
           if (fileNameSpan) {
             fileNameSpan.innerText = "📄 Загрузить пустой шаблон (.xml, .xlsx)";
@@ -4796,12 +4797,10 @@ async function handleTemplateUpload(event) {
           }
           return;
         }
-        
-        // Очищаем пустые хвосты
+
         while (humanNames.length > 0 && !humanNames[humanNames.length - 1]) humanNames.pop();
         while (systemKeys.length > 0 && !systemKeys[systemKeys.length - 1]) systemKeys.pop();
 
-        // === ГЕНЕРАЦИЯ ХЭША (РАНЕЕ ЭТОГО БЛОКА ЗДЕСЬ НЕ БЫЛО) ===
         const hashData = new TextEncoder().encode(systemKeys.join("|"));
         const hashBuffer = await crypto.subtle.digest("SHA-256", hashData);
         const hashArray = Array.from(new Uint8Array(hashBuffer));
@@ -4820,13 +4819,12 @@ async function handleTemplateUpload(event) {
           });
         }
 
-        window.hideLoading();
+        if (typeof window.hideLoading === "function") window.hideLoading();
 
         const defaultCategory = file.name.replace(".xlsx", "").replace(".xls", "").replace(".xlsm", "").trim();
         let categoryName = await window.askCategoryName(defaultCategory);
 
         if (!categoryName) {
-          window.hideLoading();
           if (fileNameSpan) {
             fileNameSpan.innerText = "Загрузка отменена";
             fileNameSpan.style.color = "var(--text-main)";
@@ -4844,14 +4842,7 @@ async function handleTemplateUpload(event) {
 
           if (existingOption) {
             isDuplicate = true;
-            window.hideLoading();
-
-            const overwrite = confirm(
-              translations[currentLang].msg_tpl_exists_1 +
-                (existingOption.text || existingOption.value) +
-                translations[currentLang].msg_tpl_exists_2,
-            );
-
+            const overwrite = confirm("Шаблон с таким именем или структурой уже существует. Перезаписать?");
             if (!overwrite) {
               if (fileNameSpan) {
                 fileNameSpan.innerText = "Загрузка отменена";
@@ -4863,12 +4854,12 @@ async function handleTemplateUpload(event) {
           }
         }
 
-        window.showLoading(translations[currentLang].msg_save_server);
+        if (typeof window.showLoading === "function") window.showLoading("Сохранение...");
         if (fileNameSpan) {
-          fileNameSpan.innerText = `⏳ ${translations[currentLang].msg_save_server}`;
+          fileNameSpan.innerText = `⏳ Сохранение...`;
           fileNameSpan.style.color = "var(--accent-blue)";
         }
-        
+
         let dictionary = {};
         if (valuesData.length > 0) {
           const headersRow = valuesData[0];
@@ -4897,7 +4888,6 @@ async function handleTemplateUpload(event) {
           dictionary: dictionary,
         };
 
-        // Перевод бинарных данных в Base64 для бэкенда
         let binary = '';
         const bytes = new Uint8Array(e.target.result);
         const len = bytes.byteLength;
@@ -4908,14 +4898,14 @@ async function handleTemplateUpload(event) {
 
         const payload = {
           action: "saveKaspiTemplate",
-          api_key: typeof CLIENT_API_KEY !== "undefined" ? CLIENT_API_KEY : window.CLIENT_API_KEY,
+          api_key: typeof CLIENT_API_KEY !== "undefined" ? CLIENT_API_KEY : (window.CLIENT_API_KEY || ""),
           category: categoryName,
           headersJson: JSON.stringify(extractedHeaders),
           fileBase64: base64String,
         };
 
         const res = await window.smartFetch(
-          typeof APPS_SCRIPT_URL !== "undefined" ? APPS_SCRIPT_URL : window.APPS_SCRIPT_URL,
+          typeof APPS_SCRIPT_URL !== "undefined" ? APPS_SCRIPT_URL : (window.APPS_SCRIPT_URL || ""),
           payload,
         );
 
@@ -4923,28 +4913,28 @@ async function handleTemplateUpload(event) {
             if (templateSelect) {
               if (!isDuplicate) {
                 const newOption = document.createElement("option");
-                newOption.value = templateHash; 
-                newOption.text = categoryName; 
+                newOption.value = templateHash;
+                newOption.text = categoryName;
                 newOption.setAttribute("data-hash", templateHash);
                 templateSelect.appendChild(newOption);
               }
-              templateSelect.value = templateHash; 
+              templateSelect.value = templateHash;
             }
         } else {
             if (res && res.error === "kaspi_dup_hash") {
-                throw new Error("⚠️ " + (typeof translations !== 'undefined' ? translations[currentLang]["kaspi_dup_hash_back"].replace("{name}", res.existingName) : "Шаблон уже существует"));
+                throw new Error("⚠️ Шаблон уже существует");
             }
             throw new Error(res ? res.error : "Пустой ответ от сервера");
         }
 
-        window.showLoading(translations[currentLang].msg_connect_db);
+        if (typeof window.showLoading === "function") window.showLoading("Подключение БД...");
         if (fileNameSpan) {
-          fileNameSpan.innerText = `⏳ ${translations[currentLang].msg_connect_db}`;
+          fileNameSpan.innerText = `⏳ Подключение БД...`;
           fileNameSpan.style.color = "var(--accent-blue)";
         }
 
         const dbResponse = await window.smartFetch(
-          typeof APPS_SCRIPT_URL !== "undefined" ? APPS_SCRIPT_URL : window.APPS_SCRIPT_URL,
+          typeof APPS_SCRIPT_URL !== "undefined" ? APPS_SCRIPT_URL : (window.APPS_SCRIPT_URL || ""),
           {
             action: "getKaspiExportData",
             api_key: typeof CLIENT_API_KEY !== "undefined" ? CLIENT_API_KEY : "",
@@ -4975,16 +4965,12 @@ async function handleTemplateUpload(event) {
           fileNameSpan.style.color = "var(--text-main)";
         }
       } finally {
-        fileInput.disabled = false;
-        window.hideLoading();
+        if (fileInput) fileInput.disabled = false;
+        if (typeof window.hideLoading === "function") window.hideLoading();
       }
     };
     reader.readAsArrayBuffer(file);
-  } catch (error) {
-    console.error("Критическая ошибка:", error);
-    fileInput.disabled = false;
-    window.hideLoading();
-  }
+  }, 50);
 }
 
 // Глобальный объект для хранения словарей Каспи
@@ -9617,7 +9603,7 @@ window.startNtScanner = function () {
 
   Quagga.onDetected(window.handleNtQuaggaDetection);
 };
-
+handleTemplateUpload
 // 3. Обработка штрихкода
 window.handleNtQuaggaDetection = function (result) {
   if (!result || !result.codeResult || !result.codeResult.code) return;
