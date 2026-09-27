@@ -10834,7 +10834,7 @@ window.generateExportFile = async function (target = 'local') {
     });
 
     if (insertedCount === 0) {
-        alert("⚠️ Скрипт отработал, но данные пустые. Проверь, заполнены ли штрихкоды и названия в базе!");
+        alert(`⚠️ Данные не состыковались!\n\nПамять маппинга:\n${JSON.stringify(memory)}\n\nЧто пришло в первом товаре:\n${JSON.stringify(items[0], null, 2)}`);
         throw new Error("Пустые данные");
     }
 
