@@ -10735,6 +10735,27 @@ window.generateExportFile = async function (target = 'local') {
 
   try {
     const items = window.kaspiExportItems;
+    // === ДЕБАГ: ПОДМЕНА ПЕРВОГО ТОВАРА НА МЕЧЕНЫЙ ===
+    if (items.length > 0) {
+        items[0] = {
+            item_id: "0_Айди",
+            name: "1_Название",
+            barcode: "2_Штрихкод",
+            price: 333,
+            qty: 444,
+            attributes: {
+                "brand": "5_Бренд",
+                "model": "6_Модель",
+                "radius": "7_Радиус",
+                "season": "8_Сезонность",
+                "spikes": "9_Шипы"
+            }
+        };
+        // Выводим в консоль, чтобы сверить JSON и маппинг
+        console.log("=== ТЕСТОВЫЙ JSON ТОВАРА ===", JSON.stringify(items[0], null, 2));
+        console.log("=== ТЕКУЩАЯ ПАМЯТЬ МАППИНГА ===", JSON.stringify(memory, null, 2));
+    }
+    // ===============================================
     if (!items || items.length === 0) throw new Error("Нет товаров для выгрузки.");
     if (!window.rawKaspiTemplateBuffer) throw new Error("Оригинальный шаблон не найден в памяти.");
 
