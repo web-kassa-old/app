@@ -4916,12 +4916,12 @@ async function handleTemplateUpload(event) {
         if (templateSelect) {
           if (!isDuplicate) {
             const newOption = document.createElement("option");
-            // Проверка на hashPrefix, чтобы не было ReferenceError
-            newOption.value = typeof hashPrefix !== 'undefined' ? hashPrefix : categoryName; 
-            newOption.text = categoryName; // Текст остается читаемым
+            newOption.value = templateHash; // ИСПРАВЛЕНО: используем правильный хэш
+            newOption.text = categoryName;
+            newOption.setAttribute("data-hash", templateHash); // Привязываем хэш к элементу
             templateSelect.appendChild(newOption);
           }
-          templateSelect.value = typeof hashPrefix !== 'undefined' ? hashPrefix : categoryName; 
+          templateSelect.value = templateHash; // ИСПРАВЛЕНО
         }
 
         // 4. Подтягиваем динамические ключи из базы
