@@ -4519,7 +4519,7 @@ window.openExportModal = async function() {
         const url = typeof APPS_SCRIPT_URL !== "undefined" ? APPS_SCRIPT_URL : window.APPS_SCRIPT_URL;
         const payload = { action: 'getPendingExportsBackend', api_key: CLIENT_API_KEY };
         
-        const res = await window.smartFetch(url, payload, 'kaspi_pending_exports', 0);
+        const res = await window.smartFetch(url, payload, 'kaspi_pending_' + Date.now(), 0);
 
         if (res && res.success && res.pendingGroups && res.pendingGroups.length > 0) {
             select.innerHTML = '<option value="">-- Выберите партию для выгрузки --</option>';
