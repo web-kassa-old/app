@@ -10750,32 +10750,38 @@ window.generateExportFile = async function (target = 'local') {
         throw new Error("В настройках шаблона нет ключей systemKeys.");
     }
 
-    // 2. ЗАГРУЖАЕМ ШАБЛОН ИЗ BASE64 (Все цвета, списки и форматы сохраняются!)
+    // 2. ЗАГРУЖАЕМ ШАБЛОН ИЗ BASE64
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(window.rawKaspiTemplateBuffer);
-    const worksheet = config.targetSheetName ? workbook.getWorksheet(config.targetSheetName) : workbook.worksheets[0];
-
-    if (!worksheet) throw new Error("Не удалось найти лист в шаблоне.");
-
-    // 3. Ищем стартовую строку (обычно у Kaspi 3 строки заголовков)
-    let lastRowWithData = 3; 
-    const totalRows = Math.min(worksheet.actualRowCount || worksheet.rowCount, 5000);
-    for (let i = totalRows; i >= 1; i--) {
-        const row = worksheet.getRow(i);
-        let rowHasText = false;
-        row.eachCell((cell) => {
-            if (cell.value !== null && cell.value !== undefined && cell.value !== "") rowHasText = true;
-        });
-        if (rowHasText) {
-            lastRowWithData = Math.max(3, i);
-            break; 
+    
+    // === УМНЫЙ ПОИСК ЛИСТА ===
+    let worksheet = null;
+    workbook.worksheets.forEach(ws => {
+        const row2 = ws.getRow(2);
+        if (row2) {
+            row2.eachCell(cell => {
+                if (String(cell.value).includes('merchant_sku')) {
+                    worksheet = ws;
+                }
+            });
         }
+    });
+    
+    // Если не нашли по ключу, берем целевой лист из конфига или самый первый
+    if (!worksheet) {
+        worksheet = config.targetSheetName ? workbook.getWorksheet(config.targetSheetName) : workbook.worksheets[0];
     }
-    const startRow = lastRowWithData + 1;
+    
+    if (!worksheet) throw new Error("Не удалось найти рабочий лист в шаблоне.");
+
+    // 3. Данные у Kaspi ВСЕГДА начинаются с 4-й строки.
+    const startRow = 4;
+    let insertedCount = 0;
 
     // 4. Заполняем товары напрямую в красивый шаблон
     items.forEach((item, rowIndex) => {
         const row = worksheet.getRow(startRow + rowIndex);
+        let rowHasData = false;
         
         systemKeys.forEach((key, colIndex) => {
             let value = "";
@@ -10799,15 +10805,23 @@ window.generateExportFile = async function (target = 'local') {
 
             if (value !== "") {
                 row.getCell(colIndex + 1).value = value;
+                rowHasData = true;
             }
         });
+        
+        if (rowHasData) insertedCount++;
     });
+
+    console.log(`Успешно обработано товаров: ${insertedCount} из ${items.length}`);
+    if (insertedCount === 0) {
+        alert("⚠️ Скрипт сработал, но данные не подошли под колонки Kaspi! Проверь ключи.");
+    }
 
     // 5. Генерируем финальный буфер
     const buffer = await workbook.xlsx.writeBuffer();
     const dateStr = new Date().toISOString().slice(0, 10);
     
-    // МЕНЯЕМ ТОЛЬКО ВЫВЕСКУ НА ВЫХОДЕ: отдаем XLSX, чтобы Microsoft Excel не блокировал файл
+    // МЕНЯЕМ ВЫВЕСКУ НА ВЫХОДЕ: отдаем XLSX
     const fileName = `Kaspi_Export_${dateStr}.xlsx`;
 
     if (target === 'local') {
@@ -10819,7 +10833,7 @@ window.generateExportFile = async function (target = 'local') {
         link.click();
         document.body.removeChild(link);
 
-        // 6. Скрытно обновляем статусы на сервере (pending -> exported)
+        // 6. Скрытно обновляем статусы на сервере
         if (window.kaspiExportRowIndexes && window.kaspiExportRowIndexes.length > 0) {
             const url = typeof APPS_SCRIPT_URL !== "undefined" ? APPS_SCRIPT_URL : window.APPS_SCRIPT_URL;
             fetch(url, {
