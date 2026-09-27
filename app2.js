@@ -10938,6 +10938,7 @@ window.generateExportFile = async function (target = 'local') {
 
   try {
     const items = window.kaspiExportItems;
+    
     // === ДЕБАГ: ПОДМЕНА ПЕРВОГО ТОВАРА НА МЕЧЕНЫЙ ===
     if (items.length > 0) {
         items[0] = {
@@ -10951,12 +10952,16 @@ window.generateExportFile = async function (target = 'local') {
                 "model": "6_Модель",
                 "radius": "7_Радиус",
                 "season": "8_Сезонность",
-                "spikes": "9_Шипы"
+                "spikes": "9_Шипы",
+                "Диаметр диска": "14",
+                "Ширина профиля": "175",
+                "Высота профиля": "70"
             }
         };
         console.log("=== ТЕСТОВЫЙ JSON ТОВАРА ===", JSON.stringify(items[0], null, 2));
     }
     // ===============================================
+
     if (!items || items.length === 0) throw new Error("Нет товаров для выгрузки.");
     if (!window.rawKaspiTemplateBuffer) throw new Error("Оригинальный шаблон не найден в памяти.");
 
@@ -10999,7 +11004,6 @@ window.generateExportFile = async function (target = 'local') {
     if (!worksheet) worksheet = workbook.worksheets[0];
     if (sysKeyRowIndex === -1) throw new Error("Не удалось найти строку с merchant_sku в шаблоне.");
 
-    // Берем и системные ключи (2 строка), и русские названия (3 строка)
     const sysKeyRow = worksheet.getRow(sysKeyRowIndex);
     const humanKeyRow = worksheet.getRow(sysKeyRowIndex + 1); 
 
@@ -11023,16 +11027,22 @@ window.generateExportFile = async function (target = 'local') {
 
           let sourceDbField = "";
           
-          // Двойная проверка: ищем совпадение либо по ключу (Tires...), либо по русскому названию (Диаметр)
-          for (const [dbField, kaspiKeysArray] of Object.entries(memory)) {
-              if (Array.isArray(kaspiKeysArray)) {
-                  if (kaspiKeysArray.includes(kaspiKey) || kaspiKeysArray.includes(humanKey)) {
-                      sourceDbField = dbField;
-                      break;
+          // === НОВАЯ, УМНАЯ ЧИТАЛКА ПАМЯТИ ===
+          // 1. Ищем прямое совпадение по системному ключу или русскому названию
+          if (memory[kaspiKey]) sourceDbField = memory[kaspiKey];
+          else if (memory[humanKey]) sourceDbField = memory[humanKey];
+          else {
+              // 2. Fallback: на случай, если память записана "наоборот"
+              for (const [key, value] of Object.entries(memory)) {
+                  if (Array.isArray(value) && (value.includes(kaspiKey) || value.includes(humanKey))) {
+                      sourceDbField = key; break;
+                  } else if (value === kaspiKey || value === humanKey) {
+                      sourceDbField = key; break;
                   }
               }
           }
 
+          // Если в памяти вообще ничего нет, применяем базовые правила
           if (!sourceDbField) {
               if (kaspiKey === 'merchant_sku' || kaspiKey === 'sku') sourceDbField = 'barcode';
               else if (kaspiKey === 'name' || kaspiKey === 'title') sourceDbField = 'name';
@@ -11041,19 +11051,43 @@ window.generateExportFile = async function (target = 'local') {
           }
 
           let value = "";
+          
+          // === УМНАЯ ПОДСТАНОВКА ЗНАЧЕНИЙ ===
           if (sourceDbField === 'barcode') value = item.barcode || item.item_id || "";
           else if (sourceDbField === 'name') value = String(item.name || item.item_name || "");
           else if (sourceDbField === 'price') value = Number(item.price || item.cost || item.retail_price) || 0;
           else if (sourceDbField === 'qty') value = Number(item.qty || item.quantity) || 0;
-          else if (sourceDbField.startsWith("json_")) {
+          
+          // Если значение жестко выбрано из справочника Каспи (static_)
+          else if (sourceDbField && sourceDbField.startsWith("static_")) {
+              value = sourceDbField.replace("static_", "");
+          }
+          
+          // Если это характеристика из базы (json_...)
+          else if (sourceDbField && sourceDbField.startsWith("json_")) {
               const attrKey = sourceDbField.replace("json_", "");
-              let attrs = typeof item.attributes === 'string' ? JSON.parse(item.attributes || '{}') : (item.attributes || {});
-              if (attrs[attrKey] !== undefined && attrs[attrKey] !== null) value = attrs[attrKey];
+              let attrs = {};
+              try { attrs = typeof item.attributes === 'string' ? JSON.parse(item.attributes || '{}') : (item.attributes || {}); } catch(e){}
+              
+              if (attrs[attrKey] !== undefined && attrs[attrKey] !== null && attrs[attrKey] !== "") {
+                  value = attrs[attrKey];
+              } else {
+                  // Ищем без учета регистра (на случай если в базе "диаметр", а в памяти "Диаметр")
+                  const lowerAttrKey = attrKey.toLowerCase();
+                  for (const [k, v] of Object.entries(attrs)) {
+                      if (k.toLowerCase() === lowerAttrKey) {
+                          value = v;
+                          break;
+                      }
+                  }
+              }
           } else if (sourceDbField) {
-              let attrs = typeof item.attributes === 'string' ? JSON.parse(item.attributes || '{}') : (item.attributes || {});
+              let attrs = {};
+              try { attrs = typeof item.attributes === 'string' ? JSON.parse(item.attributes || '{}') : (item.attributes || {}); } catch(e){}
               if (attrs[sourceDbField] !== undefined && attrs[sourceDbField] !== null) value = attrs[sourceDbField];
           }
 
+          // Записываем в ячейку только если нашли реальное значение
           if (value !== "" && value !== undefined && value !== null) {
               targetRow.getCell(colNumber).value = value;
               rowHasData = true;
@@ -11064,7 +11098,7 @@ window.generateExportFile = async function (target = 'local') {
     });
 
     if (insertedCount === 0) {
-        alert("⚠️ Скрипт отработал, но данные пустые. Проверьте маппинг.");
+        alert("⚠️ Скрипт отработал, но данные пустые. Проверьте сопоставление колонок в настройках шаблона.");
         throw new Error("Пустые данные");
     }
 
