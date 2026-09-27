@@ -10826,7 +10826,7 @@ window.generateExportFile = async function (target = 'local') {
     });
 
     if (exportData.length === 0) {
-       alert("⚠️ Скрипт отработал, но все значения пустые! Связи колонок не совпали с данными товара.");
+       alert(`⚠️ Данные пустые!\n\nВот как скрипт понял маппинг:\n${JSON.stringify(mappingConfig, null, 2)}\n\nА вот что лежит в товаре:\n${JSON.stringify(items[0], null, 2)}`);
        throw new Error("Пустые данные");
     }
 
