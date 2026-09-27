@@ -10234,7 +10234,258 @@ async function handleDriveClick(btnElement, dataKey, expectedName) {
     btnElement.style.pointerEvents = "auto";
   }
 }
+window.processKaspiTemplate = async function () {
+  const nameInput = document.getElementById("kaspi-category-name");
+  const fileInput = document.getElementById("kaspi-template-file");
+  const statusDiv = document.getElementById("kaspi-status");
+  const saveBtn = document.getElementById("btn-save-kaspi");
+  const categoryName = nameInput.value.trim();
 
+  // Сбрасываем стили статуса
+  statusDiv.innerText = "";
+  statusDiv.style.color = "";
+
+  if (!categoryName || !fileInput.files[0]) {
+    if (!categoryName) nameInput.style.borderColor = "red";
+    if (!fileInput.files[0]) fileInput.style.borderColor = "red";
+    setTimeout(() => {
+      nameInput.style.borderColor = "#555";
+      fileInput.style.borderColor = "#555";
+    }, 2000);
+    return;
+  }
+
+  const templateSelect = document.getElementById("kaspiTemplateSelect");
+  if (templateSelect) {
+    const existingOptions = Array.from(templateSelect.options).map((opt) =>
+      opt.text.trim().toLowerCase(),
+    );
+    if (existingOptions.includes(categoryName.toLowerCase())) {
+      statusDiv.innerText = "⚠️ " + (typeof translations !== 'undefined' && translations[currentLang] ? translations[currentLang]["kaspi_dup_error"] : "Категория с таким именем уже существует!");
+      statusDiv.style.color = "#ff4444";
+      nameInput.style.borderColor = "#ff4444";
+      setTimeout(() => {
+        nameInput.style.borderColor = "#555";
+      }, 2000);
+      return;
+    }
+  }
+
+  if (typeof window.showLoading === "function") window.showLoading(null, "kaspi_saving");
+  saveBtn.disabled = true;
+
+  try {
+    const file = fileInput.files[0];
+    const reader = new FileReader();
+
+    reader.onload = async function (e) {
+      try {
+        // === ПЕРЕВОДИМ ЧТЕНИЕ НА EXCELJS С НАШИМ ДЕШИФРАТОРОМ ===
+        const workbook = new ExcelJS.Workbook();
+        await workbook.xlsx.load(e.target.result);
+
+        const getSafeText = (cell) => {
+            if (!cell || cell.value === null || cell.value === undefined) return "";
+            if (typeof cell.value === 'object') {
+                if (cell.value.richText) return cell.value.richText.map(rt => rt.text).join('').trim();
+                if (cell.value.result !== undefined) return String(cell.value.result).trim();
+            }
+            return String(cell.value).trim();
+        };
+
+        let targetSheet = workbook.worksheets.find(s => s.name.toLowerCase() === "attributes");
+        if (!targetSheet) targetSheet = workbook.worksheets.length > 1 ? workbook.worksheets[1] : workbook.worksheets[0];
+
+        const jsonData = [];
+        targetSheet.eachRow((row, rowNumber) => {
+          if (rowNumber > 20) return;
+          let rowData = [];
+          const maxCols = targetSheet.columnCount > 0 ? targetSheet.columnCount : 100;
+          for (let i = 1; i <= maxCols; i++) {
+            rowData.push(getSafeText(row.getCell(i)));
+          }
+          jsonData.push(rowData);
+        });
+
+        let requirements = [];
+        let systemKeys = [];
+        let humanNames = [];
+        const humMarkers = ["артикул", "модель", "бренд", "цена"];
+        const sysMarkers = ["merchant_sku", "model", "brand", "price"];
+
+        for (let i = 0; i < Math.min(jsonData.length, 20); i++) {
+          const rowText = jsonData[i].join(" ").toLowerCase();
+          if (!rowText.trim()) continue;
+
+          let humMatch = 0;
+          humMarkers.forEach((m) => { if (rowText.includes(m)) humMatch++; });
+          if (humMatch >= 2) {
+            humanNames = jsonData[i];
+            continue;
+          }
+
+          let sysMatch = 0;
+          sysMarkers.forEach((m) => { if (rowText.includes(m)) sysMatch++; });
+          if (sysMatch >= 2) {
+            systemKeys = jsonData[i];
+            continue;
+          }
+
+          if (rowText.includes("обязательное") || rowText.includes("обязат.")) {
+            requirements = jsonData[i];
+            continue;
+          }
+        }
+
+        if (humanNames.length === 0 || systemKeys.length === 0) {
+          throw new Error("Не удалось распознать структуру шаблона.");
+        }
+
+        // Очищаем хвосты от пустых колонок, чтобы хэш был идеальным
+        while (humanNames.length > 0 && !humanNames[humanNames.length - 1]) humanNames.pop();
+        while (systemKeys.length > 0 && !systemKeys[systemKeys.length - 1]) systemKeys.pop();
+
+        // === ГЕНЕРАЦИЯ ХЭША ===
+        const hashData = new TextEncoder().encode(systemKeys.join("|"));
+        const hashBuffer = await crypto.subtle.digest("SHA-256", hashData);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        const templateHash = "hash_" + hashArray.map((b) => b.toString(16).padStart(2, "0")).join("").substring(0, 12);
+
+        if (templateSelect) {
+          const matchingOption = Array.from(templateSelect.options).find(opt => opt.getAttribute("data-hash") === templateHash);
+          if (matchingOption) {
+            if (typeof window.hideLoading === "function") window.hideLoading();
+            statusDiv.innerText = "⚠️ " + (typeof translations !== 'undefined' && translations[currentLang] ? translations[currentLang]["kaspi_dup_hash_front"].replace("{name}", matchingOption.text) : "Шаблон уже загружен!");
+            statusDiv.style.color = "#ff4444";
+            saveBtn.disabled = false;
+            return; 
+          }
+        }
+
+        let dictionary = {};
+        let valueSheet = workbook.worksheets.find(s => s.name.toLowerCase() === "values" || s.name.toLowerCase() === "value" || s.name.toLowerCase() === "значения");
+
+        if (valueSheet) {
+          const rowsData = [];
+          valueSheet.eachRow((row) => {
+             let rData = [];
+             const maxCols = valueSheet.columnCount > 0 ? valueSheet.columnCount : 50;
+             for (let i = 1; i <= maxCols; i++) {
+                 rData.push(getSafeText(row.getCell(i)));
+             }
+             rowsData.push(rData);
+          });
+
+          if (rowsData.length > 0) {
+            const headersRow = rowsData[0];
+            headersRow.forEach((header, colIndex) => {
+              if (!header) return;
+              let colName = String(header).trim();
+              let colValues = [];
+              for (let i = 1; i < rowsData.length; i++) {
+                let cellValue = rowsData[i][colIndex];
+                if (cellValue !== undefined && cellValue !== null && cellValue !== "") {
+                  colValues.push(String(cellValue).trim());
+                }
+              }
+              let uniqueValues = [...new Set(colValues)];
+              if (uniqueValues.length > 0) {
+                dictionary[colName] = uniqueValues;
+              }
+            });
+          }
+        }
+
+        const extractedHeaders = {
+          templateHash: templateHash,
+          humanNames: humanNames,
+          systemKeys: systemKeys,
+          requirements: requirements,
+          dictionary: dictionary,
+        };
+
+        const base64Reader = new FileReader();
+        base64Reader.readAsDataURL(file);
+
+        base64Reader.onload = async function () {
+          try {
+            const base64String = base64Reader.result.split(",")[1];
+            const payload = {
+              action: "saveKaspiTemplate",
+              api_key: typeof CLIENT_API_KEY !== "undefined" ? CLIENT_API_KEY : window.CLIENT_API_KEY,
+              category: categoryName,
+              headersJson: JSON.stringify(extractedHeaders),
+              fileBase64: base64String,
+            };
+
+            const res = await window.smartFetch(
+              typeof APPS_SCRIPT_URL !== "undefined" ? APPS_SCRIPT_URL : window.APPS_SCRIPT_URL,
+              payload,
+            );
+
+            if (res && res.success) {
+              if (typeof window.hideLoading === "function") window.hideLoading();
+              statusDiv.innerText = "✅ " + (typeof translations !== 'undefined' && translations[currentLang] ? translations[currentLang]["kaspi_success"] : "Успешно!");
+
+              setTimeout(async () => {
+                if (typeof closeKaspiManager === "function") closeKaspiManager();
+
+                if (window.kaspiModalSource === "income") {
+                  if (typeof window.loadKaspiTemplatesFromServer === "function") {
+                    await window.loadKaspiTemplatesFromServer();
+                    if (templateSelect) {
+                      for (let i = 0; i < templateSelect.options.length; i++) {
+                        if (templateSelect.options[i].text.trim().toLowerCase() === categoryName.toLowerCase()) {
+                          templateSelect.selectedIndex = i;
+                          templateSelect.dispatchEvent(new Event("change"));
+                          break;
+                        }
+                      }
+                    }
+                  }
+                }
+              }, 1000);
+            } else {
+              if (res && res.error === "kaspi_dup_hash") {
+                throw new Error("⚠️ " + (typeof translations !== 'undefined' && translations[currentLang] ? translations[currentLang]["kaspi_dup_hash_back"].replace("{name}", res.existingName) : "Дубликат шаблона!"));
+              }
+              throw new Error(res ? res.error : "Пустой ответ");
+            }
+          } catch (err) {
+            console.error("Ошибка отправки:", err);
+            if (typeof window.hideLoading === "function") window.hideLoading();
+            if (err.message && err.message.includes("⚠️")) {
+              statusDiv.innerText = err.message;
+            } else {
+              statusDiv.innerText = "❌ " + (typeof translations !== 'undefined' && translations[currentLang] ? translations[currentLang]["kaspi_err_net"] : "Ошибка сети");
+            }
+            statusDiv.style.color = "#ff4444";
+          } finally {
+            saveBtn.disabled = false;
+          }
+        };
+
+        base64Reader.onerror = function () {
+          throw new Error("Ошибка чтения Base64");
+        };
+      } catch (err) {
+        console.error("Ошибка парсинга XLSX/ExcelJS:", err);
+        if (typeof window.hideLoading === "function") window.hideLoading();
+        statusDiv.innerText = "❌ Ошибка чтения файла";
+        statusDiv.style.color = "#ff4444";
+        saveBtn.disabled = false;
+      }
+    };
+
+    reader.readAsArrayBuffer(file);
+  } catch (error) {
+    console.error("Критическая ошибка:", error);
+    if (typeof window.hideLoading === "function") window.hideLoading();
+    statusDiv.innerText = "❌ Системная ошибка";
+    statusDiv.style.color = "#ff4444";
+    saveBtn.disabled = false;
+  }
+};
 function closeDriveModal() {
   document.getElementById("drive-base-modal").style.display = "none";
 }
