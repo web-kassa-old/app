@@ -4592,19 +4592,36 @@ window.handleCategorySelectForExport = async function(event) {
 
         if (res && res.success && res.templateBase64 && res.items && res.items.length > 0) {
             
-            // === ИСПРАВЛЕНИЕ: Превращаем текстовый Base64 в бинарный файл (ArrayBuffer) ===
-            let base64Data = res.templateBase64;
-            // Отрезаем технический префикс, если он случайно сохранился в базе
-            if (base64Data.includes(',')) {
-                base64Data = base64Data.split(',')[1];
+            // === БРОНИРОВАННАЯ РАСШИФРОВКА BASE64 ===
+            try {
+                let base64Data = res.templateBase64;
+                
+                // 1. Отрезаем технический заголовок "data:..." если он есть
+                if (base64Data.includes(',')) {
+                    base64Data = base64Data.split(',')[1];
+                }
+                
+                // 2. Жестко вычищаем пробелы, переносы строк и любой мусор
+                base64Data = base64Data.replace(/[^A-Za-z0-9+/=]/g, "");
+                
+                // 3. Восстанавливаем длину (atob требует, чтобы количество символов было кратно 4)
+                while (base64Data.length % 4 !== 0) {
+                    base64Data += "=";
+                }
+
+                // 4. Расшифровываем
+                const binaryString = window.atob(base64Data);
+                const bytes = new Uint8Array(binaryString.length);
+                for (let i = 0; i < binaryString.length; i++) {
+                    bytes[i] = binaryString.charCodeAt(i);
+                }
+                window.rawKaspiTemplateBuffer = bytes.buffer; // Готовый бинарник!
+
+            } catch (decodeErr) {
+                console.error("Ошибка очистки Base64:", decodeErr);
+                throw new Error("Не удалось расшифровать бланк. Файл поврежден.");
             }
-            const binaryString = window.atob(base64Data);
-            const bytes = new Uint8Array(binaryString.length);
-            for (let i = 0; i < binaryString.length; i++) {
-                bytes[i] = binaryString.charCodeAt(i);
-            }
-            window.rawKaspiTemplateBuffer = bytes.buffer; // Теперь тут правильный бинарник!
-            // ============================================================================
+            // ==========================================
 
             window.kaspiExportItems = res.items;           
             window.kaspiExportConfig = res.templateConfig; 
