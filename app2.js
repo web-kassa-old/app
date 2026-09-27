@@ -4591,8 +4591,21 @@ window.handleCategorySelectForExport = async function(event) {
         }
 
         if (res && res.success && res.templateBase64 && res.items && res.items.length > 0) {
-            // Сохраняем всё в глобальные переменные
-            window.rawKaspiTemplateBuffer = res.templateBase64;
+            
+            // === ИСПРАВЛЕНИЕ: Превращаем текстовый Base64 в бинарный файл (ArrayBuffer) ===
+            let base64Data = res.templateBase64;
+            // Отрезаем технический префикс, если он случайно сохранился в базе
+            if (base64Data.includes(',')) {
+                base64Data = base64Data.split(',')[1];
+            }
+            const binaryString = window.atob(base64Data);
+            const bytes = new Uint8Array(binaryString.length);
+            for (let i = 0; i < binaryString.length; i++) {
+                bytes[i] = binaryString.charCodeAt(i);
+            }
+            window.rawKaspiTemplateBuffer = bytes.buffer; // Теперь тут правильный бинарник!
+            // ============================================================================
+
             window.kaspiExportItems = res.items;           
             window.kaspiExportConfig = res.templateConfig; 
             window.kaspiExportRowIndexes = res.rowIndexes; 
