@@ -10751,9 +10751,7 @@ window.generateExportFile = async function (target = 'local') {
                 "spikes": "9_Шипы"
             }
         };
-        // Выводим в консоль, чтобы сверить JSON и маппинг
         console.log("=== ТЕСТОВЫЙ JSON ТОВАРА ===", JSON.stringify(items[0], null, 2));
-        console.log("=== ТЕКУЩАЯ ПАМЯТЬ МАППИНГА ===", JSON.stringify(memory, null, 2));
     }
     // ===============================================
     if (!items || items.length === 0) throw new Error("Нет товаров для выгрузки.");
