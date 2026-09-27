@@ -4747,6 +4747,16 @@ async function handleTemplateUpload(event) {
         const workbook = new ExcelJS.Workbook();
         await workbook.xlsx.load(e.target.result);
 
+        // === НАШ НОВЫЙ ДЕШИФРАТОР СЛОЖНЫХ ЯЧЕЕК ===
+        const getSafeText = (cell) => {
+            if (!cell || cell.value === null || cell.value === undefined) return "";
+            if (typeof cell.value === 'object') {
+                if (cell.value.richText) return cell.value.richText.map(rt => rt.text).join('').trim();
+                if (cell.value.result !== undefined) return String(cell.value.result).trim();
+            }
+            return String(cell.value).trim();
+        };
+
         // 1. Читаем основной лист attributes
         let targetSheet = workbook.worksheets.find(
           (s) => s.name.toLowerCase() === "attributes",
@@ -4766,7 +4776,8 @@ async function handleTemplateUpload(event) {
             targetSheet.columnCount > 0 ? targetSheet.columnCount : 100;
           for (let i = 1; i <= maxCols; i++) {
             const cell = row.getCell(i);
-            rowData.push(cell.text ? cell.text.toString().trim() : "");
+            // ПРИМЕНЯЕМ ДЕШИФРАТОР ВМЕСТО cell.text
+            rowData.push(getSafeText(cell));
           }
           jsonData.push(rowData);
         });
@@ -4827,7 +4838,8 @@ async function handleTemplateUpload(event) {
               valuesSheet.columnCount > 0 ? valuesSheet.columnCount : 50;
             for (let i = 1; i <= maxCols; i++) {
               let cell = row.getCell(i);
-              rData.push(cell.text ? cell.text.toString().trim() : "");
+              // ПРИМЕНЯЕМ ДЕШИФРАТОР ВМЕСТО cell.text
+              rData.push(getSafeText(cell));
             }
             valuesData.push(rData);
           });
@@ -4904,11 +4916,12 @@ async function handleTemplateUpload(event) {
         if (templateSelect) {
           if (!isDuplicate) {
             const newOption = document.createElement("option");
-            newOption.value = hashPrefix; // Подставляем сгенерированный хэш (12 символов)
+            // Проверка на hashPrefix, чтобы не было ReferenceError
+            newOption.value = typeof hashPrefix !== 'undefined' ? hashPrefix : categoryName; 
             newOption.text = categoryName; // Текст остается читаемым
             templateSelect.appendChild(newOption);
           }
-          templateSelect.value = hashPrefix; // Выбираем этот хэш в селекте
+          templateSelect.value = typeof hashPrefix !== 'undefined' ? hashPrefix : categoryName; 
         }
 
         // 4. Подтягиваем динамические ключи из базы
