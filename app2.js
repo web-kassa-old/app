@@ -10728,39 +10728,74 @@ window.generateExportFile = async function (target = 'local') {
   const originalText = btn ? btn.innerText : "Выгрузить";
 
   if (btn) {
-      btn.innerText = "⏳ Загрузка товаров из базы...";
+      btn.innerText = "⏳ Загрузка товаров...";
       btn.disabled = true;
   }
   if (typeof window.showLoading === "function") window.showLoading(null, "kaspi_saving");
 
   try {
-    // 1. Считываем схему интерфейса (ТВОЙ ОРИГИНАЛЬНЫЙ КОД)
-    const selects = document.querySelectorAll(".mapper-select");
-    const mappingConfig = [];
+    // === ШАГ 1: ИЩЕМ МАППИНГ (С ЭКРАНА ИЛИ ИЗ JSON-ПАМЯТИ) ===
+    let mappingConfig = [];
     let maxColIndex = 0;
 
-    const row1 = []; 
-    const row2 = []; 
+    const selects = document.querySelectorAll(".mapper-select");
+    
+    if (selects.length > 0) {
+        // РЕЖИМ 1: Выгрузка со страницы ручного маппинга
+        selects.forEach((select) => {
+            const colIndex = parseInt(select.getAttribute("data-col-index"));
+            if (colIndex > maxColIndex) maxColIndex = colIndex;
+            mappingConfig.push({ index: colIndex, ourSource: select.value });
+        });
+    } else {
+        // РЕЖИМ 2: Выгрузка из Очереди (берем спаренные ключи из базы)
+        const config = window.kaspiExportConfig || {};
+        const systemKeys = config.systemKeys || [];
+        
+        let memory = {};
+        try {
+            // Пытаемся прочитать mapper_memory (JSON-пары)
+            memory = typeof config.mapper_memory === 'string' ? JSON.parse(config.mapper_memory) : (config.mapper_memory || {});
+        } catch(e) {}
 
-    selects.forEach((select) => {
-      const colIndex = parseInt(select.getAttribute("data-col-index"));
-      if (colIndex > maxColIndex) maxColIndex = colIndex;
+        systemKeys.forEach((sysKey, index) => {
+            let source = "";
+            
+            // Ищем, к какому полю базы (например 'json_Бренд') привязан ключ Kaspi в JSON
+            for (const [dbField, kaspiKeysArray] of Object.entries(memory)) {
+                if (Array.isArray(kaspiKeysArray) && kaspiKeysArray.includes(sysKey)) {
+                    source = dbField;
+                    break;
+                }
+            }
+            
+            // Если в JSON пары нет, включаем базовую страховку
+            if (!source) {
+                if (sysKey === 'merchant_sku' || sysKey === 'sku') source = 'barcode';
+                else if (sysKey === 'name' || sysKey === 'title') source = 'name';
+                else if (sysKey === 'price') source = 'price';
+                else if (sysKey === 'quantity' || sysKey === 'qty') source = 'qty';
+            }
+            
+            if (source) {
+                mappingConfig.push({ index: index, ourSource: source });
+                if (index > maxColIndex) maxColIndex = index;
+            }
+        });
+    }
 
-      mappingConfig.push({ index: colIndex, ourSource: select.value });
+    if (mappingConfig.length === 0) {
+        throw new Error("Маппинг пуст! Не удалось связать колонки.");
+    }
 
-      const rawColName = select.getAttribute("data-col-name") || "";
-      row1[colIndex] = rawColName.replace(/&quot;/g, '"');
-      row2[colIndex] = select.getAttribute("data-sys-key") || "";
-    });
-
-    // 2. Берем товары (ТВОЙ ОРИГИНАЛЬНЫЙ КОД, адаптированный под новую систему с очередью)
+    // === ШАГ 2: БЕРЕМ ТОВАРЫ ===
     if (!window.kaspiExportItems || window.kaspiExportItems.length === 0) {
         throw new Error("Нет товаров для выгрузки. Выберите партию заново.");
     }
     const items = window.kaspiExportItems;
-    btn.innerText = "⏳ Формирование файла...";
+    if (btn) btn.innerText = "⏳ Формирование файла...";
 
-    // 3. Подготавливаем только данные товаров (ТВОЙ ОРИГИНАЛЬНЫЙ КОД)
+    // === ШАГ 3: СОБИРАЕМ ДАННЫЕ (ТВОЙ ОРИГИНАЛЬНЫЙ АЛГОРИТМ) ===
     const exportData = [];
 
     items.forEach((item) => {
@@ -10771,7 +10806,6 @@ window.generateExportFile = async function (target = 'local') {
         const source = config.ourSource;
         let value = "";
 
-        // Применяем маппинг
         if (source === "barcode") value = item.barcode || item.item_id || "";
         else if (source === "name") value = String(item.name || item.item_name || "");
         else if (source === "price") value = Number(item.price || item.cost || item.retail_price) || 0;
@@ -10788,32 +10822,27 @@ window.generateExportFile = async function (target = 'local') {
         if (value !== "" && value !== null && value !== undefined) hasData = true;
       });
 
-      if (hasData) {
-        exportData.push(row);
-      }
+      if (hasData) exportData.push(row);
     });
 
     if (exportData.length === 0) {
-       alert("⚠️ Скрипт отработал, но все значения пустые! Проверьте, заполнены ли товары в базе.");
+       alert("⚠️ Скрипт отработал, но все значения пустые! Связи колонок не совпали с данными товара.");
        throw new Error("Пустые данные");
     }
 
-    // 4. Вставляем данные в ОРИГИНАЛЬНЫЙ ШАБЛОН через ExcelJS
+    // === ШАГ 4: ИЩЕМ СТРОКУ В ШАБЛОНЕ И ВСТАВЛЯЕМ ===
     if (!window.rawKaspiTemplateBuffer) {
-      throw new Error("Оригинальный шаблон не найден в памяти. Пожалуйста, загрузите файл заново.");
+      throw new Error("Оригинальный шаблон не найден в памяти.");
     }
 
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(window.rawKaspiTemplateBuffer);
 
-    // Ищем нужный лист (если в памяти есть имя листа - берем его)
     let worksheet = window.kaspiTargetSheetName ? workbook.getWorksheet(window.kaspiTargetSheetName) : null;
+    let startRow = 4;
     
-    // === НОВЫЙ ИДЕАЛЬНЫЙ ПОИСК СТРОКИ ===
-    let startRow = 4; // по умолчанию
-    
+    // Ищем латинские ключи сверху вниз (железобетонный поиск)
     if (!worksheet) {
-        // Если лист не был сохранен по имени, ищем его по наличию слова 'merchant_sku'
         workbook.worksheets.forEach(ws => {
             for (let i = 1; i <= 6; i++) {
                 const row = ws.getRow(i);
@@ -10825,20 +10854,17 @@ window.generateExportFile = async function (target = 'local') {
                 }
                 if (found) {
                     worksheet = ws;
-                    startRow = i + 2; // Нашли ключи? Пропускаем 1 строку (с требованиями) и пишем!
+                    startRow = i + 2; // Пропускаем строку с требованиями
                 }
             }
         });
     }
 
-    if (!worksheet) {
-        worksheet = workbook.worksheets[0]; // Жесткий фоллбэк
-    }
+    if (!worksheet) worksheet = workbook.worksheets[0];
 
-    // Бережно вписываем данные в ячейки, не ломая стили
+    // Бережно вписываем данные
     exportData.forEach((rowData, rowIndex) => {
       const row = worksheet.getRow(startRow + rowIndex);
-
       rowData.forEach((val, colIndex) => {
         if (val !== undefined && val !== null && val !== "") {
           row.getCell(colIndex + 1).value = val;
@@ -10846,10 +10872,10 @@ window.generateExportFile = async function (target = 'local') {
       });
     });
 
-    // 5. Упаковываем файл и отдаем как XLSX (НОВЫЙ БЕЗОПАСНЫЙ ФОРМАТ)
+    // === ШАГ 5: СОХРАНЯЕМ КАК ЧИСТЫЙ XLSX ===
     const buffer = await workbook.xlsx.writeBuffer();
     const dateStr = new Date().toISOString().slice(0, 10);
-    const fileName = `Kaspi_Export_${dateStr}.xlsx`; // Сохраняем в XLSX, чтобы Excel не ругался
+    const fileName = `Kaspi_Export_${dateStr}.xlsx`;
 
     if (target === 'local') {
       const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
@@ -10860,7 +10886,7 @@ window.generateExportFile = async function (target = 'local') {
       link.click();
       document.body.removeChild(link);
 
-      // 6. Скрытно обновляем статусы на сервере (pending -> exported)
+      // Скрытно обновляем статусы на сервере
       if (window.kaspiExportRowIndexes && window.kaspiExportRowIndexes.length > 0) {
           const url = typeof APPS_SCRIPT_URL !== "undefined" ? APPS_SCRIPT_URL : window.APPS_SCRIPT_URL;
           fetch(url, {
