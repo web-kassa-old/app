@@ -4511,7 +4511,7 @@ window.openExportModal = async function() {
     const btnArea = document.getElementById('exportActionButtons');
     
     if (modal) modal.style.display = 'flex';
-    if (btnArea) btnArea.style.display = 'none'; 
+    if (btnArea) btnArea.style.display = 'none'; // Прячем кнопки до выбора
     
     select.innerHTML = '<option value="">-- Загрузка... --</option>';
 
@@ -4519,12 +4519,9 @@ window.openExportModal = async function() {
         const url = typeof APPS_SCRIPT_URL !== "undefined" ? APPS_SCRIPT_URL : window.APPS_SCRIPT_URL;
         const payload = { action: 'getPendingExportsBackend', api_key: CLIENT_API_KEY };
         
-        // === ПРЯМОЙ ЗАПРОС В ОБХОД КЭША (smartFetch отключен) ===
-        const response = await fetch(url, {
-            method: 'POST',
-            body: JSON.stringify(payload)
-        });
-        const res = await response.json();
+        // Используем smartFetch, но с уникальным ключом, чтобы всегда получать свежие остатки
+        const cacheKey = 'kaspi_pending_' + Date.now();
+        const res = await window.smartFetch(url, payload, cacheKey, 0);
 
         if (res && res.success && res.pendingGroups && res.pendingGroups.length > 0) {
             select.innerHTML = '<option value="">-- Выберите партию для выгрузки --</option>';
@@ -4532,14 +4529,12 @@ window.openExportModal = async function() {
                 select.innerHTML += `<option value="${group.hash}">${group.name} (ожидает: ${group.count} шт.)</option>`;
             });
         } else {
-            // Если массив пуст, выводим вообще ВСЁ, что прислал сервер
-            const errorMsg = res && res.error ? res.error : JSON.stringify(res);
-            select.innerHTML = `<option value="">⚠️ Ответ сервера: ${errorMsg}</option>`;
-            console.log("ПОЛНЫЙ ОТВЕТ СЕРВЕРА:", res);
+            const errorMsg = res && res.error ? res.error : "Нет партий, ожидающих выгрузки";
+            select.innerHTML = `<option value="">${errorMsg}</option>`;
         }
     } catch (e) {
-        console.error("Ошибка запроса:", e);
-        select.innerHTML = `<option value="">Критическая ошибка fetch: ${e.message}</option>`;
+        console.error("Ошибка загрузки данных для экспорта:", e);
+        select.innerHTML = '<option value="">Ошибка загрузки</option>';
     }
 };
 
@@ -4559,10 +4554,10 @@ window.closeExportModal = function() {
 
 // 2. Обработка выбора категории из списка
 window.handleCategorySelectForExport = async function(event) {
-    const category = event.target.value.trim();
+    const selectedHash = event.target.value.trim();
     const btnArea = document.getElementById('exportActionButtons');
 
-    if (!category) {
+    if (!selectedHash) {
         btnArea.style.display = 'none';
         return;
     }
@@ -4571,22 +4566,31 @@ window.handleCategorySelectForExport = async function(event) {
 
     try {
         const url = typeof APPS_SCRIPT_URL !== "undefined" ? APPS_SCRIPT_URL : window.APPS_SCRIPT_URL;
-        // Запрашиваем сам шаблон (Base64 и ключи) для выбранной категории
-        const payload = { action: 'getKaspiTemplateData', api_key: CLIENT_API_KEY, category: category };
-        const res = await window.smartFetch(url, payload);
+        
+        // Запрашиваем всё разом: шаблон, настройки колонок и сами товары!
+        const payload = { action: 'getKaspiExportItemsBackend', api_key: CLIENT_API_KEY, hash: selectedHash };
+        const res = await window.smartFetch(url, payload, 'kaspi_export_data_' + selectedHash + Date.now(), 0);
 
-        if (res && res.success && res.templateBase64) {
-            // Сохраняем оригинальный бланк в память для генератора ExcelJS
+        if (res && res.success && res.templateBase64 && res.items.length > 0) {
+            
+            // Сохраняем всё в глобальные переменные, чтобы кнопка выгрузки могла их забрать
             window.rawKaspiTemplateBuffer = res.templateBase64;
-            // Показываем кнопки "Скачать" и "Сохранить на Диск"
+            window.kaspiExportItems = res.items;           // Товары, которые прислал сервер
+            window.kaspiExportConfig = res.templateConfig; // Настройки колонок (mapping) из JSON
+            window.kaspiExportRowIndexes = res.rowIndexes; // Для будущего перевода статусов в exported
+
+            // Если в JSON сохранен целевой лист (targetSheetName), сохраняем его
+            window.kaspiTargetSheetName = res.templateConfig.targetSheetName || null;
+
             btnArea.style.display = 'flex';
         } else {
-            alert("Не удалось загрузить бланк шаблона для этой категории.");
+            const err = res.error || "Не удалось загрузить данные или нет товаров для выгрузки.";
+            alert("Ошибка: " + err);
             btnArea.style.display = 'none';
         }
     } catch (e) {
-        console.error("Ошибка загрузки шаблона:", e);
-        alert("Ошибка сети при загрузке шаблона.");
+        console.error("Ошибка загрузки данных партии:", e);
+        alert("Ошибка сети при загрузке данных партии.");
     } finally {
         if (typeof window.hideLoading === 'function') window.hideLoading();
     }
