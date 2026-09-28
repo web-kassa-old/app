@@ -394,7 +394,7 @@
         </button>
       </div>
 
-      <!-- МОДУЛЬ ЭКСПОРТА И МАППИНГА -->
+      <!-- МОДУЛЬ ЭКСПОРТА (ОЧИЩЕННЫЙ В 1 КЛИК) -->
       <div
         id="export-modal"
         style="
@@ -449,10 +449,9 @@
 
           <h3 style="margin-bottom: 20px; color: var(--accent-blue)">
             <span style="font-size: 1.2em; vertical-align: middle">📤</span>
-            <span data-i18n="export_title">НАСТРОЙКА ЭКСПОРТА</span>
+            <span data-i18n="export_title">ВЫГРУЗКА ДЛЯ KASPI</span>
           </h3>
 
-          <!-- ИЗМЕНЕНИЕ 1: Вместо загрузки файла - выбор категории -->
           <div class="file-input-wrapper" style="margin-bottom: 15px">
             <label
               style="
@@ -463,7 +462,7 @@
               "
               data-i18n="select_category_export"
             >
-              Выберите категорию для выгрузки:
+              Выберите партию для выгрузки:
             </label>
             <select
               id="exportCategorySelect"
@@ -479,28 +478,12 @@
               onchange="window.handleCategorySelectForExport(event)"
             >
               <option value="" data-i18n="loading_categories">
-                -- Выберите категорию --
+                -- Выберите партию --
               </option>
-              <!-- Сюда скриптом подтянутся категории из базы -->
             </select>
           </div>
 
-          <!-- Блок маппинга остается без изменений (он нужен для generateExportFile) -->
-          <div
-            id="exportMapperArea"
-            style="
-              display: none;
-              flex-direction: column;
-              overflow-y: auto;
-              max-height: 50vh;
-              padding-right: 5px;
-              -webkit-overflow-scrolling: touch;
-            "
-          >
-            <!-- Селекты маппинга -->
-          </div>
-
-          <!-- ИЗМЕНЕНИЕ 2: Блок с двумя кнопками вместо одной -->
+          <!-- Блок с кнопками скачивания -->
           <div
             id="exportActionButtons"
             style="
