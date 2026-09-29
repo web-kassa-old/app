@@ -4668,34 +4668,20 @@ window.processInvoiceFile = async function () {
 
       window.hideLoading();
 
-      // 1. Сохраняем данные шаблона глобально, чтобы они не потерялись при переходе
+      // 1. Сохраняем шаблон Каспи глобально, чтобы он не потерялся при переходе
       window.currentTemplateData = templateData;
 
-      // 2. Используем уникальные имена переменных, чтобы не было конфликтов
-      let smartHeaders = [];
-      let smartRows = [];
-      
-      if (Array.isArray(templateData) && templateData.length > 0) {
-          if (Array.isArray(templateData[0])) {
-              // Если формат: массив массивов
-              smartHeaders = templateData[0];
-              smartRows = templateData.slice(1);
-          } else if (typeof templateData[0] === 'object') {
-              // Если формат: массив объектов
-              smartHeaders = Object.keys(templateData[0]);
-              smartRows = templateData.map(item => Object.values(item));
-          }
-      }
+      // 2. Берем реальные данные из загруженной накладной (Excel)
+      let smartHeaders = window.mapper2State.invoiceHeaders || [];
+      let smartRows = window.mapper2State.invoiceRows || [];
 
       // 3. Запускаем Детектор
       const complexColumns = window.detectComplexColumns 
           ? window.detectComplexColumns(smartHeaders, smartRows) 
           : detectComplexColumns(smartHeaders, smartRows);
 
-          // ВСТАВЬ ЭТИ ТРИ СТРОЧКИ:
-          console.log("Формат templateData:", templateData);
-      console.log("Детектор получил шапки:", smartHeaders);
-      console.log("Детектор получил строки (первые 2):", smartRows.slice(0, 2));
+      console.log("Детектор получил шапки Excel:", smartHeaders);
+      console.log("Детектор получил строки Excel (первые 2):", smartRows.slice(0, 2));
       console.log("Детектор нашел сложные колонки:", complexColumns);
 
       // 4. Развилка (Маршрутизация)
