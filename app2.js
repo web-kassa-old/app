@@ -4692,6 +4692,11 @@ window.processInvoiceFile = async function () {
           ? window.detectComplexColumns(smartHeaders, smartRows) 
           : detectComplexColumns(smartHeaders, smartRows);
 
+          // ВСТАВЬ ЭТИ ТРИ СТРОЧКИ:
+      console.log("Детектор получил шапки:", smartHeaders);
+      console.log("Детектор получил строки (первые 2):", smartRows.slice(0, 2));
+      console.log("Детектор нашел сложные колонки:", complexColumns);
+
       // 4. Развилка (Маршрутизация)
       if (complexColumns && complexColumns.length > 0) {
           // Сценарий А: Найдены сложные параметры -> открываем "Умное сито"
