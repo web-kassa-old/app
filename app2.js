@@ -4687,15 +4687,16 @@ window.processInvoiceFile = async function () {
       // 4. Развилка (Маршрутизация)
       if (complexColumns && complexColumns.length > 0) {
           
-          // Полностью прячем окно приемки И его темный фон
+          // ЖЕЛЕЗОБЕТОННО прячем старое окно и его фон (строго по архитектуре DOM)
           const incomModal = document.getElementById('incom_modal');
           if (incomModal) {
-              incomModal.style.display = 'none';
+              incomModal.style.setProperty('display', 'none', 'important');
+              // Если окно лежит внутри серой обертки, прячем и её
               const overlay = incomModal.closest('.modal-overlay');
-              if (overlay) overlay.style.display = 'none';
+              if (overlay) overlay.style.setProperty('display', 'none', 'important');
           }
 
-          // Показываем наше Умное сито
+          // Активируем класс для нового окна
           const container = document.getElementById('smartMapperContainer');
           if (container) {
               container.className = 'smart-mapper-overlay'; 
@@ -4707,14 +4708,13 @@ window.processInvoiceFile = async function () {
               renderSmartMapperModal(complexColumns);
           }
       } else {
-          // То же самое скрытие для обычного сценария
+          // Прячем старое окно для обычного маппера
           const incomModal = document.getElementById('incom_modal');
           if (incomModal) {
-              incomModal.style.display = 'none';
+              incomModal.style.setProperty('display', 'none', 'important');
               const overlay = incomModal.closest('.modal-overlay');
-              if (overlay) overlay.style.display = 'none';
+              if (overlay) overlay.style.setProperty('display', 'none', 'important');
           }
-          
           window.renderMapper2Cards(templateData);
       }
     } else {
