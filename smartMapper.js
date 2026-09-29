@@ -209,19 +209,35 @@ window.renderSmartMapperModal = function(complexColumns) {
     window.mapper2State = window.mapper2State || {};
     window.mapper2State.lastComplexColumns = complexColumns;
 
-    // === СОБИРАЕМ ПОДВАЛ С ДВУМЯ КНОПКАМИ (Текст вшит для надежности) ===
+    // === ДОСТАЕМ ПЕРЕВОД НА ЛЕТУ ===
+    let backBtnText = "НАЗАД";
+    let confirmBtnText = "ПОДТВЕРДИТЬ";
+
+    if (typeof translations !== 'undefined' && typeof currentLang !== 'undefined' && translations[currentLang]) {
+        if (translations[currentLang]['smart_mapper_back']) {
+            backBtnText = translations[currentLang]['smart_mapper_back'];
+        } else if (translations[currentLang]['cancel']) {
+            backBtnText = translations[currentLang]['cancel']; // Резервное слово, если нет ключа
+        }
+        
+        if (translations[currentLang]['smart_mapper_btn']) {
+            confirmBtnText = translations[currentLang]['smart_mapper_btn'];
+        }
+    }
+
+    // === СОБИРАЕМ ПОДВАЛ С ДВУМЯ КНОПКАМИ ===
     const footer = document.createElement('div');
     footer.className = 'smart-modal-footer';
     footer.innerHTML = `
         <div style="display: flex; gap: 10px;">
-            <button class="cancel-btn" id="smartBackBtn" data-i18n="smart_mapper_back">НАЗАД</button>
-            <button class="confirm-btn btn-primary green" id="smartConfirmBtn" data-i18n="smart_mapper_btn" style="flex: 2; margin: 0;">ТАҢДАУДЫ РАСТАУ</button>
+            <button class="cancel-btn" id="smartBackBtn" data-i18n="smart_mapper_back" style="flex: 1; font-weight: bold; font-size: 14px; text-transform: uppercase;">${backBtnText}</button>
+            <button class="confirm-btn btn-primary green" id="smartConfirmBtn" data-i18n="smart_mapper_btn" style="flex: 2; margin: 0; font-weight: bold; font-size: 14px; text-transform: uppercase;">${confirmBtnText}</button>
         </div>
     `;
     modal.appendChild(footer);
     container.appendChild(modal);
 
-    // Запускаем переводчик
+    // Запускаем глобальный переводчик (на всякий случай для других статических текстов)
     if (typeof applyLanguage === 'function' && typeof currentLang !== 'undefined') {
         applyLanguage(currentLang);
     }

@@ -4423,22 +4423,24 @@ window.mapper2State.history = []; // Тот самый пустой список
 
 // Универсальная функция возврата
 window.navigateBack = function() {
-    const history = window.mapper2State.history;
+    window.mapper2State = window.mapper2State || {};
+    let history = window.mapper2State.history || [];
     
-    // Если в истории больше одного шага, нам есть куда возвращаться
-    if (history.length > 1) {
-        history.pop(); // Вычеркиваем текущий экран (например, Шаг 2)
-        const previousStep = history[history.length - 1]; // Смотрим, что было до него (например, 'smart')
-        
-        // Вызываем твой роутер, передавая флаг true (что означает "мы идем назад, не пиши это в историю снова")
+    // Вычеркиваем текущий шаг (например, 'smart')
+    if (history.length > 0) {
+        history.pop();
+    }
+
+    // Смотрим, куда возвращаться
+    if (history.length > 0) {
+        const previousStep = history[history.length - 1];
         if (typeof window.navigateIncomeStep === 'function') {
             window.navigateIncomeStep(previousStep, true); 
         }
     } else {
-        // Если история пуста или там только 1 шаг, кнопка "Назад" может просто закрыть окно
-        const incomModal = document.getElementById('incom_modal');
-        if (incomModal) {
-            incomModal.style.display = 'none';
+        // Если история пуста, принудительно возвращаемся на стартовый Шаг 1
+        if (typeof window.navigateIncomeStep === 'function') {
+            window.navigateIncomeStep(1, true); 
         }
     }
 };
