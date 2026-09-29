@@ -99,12 +99,11 @@ window.renderSmartMapperModal = function(complexColumns) {
     const body = document.createElement('div');
     body.className = 'smart-modal-body';
 
-    // === ФИЛЬТРУЕМ ТОЛЬКО ПАРАМЕТРЫ СО СПРАВОЧНИКОМ ===
+    // === ФИЛЬТРУЕМ ТОЛЬКО ПАРАМЕТРЫ СО СПРАВОЧНИКОМ И ПОДХОДЯЩИМ ФОРМАТОМ ===
     let kaspiParams = [];
     const tData = window.currentTemplateData;
     
     if (tData && tData.humanNames) {
-        // Расширенный список системных полей, которые 100% не нужны в Умном сите
         const excludeFromSmart = [
             'Артикул', 'Название товара', 'Бренд', 'Цена', 'Название модели', 
             'Рубрика', 'Код изображений', 'Ссылка на YouTube', 'Ссылка на картинку',
@@ -114,29 +113,37 @@ window.renderSmartMapperModal = function(complexColumns) {
         
         for (let i = 0; i < tData.humanNames.length; i++) {
             const paramName = tData.humanNames[i];
-            
-            // 1. Достаем данные из словаря для текущего поля
             const dictData = tData.dictionary ? tData.dictionary[paramName] : null;
             
-            // 2. ЖЕЛЕЗОБЕТОННАЯ ПРОВЕРКА: это должен быть именно МАССИВ (справочник вариантов), а не строка
             if (Array.isArray(dictData)) {
-                // 3. Очищаем массив от пустых строк, undefined и null
                 const validExamples = dictData.filter(val => val && String(val).trim() !== '');
                 
-                // 4. Если после очистки остались реальные примеры и поля нет в черном списке - берем в работу
                 if (validExamples.length > 0 && !excludeFromSmart.includes(paramName)) {
-                    kaspiParams.push({
-                        id: paramName,
-                        name: paramName,
-                        examples: validExamples.slice(0, 3) // Оставляем 3 плашки
+                    
+                    // УМНЫЙ ФИЛЬТР: Проверяем, состоит ли справочник из цифр или кодов
+                    const isCodeOrNumber = validExamples.some(ex => {
+                        const str = String(ex).trim();
+                        const hasDigit = /\d/.test(str); // Есть ли хоть одна цифра? (175, 4.00, A1)
+                        const isShortLatin = /^[a-zA-Z]+$/.test(str) && str.length <= 3; // Короткие латинские индексы (T, V, AT)
+                        
+                        return hasDigit || isShortLatin;
                     });
+
+                    // Берем карточку только если она прошла тест на цифры/коды
+                    if (isCodeOrNumber) {
+                        kaspiParams.push({
+                            id: paramName,
+                            name: paramName,
+                            examples: validExamples.slice(0, 3)
+                        });
+                    }
                 }
             }
         }
     }
 
     if (kaspiParams.length === 0) {
-        kaspiParams = [{ id: 'error', name: 'Характеристики со справочником не найдены', examples: [] }];
+        kaspiParams = [{ id: 'error', name: 'Подходящие характеристики не найдены', examples: [] }];
     }
 
     complexColumns.forEach(col => {
