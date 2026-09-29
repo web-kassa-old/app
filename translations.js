@@ -930,7 +930,7 @@ const translations = {
     "smart_modal_title": "Күрделі бағандарды баптау",
     "smart_modal_subtitle": "Сіз таңдадыңыз:",
     "smart_empty_chips": "Әзірге ештеңе таңдалмаған...",
-    "smart_question": "Мұнда қандай Kaspi параметрлері жасырылған?",
+    smart_question: "Мұнда қандай Kaspi параметрлері жасырылған?",
     "smart_param_width": "Профиль ені",
     "smart_param_height": "Профиль биіктігі",
     "smart_param_diam": "Диск диаметрі",
