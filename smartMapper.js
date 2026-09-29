@@ -87,29 +87,13 @@ window.renderSmartMapperModal = function(complexColumns) {
     if (!container) return;
     container.innerHTML = ''; 
 
-    // === 1. СЛОВАРЬ СЛУЖЕБНЫХ СЛОВ И ПЕРЕВОДОВ ШАПОК ===
-    // Если у тебя в translations.js есть глобальная функция перевода (например t('...')), 
-    // можешь обернуть эти строки в нее.
-    const dict = {
-        title: 'Настройка сложных колонок',
-        colPrefix: 'КОЛОНКА:',
-        youSelected: 'ВЫ ВЫБРАЛИ:',
-        empty: 'Пока ничего не выбрано...',
-        question: 'Какие параметры Kaspi здесь зашиты?',
-        btn: 'ПОДТВЕРДИТЬ ВЫБОР',
-        // Перевод частых английских колонок из Excel
-        'size': 'Размер',
-        'pattern': 'Модель/Рисунок',
-        'brand': 'Бренд',
-        'code': 'Артикул'
-    };
-
     const modal = document.createElement('div');
     modal.className = 'smart-modal-content';
 
     const header = document.createElement('div');
     header.className = 'smart-modal-header';
-    header.innerText = dict.title;
+    // Подключаем архитектуру перевода для шапки
+    header.setAttribute('data-i18n', 'smart_mapper_title');
     modal.appendChild(header);
 
     const body = document.createElement('div');
@@ -151,18 +135,19 @@ window.renderSmartMapperModal = function(complexColumns) {
         }
     }
 
-    if (kaspiParams.length === 0) {
-        kaspiParams = [{ id: 'error', name: 'Подходящие характеристики не найдены', examples: [] }];
-    }
-
     complexColumns.forEach(col => {
         const card = document.createElement('div');
         card.className = 'smart-mapper-card';
         card.dataset.colname = col.colName;
 
-        // === 2. ПЕРЕВОДИМ НАЗВАНИЕ КОЛОНКИ НА ЛЕТУ ===
+        // Динамический перевод английской шапки колонки из глобального словаря (если есть)
         const rawColName = String(col.colName).toLowerCase().trim();
-        const translatedColName = dict[rawColName] ? `${dict[rawColName]} (${col.colName})` : col.colName;
+        let translatedName = col.colName;
+        if (typeof translations !== 'undefined' && typeof currentLang !== 'undefined') {
+            if (translations[currentLang] && translations[currentLang][rawColName]) {
+                translatedName = `${translations[currentLang][rawColName]} (${col.colName})`;
+            }
+        }
 
         let checkboxesHtml = kaspiParams.map(param => {
             let exampleSpans = param.examples.map(ex => `<span>${ex}</span>`).join('');
@@ -177,17 +162,17 @@ window.renderSmartMapperModal = function(complexColumns) {
             `;
         }).join('');
 
-        // Подставляем слова из словаря в верстку
+        // Вся статика размечена атрибутами data-i18n
         card.innerHTML = `
             <div class="smart-col-info">
-                <span>${dict.colPrefix} ${translatedColName.toUpperCase()}</span>
-                <strong>${col.example || 'Пример не найден'}</strong>
+                <span data-i18n="smart_mapper_col_prefix"></span> <span>${translatedName.toUpperCase()}</span>
+                <strong>${col.example || ''}</strong>
             </div>
             <div class="smart-chips-area">
-                <div class="chips-title">${dict.youSelected}</div>
-                <div class="chips-container"><span class="empty-chips">${dict.empty}</span></div>
+                <div class="chips-title" data-i18n="smart_mapper_you_selected"></div>
+                <div class="chips-container"><span class="empty-chips" data-i18n="smart_mapper_empty"></span></div>
             </div>
-            <div class="smart-question">${dict.question}</div>
+            <div class="smart-question" data-i18n="smart_mapper_question"></div>
             <div class="checkbox-grid">
                 ${checkboxesHtml}
             </div>
@@ -210,7 +195,9 @@ window.renderSmartMapperModal = function(complexColumns) {
                 if (selected.length > 0) {
                     chipsContainer.innerHTML = selected.map(name => `<span class="chip">${name}</span>`).join('');
                 } else {
-                    chipsContainer.innerHTML = `<span class="empty-chips">${dict.empty}</span>`;
+                    // Возвращаем пустую надпись и переводим её на лету
+                    chipsContainer.innerHTML = `<span class="empty-chips" data-i18n="smart_mapper_empty"></span>`;
+                    if (typeof applyLanguage === 'function') applyLanguage(currentLang);
                 }
             });
         });
@@ -220,10 +207,16 @@ window.renderSmartMapperModal = function(complexColumns) {
 
     const footer = document.createElement('div');
     footer.className = 'smart-modal-footer';
-    footer.innerHTML = `<button class="btn-primary green" id="smartConfirmBtn">${dict.btn}</button>`;
+    // Кнопка тоже через data-i18n
+    footer.innerHTML = `<button class="btn-primary green" id="smartConfirmBtn" data-i18n="smart_mapper_btn"></button>`;
     modal.appendChild(footer);
 
     container.appendChild(modal);
+
+    // === 3. ЗАПУСКАЕМ ТВОЙ ГЛОБАЛЬНЫЙ ПЕРЕВОДЧИК ПОСЛЕ РЕНДЕРА ===
+    if (typeof applyLanguage === 'function' && typeof currentLang !== 'undefined') {
+        applyLanguage(currentLang);
+    }
 
     document.getElementById('smartConfirmBtn').addEventListener('click', () => {
         window.mapper2State = window.mapper2State || {};
