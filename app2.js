@@ -4686,39 +4686,31 @@ window.processInvoiceFile = async function () {
 
       // 4. Развилка (Маршрутизация)
       if (complexColumns && complexColumns.length > 0) {
-          // Закрываем окно "Приемка товара" по его ID
+          // Чисто и нативно прячем окно приемки
           const incomModal = document.getElementById('incom_modal');
           if (incomModal) {
               incomModal.style.display = 'none';
           }
 
-          // Настраиваем фон-затемнение для нашей новой модалки
+          // Активируем наш контейнер через CSS-класс
           const container = document.getElementById('smartMapperContainer');
           if (container) {
-              container.style.position = 'fixed';
-              container.style.top = '0';
-              container.style.left = '0';
-              container.style.width = '100vw';
-              container.style.height = '100vh';
-              container.style.backgroundColor = 'rgba(0, 0, 0, 0.4)'; // Полупрозрачный черный фон
-              container.style.zIndex = '999999';
-              container.style.display = 'flex';
-              container.style.justifyContent = 'center';
-              container.style.alignItems = 'center';
-              container.style.overflowY = 'auto';
+              container.className = 'smart-mapper-overlay'; 
           }
 
-          // Сценарий А: Найдены сложные параметры -> открываем "Умное сито"
+          // Запускаем отрисовку Умного сита
           if (window.renderSmartMapperModal) {
               window.renderSmartMapperModal(complexColumns);
           } else {
               renderSmartMapperModal(complexColumns);
           }
       } else {
+          // Обычная накладная (тоже прячем окно приемки)
           const incomModal = document.getElementById('incom_modal');
-          if (incomModal) incomModal.style.display = 'none';
+          if (incomModal) {
+              incomModal.style.display = 'none';
+          }
           
-          // Сценарий Б: Обычная накладная -> сразу открываем старый интерфейс
           window.renderMapper2Cards(templateData);
       }
     } else {
