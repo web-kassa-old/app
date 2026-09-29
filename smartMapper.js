@@ -85,21 +85,36 @@ window.detectComplexColumns = function(headers, rows) {
 window.renderSmartMapperModal = function(complexColumns) {
     const container = document.getElementById('smartMapperContainer');
     if (!container) return;
-
     container.innerHTML = ''; 
+
+    // === 1. СЛОВАРЬ СЛУЖЕБНЫХ СЛОВ И ПЕРЕВОДОВ ШАПОК ===
+    // Если у тебя в translations.js есть глобальная функция перевода (например t('...')), 
+    // можешь обернуть эти строки в нее.
+    const dict = {
+        title: 'Настройка сложных колонок',
+        colPrefix: 'КОЛОНКА:',
+        youSelected: 'ВЫ ВЫБРАЛИ:',
+        empty: 'Пока ничего не выбрано...',
+        question: 'Какие параметры Kaspi здесь зашиты?',
+        btn: 'ПОДТВЕРДИТЬ ВЫБОР',
+        // Перевод частых английских колонок из Excel
+        'size': 'Размер',
+        'pattern': 'Модель/Рисунок',
+        'brand': 'Бренд',
+        'code': 'Артикул'
+    };
 
     const modal = document.createElement('div');
     modal.className = 'smart-modal-content';
 
     const header = document.createElement('div');
     header.className = 'smart-modal-header';
-    header.innerText = 'Настройка сложных колонок';
+    header.innerText = dict.title;
     modal.appendChild(header);
 
     const body = document.createElement('div');
     body.className = 'smart-modal-body';
 
-    // === ФИЛЬТРУЕМ ТОЛЬКО ПАРАМЕТРЫ СО СПРАВОЧНИКОМ И ПОДХОДЯЩИМ ФОРМАТОМ ===
     let kaspiParams = [];
     const tData = window.currentTemplateData;
     
@@ -117,19 +132,13 @@ window.renderSmartMapperModal = function(complexColumns) {
             
             if (Array.isArray(dictData)) {
                 const validExamples = dictData.filter(val => val && String(val).trim() !== '');
-                
                 if (validExamples.length > 0 && !excludeFromSmart.includes(paramName)) {
                     
-                    // УМНЫЙ ФИЛЬТР: Проверяем, состоит ли справочник из цифр или кодов
                     const isCodeOrNumber = validExamples.some(ex => {
                         const str = String(ex).trim();
-                        const hasDigit = /\d/.test(str); // Есть ли хоть одна цифра? (175, 4.00, A1)
-                        const isShortLatin = /^[a-zA-Z]+$/.test(str) && str.length <= 3; // Короткие латинские индексы (T, V, AT)
-                        
-                        return hasDigit || isShortLatin;
+                        return /\d/.test(str) || (/^[a-zA-Z]+$/.test(str) && str.length <= 3);
                     });
 
-                    // Берем карточку только если она прошла тест на цифры/коды
                     if (isCodeOrNumber) {
                         kaspiParams.push({
                             id: paramName,
@@ -151,6 +160,10 @@ window.renderSmartMapperModal = function(complexColumns) {
         card.className = 'smart-mapper-card';
         card.dataset.colname = col.colName;
 
+        // === 2. ПЕРЕВОДИМ НАЗВАНИЕ КОЛОНКИ НА ЛЕТУ ===
+        const rawColName = String(col.colName).toLowerCase().trim();
+        const translatedColName = dict[rawColName] ? `${dict[rawColName]} (${col.colName})` : col.colName;
+
         let checkboxesHtml = kaspiParams.map(param => {
             let exampleSpans = param.examples.map(ex => `<span>${ex}</span>`).join('');
             return `
@@ -164,16 +177,17 @@ window.renderSmartMapperModal = function(complexColumns) {
             `;
         }).join('');
 
+        // Подставляем слова из словаря в верстку
         card.innerHTML = `
             <div class="smart-col-info">
-                <span>КОЛОНКА: ${col.colName.toUpperCase()}</span>
+                <span>${dict.colPrefix} ${translatedColName.toUpperCase()}</span>
                 <strong>${col.example || 'Пример не найден'}</strong>
             </div>
             <div class="smart-chips-area">
-                <div class="chips-title">ВЫ ВЫБРАЛИ:</div>
-                <div class="chips-container"><span class="empty-chips">Пока ничего не выбрано...</span></div>
+                <div class="chips-title">${dict.youSelected}</div>
+                <div class="chips-container"><span class="empty-chips">${dict.empty}</span></div>
             </div>
-            <div class="smart-question">Какие параметры Kaspi здесь зашиты?</div>
+            <div class="smart-question">${dict.question}</div>
             <div class="checkbox-grid">
                 ${checkboxesHtml}
             </div>
@@ -196,7 +210,7 @@ window.renderSmartMapperModal = function(complexColumns) {
                 if (selected.length > 0) {
                     chipsContainer.innerHTML = selected.map(name => `<span class="chip">${name}</span>`).join('');
                 } else {
-                    chipsContainer.innerHTML = '<span class="empty-chips">Пока ничего не выбрано...</span>';
+                    chipsContainer.innerHTML = `<span class="empty-chips">${dict.empty}</span>`;
                 }
             });
         });
@@ -206,7 +220,7 @@ window.renderSmartMapperModal = function(complexColumns) {
 
     const footer = document.createElement('div');
     footer.className = 'smart-modal-footer';
-    footer.innerHTML = `<button class="btn-primary green" id="smartConfirmBtn">ПОДТВЕРДИТЬ ВЫБОР</button>`;
+    footer.innerHTML = `<button class="btn-primary green" id="smartConfirmBtn">${dict.btn}</button>`;
     modal.appendChild(footer);
 
     container.appendChild(modal);
@@ -225,8 +239,6 @@ window.renderSmartMapperModal = function(complexColumns) {
                 window.mapper2State.smartRules[colName] = selectedParams;
             }
         });
-
-        console.log("Сохраненные правила Умного Сита:", window.mapper2State.smartRules);
 
         container.className = '';
         container.innerHTML = '';
