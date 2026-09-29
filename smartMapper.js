@@ -209,13 +209,13 @@ window.renderSmartMapperModal = function(complexColumns) {
     window.mapper2State = window.mapper2State || {};
     window.mapper2State.lastComplexColumns = complexColumns;
 
-    // === СОБИРАЕМ ПОДВАЛ С ДВУМЯ КНОПКАМИ ===
+    // === СОБИРАЕМ ПОДВАЛ С ДВУМЯ КНОПКАМИ (Текст вшит для надежности) ===
     const footer = document.createElement('div');
     footer.className = 'smart-modal-footer';
     footer.innerHTML = `
         <div style="display: flex; gap: 10px;">
-            <button class="cancel-btn" id="smartBackBtn" data-i18n="smart_mapper_back"></button>
-            <button class="confirm-btn btn-primary green" id="smartConfirmBtn" data-i18n="smart_mapper_btn" style="flex: 2; margin: 0;"></button>
+            <button class="cancel-btn" id="smartBackBtn" data-i18n="smart_mapper_back">НАЗАД</button>
+            <button class="confirm-btn btn-primary green" id="smartConfirmBtn" data-i18n="smart_mapper_btn" style="flex: 2; margin: 0;">ТАҢДАУДЫ РАСТАУ</button>
         </div>
     `;
     modal.appendChild(footer);
@@ -226,35 +226,41 @@ window.renderSmartMapperModal = function(complexColumns) {
         applyLanguage(currentLang);
     }
 
-    // === ОБРАБОТЧИК КНОПКИ "НАЗАД" ===
-    document.getElementById('smartBackBtn').addEventListener('click', () => {
-        // Роутер сам вычеркнет 'smart' из истории и вернет на Шаг 1
-        if (typeof window.navigateBack === 'function') window.navigateBack();
-    });
+    // === БЕЗОПАСНАЯ ПРИВЯЗКА КНОПОК ===
+    const backBtn = document.getElementById('smartBackBtn');
+    const confirmBtn = document.getElementById('smartConfirmBtn');
 
-    // === ОБРАБОТЧИК КНОПКИ "ПОДТВЕРДИТЬ" ===
-    document.getElementById('smartConfirmBtn').addEventListener('click', () => {
-        window.mapper2State.smartRules = {}; 
+    if (backBtn) {
+        backBtn.addEventListener('click', () => {
+            // Роутер сам вычеркнет 'smart' из истории и вернет на Шаг 1
+            if (typeof window.navigateBack === 'function') window.navigateBack();
+        });
+    }
 
-        const cards = body.querySelectorAll('.smart-mapper-card');
-        cards.forEach(card => {
-            const colName = card.dataset.colname;
-            const checkedBoxes = Array.from(card.querySelectorAll('input[type="checkbox"]:checked'));
-            const selectedParams = checkedBoxes.map(cb => cb.value); 
-            
-            if (selectedParams.length > 0) {
-                window.mapper2State.smartRules[colName] = selectedParams;
+    if (confirmBtn) {
+        confirmBtn.addEventListener('click', () => {
+            window.mapper2State.smartRules = {}; 
+
+            const cards = body.querySelectorAll('.smart-mapper-card');
+            cards.forEach(card => {
+                const colName = card.dataset.colname;
+                const checkedBoxes = Array.from(card.querySelectorAll('input[type="checkbox"]:checked'));
+                const selectedParams = checkedBoxes.map(cb => cb.value); 
+                
+                if (selectedParams.length > 0) {
+                    window.mapper2State.smartRules[colName] = selectedParams;
+                }
+            });
+
+            // Просим роутер открыть Шаг 2 и рендерим карточки
+            if (typeof window.navigateIncomeStep === 'function') {
+                window.navigateIncomeStep(2);
+            }
+            if (typeof window.renderMapper2Cards === 'function') {
+                window.renderMapper2Cards(window.currentTemplateData);
             }
         });
-
-        // Просим роутер открыть Шаг 2 и рендерим карточки
-        if (typeof window.navigateIncomeStep === 'function') {
-            window.navigateIncomeStep(2);
-        }
-        if (typeof window.renderMapper2Cards === 'function') {
-            window.renderMapper2Cards(window.currentTemplateData);
-        }
-    });
+    }
 }
 
 /**
