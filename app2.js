@@ -4693,6 +4693,7 @@ window.processInvoiceFile = async function () {
           : detectComplexColumns(smartHeaders, smartRows);
 
           // ВСТАВЬ ЭТИ ТРИ СТРОЧКИ:
+          console.log("Формат templateData:", templateData);
       console.log("Детектор получил шапки:", smartHeaders);
       console.log("Детектор получил строки (первые 2):", smartRows.slice(0, 2));
       console.log("Детектор нашел сложные колонки:", complexColumns);
