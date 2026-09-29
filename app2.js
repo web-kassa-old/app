@@ -4686,21 +4686,16 @@ window.processInvoiceFile = async function () {
 
       // 4. Развилка (Маршрутизация)
       if (complexColumns && complexColumns.length > 0) {
-          
-          // ЖЕЛЕЗОБЕТОННО прячем старое окно и его фон (строго по архитектуре DOM)
+          // ЖЕЛЕЗОБЕТОННО гасим старое окно приемки и его подложку
           const incomModal = document.getElementById('incom_modal');
-          if (incomModal) {
-              incomModal.style.setProperty('display', 'none', 'important');
-              // Если окно лежит внутри серой обертки, прячем и её
-              const overlay = incomModal.closest('.modal-overlay');
-              if (overlay) overlay.style.setProperty('display', 'none', 'important');
-          }
+          if (incomModal) incomModal.style.setProperty('display', 'none', 'important');
+          document.querySelectorAll('.modal-overlay').forEach(el => {
+              el.style.setProperty('display', 'none', 'important');
+          });
 
-          // Активируем класс для нового окна
+          // Активируем новый контейнер
           const container = document.getElementById('smartMapperContainer');
-          if (container) {
-              container.className = 'smart-mapper-overlay'; 
-          }
+          if (container) container.className = 'smart-mapper-overlay';
 
           if (window.renderSmartMapperModal) {
               window.renderSmartMapperModal(complexColumns);
@@ -4708,13 +4703,13 @@ window.processInvoiceFile = async function () {
               renderSmartMapperModal(complexColumns);
           }
       } else {
-          // Прячем старое окно для обычного маппера
+          // Обычный сценарий
           const incomModal = document.getElementById('incom_modal');
-          if (incomModal) {
-              incomModal.style.setProperty('display', 'none', 'important');
-              const overlay = incomModal.closest('.modal-overlay');
-              if (overlay) overlay.style.setProperty('display', 'none', 'important');
-          }
+          if (incomModal) incomModal.style.setProperty('display', 'none', 'important');
+          document.querySelectorAll('.modal-overlay').forEach(el => {
+              el.style.setProperty('display', 'none', 'important');
+          });
+          
           window.renderMapper2Cards(templateData);
       }
     } else {

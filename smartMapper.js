@@ -77,25 +77,21 @@ window.renderSmartMapperModal = function(complexColumns) {
     const container = document.getElementById('smartMapperContainer');
     if (!container) return;
 
-    // 1. Очищаем контейнер от старого мусора
-    container.innerHTML = '';
+    container.innerHTML = ''; // Очищаем от мусора
 
-    // 2. Создаем ЕДИНЫЙ каркас окна
+    // Создаем окно
     const modal = document.createElement('div');
     modal.className = 'smart-modal-content';
 
-    // 3. Единая шапка
     const header = document.createElement('div');
     header.className = 'smart-modal-header';
     header.innerText = 'Настройка сложных колонок';
     modal.appendChild(header);
 
-    // 4. Единое тело (сюда сложим карточки вертикально)
     const body = document.createElement('div');
     body.className = 'smart-modal-body';
 
-    // === ТВОЙ СПИСОК ПАРАМЕТРОВ КАСПИ ===
-    // (Я взял примерные данные, если у тебя есть свой массив — используй его)
+    // Массив параметров Каспи для генерации
     const kaspiParams = [
         { id: 'width', name: 'Ширина профиля', examples: ['175', '195', '10.50'] },
         { id: 'height', name: 'Высота профиля', examples: ['55', '65', '31'] },
@@ -105,7 +101,7 @@ window.renderSmartMapperModal = function(complexColumns) {
         { id: 'season', name: 'Сезонность', examples: ['Летние', 'Зимние'] }
     ];
 
-    // 5. Цикл: генерируем ТОЛЬКО карточки внутри окна
+    // Генерируем карточки для каждой сложной колонки
     complexColumns.forEach(col => {
         const card = document.createElement('div');
         card.className = 'smart-mapper-card';
@@ -139,7 +135,7 @@ window.renderSmartMapperModal = function(complexColumns) {
         `;
         body.appendChild(card);
 
-        // Добавляем логику кликов для текущей карточки
+        // Оживляем интерфейс: слушаем клики по чекбоксам
         const checkboxes = card.querySelectorAll('input[type="checkbox"]');
         const chipsContainer = card.querySelector('.chips-container');
 
@@ -147,19 +143,19 @@ window.renderSmartMapperModal = function(complexColumns) {
             cb.addEventListener('change', function() {
                 const label = this.closest('.checkbox-item');
                 
-                // Меняем стиль карточки
+                // Красим карточку
                 if (this.checked) {
                     label.classList.add('active');
                 } else {
                     label.classList.remove('active');
                 }
 
-                // Собираем все выбранные элементы в этой колонке
+                // Собираем текст выбранных плашек
                 const selected = Array.from(checkboxes)
                     .filter(box => box.checked)
                     .map(box => box.dataset.name);
 
-                // Отрисовываем плашки
+                // Отрисовываем плашки в блоке "ВЫ ВЫБРАЛИ"
                 if (selected.length > 0) {
                     chipsContainer.innerHTML = selected.map(name => `<span class="chip">${name}</span>`).join('');
                 } else {
@@ -169,21 +165,20 @@ window.renderSmartMapperModal = function(complexColumns) {
         });
     });
 
-    // 6. Единый подвал с ОДНОЙ кнопкой (используем родные стили POS Noir)
+    modal.appendChild(body);
+
+    // Добавляем фирменную зеленую кнопку из твоего UI
     const footer = document.createElement('div');
     footer.className = 'smart-modal-footer';
     footer.innerHTML = `<button class="btn-primary green" id="smartConfirmBtn">ПОДТВЕРДИТЬ ВЫБОР</button>`;
     modal.appendChild(footer);
 
-    // Выводим готовую модалку на экран
     container.appendChild(modal);
 
-    // 7. Обработчик нажатия на кнопку
+    // Обработчик закрытия нашего окна
     document.getElementById('smartConfirmBtn').addEventListener('click', () => {
-        // Убираем оверлей
         container.className = '';
         container.innerHTML = '';
-        // Переходим к старому интерфейсу
         if (typeof window.renderMapper2Cards === 'function') {
             window.renderMapper2Cards(window.currentTemplateData);
         }
