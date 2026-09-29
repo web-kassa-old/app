@@ -870,38 +870,24 @@ button,
 }
 
 /* Smart Mapper */
-/* --- Стили для окна Умного маппера --- */
-.smart-mapper-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: var(--bg-body); /* Нативный фон твоего приложения */
-    z-index: 10005; /* Специально делаем выше твоих модалок и bottom-sheet (у них 10002) */
-    display: flex;
-    justify-content: center;
-    align-items: flex-start;
-    padding-top: 40px;
-    overflow-y: auto;
-}
+/* --- SMART MAPPER UI --- */
 .smart-modal-content {
-    background: #fff;
-    width: 600px;
+    background: var(--bg-panel);
+    color: var(--text-main);
+    width: 650px;
     max-width: 95%;
     border-radius: 8px;
-    box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+    border: 1px solid var(--border-light);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
     max-height: 90vh;
     display: flex;
     flex-direction: column;
-    font-family: sans-serif;
 }
 .smart-modal-header {
     padding: 15px 20px;
     font-weight: bold;
     font-size: 16px;
-    border-bottom: 1px solid #eee;
-    color: #333;
+    border-bottom: 1px solid var(--border-main);
 }
 .smart-modal-body {
     padding: 20px;
@@ -909,7 +895,7 @@ button,
 }
 .smart-mapper-card {
     margin-bottom: 25px;
-    border-bottom: 1px dashed #ccc;
+    border-bottom: 1px dashed var(--border-main);
     padding-bottom: 20px;
 }
 .smart-mapper-card:last-child {
@@ -917,14 +903,15 @@ button,
     margin-bottom: 0;
 }
 .smart-col-info {
-    background: #fff8e1;
+    background: var(--bg-body);
+    border: 1px solid var(--border-light);
     padding: 12px 15px;
     border-radius: 4px;
     margin-bottom: 15px;
 }
 .smart-col-info span {
-    color: #f57c00;
-    font-size: 12px;
+    color: var(--accent-yellow);
+    font-size: 11px;
     font-weight: bold;
     text-transform: uppercase;
 }
@@ -932,56 +919,72 @@ button,
     display: block;
     font-size: 18px;
     margin-top: 5px;
-    color: #333;
 }
 .smart-chips-area {
     margin-bottom: 15px;
-    font-size: 14px;
-    color: #666;
 }
-.smart-chips-area span.empty-chips {
+.chips-title {
+    font-size: 11px;
+    color: var(--accent-green);
+    font-weight: bold;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+}
+.empty-chips {
     font-style: italic;
-    color: #999;
+    color: var(--text-muted);
+    font-size: 14px;
 }
 .chip {
     display: inline-block;
-    background: #e8f5e9;
-    color: #2e7d32;
-    padding: 5px 12px;
+    background: rgba(46, 204, 113, 0.15);
+    color: var(--accent-green);
+    padding: 6px 12px;
     border-radius: 15px;
     font-size: 12px;
     font-weight: bold;
-    margin-right: 5px;
-    margin-bottom: 5px;
-    border: 1px solid #c8e6c9;
+    margin-right: 6px;
+    margin-bottom: 6px;
+    border: 1px solid var(--accent-green);
 }
+.smart-question {
+    font-weight: bold;
+    margin-bottom: 12px;
+    font-size: 14px;
+}
+
+/* Адаптивная сетка карточек */
 .checkbox-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
     gap: 12px;
 }
 .checkbox-item {
-    border: 1px solid #ddd;
+    border: 1px solid var(--border-main);
+    background: var(--bg-card);
     padding: 12px;
     border-radius: 6px;
     cursor: pointer;
     display: flex;
     align-items: flex-start;
-    transition: all 0.2s ease;
-    background: #fff;
+    transition: 0.2s ease;
 }
 .checkbox-item:hover {
-    border-color: #a5d6a7;
-    background: #f1f8e9;
+    border-color: var(--border-light);
+    background: var(--bg-hover);
 }
+/* Состояние активной карточки */
 .checkbox-item.active {
-    border-color: #4caf50;
-    background: #f1f8e9;
+    border-color: var(--accent-green);
+    background: rgba(46, 204, 113, 0.08);
 }
+/* Скрываем дефолтный системный чекбокс */
 .checkbox-item input[type="checkbox"] {
+    accent-color: var(--accent-green);
+    width: 18px;
+    height: 18px;
     margin-right: 12px;
-    margin-top: 4px;
-    transform: scale(1.2);
+    margin-top: 2px;
     cursor: pointer;
 }
 .checkbox-details {
@@ -989,52 +992,24 @@ button,
     flex-direction: column;
 }
 .checkbox-title {
-    font-weight: 500;
+    font-weight: bold;
     font-size: 14px;
     margin-bottom: 6px;
-    color: #333;
+}
+.checkbox-examples {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
 }
 .checkbox-examples span {
-    background: #f5f5f5;
-    color: #666;
+    background: var(--bg-body);
+    color: var(--text-muted);
     font-size: 11px;
     padding: 3px 6px;
     border-radius: 4px;
-    margin-right: 4px;
-    margin-bottom: 4px;
-    display: inline-block;
+    border: 1px solid var(--border-main);
 }
 .smart-modal-footer {
     padding: 15px 20px;
-    border-top: 1px solid #eee;
-}
-.smart-btn-confirm {
-    background: #2e7d32;
-    color: white;
-    border: none;
-    padding: 14px;
-    width: 100%;
-    border-radius: 6px;
-    font-size: 16px;
-    font-weight: bold;
-    cursor: pointer;
-    transition: background 0.2s;
-}
-.smart-btn-confirm:hover {
-    background: #1b5e20;
-}
-/* --- АДАПТИВНОСТЬ ДЛЯ SMART MAPPER --- */
-@media (max-width: 600px) {
-    .checkbox-grid {
-        grid-template-columns: 1fr; /* Сетка в одну колонку на мобилках */
-    }
-    .smart-modal-content {
-        width: 100%;
-        height: 100vh;
-        max-height: 100vh;
-        border-radius: 0; /* Убираем скругления на весь экран */
-    }
-    .smart-mapper-overlay {
-        padding-top: 0; /* Прибиваем модалку к самому верху экрана */
-    }
+    border-top: 1px solid var(--border-main);
 }

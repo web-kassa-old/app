@@ -4,63 +4,92 @@
  * @param {Array} rows - Массив массивов с данными, например: [['Nokian', '205/55R16', '25000'], ...]
  * @returns {Array} - Массив объектов с найденными сложными колонками и их максимальными примерами
  */
-function detectComplexColumns(headers, rows) {
-    // 1. Игнор-лист: колонки, которые точно не нужно парсить на токены
-    const blacklist = ['цена', 'price', 'сумма', 'кол-во', 'количество', 'qty', 'штрихкод', 'barcode', 'артикул', 'sku', 'id'];
-    
-    const complexColumns = [];
+window.detectComplexColumns = function(headers, rows) {
+    if (!headers || !rows || headers.length === 0 || rows.length === 0) return [];
 
-    // Перебираем каждую колонку по её индексу
-    headers.forEach((header, colIndex) => {
-        const headerLower = String(header || "").toLowerCase();
-        
-        // Пропускаем пустые шапки и те, что попали в игнор-лист
-        if (!headerLower || blacklist.some(word => headerLower.includes(word))) {
-            return; 
-        }
+    // 1. Подтягиваем глобальный словарь синонимов из твоего стейта
+    const dict = window.mapper2State?.dictValues || (typeof invoiceSynonyms !== 'undefined' ? invoiceSynonyms : {});
 
-        let isComplex = false;
-        let maxTokensCount = 0;
-        let bestExample = "";
+    // 2. Системные ключи, которые точно не содержат сложных параметров (цены, коды, остатки)
+    const excludeKeys = ['Артикул', 'Штрихкод', 'Код', 'Бренд', 'Цена', 'Остаток', 'Количество', 'Сумма'];
+    let dynamicBlacklist = [];
 
-        // 2. Сканируем все строки колонки
-        for (let i = 0; i < rows.length; i++) {
-            // Защита от пустых или битых ячеек
-            const cellValue = String(rows[i][colIndex] || "").trim();
-            if (!cellValue) continue;
-
-            // 3. Проверка на сложность (триггеры)
-            // Ищем: цифра+символ+цифра (205/55, 31X10) ИЛИ склейку цифра+буква (R15, 91V)
-            const hasSpecialChars = /\d+\s*[\/xX\-\*]\s*\d+/.test(cellValue);
-            const hasMixedTypes = /\d+[a-zA-Zа-яА-ЯёЁ]+|[a-zA-Zа-яА-ЯёЁ]+\d+/.test(cellValue);
-
-            if (hasSpecialChars || hasMixedTypes) {
-                isComplex = true;
-            }
-
-            // 4. Токенизация для поиска самого "жирного" эталона
-            // Режет на: слова | числа (включая дроби с точкой) | отдельные спецсимволы
-            const tokens = cellValue.match(/[a-zA-Zа-яА-ЯёЁ]+|\d+(?:\.\d+)?|[^a-zA-Zа-яА-ЯёЁ\d\s]/g) || [];
-            
-            // Запоминаем строку, если она побила рекорд по количеству токенов
-            if (tokens.length > maxTokensCount) {
-                maxTokensCount = tokens.length;
-                bestExample = cellValue;
-            }
-        }
-
-        // 5. Если колонка сложная и мы нашли пример, сохраняем в итоговый массив
-        if (isComplex && bestExample) {
-            complexColumns.push({
-                colName: header,         // Оригинальное название шапки
-                example: bestExample,    // Тот самый "жирный" пример (например: 31X10.50R15LT)
-                tokenCount: maxTokensCount
-            });
+    // 3. Вытаскиваем ВСЕ синонимы из твоего словаря для этих ключей
+    excludeKeys.forEach(key => {
+        if (dict[key] && Array.isArray(dict[key])) {
+            const synonyms = dict[key].map(s => String(s).toLowerCase().trim());
+            dynamicBlacklist = dynamicBlacklist.concat(synonyms);
         }
     });
 
-    return complexColumns;
-}
+    // 4. Базовый блэклист на случай пустого словаря (включая технические колонки прайсов)
+    const fallbackBlacklist = [
+        'артикул', 'код', 'code', 'barcode', 'штрихкод', 'brand', 'бренд', 
+        'цена', 'price', 'usd', 'eur', 'kzt', 'руб', 
+        'кол-во', 'qty', 'pcs', 'amount', 'сумма', 'total'
+    ];
+    
+    // Объединяем оба списка и убираем дубликаты
+    const blacklist = [...new Set([...dynamicBlacklist, ...fallbackBlacklist])];
+
+    const complexCols = [];
+
+    // 5. Пробегаемся по всем шапкам
+    headers.forEach((colName, colIndex) => {
+        if (!colName) return;
+        
+        const cleanColName = String(colName).toLowerCase().trim();
+        
+        // Отсекаем колонку, если она есть в нашем умном блэклисте
+        if (blacklist.includes(cleanColName)) {
+            return; 
+        }
+
+        let exampleVal = '';
+        let validTokens = [];
+        
+        // 6. Ищем репрезентативный пример данных в первых строках
+        for (let i = 0; i < Math.min(20, rows.length); i++) {
+            const row = rows[i];
+            const cellVal = row[colIndex];
+            
+            if (cellVal !== undefined && cellVal !== null && String(cellVal).trim() !== '') {
+                const strVal = String(cellVal).trim();
+                
+                // Пропускаем обычные числа (например, просто вес или цена без шапки)
+                const isJustNumber = !isNaN(Number(strVal.replace(/,/g, '')));
+                if (isJustNumber) continue;
+
+                // Разбиваем строку на "токены" (по пробелам, слешам, дефисам, знакам X)
+                // Это поможет понять сложность строки. Например "205/70R15" -> ["205", "70R15"]
+                const tokens = strVal.split(/[\s/\-_*xX]+/).filter(t => t.length > 0);
+                
+                // Если строка содержит хотя бы несколько частей - это наш клиент
+                if (tokens.length >= 2) {
+                    exampleVal = strVal;
+                    validTokens = tokens;
+                    break; // Нашли хороший пример, останавливаем поиск по строкам
+                }
+            }
+        }
+
+        // 7. Финальная проверка: добавляем в список, если это действительно сложные данные, а не просто длинный текст
+        if (exampleVal && validTokens.length >= 2) {
+            const hasNumbers = /\d/.test(exampleVal); // В параметрах вроде дисков и шин почти всегда есть цифры
+            const isNotTooLong = exampleVal.length < 40; // Отсекаем колонки с длинным описанием товара
+
+            if (hasNumbers && isNotTooLong) {
+                complexCols.push({
+                    colName: colName,
+                    example: exampleVal,
+                    tokenCount: validTokens.length
+                });
+            }
+        }
+    });
+
+    return complexCols;
+};
 
 /**
  * Рендер модалки "Умное сито"
@@ -103,13 +132,11 @@ window.renderSmartMapperModal = function(complexColumns) {
         const card = document.createElement('div');
         card.className = 'smart-mapper-card';
 
-        // Оборачиваем каждый пример в <span>, чтобы они не слипались
         let checkboxesHtml = kaspiParams.map(param => {
             let exampleSpans = param.examples.map(ex => `<span>${ex}</span>`).join('');
-            
             return `
                 <label class="checkbox-item">
-                    <input type="checkbox" value="${param.id}" data-col="${col.colName}">
+                    <input type="checkbox" value="${param.id}" data-name="${param.name}">
                     <div class="checkbox-details">
                         <div class="checkbox-title">${param.name}</div>
                         <div class="checkbox-examples">${exampleSpans}</div>
@@ -118,25 +145,51 @@ window.renderSmartMapperModal = function(complexColumns) {
             `;
         }).join('');
 
-        // Собираем карточку колонки
         card.innerHTML = `
             <div class="smart-col-info">
                 <span>КОЛОНКА: ${col.colName.toUpperCase()}</span>
                 <strong>${col.example || 'Пример не найден'}</strong>
             </div>
             <div class="smart-chips-area">
-                <div style="font-size: 11px; color: #666; margin-bottom: 4px; text-transform: uppercase;">Вы выбрали:</div>
-                <span class="empty-chips">Пока ничего не выбрано...</span>
+                <div class="chips-title">ВЫ ВЫБРАЛИ:</div>
+                <div class="chips-container"><span class="empty-chips">Пока ничего не выбрано...</span></div>
             </div>
-            <div style="font-weight: bold; margin-bottom: 12px; font-size: 14px;">Какие параметры Kaspi здесь зашиты?</div>
+            <div class="smart-question">Какие параметры Kaspi здесь зашиты?</div>
             <div class="checkbox-grid">
                 ${checkboxesHtml}
             </div>
         `;
         body.appendChild(card);
-    });
 
-    modal.appendChild(body);
+        // Добавляем логику кликов для текущей карточки
+        const checkboxes = card.querySelectorAll('input[type="checkbox"]');
+        const chipsContainer = card.querySelector('.chips-container');
+
+        checkboxes.forEach(cb => {
+            cb.addEventListener('change', function() {
+                const label = this.closest('.checkbox-item');
+                
+                // Меняем стиль карточки
+                if (this.checked) {
+                    label.classList.add('active');
+                } else {
+                    label.classList.remove('active');
+                }
+
+                // Собираем все выбранные элементы в этой колонке
+                const selected = Array.from(checkboxes)
+                    .filter(box => box.checked)
+                    .map(box => box.dataset.name);
+
+                // Отрисовываем плашки
+                if (selected.length > 0) {
+                    chipsContainer.innerHTML = selected.map(name => `<span class="chip">${name}</span>`).join('');
+                } else {
+                    chipsContainer.innerHTML = '<span class="empty-chips">Пока ничего не выбрано...</span>';
+                }
+            });
+        });
+    });
 
     // 6. Единый подвал с ОДНОЙ кнопкой (используем родные стили POS Noir)
     const footer = document.createElement('div');
