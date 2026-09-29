@@ -914,11 +914,13 @@ button,
     margin-bottom: 0;
 }
 .smart-col-info {
-    background: var(--bg-body);
-    border: 1px solid var(--border-main);
+    background: var(--bg-hover); /* Чуть светлее фона самой модалки */
+    border: 1px solid var(--border-light); /* Немного выделяем контур */
+    border-left: 4px solid var(--accent-yellow); /* Яркий акцент слева */
     padding: 12px 15px;
-    border-radius: 4px;
-    margin-bottom: 15px;
+    border-radius: 6px;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); /* Легкая тень для объема */
 }
 .smart-col-info span {
     color: var(--accent-yellow);
