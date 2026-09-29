@@ -4686,9 +4686,21 @@ window.processInvoiceFile = async function () {
 
       // 4. Развилка (Маршрутизация)
       if (complexColumns && complexColumns.length > 0) {
-          // Прячем старое окно "Приемка товара", чтобы оно не перекрывало экран
-          if (typeof window.closeTemplateModal === 'function') {
-              window.closeTemplateModal();
+          // Пробуем закрыть старое окно штатной функцией
+          if (typeof window.closeTemplateModal === 'function') window.closeTemplateModal();
+
+          // ЖЕЛЕЗОБЕТОННО ВЫТАСКИВАЕМ НАШ КОНТЕЙНЕР ПОВЕРХ ВСЕГО
+          const container = document.getElementById('smartMapperContainer');
+          if (container) {
+              container.style.position = 'fixed';
+              container.style.top = '0';
+              container.style.left = '0';
+              container.style.width = '100vw';
+              container.style.height = '100vh';
+              container.style.zIndex = '999999'; // Максимальный приоритет
+              container.style.backgroundColor = '#ffffff';
+              container.style.overflowY = 'auto';
+              container.style.padding = '20px'; 
           }
 
           // Сценарий А: Найдены сложные параметры -> открываем "Умное сито"
@@ -4698,11 +4710,7 @@ window.processInvoiceFile = async function () {
               renderSmartMapperModal(complexColumns);
           }
       } else {
-          // Прячем старое окно для обычного сценария тоже
-          if (typeof window.closeTemplateModal === 'function') {
-              window.closeTemplateModal();
-          }
-          
+          if (typeof window.closeTemplateModal === 'function') window.closeTemplateModal();
           // Сценарий Б: Обычная накладная -> сразу открываем старый интерфейс
           window.renderMapper2Cards(templateData);
       }
