@@ -4686,10 +4686,13 @@ window.processInvoiceFile = async function () {
 
       // 4. Развилка (Маршрутизация)
       if (complexColumns && complexColumns.length > 0) {
-          // Пробуем закрыть старое окно штатной функцией
-          if (typeof window.closeTemplateModal === 'function') window.closeTemplateModal();
+          // Закрываем окно "Приемка товара" по его ID
+          const incomModal = document.getElementById('incom_modal');
+          if (incomModal) {
+              incomModal.style.display = 'none';
+          }
 
-          // ЖЕЛЕЗОБЕТОННО ВЫТАСКИВАЕМ НАШ КОНТЕЙНЕР ПОВЕРХ ВСЕГО
+          // Настраиваем фон-затемнение для нашей новой модалки
           const container = document.getElementById('smartMapperContainer');
           if (container) {
               container.style.position = 'fixed';
@@ -4697,10 +4700,12 @@ window.processInvoiceFile = async function () {
               container.style.left = '0';
               container.style.width = '100vw';
               container.style.height = '100vh';
-              container.style.zIndex = '999999'; // Максимальный приоритет
-              container.style.backgroundColor = '#ffffff';
+              container.style.backgroundColor = 'rgba(0, 0, 0, 0.4)'; // Полупрозрачный черный фон
+              container.style.zIndex = '999999';
+              container.style.display = 'flex';
+              container.style.justifyContent = 'center';
+              container.style.alignItems = 'center';
               container.style.overflowY = 'auto';
-              container.style.padding = '20px'; 
           }
 
           // Сценарий А: Найдены сложные параметры -> открываем "Умное сито"
@@ -4710,7 +4715,9 @@ window.processInvoiceFile = async function () {
               renderSmartMapperModal(complexColumns);
           }
       } else {
-          if (typeof window.closeTemplateModal === 'function') window.closeTemplateModal();
+          const incomModal = document.getElementById('incom_modal');
+          if (incomModal) incomModal.style.display = 'none';
+          
           // Сценарий Б: Обычная накладная -> сразу открываем старый интерфейс
           window.renderMapper2Cards(templateData);
       }
