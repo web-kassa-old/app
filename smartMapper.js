@@ -230,7 +230,7 @@ window.renderSmartMapperModal = function(complexColumns) {
     footer.className = 'smart-modal-footer';
     footer.innerHTML = `
         <div style="display: flex; gap: 10px;">
-            <button class="cancel-btn" id="smartBackBtn" data-i18n="smart_mapper_back" style="flex: 1; font-weight: bold; font-size: 14px; text-transform: uppercase;">${backBtnText}</button>
+            <button class="cancel-btn" id="smartBackBtn" data-i18n="inc_back" style="flex: 1; font-weight: bold; font-size: 14px; text-transform: uppercase;">${backBtnText}</button>
             <button class="confirm-btn btn-primary green" id="smartConfirmBtn" data-i18n="smart_mapper_btn" style="flex: 2; margin: 0; font-weight: bold; font-size: 14px; text-transform: uppercase;">${confirmBtnText}</button>
         </div>
     `;
