@@ -66,49 +66,97 @@ function detectComplexColumns(headers, rows) {
  * Рендер модалки "Умное сито"
  * @param {Array} detectedColumns - Результат работы detectComplexColumns()
  */
-function renderSmartMapperModal(detectedColumns) {
-    if (!detectedColumns || detectedColumns.length === 0) return;
+window.renderSmartMapperModal = function(complexColumns) {
+    const container = document.getElementById('smartMapperContainer');
+    if (!container) return;
 
-    const container = document.getElementById('smartMapperContainer'); // Твой контейнер для модалки
-    
-    // Генерируем карточки для каждой найденной сложной колонки
-    let cardsHtml = detectedColumns.map((col, index) => `
-        <div class="card smart-mapper-card" data-col-name="${col.colName}">
-            <div class="card-header" data-i18n="smart_modal_title">Настройка сложной колонки</div>
+    // 1. Очищаем контейнер от старого мусора
+    container.innerHTML = '';
+
+    // 2. Создаем ЕДИНЫЙ каркас окна
+    const modal = document.createElement('div');
+    modal.className = 'smart-modal-content';
+
+    // 3. Единая шапка
+    const header = document.createElement('div');
+    header.className = 'smart-modal-header';
+    header.innerText = 'Настройка сложных колонок';
+    modal.appendChild(header);
+
+    // 4. Единое тело (сюда сложим карточки вертикально)
+    const body = document.createElement('div');
+    body.className = 'smart-modal-body';
+
+    // === ТВОЙ СПИСОК ПАРАМЕТРОВ КАСПИ ===
+    // (Я взял примерные данные, если у тебя есть свой массив — используй его)
+    const kaspiParams = [
+        { id: 'width', name: 'Ширина профиля', examples: ['175', '195', '10.50'] },
+        { id: 'height', name: 'Высота профиля', examples: ['55', '65', '31'] },
+        { id: 'diameter', name: 'Диаметр диска', examples: ['15', '16', '17'] },
+        { id: 'load', name: 'Индекс нагрузки', examples: ['91', '94', '115/110'] },
+        { id: 'speed', name: 'Индекс скорости', examples: ['T', 'H', 'V'] },
+        { id: 'season', name: 'Сезонность', examples: ['Летние', 'Зимние'] }
+    ];
+
+    // 5. Цикл: генерируем ТОЛЬКО карточки внутри окна
+    complexColumns.forEach(col => {
+        const card = document.createElement('div');
+        card.className = 'smart-mapper-card';
+
+        // Оборачиваем каждый пример в <span>, чтобы они не слипались
+        let checkboxesHtml = kaspiParams.map(param => {
+            let exampleSpans = param.examples.map(ex => `<span>${ex}</span>`).join('');
             
-            <div class="data-preview">
-                <div class="col-name">${col.colName}</div>
-                <div class="raw-text">${col.example}</div>
-            </div>
+            return `
+                <label class="checkbox-item">
+                    <input type="checkbox" value="${param.id}" data-col="${col.colName}">
+                    <div class="checkbox-details">
+                        <div class="checkbox-title">${param.name}</div>
+                        <div class="checkbox-examples">${exampleSpans}</div>
+                    </div>
+                </label>
+            `;
+        }).join('');
 
-            <div class="selected-panel">
-                <div class="selected-panel-title" data-i18n="smart_modal_subtitle">Вы выбрали:</div>
-                <div class="chips-container" id="chipsContainer_${index}">
-                    <span class="empty-chips" data-i18n="smart_empty_chips">Пока ничего не выбрано...</span>
-                </div>
+        // Собираем карточку колонки
+        card.innerHTML = `
+            <div class="smart-col-info">
+                <span>КОЛОНКА: ${col.colName.toUpperCase()}</span>
+                <strong>${col.example || 'Пример не найден'}</strong>
             </div>
-
-            <div class="card-body">
-                <div class="question" data-i18n="smart_question">Какие параметры Kaspi здесь зашиты?</div>
-                
-                <div class="checkbox-grid">
-                    ${generateCheckboxesHtml(index)}
-                </div>
+            <div class="smart-chips-area">
+                <div style="font-size: 11px; color: #666; margin-bottom: 4px; text-transform: uppercase;">Вы выбрали:</div>
+                <span class="empty-chips">Пока ничего не выбрано...</span>
             </div>
-            
-            <div class="card-footer">
-                <button class="btn-save" onclick="saveSmartRules()" data-i18n="smart_btn_confirm">Подтвердить выбор</button>
+            <div style="font-weight: bold; margin-bottom: 12px; font-size: 14px;">Какие параметры Kaspi здесь зашиты?</div>
+            <div class="checkbox-grid">
+                ${checkboxesHtml}
             </div>
-        </div>
-    `).join('');
+        `;
+        body.appendChild(card);
+    });
 
-    container.innerHTML = cardsHtml;
+    modal.appendChild(body);
 
-    // КРИТИЧЕСКИ ВАЖНО: Вызываем твою функцию перевода сразу после вставки HTML
-    // Она пробежится по всем новым data-i18n и подставит текст из словаря
-    if (typeof applyLanguage === 'function' && typeof currentLang !== 'undefined') {
-        applyLanguage(currentLang);
-    }
+    // 6. Единый подвал с ОДНОЙ кнопкой (используем родные стили POS Noir)
+    const footer = document.createElement('div');
+    footer.className = 'smart-modal-footer';
+    footer.innerHTML = `<button class="btn-primary green" id="smartConfirmBtn">ПОДТВЕРДИТЬ ВЫБОР</button>`;
+    modal.appendChild(footer);
+
+    // Выводим готовую модалку на экран
+    container.appendChild(modal);
+
+    // 7. Обработчик нажатия на кнопку
+    document.getElementById('smartConfirmBtn').addEventListener('click', () => {
+        // Убираем оверлей
+        container.className = '';
+        container.innerHTML = '';
+        // Переходим к старому интерфейсу
+        if (typeof window.renderMapper2Cards === 'function') {
+            window.renderMapper2Cards(window.currentTemplateData);
+        }
+    });
 }
 
 /**

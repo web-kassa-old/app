@@ -1023,3 +1023,18 @@ button,
 .smart-btn-confirm:hover {
     background: #1b5e20;
 }
+/* --- АДАПТИВНОСТЬ ДЛЯ SMART MAPPER --- */
+@media (max-width: 600px) {
+    .checkbox-grid {
+        grid-template-columns: 1fr; /* Сетка в одну колонку на мобилках */
+    }
+    .smart-modal-content {
+        width: 100%;
+        height: 100vh;
+        max-height: 100vh;
+        border-radius: 0; /* Убираем скругления на весь экран */
+    }
+    .smart-mapper-overlay {
+        padding-top: 0; /* Прибиваем модалку к самому верху экрана */
+    }
+}
