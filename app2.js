@@ -3576,10 +3576,19 @@ document.addEventListener("click", function (event) {
 
 function toggleIncomeModule() {
   const modal = document.getElementById("income-modal");
+  
+  // === ОЧИСТКА ПАМЯТИ МАТРЕШКИ ===
+  window.mapper2State = window.mapper2State || {};
+  window.mapper2State.history = [];
+
   if (modal.style.display === "none" || modal.style.display === "") {
-    modal.style.display = "flex"; // Просто показываем окно как есть
+    // Принудительно включаем Шаг 1 перед открытием (true означает, что шаг не пишется в историю дублем)
+    if (typeof window.navigateIncomeStep === 'function') {
+      window.navigateIncomeStep(1, true); 
+    }
+    modal.style.display = "flex";
   } else {
-    modal.style.display = "none"; // Просто прячем окно, ничего внутри не трогая
+    modal.style.display = "none";
   }
 }
 
@@ -4408,6 +4417,31 @@ let tempInvoiceState = null;
 // ========================================================
 // МАППЕР 2.0: РЕВЕРСИВНЫЙ ИМПОРТ И СПЛИТТЕР
 // ========================================================
+// === БАЗА ДЛЯ МАТРЕШКИ (СТЕК ИСТОРИИ) ===
+window.mapper2State = window.mapper2State || {};
+window.mapper2State.history = []; // Тот самый пустой список шагов
+
+// Универсальная функция возврата
+window.navigateBack = function() {
+    const history = window.mapper2State.history;
+    
+    // Если в истории больше одного шага, нам есть куда возвращаться
+    if (history.length > 1) {
+        history.pop(); // Вычеркиваем текущий экран (например, Шаг 2)
+        const previousStep = history[history.length - 1]; // Смотрим, что было до него (например, 'smart')
+        
+        // Вызываем твой роутер, передавая флаг true (что означает "мы идем назад, не пиши это в историю снова")
+        if (typeof window.navigateIncomeStep === 'function') {
+            window.navigateIncomeStep(previousStep, true); 
+        }
+    } else {
+        // Если история пуста или там только 1 шаг, кнопка "Назад" может просто закрыть окно
+        const incomModal = document.getElementById('incom_modal');
+        if (incomModal) {
+            incomModal.style.display = 'none';
+        }
+    }
+};
 
 window.mapper2State = {
   invoiceRows: [],
@@ -4424,28 +4458,42 @@ window.mapper2State = {
 };
 
 // === РОУТЕР ШАГОВ ПРИЕМКИ (ОБНОВЛЕННЫЙ) ===
-window.navigateIncomeStep = function (stepNumber) {
+window.navigateIncomeStep = function (stepNumber, isBack = false) {
+  // 1. Ведем запись в историю (если идем вперед)
+  window.mapper2State = window.mapper2State || {};
+  window.mapper2State.history = window.mapper2State.history || [];
+
+  if (!isBack) {
+    const lastStep = window.mapper2State.history[window.mapper2State.history.length - 1];
+    if (lastStep !== stepNumber) {
+      window.mapper2State.history.push(stepNumber);
+    }
+  }
+
+  // 2. Находим контейнеры экранов
   const step1 = document.getElementById("uploadStepArea");
   const step2 = document.getElementById("mapper2Area");
   const step3 = document.getElementById("invoicePreviewArea");
   const tabs = document.getElementById("mapperTabsContainer");
   const currency = document.getElementById("mapperCurrencyBlock");
+  const smartContainer = document.getElementById("smartMapperContainer");
 
-  // Скрываем все шаги
+  // 3. Скрываем абсолютно ВСЕ слои перед отрисовкой нужного
   if (step1) step1.style.display = "none";
   if (step2) step2.style.display = "none";
   if (step3) step3.style.display = "none";
+  if (smartContainer) {
+    smartContainer.className = "";
+    smartContainer.innerHTML = "";
+  }
 
-  // Показываем нужный шаг
+  // 4. Показываем запрошенный шаг
   if (stepNumber === 1 && step1) {
     step1.style.display = "block";
 
-    // === ВКЛЮЧАЕМ ВКЛАДКИ И ВАЛЮТУ ТОЛЬКО НА ШАГЕ 1 ===
     if (tabs) tabs.style.display = "flex";
     if (currency) currency.style.display = "flex";
 
-    // ФИКС: Принудительно возвращаем видимость внутренним блокам,
-    // которые мог спрятать старый скрипт при обработке файла
     const importMode = document.getElementById("importModeContainer");
     if (importMode) importMode.style.display = "block";
 
@@ -4454,19 +4502,30 @@ window.navigateIncomeStep = function (stepNumber) {
 
     const uploadWrapper = document.getElementById("invoiceUploadWrapper");
     if (uploadWrapper) {
-      // Восстанавливаем оригинальные стили обертки загрузки
       uploadWrapper.style.display = "block";
       uploadWrapper.style.opacity = "1";
       uploadWrapper.style.pointerEvents = "auto";
     }
+  } else if (stepNumber === "smart") {
+    // Включаем Умное сито
+    if (tabs) tabs.style.display = "none";
+    if (currency) currency.style.display = "none";
+
+    if (smartContainer) {
+      smartContainer.className = "smart-mapper-overlay";
+      if (
+        window.renderSmartMapperModal &&
+        window.mapper2State.lastComplexColumns
+      ) {
+        window.renderSmartMapperModal(window.mapper2State.lastComplexColumns);
+      }
+    }
   } else if (stepNumber === 2 && step2) {
     step2.style.display = "flex";
-    // Прячем вкладки на 2 шаге
     if (tabs) tabs.style.display = "none";
     if (currency) currency.style.display = "none";
   } else if (stepNumber === 3 && step3) {
     step3.style.display = "flex";
-    // Прячем вкладки на 3 шаге
     if (tabs) tabs.style.display = "none";
     if (currency) currency.style.display = "none";
   }
@@ -4685,32 +4744,18 @@ window.processInvoiceFile = async function () {
       console.log("Детектор нашел сложные колонки:", complexColumns);
 
       // 4. Развилка (Маршрутизация)
+      window.mapper2State = window.mapper2State || {};
+
       if (complexColumns && complexColumns.length > 0) {
-          // ЖЕЛЕЗОБЕТОННО гасим старое окно приемки и его подложку
-          const incomModal = document.getElementById('incom_modal');
-          if (incomModal) incomModal.style.setProperty('display', 'none', 'important');
-          document.querySelectorAll('.modal-overlay').forEach(el => {
-              el.style.setProperty('display', 'none', 'important');
-          });
-
-          // Активируем новый контейнер
-          const container = document.getElementById('smartMapperContainer');
-          if (container) container.className = 'smart-mapper-overlay';
-
-          if (window.renderSmartMapperModal) {
-              window.renderSmartMapperModal(complexColumns);
-          } else {
-              renderSmartMapperModal(complexColumns);
-          }
+          // Сохраняем данные и просим роутер открыть Сито
+          window.mapper2State.lastComplexColumns = complexColumns;
+          window.navigateIncomeStep('smart');
       } else {
-          // Обычный сценарий
-          const incomModal = document.getElementById('incom_modal');
-          if (incomModal) incomModal.style.setProperty('display', 'none', 'important');
-          document.querySelectorAll('.modal-overlay').forEach(el => {
-              el.style.setProperty('display', 'none', 'important');
-          });
-          
-          window.renderMapper2Cards(templateData);
+          // Сито не нужно, просим роутер открыть Шаг 2
+          window.navigateIncomeStep(2);
+          if (typeof window.renderMapper2Cards === 'function') {
+              window.renderMapper2Cards(templateData);
+          }
       }
     } else {
       throw new Error("Не удалось найти таблицу с товарами");
@@ -6715,7 +6760,6 @@ async function sendInvoiceToBackend() {
       group.items.forEach((item) => (item.file_code = fp));
 
       // === 2. ОТПРАВЛЯЕМ ДАННЫЕ НА БЭКЕНД ===
-
       console.log("=== ДЕБАГ МАППЕРА ===");
       console.log("Категория (должно быть 'диски'):", selectedCategory);
       console.log("Собранный маппер:", autoGeneratedMapper);
@@ -6733,7 +6777,7 @@ async function sendInvoiceToBackend() {
           fingerprint: fp,
           market_category: selectedCategory, 
           market_status: "pending",
-          kaspi_mapper: autoGeneratedMapper // <-- СОБРАННЫЙ МАППИНГ ПЕРЕДАЕТСЯ ЗДЕСЬ
+          kaspi_mapper: autoGeneratedMapper
         }),
       });
 
@@ -6775,6 +6819,7 @@ async function sendInvoiceToBackend() {
   statusText.innerText = translations[currentLang].inc_status_done;
   statusText.style.color = "var(--accent-green)";
 
+  // === 4. УСПЕШНОЕ ЗАВЕРШЕНИЕ И ОЧИСТКА МАТРЕШКИ ===
   setTimeout(() => {
     alert(translations[currentLang].inc_all_done);
 
@@ -6797,8 +6842,14 @@ async function sendInvoiceToBackend() {
     statusBar.style.width = "0%";
     statusPercent.innerText = "0%";
 
-    if (typeof window.navigateIncomeStep === "function")
-      window.navigateIncomeStep(1);
+    // Очистка памяти роутера
+    window.mapper2State = window.mapper2State || {};
+    window.mapper2State.history = [];
+    
+    // Возврат интерфейса на 1-й шаг (с флагом true, чтобы не дублировать в историю)
+    if (typeof window.navigateIncomeStep === "function") {
+      window.navigateIncomeStep(1, true);
+    }
 
     toggleIncomeModule();
     if (typeof load === "function") load();
@@ -10617,3 +10668,48 @@ document.addEventListener("DOMContentLoaded", () => {
         if (el) el.setAttribute("accept", ".xlsx, .xls, .xlsm, .xml");
     });
 });
+
+window.handleMapper2Back = function() {
+    // 1. Прячем текущее окно старого маппера
+    const mapper2Area = document.getElementById("mapper2Area");
+    if (mapper2Area) mapper2Area.style.display = "none";
+    
+    const applyBtn = document.getElementById("applyMapper2Btn");
+    if (applyBtn) applyBtn.style.display = "none";
+
+    // 2. Умный возврат на основе флага
+    if (window.mapper2State && window.mapper2State.usedSmartMapper) {
+        // СЦЕНАРИЙ А: Возвращаемся в Умное сито
+        const container = document.getElementById('smartMapperContainer');
+        if (container) container.className = 'smart-mapper-overlay';
+        
+        if (window.renderSmartMapperModal) {
+            window.renderSmartMapperModal(window.mapper2State.lastComplexColumns);
+        }
+    } else {
+        // СЦЕНАРИЙ Б: Возвращаемся в самое начало (Окно приемки)
+        // Восстанавливаем блоки, которые скрыла renderMapper2Cards
+        const parseBtn = document.getElementById("parseInvoiceBtn");
+        if (parseBtn) parseBtn.style.display = ""; 
+
+        const importModeContainer = document.getElementById("importModeContainer");
+        if (importModeContainer) importModeContainer.style.display = "";
+
+        const invoiceUploadWrapper = document.getElementById("invoiceUploadWrapper");
+        if (invoiceUploadWrapper) invoiceUploadWrapper.style.display = "";
+
+        const tabs = document.getElementById("mapperTabsContainer");
+        if (tabs) tabs.style.display = "";
+
+        const currency = document.getElementById("mapperCurrencyBlock");
+        if (currency) currency.style.display = "";
+
+        // Снимаем блокировку со стартового окна
+        const incomModal = document.getElementById('incom_modal');
+        if (incomModal) {
+            incomModal.style.removeProperty('display');
+            const overlay = incomModal.closest('.modal-overlay');
+            if (overlay) overlay.style.removeProperty('display');
+        }
+    }
+};

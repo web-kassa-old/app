@@ -205,21 +205,35 @@ window.renderSmartMapperModal = function(complexColumns) {
 
     modal.appendChild(body);
 
+    // === СОХРАНЯЕМ ДАННЫЕ ДЛЯ МАТРЕШКИ ===
+    window.mapper2State = window.mapper2State || {};
+    window.mapper2State.lastComplexColumns = complexColumns;
+
+    // === СОБИРАЕМ ПОДВАЛ С ДВУМЯ КНОПКАМИ ===
     const footer = document.createElement('div');
     footer.className = 'smart-modal-footer';
-    // Кнопка тоже через data-i18n
-    footer.innerHTML = `<button class="btn-primary green" id="smartConfirmBtn" data-i18n="smart_mapper_btn"></button>`;
+    footer.innerHTML = `
+        <div style="display: flex; gap: 10px;">
+            <button class="cancel-btn" id="smartBackBtn" data-i18n="smart_mapper_back"></button>
+            <button class="confirm-btn btn-primary green" id="smartConfirmBtn" data-i18n="smart_mapper_btn" style="flex: 2; margin: 0;"></button>
+        </div>
+    `;
     modal.appendChild(footer);
-
     container.appendChild(modal);
 
-    // === 3. ЗАПУСКАЕМ ТВОЙ ГЛОБАЛЬНЫЙ ПЕРЕВОДЧИК ПОСЛЕ РЕНДЕРА ===
+    // Запускаем переводчик
     if (typeof applyLanguage === 'function' && typeof currentLang !== 'undefined') {
         applyLanguage(currentLang);
     }
 
+    // === ОБРАБОТЧИК КНОПКИ "НАЗАД" ===
+    document.getElementById('smartBackBtn').addEventListener('click', () => {
+        // Роутер сам вычеркнет 'smart' из истории и вернет на Шаг 1
+        if (typeof window.navigateBack === 'function') window.navigateBack();
+    });
+
+    // === ОБРАБОТЧИК КНОПКИ "ПОДТВЕРДИТЬ" ===
     document.getElementById('smartConfirmBtn').addEventListener('click', () => {
-        window.mapper2State = window.mapper2State || {};
         window.mapper2State.smartRules = {}; 
 
         const cards = body.querySelectorAll('.smart-mapper-card');
@@ -233,8 +247,10 @@ window.renderSmartMapperModal = function(complexColumns) {
             }
         });
 
-        container.className = '';
-        container.innerHTML = '';
+        // Просим роутер открыть Шаг 2 и рендерим карточки
+        if (typeof window.navigateIncomeStep === 'function') {
+            window.navigateIncomeStep(2);
+        }
         if (typeof window.renderMapper2Cards === 'function') {
             window.renderMapper2Cards(window.currentTemplateData);
         }
