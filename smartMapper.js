@@ -99,34 +99,44 @@ window.renderSmartMapperModal = function(complexColumns) {
     const body = document.createElement('div');
     body.className = 'smart-modal-body';
 
-    // === П4: ДИНАМИЧЕСКИ ИЩЕМ ТОЛЬКО ОБЯЗАТЕЛЬНЫЕ ПОЛЯ ИЗ ШАБЛОНА ===
+    // === ФИЛЬТРУЕМ ТОЛЬКО ПАРАМЕТРЫ СО СПРАВОЧНИКОМ ===
     let kaspiParams = [];
     const tData = window.currentTemplateData;
     
-    if (tData && tData.humanNames && tData.requirements) {
-        // Исключаем базовые поля, которые никогда не прячутся внутри сложных колонок
-        const excludeFromSmart = ['Артикул', 'Название товара', 'Бренд', 'Цена', 'Название модели'];
+    if (tData && tData.humanNames) {
+        // Расширенный список системных полей, которые 100% не нужны в Умном сите
+        const excludeFromSmart = [
+            'Артикул', 'Название товара', 'Бренд', 'Цена', 'Название модели', 
+            'Рубрика', 'Код изображений', 'Ссылка на YouTube', 'Ссылка на картинку',
+            'Описание (мин. 100 символов, макс. 7 000 символов)', 'Описание',
+            'Вес для расчета логистики', 'Объединить в одну карточку', 'В наличии'
+        ];
         
         for (let i = 0; i < tData.humanNames.length; i++) {
             const paramName = tData.humanNames[i];
-            const req = tData.requirements[i] || '';
             
-            // Если поле "обязательное" и не в базовом списке игнора
-            if (req.includes('обязательное') && !excludeFromSmart.includes(paramName)) {
-                // Достаем примеры, если для этого поля есть словарь
-                let examples = (tData.dictionary && tData.dictionary[paramName]) ? tData.dictionary[paramName] : [];
+            // 1. Достаем данные из словаря для текущего поля
+            const dictData = tData.dictionary ? tData.dictionary[paramName] : null;
+            
+            // 2. ЖЕЛЕЗОБЕТОННАЯ ПРОВЕРКА: это должен быть именно МАССИВ (справочник вариантов), а не строка
+            if (Array.isArray(dictData)) {
+                // 3. Очищаем массив от пустых строк, undefined и null
+                const validExamples = dictData.filter(val => val && String(val).trim() !== '');
                 
-                kaspiParams.push({
-                    id: paramName,
-                    name: paramName,
-                    examples: examples.slice(0, 3) // Только 3 первых для красоты
-                });
+                // 4. Если после очистки остались реальные примеры и поля нет в черном списке - берем в работу
+                if (validExamples.length > 0 && !excludeFromSmart.includes(paramName)) {
+                    kaspiParams.push({
+                        id: paramName,
+                        name: paramName,
+                        examples: validExamples.slice(0, 3) // Оставляем 3 плашки
+                    });
+                }
             }
         }
     }
 
     if (kaspiParams.length === 0) {
-        kaspiParams = [{ id: 'error', name: 'Обязательные параметры не найдены', examples: [] }];
+        kaspiParams = [{ id: 'error', name: 'Характеристики со справочником не найдены', examples: [] }];
     }
 
     complexColumns.forEach(col => {
