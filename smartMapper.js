@@ -7,14 +7,10 @@
 window.detectComplexColumns = function(headers, rows) {
     if (!headers || !rows || headers.length === 0 || rows.length === 0) return [];
 
-    // 1. Подтягиваем глобальный словарь синонимов из твоего стейта
     const dict = window.mapper2State?.dictValues || (typeof invoiceSynonyms !== 'undefined' ? invoiceSynonyms : {});
-
-    // 2. Системные ключи, которые точно не содержат сложных параметров (цены, коды, остатки)
     const excludeKeys = ['Артикул', 'Штрихкод', 'Код', 'Бренд', 'Цена', 'Остаток', 'Количество', 'Сумма'];
     let dynamicBlacklist = [];
 
-    // 3. Вытаскиваем ВСЕ синонимы из твоего словаря для этих ключей
     excludeKeys.forEach(key => {
         if (dict[key] && Array.isArray(dict[key])) {
             const synonyms = dict[key].map(s => String(s).toLowerCase().trim());
@@ -22,72 +18,54 @@ window.detectComplexColumns = function(headers, rows) {
         }
     });
 
-    // 4. Базовый блэклист на случай пустого словаря (включая технические колонки прайсов)
     const fallbackBlacklist = [
         'артикул', 'код', 'code', 'barcode', 'штрихкод', 'brand', 'бренд', 
         'цена', 'price', 'usd', 'eur', 'kzt', 'руб', 
         'кол-во', 'qty', 'pcs', 'amount', 'сумма', 'total'
     ];
     
-    // Объединяем оба списка и убираем дубликаты
     const blacklist = [...new Set([...dynamicBlacklist, ...fallbackBlacklist])];
-
     const complexCols = [];
 
-    // 5. Пробегаемся по всем шапкам
     headers.forEach((colName, colIndex) => {
         if (!colName) return;
         
         const cleanColName = String(colName).toLowerCase().trim();
-        
-        // Отсекаем колонку, если она есть в нашем умном блэклисте
-        if (blacklist.includes(cleanColName)) {
-            return; 
-        }
+        if (blacklist.includes(cleanColName)) return; 
 
         let exampleVal = '';
         let validTokens = [];
         
-        // 6. Ищем репрезентативный пример данных в первых строках
         for (let i = 0; i < Math.min(20, rows.length); i++) {
             const row = rows[i];
-            const cellVal = row[colIndex];
+            if (!row) continue; // ЖЕЛЕЗОБЕТОННАЯ ЗАЩИТА ОТ ПУСТЫХ СТРОК
             
+            const cellVal = row[colIndex];
             if (cellVal !== undefined && cellVal !== null && String(cellVal).trim() !== '') {
                 const strVal = String(cellVal).trim();
-                
-                // Пропускаем обычные числа (например, просто вес или цена без шапки)
                 const isJustNumber = !isNaN(Number(strVal.replace(/,/g, '')));
                 if (isJustNumber) continue;
 
-                // Разбиваем строку на "токены" (по пробелам, слешам, дефисам, знакам X)
-                // Это поможет понять сложность строки. Например "205/70R15" -> ["205", "70R15"]
                 const tokens = strVal.split(/[\s/\-_*xX]+/).filter(t => t.length > 0);
-                
-                // Если строка содержит хотя бы несколько частей - это наш клиент
                 if (tokens.length >= 2) {
                     exampleVal = strVal;
                     validTokens = tokens;
-                    break; // Нашли хороший пример, останавливаем поиск по строкам
+                    break; 
                 }
             }
         }
 
-        // 7. Финальная проверка: добавляем в список, если это действительно сложные данные, а не просто длинный текст
         if (exampleVal && validTokens.length >= 2) {
-            const hasNumbers = /\d/.test(exampleVal); // В параметрах вроде дисков и шин почти всегда есть цифры
-            const isNotTooLong = exampleVal.length < 40; // Отсекаем колонки с длинным описанием товара
+            const hasNumbers = /\d/.test(exampleVal); 
+            const isNotTooLong = exampleVal.length < 40; 
 
             if (hasNumbers && isNotTooLong) {
-                complexCols.push({
-                    colName: colName,
-                    example: exampleVal,
-                    tokenCount: validTokens.length
-                });
+                complexCols.push({ colName: colName, example: exampleVal, tokenCount: validTokens.length });
             }
         }
     });
 
+    console.log("Детектор проверил файл. Найдено сложных колонок:", complexCols);
     return complexCols;
 };
 

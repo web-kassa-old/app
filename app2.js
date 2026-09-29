@@ -4686,29 +4686,33 @@ window.processInvoiceFile = async function () {
 
       // 4. Развилка (Маршрутизация)
       if (complexColumns && complexColumns.length > 0) {
-          // Чисто и нативно прячем окно приемки
+          
+          // Полностью прячем окно приемки И его темный фон
           const incomModal = document.getElementById('incom_modal');
           if (incomModal) {
               incomModal.style.display = 'none';
+              const overlay = incomModal.closest('.modal-overlay');
+              if (overlay) overlay.style.display = 'none';
           }
 
-          // Активируем наш контейнер через CSS-класс
+          // Показываем наше Умное сито
           const container = document.getElementById('smartMapperContainer');
           if (container) {
               container.className = 'smart-mapper-overlay'; 
           }
 
-          // Запускаем отрисовку Умного сита
           if (window.renderSmartMapperModal) {
               window.renderSmartMapperModal(complexColumns);
           } else {
               renderSmartMapperModal(complexColumns);
           }
       } else {
-          // Обычная накладная (тоже прячем окно приемки)
+          // То же самое скрытие для обычного сценария
           const incomModal = document.getElementById('incom_modal');
           if (incomModal) {
               incomModal.style.display = 'none';
+              const overlay = incomModal.closest('.modal-overlay');
+              if (overlay) overlay.style.display = 'none';
           }
           
           window.renderMapper2Cards(templateData);
