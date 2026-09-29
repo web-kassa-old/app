@@ -8,7 +8,9 @@ window.detectComplexColumns = function(headers, rows) {
     if (!headers || !rows || headers.length === 0 || rows.length === 0) return [];
 
     const dict = window.mapper2State?.dictValues || (typeof invoiceSynonyms !== 'undefined' ? invoiceSynonyms : {});
-    const excludeKeys = ['Артикул', 'Штрихкод', 'Код', 'Бренд', 'Цена', 'Остаток', 'Количество', 'Сумма'];
+    
+    // П1: Добавили Модель и Рисунок в список игнора
+    const excludeKeys = ['Артикул', 'Штрихкод', 'Код', 'Бренд', 'Цена', 'Остаток', 'Количество', 'Сумма', 'Модель', 'Рисунок'];
     let dynamicBlacklist = [];
 
     excludeKeys.forEach(key => {
@@ -21,7 +23,8 @@ window.detectComplexColumns = function(headers, rows) {
     const fallbackBlacklist = [
         'артикул', 'код', 'code', 'barcode', 'штрихкод', 'brand', 'бренд', 
         'цена', 'price', 'usd', 'eur', 'kzt', 'руб', 
-        'кол-во', 'qty', 'pcs', 'amount', 'сумма', 'total'
+        'кол-во', 'qty', 'pcs', 'amount', 'сумма', 'total',
+        'pattern', 'модель' // П1: Жесткое исключение для Pattern
     ];
     
     const blacklist = [...new Set([...dynamicBlacklist, ...fallbackBlacklist])];
@@ -36,17 +39,23 @@ window.detectComplexColumns = function(headers, rows) {
         let exampleVal = '';
         let validTokens = [];
         
-        for (let i = 0; i < Math.min(20, rows.length); i++) {
+        // П2: Сканируем всю колонку (до 1000 строк), чтобы не пропустить "115/110" где-то внизу
+        const maxRows = Math.min(1000, rows.length);
+        for (let i = 0; i < maxRows; i++) {
             const row = rows[i];
-            if (!row) continue; // ЖЕЛЕЗОБЕТОННАЯ ЗАЩИТА ОТ ПУСТЫХ СТРОК
+            if (!row) continue;
             
             const cellVal = row[colIndex];
             if (cellVal !== undefined && cellVal !== null && String(cellVal).trim() !== '') {
                 const strVal = String(cellVal).trim();
+                
+                // Если ячейка - просто число (например 82), идем к следующей СТРОКЕ, но не бросаем колонку
                 const isJustNumber = !isNaN(Number(strVal.replace(/,/g, '')));
                 if (isJustNumber) continue;
 
                 const tokens = strVal.split(/[\s/\-_*xX]+/).filter(t => t.length > 0);
+                
+                // Как только нашли сложную структуру - фиксируем и останавливаем поиск по этой колонке
                 if (tokens.length >= 2) {
                     exampleVal = strVal;
                     validTokens = tokens;
@@ -77,9 +86,8 @@ window.renderSmartMapperModal = function(complexColumns) {
     const container = document.getElementById('smartMapperContainer');
     if (!container) return;
 
-    container.innerHTML = ''; // Очищаем от мусора
+    container.innerHTML = ''; 
 
-    // Создаем окно
     const modal = document.createElement('div');
     modal.className = 'smart-modal-content';
 
@@ -91,20 +99,40 @@ window.renderSmartMapperModal = function(complexColumns) {
     const body = document.createElement('div');
     body.className = 'smart-modal-body';
 
-    // Массив параметров Каспи для генерации
-    const kaspiParams = [
-        { id: 'width', name: 'Ширина профиля', examples: ['175', '195', '10.50'] },
-        { id: 'height', name: 'Высота профиля', examples: ['55', '65', '31'] },
-        { id: 'diameter', name: 'Диаметр диска', examples: ['15', '16', '17'] },
-        { id: 'load', name: 'Индекс нагрузки', examples: ['91', '94', '115/110'] },
-        { id: 'speed', name: 'Индекс скорости', examples: ['T', 'H', 'V'] },
-        { id: 'season', name: 'Сезонность', examples: ['Летние', 'Зимние'] }
-    ];
+    // === П4: ДИНАМИЧЕСКИ ИЩЕМ ТОЛЬКО ОБЯЗАТЕЛЬНЫЕ ПОЛЯ ИЗ ШАБЛОНА ===
+    let kaspiParams = [];
+    const tData = window.currentTemplateData;
+    
+    if (tData && tData.humanNames && tData.requirements) {
+        // Исключаем базовые поля, которые никогда не прячутся внутри сложных колонок
+        const excludeFromSmart = ['Артикул', 'Название товара', 'Бренд', 'Цена', 'Название модели'];
+        
+        for (let i = 0; i < tData.humanNames.length; i++) {
+            const paramName = tData.humanNames[i];
+            const req = tData.requirements[i] || '';
+            
+            // Если поле "обязательное" и не в базовом списке игнора
+            if (req.includes('обязательное') && !excludeFromSmart.includes(paramName)) {
+                // Достаем примеры, если для этого поля есть словарь
+                let examples = (tData.dictionary && tData.dictionary[paramName]) ? tData.dictionary[paramName] : [];
+                
+                kaspiParams.push({
+                    id: paramName,
+                    name: paramName,
+                    examples: examples.slice(0, 3) // Только 3 первых для красоты
+                });
+            }
+        }
+    }
 
-    // Генерируем карточки для каждой сложной колонки
+    if (kaspiParams.length === 0) {
+        kaspiParams = [{ id: 'error', name: 'Обязательные параметры не найдены', examples: [] }];
+    }
+
     complexColumns.forEach(col => {
         const card = document.createElement('div');
         card.className = 'smart-mapper-card';
+        card.dataset.colname = col.colName;
 
         let checkboxesHtml = kaspiParams.map(param => {
             let exampleSpans = param.examples.map(ex => `<span>${ex}</span>`).join('');
@@ -135,27 +163,19 @@ window.renderSmartMapperModal = function(complexColumns) {
         `;
         body.appendChild(card);
 
-        // Оживляем интерфейс: слушаем клики по чекбоксам
         const checkboxes = card.querySelectorAll('input[type="checkbox"]');
         const chipsContainer = card.querySelector('.chips-container');
 
         checkboxes.forEach(cb => {
             cb.addEventListener('change', function() {
                 const label = this.closest('.checkbox-item');
-                
-                // Красим карточку
-                if (this.checked) {
-                    label.classList.add('active');
-                } else {
-                    label.classList.remove('active');
-                }
+                if (this.checked) label.classList.add('active');
+                else label.classList.remove('active');
 
-                // Собираем текст выбранных плашек
                 const selected = Array.from(checkboxes)
                     .filter(box => box.checked)
                     .map(box => box.dataset.name);
 
-                // Отрисовываем плашки в блоке "ВЫ ВЫБРАЛИ"
                 if (selected.length > 0) {
                     chipsContainer.innerHTML = selected.map(name => `<span class="chip">${name}</span>`).join('');
                 } else {
@@ -167,7 +187,6 @@ window.renderSmartMapperModal = function(complexColumns) {
 
     modal.appendChild(body);
 
-    // Добавляем фирменную зеленую кнопку из твоего UI
     const footer = document.createElement('div');
     footer.className = 'smart-modal-footer';
     footer.innerHTML = `<button class="btn-primary green" id="smartConfirmBtn">ПОДТВЕРДИТЬ ВЫБОР</button>`;
@@ -175,8 +194,23 @@ window.renderSmartMapperModal = function(complexColumns) {
 
     container.appendChild(modal);
 
-    // Обработчик закрытия нашего окна
     document.getElementById('smartConfirmBtn').addEventListener('click', () => {
+        window.mapper2State = window.mapper2State || {};
+        window.mapper2State.smartRules = {}; 
+
+        const cards = body.querySelectorAll('.smart-mapper-card');
+        cards.forEach(card => {
+            const colName = card.dataset.colname;
+            const checkedBoxes = Array.from(card.querySelectorAll('input[type="checkbox"]:checked'));
+            const selectedParams = checkedBoxes.map(cb => cb.value); 
+            
+            if (selectedParams.length > 0) {
+                window.mapper2State.smartRules[colName] = selectedParams;
+            }
+        });
+
+        console.log("Сохраненные правила Умного Сита:", window.mapper2State.smartRules);
+
         container.className = '';
         container.innerHTML = '';
         if (typeof window.renderMapper2Cards === 'function') {
