@@ -4671,23 +4671,26 @@ window.processInvoiceFile = async function () {
       // 1. Сохраняем данные шаблона глобально, чтобы они не потерялись при переходе
       window.currentTemplateData = templateData;
 
-      // 2. Универсальное извлечение шапок и строк из templateData (независимо от формата)
-      let headers = [];
-      let rows = [];
+      // 2. Используем уникальные имена переменных, чтобы не было конфликтов
+      let smartHeaders = [];
+      let smartRows = [];
+      
       if (Array.isArray(templateData) && templateData.length > 0) {
           if (Array.isArray(templateData[0])) {
-              // Если формат: массив массивов ( [['Шапка1', 'Шапка2'], ['Значение1', 'Значение2']] )
-              headers = templateData[0];
-              rows = templateData.slice(1);
+              // Если формат: массив массивов
+              smartHeaders = templateData[0];
+              smartRows = templateData.slice(1);
           } else if (typeof templateData[0] === 'object') {
-              // Если формат: массив объектов ( [{ 'Шапка1': 'Значение1', 'Шапка2': 'Значение2' }] )
-              headers = Object.keys(templateData[0]);
-              rows = templateData.map(item => Object.values(item));
+              // Если формат: массив объектов
+              smartHeaders = Object.keys(templateData[0]);
+              smartRows = templateData.map(item => Object.values(item));
           }
       }
 
       // 3. Запускаем Детектор
-      const complexColumns = window.detectComplexColumns ? window.detectComplexColumns(headers, rows) : detectComplexColumns(headers, rows);
+      const complexColumns = window.detectComplexColumns 
+          ? window.detectComplexColumns(smartHeaders, smartRows) 
+          : detectComplexColumns(smartHeaders, smartRows);
 
       // 4. Развилка (Маршрутизация)
       if (complexColumns && complexColumns.length > 0) {
