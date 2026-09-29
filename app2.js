@@ -4686,6 +4686,11 @@ window.processInvoiceFile = async function () {
 
       // 4. Развилка (Маршрутизация)
       if (complexColumns && complexColumns.length > 0) {
+          // Прячем старое окно "Приемка товара", чтобы оно не перекрывало экран
+          if (typeof window.closeTemplateModal === 'function') {
+              window.closeTemplateModal();
+          }
+
           // Сценарий А: Найдены сложные параметры -> открываем "Умное сито"
           if (window.renderSmartMapperModal) {
               window.renderSmartMapperModal(complexColumns);
@@ -4693,6 +4698,11 @@ window.processInvoiceFile = async function () {
               renderSmartMapperModal(complexColumns);
           }
       } else {
+          // Прячем старое окно для обычного сценария тоже
+          if (typeof window.closeTemplateModal === 'function') {
+              window.closeTemplateModal();
+          }
+          
           // Сценарий Б: Обычная накладная -> сразу открываем старый интерфейс
           window.renderMapper2Cards(templateData);
       }
