@@ -1571,7 +1571,7 @@ function applyLanguage(lang) {
   document.getElementById("lang-kz").classList.toggle("active", lang === "kz");
   document.querySelectorAll("[data-i18n]").forEach((el) => {
     const key = el.getAttribute("data-i18n");
-    if (translations[lang][key]) el.innerText = translations[lang][key];
+    // if (translations[lang][key]) el.innerText = translations[lang][key];
   });
   document.querySelectorAll("[data-i18n-placeholder]").forEach((el) => {
     const key = el.getAttribute("data-i18n-placeholder");
