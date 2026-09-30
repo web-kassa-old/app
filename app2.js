@@ -5832,11 +5832,24 @@ window.applyMapper2Logic = function () {
     
     const processAttribute = (key) => {
       let lowerKey = String(key).toLowerCase();
-      if (["qty", "price", "cost", "name", "model", "barcode", "cbm", "weight"].includes(lowerKey)) return;
-
+      
+      // 1. Вытягиваем значение ОДИН РАЗ
       let rawValue = getValue(key);
+
+      // 2. НАШ ШПИОН
+      if (String(key).includes("width") || String(key).includes("ratio") || String(key).includes("size")) {
+          console.log(`🔎 АНАЛИЗ [${key}]:`, {
+              "Индекс": state.colMap[key],
+              "Текст ячейки": row[state.colMap[key]],
+              "getValue": rawValue
+          });
+      }
+
+      // 3. Проверки: пропускаем базовые колонки и пустые значения
+      if (["qty", "price", "cost", "name", "model", "barcode", "cbm", "weight"].includes(lowerKey)) return;
       if (!rawValue) return;
 
+      // 4. Подготовка к парсингу
       let humanName = state.sysToHumanMap ? state.sysToHumanMap[key] : key;
       let lowerHuman = String(humanName).toLowerCase();
       let searchString = rawValue;
