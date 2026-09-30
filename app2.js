@@ -5911,10 +5911,13 @@ window.applyMapper2Logic = function () {
       // === ЛОГИКА КАРАНТИНА: Перехват нераспознанных форматов ===
       let hasDictionary = dict && Array.isArray(dict) && dict.length > 0;
 
-      // Условие: Если это Каспи, для параметра ЕСТЬ словарь, но скрипт НЕ СМОГ найти совпадение
+      // ЖУЧОК ДЛЯ ПРОВЕРКИ:
+      console.log("Сканируем:", humanName, "| Значение:", rawValue, "| Режим:", window.currentImportMode, "| Словарь:", hasDictionary, "| Совпадение:", foundMatch);
+
       if (window.currentImportMode === "kaspi" && hasDictionary && !foundMatch) {
          console.log("🔴 КАРАНТИН ПОЙМАЛ КОЛЛИЗИЮ:", humanName, "=>", rawValue);
          itemHasCollisions = true;
+         // ... остальной код карантина
          
          itemCollisionsList.push({
              sysKey: key,            
