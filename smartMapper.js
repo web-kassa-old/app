@@ -418,6 +418,7 @@ function saveSmartRules() {
 
 window.showTokenizer = function(columnName, tokensArray, paramsList) {
     const overlay = document.getElementById('tokenizer-overlay');
+    console.log("Оверлей найден?", overlay); // <--- ВСТАВЛЯЙ СЮДА
     if (!overlay) return;
 
     // Генерируем кнопки токенов
