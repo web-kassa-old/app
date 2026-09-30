@@ -5716,7 +5716,6 @@ window.applySplitRule = function (colIndex, colName) {
 
 // 6. ФИНАЛЬНАЯ СБОРКА JSON ДЛЯ СЕРВЕРА
 window.applyMapper2Logic = function () {
-  console.log("🚀 ЗАПУЩЕН УМНЫЙ МАППЕР ИЗ SMARTMAPPER.JS!"); // <-- ДОБАВЬ ЭТО
   const state = window.mapper2State;
 
   const qtyIdx = state.colMap["qty"];
@@ -5931,8 +5930,13 @@ window.applyMapper2Logic = function () {
       attributesObj[key] = rawValue;
     };
 
-    Object.keys(state.colMap).forEach(processAttribute);
-    if (state.dictValues) Object.keys(state.dictValues).forEach(processAttribute);
+    // Собираем ВСЕ ключи: обычные привязки, статику и результаты Сита
+    let allKeys = new Set(Object.keys(state.colMap));
+    if (state.dictValues) Object.keys(state.dictValues).forEach(k => allKeys.add(k));
+    if (state.splitRules) Object.keys(state.splitRules).forEach(k => allKeys.add(k));
+    
+    // Прогоняем их все через наш умный сканер
+    allKeys.forEach(key => processAttribute(key));
     
     let finalAttributes = Object.keys(attributesObj).length > 0 ? JSON.stringify(attributesObj) : "";
 
