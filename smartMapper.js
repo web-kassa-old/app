@@ -268,8 +268,9 @@ window.renderSmartMapperModal = function(complexColumns) {
 
     if (backBtn) {
         backBtn.addEventListener('click', () => {
-            // Роутер сам вычеркнет 'smart' из истории и вернет на Шаг 1
-            if (typeof window.navigateBack === 'function') window.navigateBack();
+            if (typeof window.navigateIncomeStep === 'function') {
+                window.navigateIncomeStep(1);
+            }
         });
     }
 
