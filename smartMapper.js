@@ -486,7 +486,7 @@ window.showTokenizer = function(columnName, tokensArray, paramsList) {
 
     // Применяем переводы data-i18n
     if (typeof window.applyLanguage === 'function') {
-        window.applyLanguage();
+        // window.applyLanguage();
     }
 
     // --- БАЗОВЫЕ ОБРАБОТЧИКИ (ЗАКРЫТИЕ) ---
