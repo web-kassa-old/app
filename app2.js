@@ -1565,18 +1565,28 @@ function checkBlockTimer() {
 }
 
 function applyLanguage(lang) {
+  // 1. Лечим корень: если язык не передали (вызов из Токенизатора) или в кэше "undefined"
+  if (!lang || lang === "undefined") {
+      lang = window.currentLang || localStorage.getItem("pos_lang");
+      if (!lang || lang === "undefined") lang = "ru"; // финальный фолбэк
+  }
+
   currentLang = lang;
   localStorage.setItem("pos_lang", lang);
   document.getElementById("lang-ru").classList.toggle("active", lang === "ru");
   document.getElementById("lang-kz").classList.toggle("active", lang === "kz");
+  
   document.querySelectorAll("[data-i18n]").forEach((el) => {
     const key = el.getAttribute("data-i18n");
-    if (translations[lang][key]) el.innerText = translations[lang][key];
+    // 2. Безопасная 1574 строка: проверяем, что словарь для языка существует
+    if (translations[lang] && translations[lang][key]) el.innerText = translations[lang][key];
   });
+  
   document.querySelectorAll("[data-i18n-placeholder]").forEach((el) => {
     const key = el.getAttribute("data-i18n-placeholder");
-    if (translations[lang][key]) el.placeholder = translations[lang][key];
+    if (translations[lang] && translations[lang][key]) el.placeholder = translations[lang][key];
   });
+  
   sm(mode);
 }
 
