@@ -5931,6 +5931,7 @@ window.applyMapper2Logic = function () {
     };
 
     // Собираем ВСЕ ключи: обычные привязки, статику и результаты Сита
+    console.log("📦 ПАМЯТЬ СИТА:", { col: state.colMap, split: state.splitRules });
     let allKeys = new Set(Object.keys(state.colMap));
     if (state.dictValues) Object.keys(state.dictValues).forEach(k => allKeys.add(k));
     if (state.splitRules) Object.keys(state.splitRules).forEach(k => allKeys.add(k));
