@@ -486,8 +486,8 @@ window.showTokenizer = function(columnName, tokensArray, paramsList) {
 
     // Применяем переводы data-i18n
     if (typeof window.applyLanguage === 'function') {
-        // window.applyLanguage();
-    }
+    window.applyLanguage(window.currentLang || 'ru');
+}
 
     // --- БАЗОВЫЕ ОБРАБОТЧИКИ (ЗАКРЫТИЕ) ---
     const closeModal = () => {

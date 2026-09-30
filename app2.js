@@ -1564,38 +1564,20 @@ function checkBlockTimer() {
   return false;
 }
 
-function applyLanguage(inLang) {
-  // Если язык не передали, берем из памяти или ставим "ru" по умолчанию
-  let lang = inLang || window.currentLang || localStorage.getItem("pos_lang") || "ru";
-  
-  window.currentLang = lang;
+function applyLanguage(lang) {
+  currentLang = lang;
   localStorage.setItem("pos_lang", lang);
-  
-  let ruBtn = document.getElementById("lang-ru");
-  if (ruBtn) ruBtn.classList.toggle("active", lang === "ru");
-  
-  let kzBtn = document.getElementById("lang-kz");
-  if (kzBtn) kzBtn.classList.toggle("active", lang === "kz");
-
-  // Защита от пустого словаря
-  if (typeof translations === "undefined" || !translations[lang]) {
-      console.warn("Словарь переводов еще не загружен для языка:", lang);
-      return; 
-  }
-
+  document.getElementById("lang-ru").classList.toggle("active", lang === "ru");
+  document.getElementById("lang-kz").classList.toggle("active", lang === "kz");
   document.querySelectorAll("[data-i18n]").forEach((el) => {
     const key = el.getAttribute("data-i18n");
-    if (translations[lang] && translations[lang][key]) el.innerText = translations[lang][key];
+    if (translations[lang][key]) el.innerText = translations[lang][key];
   });
-  
   document.querySelectorAll("[data-i18n-placeholder]").forEach((el) => {
     const key = el.getAttribute("data-i18n-placeholder");
-    if (translations[lang] && translations[lang][key]) el.placeholder = translations[lang][key];
+    if (translations[lang][key]) el.placeholder = translations[lang][key];
   });
-  
-  if (typeof sm === 'function' && typeof mode !== 'undefined') {
-      sm(mode);
-  }
+  sm(mode);
 }
 
 function sm(m) {
