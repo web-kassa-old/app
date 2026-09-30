@@ -5716,6 +5716,7 @@ window.applySplitRule = function (colIndex, colName) {
 
 // 6. ФИНАЛЬНАЯ СБОРКА JSON ДЛЯ СЕРВЕРА
 window.applyMapper2Logic = function () {
+  console.log("🚀 ЗАПУЩЕН УМНЫЙ МАППЕР ИЗ SMARTMAPPER.JS!"); // <-- ДОБАВЬ ЭТО
   const state = window.mapper2State;
 
   const qtyIdx = state.colMap["qty"];
