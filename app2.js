@@ -4777,10 +4777,35 @@ window.renderMapper2Cards = function (templateData) {
   const container = document.getElementById("mapper2CardsContainer");
   container.innerHTML = "";
 
-  // === ИСПРАВЛЕНИЕ: Мягкое сохранение памяти вместо жесткого удаления ===
+  // Мягкое сохранение памяти
   window.mapper2State.colMap = window.mapper2State.colMap || {};
   window.mapper2State.dictValues = window.mapper2State.dictValues || {};
   window.mapper2State.splitRules = window.mapper2State.splitRules || {};
+
+  // === НОВЫЙ БЛОК: СВЯЗКА УМНОГО СИТА СО СПАРИВАНИЕМ ШАПОК ===
+  if (window.mapper2State.smartRules && templateData && templateData.humanNames && templateData.systemKeys) {
+      const headers = window.mapper2State.invoiceHeaders || [];
+      
+      Object.keys(window.mapper2State.smartRules).forEach(invoiceColName => {
+          // 1. Ищем, под каким индексом находится эта сложная колонка в накладной
+          const colIndex = headers.findIndex(h => String(h).trim() === invoiceColName);
+          
+          if (colIndex !== -1) {
+              const selectedParams = window.mapper2State.smartRules[invoiceColName];
+              
+              // 2. Перебираем все галочки (параметры), которые ты выбрал в Сите
+              selectedParams.forEach(paramName => {
+                  const pIdx = templateData.humanNames.indexOf(paramName);
+                  if (pIdx !== -1) {
+                      const sysKey = templateData.systemKeys[pIdx];
+                      // 3. Жестко привязываем системный ключ Каспи к колонке из накладной
+                      window.mapper2State.colMap[sysKey] = colIndex;
+                  }
+              });
+          }
+      });
+  }
+  // ============================================================
 
   let allReqs = [];
   let learnedSynonyms = {};
@@ -5862,11 +5887,45 @@ window.applyMapper2Logic = function () {
 
       let rawValue = getValue(key);
       if (!rawValue) return;
-      if (kaspiNumericFields.includes(lowerKey)) {
-        rawValue = String(rawValue)
-          .replace(/[rRcCрРсС]/g, "")
-          .trim();
+
+      // === УМНЫЙ АВТО-ПАРСЕР ПО СЛОВАРЮ КАСПИ ===
+      // Получаем человеческое название параметра (например, "Диаметр диска")
+      let humanName = state.sysToHumanMap ? state.sysToHumanMap[key] : key;
+      let dict = window.kaspiDicts && window.kaspiDicts[humanName];
+
+      if (dict && Array.isArray(dict) && dict.length > 0) {
+        // Сортируем словарь от длинных значений к коротким (чтобы "15.5" находилось раньше, чем "15")
+        let sortedDict = [...dict].filter(Boolean).sort((a, b) => String(b).length - String(a).length);
+        
+        let foundMatch = false;
+        for (let dv of sortedDict) {
+          let strDv = String(dv).trim();
+          if (strDv === "") continue;
+          
+          // Ищем точное совпадение слова/числа в строке (чтобы не спутать "15" с "150")
+          // Экранируем спецсимволы в словаре для регулярки
+          let escapedDv = strDv.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          let regex = new RegExp(`(^|\\s|\\W|[a-zA-Zа-яА-Я])(${escapedDv})($|\\s|\\W|[a-zA-Zа-яА-Я])`, 'i');
+          
+          if (regex.test(rawValue)) {
+            rawValue = strDv; // Бинго! Нашли значение из словаря, подставляем его чистое.
+            foundMatch = true;
+            break;
+          }
+        }
+        
+        // Если это числовое поле Каспи, но в словаре мы ничего не нашли — чистим от букв (страховка)
+        if (!foundMatch && kaspiNumericFields.includes(lowerKey)) {
+          rawValue = String(rawValue).replace(/[rRcCрРсС]/g, "").trim();
+        }
+      } else {
+        // Стандартная очистка для числовых полей, если нет словаря
+        if (kaspiNumericFields.includes(lowerKey)) {
+          rawValue = String(rawValue).replace(/[rRcCрРсС]/g, "").trim();
+        }
       }
+      // ==========================================
+
       attributesObj[key] = rawValue;
     };
 
