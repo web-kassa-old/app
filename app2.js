@@ -4746,10 +4746,12 @@ window.processInvoiceFile = async function () {
       let smartHeaders = window.mapper2State.invoiceHeaders || [];
       let smartRows = window.mapper2State.invoiceRows || [];
 
-      // 3. Запускаем Детектор
-      const complexColumns = window.detectComplexColumns 
-          ? window.detectComplexColumns(smartHeaders, smartRows) 
-          : detectComplexColumns(smartHeaders, smartRows);
+      // 3. Запускаем Детектор (Безопасный вызов)
+if (typeof window.detectComplexColumns !== 'function') {
+    console.error("ОШИБКА: Функция detectComplexColumns не найдена! Файл smartMapper.js не загрузился или закэширован.");
+    return; // Прерываем работу, чтобы не было красного краша
+}
+const complexColumns = window.detectComplexColumns(smartHeaders, smartRows);
 
       console.log("Детектор получил шапки Excel:", smartHeaders);
       console.log("Детектор получил строки Excel (первые 2):", smartRows.slice(0, 2));
