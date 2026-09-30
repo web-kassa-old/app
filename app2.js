@@ -5908,17 +5908,20 @@ window.applyMapper2Logic = function () {
         }
       }
 
-      // === ЛОГИКА КАРАНТИНА: Перехват нераспознанных сложных форматов ===
-      // Если мы в словаре Kaspi, совпадение не найдено, И строка содержит "/" (например 115/110)
-      if (window.currentImportMode === "kaspi" && !foundMatch && String(rawValue).includes('/')) {
+      // === ЛОГИКА КАРАНТИНА: Перехват нераспознанных форматов ===
+      let hasDictionary = dict && Array.isArray(dict) && dict.length > 0;
+
+      // Условие: Если это Каспи, для параметра ЕСТЬ словарь, но скрипт НЕ СМОГ найти совпадение
+      if (window.currentImportMode === "kaspi" && hasDictionary && !foundMatch) {
+         console.log("🔴 КАРАНТИН ПОЙМАЛ КОЛЛИЗИЮ:", humanName, "=>", rawValue);
          itemHasCollisions = true;
-         // Сохраняем суть конфликта
+         
          itemCollisionsList.push({
-             sysKey: key,            // Например 'property_1'
-             humanName: humanName,   // Например 'Индекс нагрузки'
-             rawString: rawValue     // Например '115/110'
+             sysKey: key,            
+             humanName: humanName,   
+             rawString: rawValue     
          });
-         return; // В attributesObj пока не пишем, ждем ручного разбора
+         return; // Ждем ручного разбора
       }
 
       attributesObj[key] = rawValue;
