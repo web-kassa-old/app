@@ -5891,56 +5891,75 @@ window.applyMapper2Logic = function () {
       let humanName = state.sysToHumanMap ? state.sysToHumanMap[key] : key;
       let lowerHuman = String(humanName).toLowerCase();
       let searchString = rawValue;
+      let extractedDirectly = null;
 
-      // === 1. ЖЕСТКИЙ ПАРСЕР ДЛЯ ШИН (Исключает путаницу профиля и диаметра) ===
-      let tireMatch = searchString.match(/(\d{3})\s*[\/\\]\s*(\d{2,3})\s*[a-zA-Z-]*\s*(\d{2})/);
-      if (tireMatch) {
-          if (lowerHuman.includes("ширина")) {
-              attributesObj[key] = tireMatch[1];
-              return;
-          }
-          if (lowerHuman.includes("высота") || lowerHuman.includes("профиль")) {
-              attributesObj[key] = tireMatch[2]; // Теперь 70 никогда не спутается с 13
-              return;
-          }
-          if (lowerHuman.includes("диаметр") || lowerHuman.includes("диск") || lowerHuman.includes("радиус")) {
-              attributesObj[key] = tireMatch[3];
-              return;
-          }
-          // Для индексов скорости и нагрузки вырезаем "175/70R13" из строки, 
-          // чтобы буква "R" ложно не определилась как Индекс скорости
-          searchString = searchString.replace(tireMatch[0], " ");
+      // === 1. ЖЕСТКИЙ ПАРСЕР ДЛЯ ШИН (Метрические и Внедорожные) ===
+      let isMetric = searchString.match(/(\d{3})\s*[\/\\]\s*(\d{2,3})\s*[a-zA-Z-]*\s*(\d{2})/);
+      // Ищем формат 31x10.50R15 (Ширина x Высота R Диаметр)
+      let isImperial = searchString.match(/(\d{2}(?:\.\d+)?)\s*[xXхХ*]\s*(\d{1,2}(?:\.\d+)?)\s*[a-zA-Z-]*\s*(\d{2})/i);
+
+      if (isMetric) {
+          if (lowerHuman.includes("ширина")) extractedDirectly = isMetric[1];
+          else if (lowerHuman.includes("высота") || lowerHuman.includes("профиль")) extractedDirectly = isMetric[2];
+          else if (lowerHuman.includes("диаметр") || lowerHuman.includes("диск") || lowerHuman.includes("радиус")) extractedDirectly = isMetric[3];
+          
+          if (extractedDirectly === null) searchString = searchString.replace(isMetric[0], " ");
+      } else if (isImperial) {
+          if (lowerHuman.includes("ширина")) extractedDirectly = isImperial[1]; // 31
+          else if (lowerHuman.includes("высота") || lowerHuman.includes("профиль")) extractedDirectly = isImperial[2]; // 10.50
+          else if (lowerHuman.includes("диаметр") || lowerHuman.includes("диск") || lowerHuman.includes("радиус")) extractedDirectly = isImperial[3]; // 15
+          
+          if (extractedDirectly === null) searchString = searchString.replace(isImperial[0], " ");
       }
 
-      // === 2. УЛУЧШЕННЫЙ АВТО-ПАРСЕР ПО СЛОВАРЮ КАСПИ ===
       let dict = window.kaspiDicts && window.kaspiDicts[humanName];
 
+      // === НОВАЯ ЛОГИКА: МАТЕМАТИЧЕСКОЕ СРАВНЕНИЕ (31 == 31.00) ===
+      // Если мы точно вырезали размер шины, сверяем его со словарем математически
+      if (extractedDirectly !== null) {
+          let matchedDictValue = extractedDirectly; 
+          
+          if (dict && Array.isArray(dict) && dict.length > 0) {
+              for (let dv of dict) {
+                  let strDv = String(dv).trim();
+                  if (!strDv) continue;
+                  let baseDv = strDv.split('(')[0].trim();
+                  
+                  // Сравниваем математически, игнорируя нули в конце (например, 10.50 === 10.5)
+                  if (!isNaN(parseFloat(baseDv)) && parseFloat(baseDv) === parseFloat(extractedDirectly)) {
+                      matchedDictValue = strDv; // Берем красивое значение из словаря Kaspi
+                      break;
+                  }
+              }
+          }
+          
+          attributesObj[key] = matchedDictValue;
+          return;
+      }
+
+      // === 2. ОБЫЧНЫЙ ПОИСК ПО ТЕКСТУ (Для индексов скорости, нагрузки и прочего) ===
       if (dict && Array.isArray(dict) && dict.length > 0) {
-        // Сортируем от длинных к коротким
         let sortedDict = [...dict].filter(Boolean).sort((a, b) => String(b).length - String(a).length);
-        
         let foundMatch = false;
+        
         for (let dv of sortedDict) {
           let strDv = String(dv).trim();
           if (strDv === "") continue;
           
-          // Достаем "чистое" значение (например, из "T (190 км/ч)" берем только "T")
           let baseDv = strDv.split('(')[0].trim();
           let escapedDv = baseDv.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
           
           let regex;
           if (/^\d+(\.\d+)?$/.test(baseDv)) {
-              // Если ищем чистое число (напр. 82), вокруг не должно быть других цифр (чтобы не вырвать 82 из 2825)
               regex = new RegExp(`(?<!\\d)${escapedDv}(?!\\d)`, 'i');
           } else if (/^[a-zA-Zа-яА-Я]+$/.test(baseDv)) {
-              // Если ищем чистую букву (напр. T), вокруг не должно быть других букв
               regex = new RegExp(`(?<![a-zA-Zа-яА-Я])${escapedDv}(?![a-zA-Zа-яА-Я])`, 'i');
           } else {
               regex = new RegExp(`(^|\\W)${escapedDv}($|\\W)`, 'i');
           }
           
           if (regex.test(searchString)) {
-            rawValue = strDv; // Сохраняем ПОЛНОЕ красивое значение для Каспи
+            rawValue = strDv;
             foundMatch = true;
             break;
           }
