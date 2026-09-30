@@ -6233,12 +6233,13 @@ window.renderEditorMainUI = function (item) {
     document.body.appendChild(modalContainer);
   }
 
+  // === ИСПРАВЛЕНИЕ: Добавлен event.stopPropagation() в кнопки Отмена и Готово ===
   modalContainer.innerHTML = `
         <div id="editorMainModal" class="kaspi-modal-overlay">
             <div class="kaspi-modal-header">
-                <span onclick="document.getElementById('modalContainer').innerHTML=''" style="color:var(--text-muted); font-size:16px; cursor:pointer;">${t.inc_cancel || "Отмена"}</span>
+                <span onclick="event.stopPropagation(); document.getElementById('modalContainer').innerHTML='';" style="color:var(--text-muted); font-size:16px; cursor:pointer;">${t.inc_cancel || "Отмена"}</span>
                 <b style="font-size:16px; color:var(--text-main);">${t.inc_item_params || "Параметры"}</b>
-                <span onclick="window.saveAllEdits()" style="color:var(--accent-green); font-size:16px; font-weight:bold; cursor:pointer;">${t.inc_ready || "Готово"}</span>
+                <span onclick="event.stopPropagation(); window.saveAllEdits();" style="color:var(--accent-green); font-size:16px; font-weight:bold; cursor:pointer;">${t.inc_ready || "Готово"}</span>
             </div>
             <div class="kaspi-modal-subheader">
                 <div style="color:var(--accent-blue); font-weight:bold; font-size:14px;">${item.item_name || item.name || ""}</div>
@@ -10441,11 +10442,19 @@ window.selectImportMode = function (mode) {
     if (templateBlock) templateBlock.style.display = "block";
 
     const select = document.getElementById("kaspiTemplateSelect");
+    
+    // === ИСПРАВЛЕНИЕ: Добавлен блокиратор двойных запросов ===
     if (
       select &&
       select.options.length <= 2 &&
+      select.dataset.fetching !== "true" && // Проверяем, не запущен ли уже поиск
       typeof window.loadKaspiTemplatesFromServer === "function"
     ) {
+      select.dataset.fetching = "true"; // Вешаем замок
+      
+      // Снимаем замок через 5 секунд (страховка на случай, если сервер долго отвечает)
+      setTimeout(() => { select.dataset.fetching = "false"; }, 5000); 
+
       window.loadKaspiTemplatesFromServer();
     }
 
@@ -10454,6 +10463,7 @@ window.selectImportMode = function (mode) {
       select.value !== "" &&
       select.value !== "new" &&
       select.value !== "new_template";
+      
     if (hasSelectedTemplate) {
       window.setUploadButtonState(
         true,
