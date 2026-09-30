@@ -1,6 +1,6 @@
 // Файл глобальных настроек (config.js)
 
-const APP_VERSION = "5.5.39"; // Меняйте версию только здесь
+const APP_VERSION = "5.5.40"; // Меняйте версию только здесь
 
 // 1. Ссылки на роутер и шлюз (единые для всех арендаторов)
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyOp6fzexVQwUHVNmL50hF62pz20TW9nNoTL1SKyBEVGb095SVh_h6kNdyOIaMdroyW/exec"; 
