@@ -5875,6 +5875,8 @@ window.applyMapper2Logic = function () {
 
       if (extractedDirectly !== null) {
           let matchedDictValue = extractedDirectly; 
+          let foundMatch = false; // <-- ФЛАГ: нашли ли мы точное совпадение?
+
           if (dict && Array.isArray(dict) && dict.length > 0) {
               for (let dv of dict) {
                   let strDv = String(dv).trim();
@@ -5882,10 +5884,26 @@ window.applyMapper2Logic = function () {
                   let baseDv = strDv.split('(')[0].trim();
                   if (!isNaN(parseFloat(baseDv)) && parseFloat(baseDv) === parseFloat(extractedDirectly)) {
                       matchedDictValue = strDv;
+                      foundMatch = true; // <-- Совпадение найдено!
                       break;
                   }
               }
           }
+
+          // === ВСТРАИВАЕМ КАРАНТИН ===
+          let hasDictionary = dict && Array.isArray(dict) && dict.length > 0;
+          
+          if (window.currentImportMode === "kaspi" && hasDictionary && !foundMatch) {
+              console.log("🔴 КАРАНТИН ПОЙМАЛ ИЗ ПАРСЕРА:", humanName, "=>", rawValue);
+              itemHasCollisions = true;
+              itemCollisionsList.push({
+                  sysKey: key,            
+                  humanName: humanName,   
+                  rawString: rawValue // Передаем Токенизатору исходную строку для ручного разбора
+              });
+              return; 
+          }
+
           attributesObj[key] = matchedDictValue;
           return;
       }
