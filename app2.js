@@ -5729,7 +5729,7 @@ window.applyMapper2Logic = function () {
     return alert(errorMsg);
   }
 
-  // === ФОНОВОЕ ОБУЧЕНИЕ СЛОВАРЯ СИНОНИМОВ (Без изменений) ===
+  // === ФОНОВОЕ ОБУЧЕНИЕ СЛОВАРЯ СИНОНИМОВ ===
   if (window.currentImportMode === "kaspi") {
     const templateSelect = document.getElementById("kaspiTemplateSelect");
     const templateName = templateSelect ? templateSelect.value : "";
@@ -5825,37 +5825,22 @@ window.applyMapper2Logic = function () {
     let weight = rawWeight ? parseFloat(String(rawWeight).replace(",", ".")) : "";
 
     let attributesObj = {};
-    let itemHasCollisions = false; // Флаг: есть ли проблемы у этого товара
-    let itemCollisionsList = [];   // Список проблемных параметров для этого товара
+    let itemHasCollisions = false; 
+    let itemCollisionsList = []; 
 
-    const kaspiNumericFields = ["size", "diameter", "radius", "ширина", "профиль", "размер"];
-    
+    // === ИДЕАЛЬНЫЙ ПАРСЕР И КАРАНТИН ===
     const processAttribute = (key) => {
       let lowerKey = String(key).toLowerCase();
-      
-      // 1. Вытягиваем значение ОДИН РАЗ
       let rawValue = getValue(key);
 
-      // 2. НАШ ШПИОН
-      if (String(key).includes("width") || String(key).includes("ratio") || String(key).includes("size")) {
-          console.log(`🔎 АНАЛИЗ [${key}]:`, {
-              "Индекс": state.colMap[key],
-              "Текст ячейки": row[state.colMap[key]],
-              "getValue": rawValue
-          });
-      }
-
-      // 3. Проверки: пропускаем базовые колонки и пустые значения
       if (["qty", "price", "cost", "name", "model", "barcode", "cbm", "weight"].includes(lowerKey)) return;
       if (!rawValue) return;
 
-      // 4. Подготовка к парсингу
       let humanName = state.sysToHumanMap ? state.sysToHumanMap[key] : key;
       let lowerHuman = String(humanName).toLowerCase();
       let searchString = rawValue;
       let extractedDirectly = null;
 
-      // 1. ЖЕСТКИЙ ПАРСЕР ДЛЯ ШИН
       let isMetric = searchString.match(/(\d{3})\s*[\/\\]\s*(\d{2,3})\s*[a-zA-Z-]*\s*(\d{2})/);
       let isImperial = searchString.match(/(\d{2}(?:\.\d+)?)\s*[xXхХ*]\s*(\d{1,2}(?:\.\d+)?)\s*[a-zA-Z-]*\s*(\d{2})/i);
 
@@ -5863,106 +5848,59 @@ window.applyMapper2Logic = function () {
           if (lowerHuman.includes("ширина")) extractedDirectly = isMetric[1];
           else if (lowerHuman.includes("высота") || lowerHuman.includes("профиль")) extractedDirectly = isMetric[2];
           else if (lowerHuman.includes("диаметр") || lowerHuman.includes("диск") || lowerHuman.includes("радиус")) extractedDirectly = isMetric[3];
-          if (extractedDirectly === null) searchString = searchString.replace(isMetric[0], " ");
       } else if (isImperial) {
           if (lowerHuman.includes("ширина")) extractedDirectly = isImperial[1];
           else if (lowerHuman.includes("высота") || lowerHuman.includes("профиль")) extractedDirectly = isImperial[2];
           else if (lowerHuman.includes("диаметр") || lowerHuman.includes("диск") || lowerHuman.includes("радиус")) extractedDirectly = isImperial[3];
-          if (extractedDirectly === null) searchString = searchString.replace(isImperial[0], " ");
       }
 
       let dict = window.kaspiDicts && window.kaspiDicts[humanName];
+      let hasDictionary = dict && Array.isArray(dict) && dict.length > 0;
+      let foundMatch = false;
+      let matchedDictValue = searchString;
 
       if (extractedDirectly !== null) {
-          let matchedDictValue = extractedDirectly; 
-          let foundMatch = false; // <-- ФЛАГ: нашли ли мы точное совпадение?
-
-          if (dict && Array.isArray(dict) && dict.length > 0) {
+          matchedDictValue = extractedDirectly; 
+          if (hasDictionary) {
               for (let dv of dict) {
                   let strDv = String(dv).trim();
                   if (!strDv) continue;
                   let baseDv = strDv.split('(')[0].trim();
                   if (!isNaN(parseFloat(baseDv)) && parseFloat(baseDv) === parseFloat(extractedDirectly)) {
                       matchedDictValue = strDv;
-                      foundMatch = true; // <-- Совпадение найдено!
+                      foundMatch = true;
                       break;
                   }
               }
           }
-
-          // === ВСТРАИВАЕМ КАРАНТИН ===
-          let hasDictionary = dict && Array.isArray(dict) && dict.length > 0;
-          
-          if (window.currentImportMode === "kaspi" && hasDictionary && !foundMatch) {
-              console.log("🔴 КАРАНТИН ПОЙМАЛ ИЗ ПАРСЕРА:", humanName, "=>", rawValue);
-              itemHasCollisions = true;
-              itemCollisionsList.push({
-                  sysKey: key,            
-                  humanName: humanName,   
-                  rawString: rawValue // Передаем Токенизатору исходную строку для ручного разбора
-              });
-              return; 
+      } else {
+          if (hasDictionary) {
+               for (let dv of dict) {
+                  if (String(dv).trim().toLowerCase() === String(searchString).trim().toLowerCase()) {
+                      matchedDictValue = dv;
+                      foundMatch = true;
+                      break;
+                  }
+               }
           }
+      }
 
-          attributesObj[key] = matchedDictValue;
+      // 🔴 ФИНАЛЬНЫЙ КАПКАН
+      if (window.currentImportMode === "kaspi" && hasDictionary && !foundMatch) {
+          console.log("🔴 КАРАНТИН ПОЙМАЛ ТОВАР:", humanName, "=>", rawValue);
+          itemHasCollisions = true;
+          itemCollisionsList.push({
+              sysKey: key,            
+              humanName: humanName,   
+              rawString: rawValue     
+          });
           return;
       }
 
-      // 2. ОБЫЧНЫЙ ПОИСК ПО ТЕКСТУ
-      let foundMatch = false;
-      if (dict && Array.isArray(dict) && dict.length > 0) {
-        let sortedDict = [...dict].filter(Boolean).sort((a, b) => String(b).length - String(a).length);
-        
-        for (let dv of sortedDict) {
-          let strDv = String(dv).trim();
-          if (strDv === "") continue;
-          let baseDv = strDv.split('(')[0].trim();
-          let escapedDv = baseDv.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-          let regex;
-          if (/^\d+(\.\d+)?$/.test(baseDv)) { regex = new RegExp(`(?<!\\d)${escapedDv}(?!\\d)`, 'i'); } 
-          else if (/^[a-zA-Zа-яА-Я]+$/.test(baseDv)) { regex = new RegExp(`(?<![a-zA-Zа-яА-Я])${escapedDv}(?![a-zA-Zа-яА-Я])`, 'i'); } 
-          else { regex = new RegExp(`(^|\\W)${escapedDv}($|\\W)`, 'i'); }
-          
-          if (regex.test(searchString)) {
-            rawValue = strDv;
-            foundMatch = true;
-            break;
-          }
-        }
-        
-        if (!foundMatch && kaspiNumericFields.includes(lowerKey)) {
-          rawValue = String(searchString).replace(/[rRcCрРсС]/g, "").trim();
-        }
-      } else {
-        if (kaspiNumericFields.includes(lowerKey)) {
-          rawValue = String(searchString).replace(/[rRcCрРсС]/g, "").trim();
-        }
-      }
-
-      // === ЛОГИКА КАРАНТИНА: Перехват нераспознанных форматов ===
-      let hasDictionary = dict && Array.isArray(dict) && dict.length > 0;
-
-      // ЖУЧОК ДЛЯ ПРОВЕРКИ:
-      console.log("Сканируем:", humanName, "| Значение:", rawValue, "| Режим:", window.currentImportMode, "| Словарь:", hasDictionary, "| Совпадение:", foundMatch);
-
-      if (window.currentImportMode === "kaspi" && hasDictionary && !foundMatch) {
-         console.log("🔴 КАРАНТИН ПОЙМАЛ КОЛЛИЗИЮ:", humanName, "=>", rawValue);
-         itemHasCollisions = true;
-         // ... остальной код карантина
-         
-         itemCollisionsList.push({
-             sysKey: key,            
-             humanName: humanName,   
-             rawString: rawValue     
-         });
-         return; // Ждем ручного разбора
-      }
-
-      attributesObj[key] = rawValue;
+      attributesObj[key] = matchedDictValue;
     };
 
     // Собираем ВСЕ ключи: обычные привязки, статику и результаты Сита
-    console.log("📦 ПАМЯТЬ СИТА:", { col: state.colMap, split: state.splitRules });
     let allKeys = new Set(Object.keys(state.colMap));
     if (state.dictValues) Object.keys(state.dictValues).forEach(k => allKeys.add(k));
     if (state.splitRules) Object.keys(state.splitRules).forEach(k => allKeys.add(k));
@@ -5981,7 +5919,7 @@ window.applyMapper2Logic = function () {
       cost: price,
       cbm: cbm,
       weight: weight,
-      attributes: finalAttributes, // Если есть коллизии, мы позже обновим эту строку
+      attributes: finalAttributes, 
       raw_logistics: rawLogisticsStr.trim(),
       staff_id: typeof currentUser !== "undefined" && currentUser ? currentUser.uid : "Auto-Import",
       id: rawId,
@@ -5991,7 +5929,6 @@ window.applyMapper2Logic = function () {
       barcode: barcode,
       category: "Новые товары",
       
-      // Скрытые технические поля для Токенизатора
       _hasCollisions: itemHasCollisions,
       _collisionsList: itemCollisionsList,
       _attributesObj: attributesObj 
@@ -6000,10 +5937,8 @@ window.applyMapper2Logic = function () {
     window.parsedInvoiceData.push(itemData);
     window.invoiceGroups[state.docNo].items.push(itemData);
 
-    // Добавляем в карантин только уникальные паттерны, чтобы не спрашивать про "115/110" 100 раз
     if (itemHasCollisions) {
        itemCollisionsList.forEach(collision => {
-           // Проверяем, есть ли уже такой паттерн в карантине
            const exists = window.mapper2State.quarantine.find(q => q.rawString === collision.rawString && q.sysKey === collision.sysKey);
            if (!exists) {
                window.mapper2State.quarantine.push(collision);
@@ -6020,16 +5955,15 @@ window.applyMapper2Logic = function () {
   // === ПРОВЕРКА КАРАНТИНА И ЗАПУСК ТОКЕНИЗАТОРА ===
   if (window.mapper2State.quarantine && window.mapper2State.quarantine.length > 0) {
       console.log("Внимание: Найдены сложные нераспознанные форматы. Запуск Токенизатора...", window.mapper2State.quarantine);
-      // Запускаем движок токенизатора (напишем его функцию следующим шагом)
       if (typeof window.startTokenizerQueue === 'function') {
           window.startTokenizerQueue();
       } else {
           alert("Найдены сложные форматы, но модуль Токенизатора еще не загружен.");
       }
-      return; // ПРЕРЫВАЕМ ПУТЬ на Экран 4! Ждем человека.
+      return; 
   }
 
-  // Если всё чисто, пускаем на Экран 4 как обычно
+  // Если всё чисто, пускаем на Экран 4
   window.renderPreviewTable();
   document.getElementById("mapper2Area").style.display = "none";
   document.getElementById("invoicePreviewArea").style.display = "flex";
