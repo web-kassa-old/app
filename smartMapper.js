@@ -135,6 +135,10 @@ window.renderSmartMapperModal = function(complexColumns) {
         }
     }
 
+    // === ЧТЕНИЕ СОХРАНЕННЫХ ПРАВИЛ ДЛЯ ВОССТАНОВЛЕНИЯ ГАЛОЧЕК ===
+    window.mapper2State = window.mapper2State || {};
+    const savedRules = window.mapper2State.smartRules || {};
+
     complexColumns.forEach(col => {
         const card = document.createElement('div');
         card.className = 'smart-mapper-card';
@@ -149,11 +153,19 @@ window.renderSmartMapperModal = function(complexColumns) {
             }
         }
 
+        // Достаем массив уже отмеченных параметров для конкретной колонки
+        const currentSavedParams = savedRules[col.colName] || [];
+
         let checkboxesHtml = kaspiParams.map(param => {
             let exampleSpans = param.examples.map(ex => `<span>${ex}</span>`).join('');
+            
+            // Восстанавливаем состояние чекбокса
+            let isChecked = currentSavedParams.includes(param.id) ? 'checked' : '';
+            let activeClass = isChecked ? 'active' : '';
+
             return `
-                <label class="checkbox-item">
-                    <input type="checkbox" value="${param.id}" data-name="${param.name}">
+                <label class="checkbox-item ${activeClass}">
+                    <input type="checkbox" value="${param.id}" data-name="${param.name}" ${isChecked}>
                     <div class="checkbox-details">
                         <div class="checkbox-title">${param.name}</div>
                         <div class="checkbox-examples">${exampleSpans}</div>
@@ -161,6 +173,15 @@ window.renderSmartMapperModal = function(complexColumns) {
                 </label>
             `;
         }).join('');
+
+        // Восстанавливаем отрисовку зеленых чипсов
+        let initialChips = '';
+        if (currentSavedParams.length > 0) {
+            let selectedNames = kaspiParams.filter(p => currentSavedParams.includes(p.id)).map(p => p.name);
+            initialChips = selectedNames.map(name => `<span class="chip">${name}</span>`).join('');
+        } else {
+            initialChips = `<span class="empty-chips" data-i18n="smart_mapper_empty"></span>`;
+        }
 
         // Вся статика размечена атрибутами data-i18n
         card.innerHTML = `
@@ -170,7 +191,7 @@ window.renderSmartMapperModal = function(complexColumns) {
             </div>
             <div class="smart-chips-area">
                 <div class="chips-title" data-i18n="smart_mapper_you_selected"></div>
-                <div class="chips-container"><span class="empty-chips" data-i18n="smart_mapper_empty"></span></div>
+                <div class="chips-container">${initialChips}</div>
             </div>
             <div class="smart-question" data-i18n="smart_mapper_question"></div>
             <div class="checkbox-grid">
@@ -206,7 +227,6 @@ window.renderSmartMapperModal = function(complexColumns) {
     modal.appendChild(body);
 
     // === СОХРАНЯЕМ ДАННЫЕ ДЛЯ МАТРЕШКИ ===
-    window.mapper2State = window.mapper2State || {};
     window.mapper2State.lastComplexColumns = complexColumns;
 
     // === ДОСТАЕМ ПЕРЕВОД НА ЛЕТУ ===
