@@ -1960,7 +1960,16 @@
               <!-- ИЗМЕНЕНИЕ: Ключ для НАЗАД -->
               <button
                 type="button"
-                onclick="navigateBack()"
+                onclick="
+                  if (
+                    window.mapper2State.lastComplexColumns &&
+                    window.mapper2State.lastComplexColumns.length > 0
+                  ) {
+                    window.navigateIncomeStep('smart');
+                  } else {
+                    window.navigateIncomeStep(1);
+                  }
+                "
                 style="
                   flex: 1;
                   padding: 12px;
@@ -2184,7 +2193,7 @@
               <!-- ИЗМЕНЕНИЕ: Ключ для НАЗАД -->
               <button
                 type="button"
-                onclick="navigateBack()"
+                onclick="navigateIncomeStep(2)"
                 style="
                   flex: 1;
                   padding: 12px;
