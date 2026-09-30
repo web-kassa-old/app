@@ -1564,8 +1564,11 @@ function checkBlockTimer() {
   return false;
 }
 
-function applyLanguage(lang) {
-  currentLang = lang;
+function applyLanguage(inLang) {
+  // Если язык не передали, берем из памяти или ставим "ru" по умолчанию
+  let lang = inLang || window.currentLang || localStorage.getItem("pos_lang") || "ru";
+  
+  window.currentLang = lang;
   localStorage.setItem("pos_lang", lang);
   
   let ruBtn = document.getElementById("lang-ru");
@@ -1574,12 +1577,11 @@ function applyLanguage(lang) {
   let kzBtn = document.getElementById("lang-kz");
   if (kzBtn) kzBtn.classList.toggle("active", lang === "kz");
 
-  // === ЖЕЛЕЗОБЕТОННАЯ ЗАЩИТА ===
+  // Защита от пустого словаря
   if (typeof translations === "undefined" || !translations[lang]) {
-      console.warn("Словарь переводов еще не загружен!");
+      console.warn("Словарь переводов еще не загружен для языка:", lang);
       return; 
   }
-  // =============================
 
   document.querySelectorAll("[data-i18n]").forEach((el) => {
     const key = el.getAttribute("data-i18n");
