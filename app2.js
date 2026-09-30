@@ -5888,13 +5888,35 @@ window.applyMapper2Logic = function () {
       let rawValue = getValue(key);
       if (!rawValue) return;
 
-      // === УМНЫЙ АВТО-ПАРСЕР ПО СЛОВАРЮ КАСПИ ===
-      // Получаем человеческое название параметра (например, "Диаметр диска")
       let humanName = state.sysToHumanMap ? state.sysToHumanMap[key] : key;
+      let lowerHuman = String(humanName).toLowerCase();
+      let searchString = rawValue;
+
+      // === 1. ЖЕСТКИЙ ПАРСЕР ДЛЯ ШИН (Исключает путаницу профиля и диаметра) ===
+      let tireMatch = searchString.match(/(\d{3})\s*[\/\\]\s*(\d{2,3})\s*[a-zA-Z-]*\s*(\d{2})/);
+      if (tireMatch) {
+          if (lowerHuman.includes("ширина")) {
+              attributesObj[key] = tireMatch[1];
+              return;
+          }
+          if (lowerHuman.includes("высота") || lowerHuman.includes("профиль")) {
+              attributesObj[key] = tireMatch[2]; // Теперь 70 никогда не спутается с 13
+              return;
+          }
+          if (lowerHuman.includes("диаметр") || lowerHuman.includes("диск") || lowerHuman.includes("радиус")) {
+              attributesObj[key] = tireMatch[3];
+              return;
+          }
+          // Для индексов скорости и нагрузки вырезаем "175/70R13" из строки, 
+          // чтобы буква "R" ложно не определилась как Индекс скорости
+          searchString = searchString.replace(tireMatch[0], " ");
+      }
+
+      // === 2. УЛУЧШЕННЫЙ АВТО-ПАРСЕР ПО СЛОВАРЮ КАСПИ ===
       let dict = window.kaspiDicts && window.kaspiDicts[humanName];
 
       if (dict && Array.isArray(dict) && dict.length > 0) {
-        // Сортируем словарь от длинных значений к коротким (чтобы "15.5" находилось раньше, чем "15")
+        // Сортируем от длинных к коротким
         let sortedDict = [...dict].filter(Boolean).sort((a, b) => String(b).length - String(a).length);
         
         let foundMatch = false;
@@ -5902,29 +5924,36 @@ window.applyMapper2Logic = function () {
           let strDv = String(dv).trim();
           if (strDv === "") continue;
           
-          // Ищем точное совпадение слова/числа в строке (чтобы не спутать "15" с "150")
-          // Экранируем спецсимволы в словаре для регулярки
-          let escapedDv = strDv.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-          let regex = new RegExp(`(^|\\s|\\W|[a-zA-Zа-яА-Я])(${escapedDv})($|\\s|\\W|[a-zA-Zа-яА-Я])`, 'i');
+          // Достаем "чистое" значение (например, из "T (190 км/ч)" берем только "T")
+          let baseDv = strDv.split('(')[0].trim();
+          let escapedDv = baseDv.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
           
-          if (regex.test(rawValue)) {
-            rawValue = strDv; // Бинго! Нашли значение из словаря, подставляем его чистое.
+          let regex;
+          if (/^\d+(\.\d+)?$/.test(baseDv)) {
+              // Если ищем чистое число (напр. 82), вокруг не должно быть других цифр (чтобы не вырвать 82 из 2825)
+              regex = new RegExp(`(?<!\\d)${escapedDv}(?!\\d)`, 'i');
+          } else if (/^[a-zA-Zа-яА-Я]+$/.test(baseDv)) {
+              // Если ищем чистую букву (напр. T), вокруг не должно быть других букв
+              regex = new RegExp(`(?<![a-zA-Zа-яА-Я])${escapedDv}(?![a-zA-Zа-яА-Я])`, 'i');
+          } else {
+              regex = new RegExp(`(^|\\W)${escapedDv}($|\\W)`, 'i');
+          }
+          
+          if (regex.test(searchString)) {
+            rawValue = strDv; // Сохраняем ПОЛНОЕ красивое значение для Каспи
             foundMatch = true;
             break;
           }
         }
         
-        // Если это числовое поле Каспи, но в словаре мы ничего не нашли — чистим от букв (страховка)
         if (!foundMatch && kaspiNumericFields.includes(lowerKey)) {
-          rawValue = String(rawValue).replace(/[rRcCрРсС]/g, "").trim();
+          rawValue = String(searchString).replace(/[rRcCрРсС]/g, "").trim();
         }
       } else {
-        // Стандартная очистка для числовых полей, если нет словаря
         if (kaspiNumericFields.includes(lowerKey)) {
-          rawValue = String(rawValue).replace(/[rRcCрРсС]/g, "").trim();
+          rawValue = String(searchString).replace(/[rRcCрРсС]/g, "").trim();
         }
       }
-      // ==========================================
 
       attributesObj[key] = rawValue;
     };
