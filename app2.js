@@ -5719,54 +5719,31 @@ window.applyMapper2Logic = function () {
   const state = window.mapper2State;
 
   const qtyIdx = state.colMap["qty"];
-  const priceIdx =
-    state.colMap["price"] !== undefined
-      ? state.colMap["price"]
-      : state.colMap["cost"];
-  const nameIdx =
-    state.colMap["name"] !== undefined
-      ? state.colMap["name"]
-      : state.colMap["model"];
+  const priceIdx = state.colMap["price"] !== undefined ? state.colMap["price"] : state.colMap["cost"];
+  const nameIdx = state.colMap["name"] !== undefined ? state.colMap["name"] : state.colMap["model"];
 
   if (qtyIdx === undefined || priceIdx === undefined || nameIdx === undefined) {
-    // Подхватываем текущий язык и словарь для алерта
     const lang = window.currentLang || localStorage.getItem("pos_lang") || "ru";
-    const tr =
-      typeof translations !== "undefined" && translations[lang]
-        ? translations[lang]
-        : {};
-    const errorMsg =
-      tr.mapper_err_missing_cols ||
-      "⚠️ Обязательно привяжите колонки:\n1. Наименование (или model)\n2. Количество (qty)\n3. Цена (price)";
-
+    const tr = typeof translations !== "undefined" && translations[lang] ? translations[lang] : {};
+    const errorMsg = tr.mapper_err_missing_cols || "⚠️ Обязательно привяжите колонки:\n1. Наименование (или model)\n2. Количество (qty)\n3. Цена (price)";
     return alert(errorMsg);
   }
 
-  // === ФОНОВОЕ ОБУЧЕНИЕ СЛОВАРЯ СИНОНИМОВ ===
+  // === ФОНОВОЕ ОБУЧЕНИЕ СЛОВАРЯ СИНОНИМОВ (Без изменений) ===
   if (window.currentImportMode === "kaspi") {
     const templateSelect = document.getElementById("kaspiTemplateSelect");
     const templateName = templateSelect ? templateSelect.value : "";
-
     if (templateName) {
       let currentMemory = {};
-      try {
-        currentMemory = JSON.parse(window.mapper2State.rawMemoryJson || "{}");
-      } catch (e) {}
-
+      try { currentMemory = JSON.parse(window.mapper2State.rawMemoryJson || "{}"); } catch (e) {}
       let memoryUpdated = false;
 
       Object.keys(state.colMap).forEach((sysKey) => {
         let colIndex = state.colMap[sysKey];
         let headerText = state.invoiceHeaders[colIndex];
-
         if (headerText) {
           let cleanWord = String(headerText).trim().toLowerCase();
-          
-          // === ИСПРАВЛЕНИЕ: Гарантируем, что это массив ===
-          if (!Array.isArray(currentMemory[sysKey])) {
-            currentMemory[sysKey] = [];
-          }
-
+          if (!Array.isArray(currentMemory[sysKey])) { currentMemory[sysKey] = []; }
           if (!currentMemory[sysKey].includes(cleanWord)) {
             currentMemory[sysKey].push(cleanWord);
             memoryUpdated = true;
@@ -5780,17 +5757,9 @@ window.applyMapper2Logic = function () {
       }
 
       if (memoryUpdated) {
-        const payload = {
-          action: "updateKaspiMemory",
-          api_key: CLIENT_API_KEY,
-          category: templateName,
-          memoryJson: JSON.stringify(currentMemory),
-        };
-        window
-          .smartFetch(GATEWAY_URL, payload)
-          .then((res) => {
-            console.log("Словарь синонимов дополнен новыми заголовками");
-          })
+        const payload = { action: "updateKaspiMemory", api_key: CLIENT_API_KEY, category: templateName, memoryJson: JSON.stringify(currentMemory) };
+        window.smartFetch(GATEWAY_URL, payload)
+          .then(() => console.log("Словарь синонимов дополнен новыми заголовками"))
           .catch((e) => console.error("Ошибка обновления словаря", e));
       }
     }
@@ -5801,24 +5770,21 @@ window.applyMapper2Logic = function () {
   window.invoiceGroups[state.docNo] = {
     supplier: state.supplier,
     items: [],
-    originalFiles: [
-      { fileName: state.fileName, fileBase64: state.originalBase64 },
-    ],
+    originalFiles: [{ fileName: state.fileName, fileBase64: state.originalBase64 }],
   };
 
   const regex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,]/g;
-  let mappedIndices = Object.values(state.colMap).filter(
-    (v) => v !== undefined,
-  );
+  let mappedIndices = Object.values(state.colMap).filter((v) => v !== undefined);
+
+  // === КАРАНТИН: Подготовка массива для коллизий ===
+  window.mapper2State.quarantine = []; 
 
   state.invoiceRows.forEach((row, index) => {
     if (!row || row.length === 0) return;
 
     const getValue = (primaryKey, kaspiKey) => {
-      if (state.dictValues && state.dictValues[primaryKey])
-        return state.dictValues[primaryKey];
-      if (kaspiKey && state.dictValues && state.dictValues[kaspiKey])
-        return state.dictValues[kaspiKey];
+      if (state.dictValues && state.dictValues[primaryKey]) return state.dictValues[primaryKey];
+      if (kaspiKey && state.dictValues && state.dictValues[kaspiKey]) return state.dictValues[kaspiKey];
 
       let colIdx = state.colMap[primaryKey];
       if (colIdx === undefined && kaspiKey) colIdx = state.colMap[kaspiKey];
@@ -5856,34 +5822,17 @@ window.applyMapper2Logic = function () {
     let rawCbm = getValue("cbm");
     let cbm = rawCbm ? parseFloat(String(rawCbm).replace(",", ".")) : "";
     let rawWeight = getValue("weight");
-    let weight = rawWeight
-      ? parseFloat(String(rawWeight).replace(",", "."))
-      : "";
+    let weight = rawWeight ? parseFloat(String(rawWeight).replace(",", ".")) : "";
 
     let attributesObj = {};
-    const kaspiNumericFields = [
-      "size",
-      "diameter",
-      "radius",
-      "ширина",
-      "профиль",
-      "размер",
-    ];
+    let itemHasCollisions = false; // Флаг: есть ли проблемы у этого товара
+    let itemCollisionsList = [];   // Список проблемных параметров для этого товара
+
+    const kaspiNumericFields = ["size", "diameter", "radius", "ширина", "профиль", "размер"];
+    
     const processAttribute = (key) => {
       let lowerKey = String(key).toLowerCase();
-      if (
-        [
-          "qty",
-          "price",
-          "cost",
-          "name",
-          "model",
-          "barcode",
-          "cbm",
-          "weight",
-        ].includes(lowerKey)
-      )
-        return;
+      if (["qty", "price", "cost", "name", "model", "barcode", "cbm", "weight"].includes(lowerKey)) return;
 
       let rawValue = getValue(key);
       if (!rawValue) return;
@@ -5893,70 +5842,55 @@ window.applyMapper2Logic = function () {
       let searchString = rawValue;
       let extractedDirectly = null;
 
-      // === 1. ЖЕСТКИЙ ПАРСЕР ДЛЯ ШИН (Метрические и Внедорожные) ===
+      // 1. ЖЕСТКИЙ ПАРСЕР ДЛЯ ШИН
       let isMetric = searchString.match(/(\d{3})\s*[\/\\]\s*(\d{2,3})\s*[a-zA-Z-]*\s*(\d{2})/);
-      // Ищем формат 31x10.50R15 (Ширина x Высота R Диаметр)
       let isImperial = searchString.match(/(\d{2}(?:\.\d+)?)\s*[xXхХ*]\s*(\d{1,2}(?:\.\d+)?)\s*[a-zA-Z-]*\s*(\d{2})/i);
 
       if (isMetric) {
           if (lowerHuman.includes("ширина")) extractedDirectly = isMetric[1];
           else if (lowerHuman.includes("высота") || lowerHuman.includes("профиль")) extractedDirectly = isMetric[2];
           else if (lowerHuman.includes("диаметр") || lowerHuman.includes("диск") || lowerHuman.includes("радиус")) extractedDirectly = isMetric[3];
-          
           if (extractedDirectly === null) searchString = searchString.replace(isMetric[0], " ");
       } else if (isImperial) {
-          if (lowerHuman.includes("ширина")) extractedDirectly = isImperial[1]; // 31
-          else if (lowerHuman.includes("высота") || lowerHuman.includes("профиль")) extractedDirectly = isImperial[2]; // 10.50
-          else if (lowerHuman.includes("диаметр") || lowerHuman.includes("диск") || lowerHuman.includes("радиус")) extractedDirectly = isImperial[3]; // 15
-          
+          if (lowerHuman.includes("ширина")) extractedDirectly = isImperial[1];
+          else if (lowerHuman.includes("высота") || lowerHuman.includes("профиль")) extractedDirectly = isImperial[2];
+          else if (lowerHuman.includes("диаметр") || lowerHuman.includes("диск") || lowerHuman.includes("радиус")) extractedDirectly = isImperial[3];
           if (extractedDirectly === null) searchString = searchString.replace(isImperial[0], " ");
       }
 
       let dict = window.kaspiDicts && window.kaspiDicts[humanName];
 
-      // === НОВАЯ ЛОГИКА: МАТЕМАТИЧЕСКОЕ СРАВНЕНИЕ (31 == 31.00) ===
-      // Если мы точно вырезали размер шины, сверяем его со словарем математически
       if (extractedDirectly !== null) {
           let matchedDictValue = extractedDirectly; 
-          
           if (dict && Array.isArray(dict) && dict.length > 0) {
               for (let dv of dict) {
                   let strDv = String(dv).trim();
                   if (!strDv) continue;
                   let baseDv = strDv.split('(')[0].trim();
-                  
-                  // Сравниваем математически, игнорируя нули в конце (например, 10.50 === 10.5)
                   if (!isNaN(parseFloat(baseDv)) && parseFloat(baseDv) === parseFloat(extractedDirectly)) {
-                      matchedDictValue = strDv; // Берем красивое значение из словаря Kaspi
+                      matchedDictValue = strDv;
                       break;
                   }
               }
           }
-          
           attributesObj[key] = matchedDictValue;
           return;
       }
 
-      // === 2. ОБЫЧНЫЙ ПОИСК ПО ТЕКСТУ (Для индексов скорости, нагрузки и прочего) ===
+      // 2. ОБЫЧНЫЙ ПОИСК ПО ТЕКСТУ
+      let foundMatch = false;
       if (dict && Array.isArray(dict) && dict.length > 0) {
         let sortedDict = [...dict].filter(Boolean).sort((a, b) => String(b).length - String(a).length);
-        let foundMatch = false;
         
         for (let dv of sortedDict) {
           let strDv = String(dv).trim();
           if (strDv === "") continue;
-          
           let baseDv = strDv.split('(')[0].trim();
           let escapedDv = baseDv.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-          
           let regex;
-          if (/^\d+(\.\d+)?$/.test(baseDv)) {
-              regex = new RegExp(`(?<!\\d)${escapedDv}(?!\\d)`, 'i');
-          } else if (/^[a-zA-Zа-яА-Я]+$/.test(baseDv)) {
-              regex = new RegExp(`(?<![a-zA-Zа-яА-Я])${escapedDv}(?![a-zA-Zа-яА-Я])`, 'i');
-          } else {
-              regex = new RegExp(`(^|\\W)${escapedDv}($|\\W)`, 'i');
-          }
+          if (/^\d+(\.\d+)?$/.test(baseDv)) { regex = new RegExp(`(?<!\\d)${escapedDv}(?!\\d)`, 'i'); } 
+          else if (/^[a-zA-Zа-яА-Я]+$/.test(baseDv)) { regex = new RegExp(`(?<![a-zA-Zа-яА-Я])${escapedDv}(?![a-zA-Zа-яА-Я])`, 'i'); } 
+          else { regex = new RegExp(`(^|\\W)${escapedDv}($|\\W)`, 'i'); }
           
           if (regex.test(searchString)) {
             rawValue = strDv;
@@ -5974,16 +5908,26 @@ window.applyMapper2Logic = function () {
         }
       }
 
+      // === ЛОГИКА КАРАНТИНА: Перехват нераспознанных сложных форматов ===
+      // Если мы в словаре Kaspi, совпадение не найдено, И строка содержит "/" (например 115/110)
+      if (window.currentImportMode === "kaspi" && !foundMatch && String(rawValue).includes('/')) {
+         itemHasCollisions = true;
+         // Сохраняем суть конфликта
+         itemCollisionsList.push({
+             sysKey: key,            // Например 'property_1'
+             humanName: humanName,   // Например 'Индекс нагрузки'
+             rawString: rawValue     // Например '115/110'
+         });
+         return; // В attributesObj пока не пишем, ждем ручного разбора
+      }
+
       attributesObj[key] = rawValue;
     };
 
     Object.keys(state.colMap).forEach(processAttribute);
-    if (state.dictValues)
-      Object.keys(state.dictValues).forEach(processAttribute);
-    let finalAttributes =
-      Object.keys(attributesObj).length > 0
-        ? JSON.stringify(attributesObj)
-        : "";
+    if (state.dictValues) Object.keys(state.dictValues).forEach(processAttribute);
+    
+    let finalAttributes = Object.keys(attributesObj).length > 0 ? JSON.stringify(attributesObj) : "";
 
     const itemData = {
       doc_no: state.docNo,
@@ -5994,34 +5938,56 @@ window.applyMapper2Logic = function () {
       cost: price,
       cbm: cbm,
       weight: weight,
-      attributes: finalAttributes,
+      attributes: finalAttributes, // Если есть коллизии, мы позже обновим эту строку
       raw_logistics: rawLogisticsStr.trim(),
-      staff_id:
-        typeof currentUser !== "undefined" && currentUser
-          ? currentUser.uid
-          : "Auto-Import",
-
+      staff_id: typeof currentUser !== "undefined" && currentUser ? currentUser.uid : "Auto-Import",
       id: rawId,
       name: name,
       desc: name,
       description: name,
       barcode: barcode,
       category: "Новые товары",
+      
+      // Скрытые технические поля для Токенизатора
+      _hasCollisions: itemHasCollisions,
+      _collisionsList: itemCollisionsList,
+      _attributesObj: attributesObj 
     };
 
     window.parsedInvoiceData.push(itemData);
     window.invoiceGroups[state.docNo].items.push(itemData);
+
+    // Добавляем в карантин только уникальные паттерны, чтобы не спрашивать про "115/110" 100 раз
+    if (itemHasCollisions) {
+       itemCollisionsList.forEach(collision => {
+           // Проверяем, есть ли уже такой паттерн в карантине
+           const exists = window.mapper2State.quarantine.find(q => q.rawString === collision.rawString && q.sysKey === collision.sysKey);
+           if (!exists) {
+               window.mapper2State.quarantine.push(collision);
+           }
+       });
+    }
+
   });
 
   if (window.parsedInvoiceData.length === 0) {
-    return alert(
-      "Не удалось сформировать товары. Убедитесь, что в колонках «Количество» и «Цена» находятся ТОЛЬКО цифры.",
-    );
+    return alert("Не удалось сформировать товары. Убедитесь, что в колонках «Количество» и «Цена» находятся ТОЛЬКО цифры.");
   }
 
-  // Вызываем функцию отрисовки таблицы (вынесли отдельно, чтобы перерисовывать при редактировании)
-  window.renderPreviewTable();
+  // === ПРОВЕРКА КАРАНТИНА И ЗАПУСК ТОКЕНИЗАТОРА ===
+  if (window.mapper2State.quarantine && window.mapper2State.quarantine.length > 0) {
+      console.log("Внимание: Найдены сложные нераспознанные форматы. Запуск Токенизатора...", window.mapper2State.quarantine);
+      // Запускаем движок токенизатора (напишем его функцию следующим шагом)
+      if (typeof window.startTokenizerQueue === 'function') {
+          window.startTokenizerQueue();
+      } else {
+          alert("Найдены сложные форматы, но модуль Токенизатора еще не загружен.");
+      }
+      return; // ПРЕРЫВАЕМ ПУТЬ на Экран 4! Ждем человека.
+  }
 
+  // Если всё чисто, пускаем на Экран 4 как обычно
+  window.renderPreviewTable();
   document.getElementById("mapper2Area").style.display = "none";
   document.getElementById("invoicePreviewArea").style.display = "flex";
 };

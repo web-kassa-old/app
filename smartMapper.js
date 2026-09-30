@@ -416,22 +416,313 @@ function saveSmartRules() {
     }
 }
 
+window.showTokenizer = function(columnName, tokensArray, paramsList) {
+    const overlay = document.getElementById('tokenizer-overlay');
+    if (!overlay) return;
+
+    // Генерируем кнопки токенов
+    const tokensHtml = tokensArray.map((token, index) => {
+        return `<button class="token" data-index="${index}">${token}</button>`;
+    }).join('');
+
+    // Генерируем строки параметров
+    const paramsHtml = paramsList.map((param, index) => {
+        // Делаем первый параметр активным по умолчанию
+        const isActive = index === 0 ? 'active-target' : '';
+        const isChecked = index === 0 ? 'checked' : '';
+        
+        return `
+        <div class="param-row ${isActive}" data-param-name="${param.name}">
+          <label class="param-info">
+            <input type="radio" name="param_target" value="${param.name}" ${isChecked}>
+            <span>${param.name}</span>
+          </label>
+          <div class="param-preview"></div>
+          <button class="btn-confirm-inline" style="display: ${index === 0 ? 'block' : 'none'};">✔ Ок</button>
+        </div>
+        `;
+    }).join('');
+
+    // Собираем итоговую верстку модалки
+    overlay.innerHTML = `
+        <div class="tokenizer-modal">
+            <div class="modal-header">
+                <h2 class="modal-title" data-i18n="tok_pattern">Разрешение конфликта</h2>
+                <button class="close-btn">&times;</button>
+            </div>
+            
+            <div class="toolbar">
+                <div class="toolbar-label"><span data-i18n="tok_source">Колонка:</span> ${columnName}</div>
+                <button class="btn-clear" data-i18n="tok_clear">✕ Сбросить токены</button>
+            </div>
+
+            <div class="workspace">
+                <div class="workspace-label" data-i18n="tok_select_frag">Выберите фрагменты (можно несколько):</div>
+                <div class="tokens-container">
+                    ${tokensHtml}
+                </div>
+            </div>
+
+            <div class="params-list">
+                ${paramsHtml}
+            </div>
+
+            <!-- Зона фолбэка скрыта по умолчанию -->
+            <div class="fallback-zone" style="display: none;">
+                <div class="fallback-msg"></div>
+                <select class="fallback-select"></select>
+                <button class="btn-fallback">Подтвердить выбор</button>
+            </div>
+            
+            <div class="modal-footer" style="display: flex; gap: 10px;">
+                <button type="button" class="btn-back" data-i18n="inc_back" style="flex: 1; background: var(--bg-secondary); border: 1px solid var(--border-light); color: var(--text-main); padding: 14px; border-radius: 6px; font-weight: bold; cursor: pointer;">НАЗАД</button>
+                <button type="button" class="btn-done" style="flex: 2; background: var(--accent-success); color: #000; border: none; padding: 14px; border-radius: 6px; font-weight: bold; cursor: pointer;">ЗАВЕРШИТЬ</button>
+            </div>
+        </div>
+    `;
+
+    // Показываем окно
+    overlay.style.display = 'flex';
+
+    // Применяем переводы data-i18n
+    if (typeof window.applyLanguage === 'function') {
+        window.applyLanguage();
+    }
+
+    // --- БАЗОВЫЕ ОБРАБОТЧИКИ (ЗАКРЫТИЕ) ---
+    const closeModal = () => {
+        overlay.style.display = 'none';
+        overlay.innerHTML = ''; // Очищаем DOM
+    };
+
+    overlay.querySelector('.close-btn').addEventListener('click', closeModal);
+    overlay.querySelector('.btn-back').addEventListener('click', closeModal);
+};
+
+window.startTokenizerQueue = function() {
+    const queue = window.mapper2State.quarantine || [];
+    
+    // Если карантин пуст - просто идем на Экран 4
+    if (queue.length === 0) {
+        finishAndGoToPreview();
+        return;
+    }
+
+    let currentQueueIndex = 0;
+    let mappedResults = {}; // Временное хранилище: { sysKey: "Значение из словаря" }
+
+    // --- 1. ЗАПУСК ОЧЕРЕДНОГО ПАТТЕРНА ---
+    function processNext() {
+        if (currentQueueIndex >= queue.length) {
+            // Очередь закончилась, применяем результаты
+            applyResultsToData();
+            return;
+        }
+
+        const pattern = queue[currentQueueIndex];
+        mappedResults = {}; // Сбрасываем для нового паттерна
+
+        // Умная нарезка строки (например: "175/70R13" -> ["175", "/", "70", "R", "13"])
+        const currentTokens = pattern.rawString.match(/\d+(?:\.\d+)?|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g) || [pattern.rawString];
+
+        // Достаем список параметров из словаря текущего шаблона
+        const dicts = window.kaspiDicts || {};
+        let paramsList = Object.keys(dicts).map(key => ({ name: key }));
+        
+        // Фоллбэк, если словарь пуст (даем хотя бы исходный параметр)
+        if (paramsList.length === 0) paramsList = [{ name: pattern.humanName }];
+
+        // Рисуем UI через функцию, которую мы написали ранее
+        window.showTokenizer(pattern.humanName, currentTokens, paramsList);
+
+        // Обновляем заголовок очереди (Паттерн: 1 из 3)
+        const overlay = document.getElementById('tokenizer-overlay');
+        overlay.querySelector('.modal-title').textContent = `Паттерн: ${currentQueueIndex + 1} из ${queue.length}`;
+
+        // Вешаем логику на кнопки
+        attachLogic(pattern, dicts, overlay);
+    }
+
+    // --- 2. ЛОГИКА ИНТЕРФЕЙСА (Клики, склейка, проверки) ---
+    function attachLogic(pattern, dicts, overlay) {
+        const tokensBtns = overlay.querySelectorAll('.token');
+        const paramRows = overlay.querySelectorAll('.param-row');
+        const fallbackZone = overlay.querySelector('.fallback-zone');
+        const fallbackSelect = overlay.querySelector('.fallback-select');
+        const btnFallback = overlay.querySelector('.btn-fallback');
+        const btnClear = overlay.querySelector('.btn-clear');
+        const btnDone = overlay.querySelector('.btn-done');
+
+        // Функция обновления превью (склейка выбранных токенов)
+        const updatePreview = () => {
+            const activeRow = overlay.querySelector('.param-row.active-target');
+            if (!activeRow) return;
+            const previewEl = activeRow.querySelector('.param-preview');
+            const selectedText = Array.from(overlay.querySelectorAll('.token.selected')).map(b => b.textContent).join('');
+            previewEl.textContent = selectedText;
+        };
+
+        // Клик по токену
+        tokensBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                if (btn.classList.contains('disabled')) return;
+                btn.classList.toggle('selected');
+                fallbackZone.style.display = 'none'; // Прячем ошибку, если начали новый выбор
+                updatePreview();
+            });
+        });
+
+        // Клик по строке параметра (переключение радио-кнопки)
+        paramRows.forEach(row => {
+            row.addEventListener('click', (e) => {
+                if (row.classList.contains('disabled')) return;
+                
+                // Деактивируем остальные
+                paramRows.forEach(r => {
+                    r.classList.remove('active-target');
+                    r.querySelector('.btn-confirm-inline').style.display = 'none';
+                });
+                
+                // Активируем текущую
+                row.classList.add('active-target');
+                row.querySelector('input[type="radio"]').checked = true;
+                row.querySelector('.btn-confirm-inline').style.display = 'block';
+                updatePreview();
+            });
+        });
+
+        // Клик по галочке "✔ Ок"
+        paramRows.forEach(row => {
+            const confirmBtn = row.querySelector('.btn-confirm-inline');
+            confirmBtn.addEventListener('click', (e) => {
+                e.stopPropagation(); // Чтобы не сработал клик по самой строке
+                
+                const paramName = row.querySelector('input[type="radio"]').value;
+                const gluedText = row.querySelector('.param-preview').textContent;
+                
+                if (!gluedText) return;
+
+                // Ищем в справочнике
+                let dictArray = dicts[paramName] || [];
+                let matchedValue = null;
+                
+                for (let dv of dictArray) {
+                    let strDv = String(dv).trim();
+                    let baseDv = strDv.split('(')[0].trim();
+                    
+                    // Математическое или точное текстовое совпадение
+                    if (baseDv.toLowerCase() === gluedText.toLowerCase() || 
+                       (!isNaN(parseFloat(baseDv)) && parseFloat(baseDv) === parseFloat(gluedText))) {
+                        matchedValue = strDv;
+                        break;
+                    }
+                }
+
+                if (matchedValue) {
+                    lockParameter(row, paramName, matchedValue, gluedText);
+                } else {
+                    // ФОЛЛБЭК: Значение не найдено!
+                    overlay.querySelector('.fallback-msg').innerHTML = `Значение <b>"${gluedText}"</b> не найдено в справочнике. Выберите вручную:`;
+                    fallbackSelect.innerHTML = `<option value="" disabled selected>Справочник: ${paramName}...</option>` + 
+                        dictArray.map(val => `<option value="${val}">${val}</option>`).join('');
+                    fallbackZone.style.display = 'block';
+                }
+            });
+        });
+
+        // Клик по подтверждению Фоллбэка
+        btnFallback.addEventListener('click', () => {
+            const activeRow = overlay.querySelector('.param-row.active-target');
+            const paramName = activeRow.querySelector('input[type="radio"]').value;
+            const gluedText = activeRow.querySelector('.param-preview').textContent;
+            const selectedVal = fallbackSelect.value;
+            
+            if (!selectedVal) return;
+            
+            lockParameter(activeRow, paramName, selectedVal, gluedText);
+            fallbackZone.style.display = 'none';
+        });
+
+        // Функция фиксации (блокировки) параметра и токенов
+        const lockParameter = (row, humanName, finalValue, tokenText) => {
+            // Находим системный ключ для этого параметра, чтобы правильно сохранить в JSON
+            let sysKey = Object.keys(window.mapper2State.sysToHumanMap || {}).find(k => window.mapper2State.sysToHumanMap[k] === humanName);
+            if (!sysKey) sysKey = humanName;
+            
+            mappedResults[sysKey] = finalValue; // Сохраняем в память!
+
+            // Блокируем UI строки
+            row.classList.remove('active-target');
+            row.classList.add('disabled');
+            row.querySelector('.param-preview').style.display = 'none';
+            row.querySelector('.btn-confirm-inline').style.display = 'none';
+            row.insertAdjacentHTML('beforeend', `<span class="param-badge">${tokenText}</span>`);
+
+            // Блокируем выбранные токены
+            overlay.querySelectorAll('.token.selected').forEach(t => {
+                t.classList.remove('selected');
+                t.classList.add('disabled');
+            });
+            
+            // Авто-фокус на следующую свободную строку
+            const nextRow = overlay.querySelector('.param-row:not(.disabled)');
+            if (nextRow) nextRow.click();
+        };
+
+        // Кнопка Сбросить (просто перезапускаем текущий паттерн)
+        btnClear.addEventListener('click', () => {
+            processNext();
+        });
+
+        // Кнопка Завершить
+        btnDone.addEventListener('click', () => {
+            // Сохраняем результаты работы над этим паттерном
+            pattern.resolvedAttributes = mappedResults;
+            currentQueueIndex++;
+            processNext(); // Идем к следующему
+        });
+    }
+
+    // --- 3. ФИНАЛИЗАЦИЯ И ПЕРЕХОД ---
+    function applyResultsToData() {
+        // Проходим по всем сформированным товарам
+        window.parsedInvoiceData.forEach(item => {
+            if (item._hasCollisions) {
+                let attrsObj = item._attributesObj || {};
+                
+                // Для каждой коллизии этого товара ищем, как клиент ее разрешил
+                item._collisionsList.forEach(col => {
+                    const resolvedPattern = queue.find(q => q.rawString === col.rawString && q.sysKey === col.sysKey);
+                    if (resolvedPattern && resolvedPattern.resolvedAttributes) {
+                        // Вливаем вручную спаренные атрибуты
+                        Object.assign(attrsObj, resolvedPattern.resolvedAttributes);
+                    }
+                });
+                
+                // Обновляем финальную JSON-строку атрибутов
+                item.attributes = Object.keys(attrsObj).length > 0 ? JSON.stringify(attrsObj) : "";
+            }
+        });
+
+        window.mapper2State.quarantine = []; // Очищаем карантин
+        finishAndGoToPreview();
+    }
+
+    function finishAndGoToPreview() {
+        const overlay = document.getElementById('tokenizer-overlay');
+        if (overlay) {
+            overlay.style.display = 'none';
+            overlay.innerHTML = '';
+        }
+        window.renderPreviewTable();
+        document.getElementById("mapper2Area").style.display = "none";
+        document.getElementById("invoicePreviewArea").style.display = "flex";
+    }
+
+    // Запускаем маховик!
+    processNext();
+};
+
 // Жестко привязываем функции к объекту window
 window.detectComplexColumns = detectComplexColumns;
 window.renderSmartMapperModal = renderSmartMapperModal;
-// ==========================================
-// ПРИМЕР РАБОТЫ (ДЛЯ ТЕСТА В КОНСОЛИ):
-// ==========================================
-/*
-const testHeaders = ["Артикул", "Бренд", "Параметры", "Цена"];
-const testRows = [
-    ["A001", "Nokian", "205/55R16", "25000"],
-    ["A002", "Michelin", "31X10.50R15LT 109S", "35000"], // <- Этот пример победит
-    ["A003", "Pirelli", "195/65", "20000"]
-];
-
-const result = detectComplexColumns(testHeaders, testRows);
-console.log(result);
-// Выдаст: [{ colName: "Параметры", example: "31X10.50R15LT 109S", tokenCount: 7 }]
-// Колонка "Цена" и "Артикул" будут проигнорированы из-за blacklist.
-*/

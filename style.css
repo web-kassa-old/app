@@ -1009,3 +1009,130 @@ button,
     padding: 15px 20px;
     border-top: 1px solid var(--border-main);
 }
+
+/* окно чек бокса для проверки сложных параметров */
+.tokenizer-modal {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  width: 100%;
+  max-width: 550px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.7);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Шапка и Тулбар */
+.modal-header {
+  padding: 16px 20px; border-bottom: 1px solid var(--border-light);
+  display: flex; justify-content: space-between; align-items: center;
+}
+.modal-title { margin: 0; font-size: 16px; color: var(--accent-warning); }
+.close-btn { background: none; border: none; color: var(--text-muted); font-size: 20px; cursor: pointer; }
+
+.toolbar {
+  padding: 12px 20px; display: flex; justify-content: space-between; align-items: center;
+}
+.toolbar-label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; }
+.btn-clear { background: transparent; color: var(--accent-danger); border: 1px solid var(--accent-danger); padding: 6px 12px; border-radius: 4px; font-size: 12px; cursor: pointer; }
+
+/* Зона токенов (Палитра) */
+.workspace {
+  margin: 0 20px 20px 20px;
+  padding: 16px;
+  border: 1px dashed var(--border-dashed);
+  border-radius: 8px;
+  background-color: var(--bg-main);
+}
+.workspace-label { font-size: 13px; color: var(--text-muted); margin-bottom: 12px; }
+
+.tokens-container { display: flex; flex-wrap: wrap; gap: 8px; }
+.token {
+  background-color: var(--bg-panel); border: 1px solid var(--border-light);
+  color: var(--text-main); padding: 8px 14px; border-radius: 6px;
+  font-size: 16px; font-weight: bold; cursor: pointer; transition: 0.2s;
+}
+
+.token.selected { background-color: rgba(46, 204, 113, 0.15); border-color: var(--accent-success); color: var(--accent-success); }
+.token.disabled { opacity: 0.3; pointer-events: none; }
+.token.error { background-color: rgba(231, 76, 60, 0.15); border-color: var(--accent-danger); color: var(--accent-danger); }
+
+/* Список параметров с инлайн-кнопками */
+.params-list {
+  margin: 0 20px 20px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.param-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background-color: var(--bg-main);
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  transition: 0.2s;
+}
+
+/* Состояние когда параметр выбран для заполнения */
+.param-row.active-target {
+  border-color: var(--accent-warning);
+  background-color: rgba(255, 202, 40, 0.05);
+}
+
+.param-row.disabled { opacity: 0.5; pointer-events: none; }
+
+.param-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  flex: 1;
+  cursor: pointer;
+}
+
+/* Динамическое превью склеенных токенов */
+.param-preview {
+  font-size: 14px;
+  font-weight: bold;
+  color: var(--accent-warning);
+  margin-right: 12px;
+  min-width: 50px;
+  text-align: right;
+}
+
+/* Кнопка подтверждения внутри строки */
+.btn-confirm-inline {
+  background-color: var(--accent-success);
+  color: #000;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-weight: bold;
+  cursor: pointer;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.btn-confirm-inline:hover { background-color: var(--accent-success-hover); }
+
+/* Бейдж завершенного параметра */
+.param-badge {
+  background: var(--bg-panel); color: var(--text-muted);
+  padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: bold;
+  border: 1px solid var(--border-light);
+}
+
+/* Фолбэк */
+.fallback-zone { margin: 0 20px 20px 20px; padding: 16px; background-color: rgba(231, 76, 60, 0.1); border: 1px solid var(--accent-danger); border-radius: 8px; }
+.fallback-msg { color: var(--accent-danger); font-size: 13px; margin-bottom: 12px; }
+.fallback-select { width: 100%; padding: 10px; margin-bottom: 12px; background-color: var(--bg-main); color: var(--text-main); border: 1px solid var(--border-light); border-radius: 4px; outline: none; }
+.btn-fallback { width: 100%; background: var(--accent-warning); color: #000; border: none; padding: 12px; border-radius: 6px; font-weight: bold; cursor: pointer; }
+
+/* Подвал */
+.modal-footer { padding: 16px 20px; border-top: 1px solid var(--border-light); background-color: var(--bg-main); }
+.btn-done { width: 100%; background: var(--bg-secondary); color: var(--text-main); border: 1px solid var(--text-muted); padding: 14px; border-radius: 6px; font-weight: bold; cursor: pointer; }
+.btn-done:hover { border-color: var(--text-main); }
