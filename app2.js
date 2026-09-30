@@ -4777,9 +4777,10 @@ window.renderMapper2Cards = function (templateData) {
   const container = document.getElementById("mapper2CardsContainer");
   container.innerHTML = "";
 
-  window.mapper2State.colMap = {};
-  window.mapper2State.dictValues = {};
-  window.mapper2State.splitRules = {};
+  // === ИСПРАВЛЕНИЕ: Мягкое сохранение памяти вместо жесткого удаления ===
+  window.mapper2State.colMap = window.mapper2State.colMap || {};
+  window.mapper2State.dictValues = window.mapper2State.dictValues || {};
+  window.mapper2State.splitRules = window.mapper2State.splitRules || {};
 
   let allReqs = [];
   let learnedSynonyms = {};
@@ -5735,7 +5736,11 @@ window.applyMapper2Logic = function () {
 
         if (headerText) {
           let cleanWord = String(headerText).trim().toLowerCase();
-          if (!currentMemory[sysKey]) currentMemory[sysKey] = [];
+          
+          // === ИСПРАВЛЕНИЕ: Гарантируем, что это массив ===
+          if (!Array.isArray(currentMemory[sysKey])) {
+            currentMemory[sysKey] = [];
+          }
 
           if (!currentMemory[sysKey].includes(cleanWord)) {
             currentMemory[sysKey].push(cleanWord);
