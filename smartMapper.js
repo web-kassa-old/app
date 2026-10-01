@@ -500,6 +500,9 @@ window.startTokenizerQueue = function() {
         return validTokens.length > 1;
     });
 
+    // ИСПРАВЛЕНИЕ 2: Сортируем очередь так, чтобы самая длинная строка всегда была первой
+    filteredQueue.sort((a, b) => (b.rawString || "").length - (a.rawString || "").length);
+
     function getPatternMask(str) {
         const tokens = str.match(/\d+(?:\.\d+)?|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g) || [str];
         return tokens.map(t => {
@@ -512,6 +515,7 @@ window.startTokenizerQueue = function() {
     const uniquePatternsMap = new Map();
     filteredQueue.forEach(item => {
         const mask = getPatternMask(item.rawString);
+        // Берем только первый паттерн (благодаря сортировке выше, он гарантированно самый длинный)
         if (!uniquePatternsMap.has(mask)) {
             item.mask = mask;
             uniquePatternsMap.set(mask, item);
@@ -535,25 +539,19 @@ window.startTokenizerQueue = function() {
         }
 
         const pattern = queue[currentQueueIndex];
-        
         mappedResults = pattern.resolvedAttributes ? JSON.parse(JSON.stringify(pattern.resolvedAttributes)) : {}; 
 
         const currentTokens = pattern.rawString.match(/\d+(?:\.\d+)?|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g) || [pattern.rawString];
         const dicts = window.kaspiDicts || {};
         let paramsList = [];
         
-        const excludeFromSmart = ['Артикул', 'Название товара', 'Бренд', 'Цена', 'Название модели', 'Рубрика', 'Код изображений', 'Ссылка на YouTube', 'Ссылка на картинку', 'Описание (мин. 100 символов, макс. 7 000 символов)', 'Описание', 'Вес для расчета логистики', 'Объединить в одну карточку', 'В наличии'];
+        // ИСПРАВЛЕНИЕ 1: Убрали фильтр isCodeOrNumber. 
+        // Теперь Токенизатор покажет ВСЕ параметры, включая Бренд, Модель и Сезонность.
+        const excludeFromSmart = ['Артикул', 'Название товара', 'Цена', 'Рубрика', 'Код изображений', 'Ссылка на YouTube', 'Ссылка на картинку', 'Описание (мин. 100 символов, макс. 7 000 символов)', 'Описание', 'Вес для расчета логистики', 'Объединить в одну карточку', 'В наличии'];
 
         Object.keys(dicts).forEach(paramName => {
-            if (!excludeFromSmart.includes(paramName) && Array.isArray(dicts[paramName])) {
-                const validExamples = dicts[paramName].filter(val => val && String(val).trim() !== '');
-                if (validExamples.length > 0) {
-                    const isCodeOrNumber = validExamples.some(ex => {
-                        const str = String(ex).trim();
-                        return /\d/.test(str) || (/^[a-zA-Z]+$/.test(str) && str.length <= 3);
-                    });
-                    if (isCodeOrNumber) paramsList.push({ name: paramName });
-                }
+            if (!excludeFromSmart.includes(paramName)) {
+                paramsList.push({ name: paramName });
             }
         });
         
@@ -588,18 +586,17 @@ window.startTokenizerQueue = function() {
 
         attachLogic(pattern, dicts, overlay);
 
-        // ИСПРАВЛЕНИЕ 1: Верный поиск имени параметра для восстановления бейджа
         if (Object.keys(mappedResults).length > 0) {
             Object.keys(mappedResults).forEach(sysKey => {
                 const rule = mappedResults[sysKey];
-                
-                // Правильно переводим системный ключ обратно в название из словаря
                 const humanName = (window.mapper2State.sysToHumanMap && window.mapper2State.sysToHumanMap[sysKey]) || sysKey;
                 
                 const row = Array.from(overlay.querySelectorAll('.param-row')).find(r => r.dataset.paramName === humanName || r.dataset.paramName === sysKey);
                 
                 if (row) {
                     const gluedText = rule.indexes.map(idx => currentTokens[idx]).join('');
+                    const displayVal = rule.value || gluedText;
+
                     row.classList.remove('active-target');
                     row.classList.add('disabled');
                     row.querySelector('.param-preview').style.display = 'none';
@@ -610,7 +607,9 @@ window.startTokenizerQueue = function() {
                     
                     const oldBadge = row.querySelector('.param-badge');
                     if (oldBadge) oldBadge.remove();
-                    row.insertAdjacentHTML('beforeend', `<span class="param-badge">${gluedText}</span>`);
+                    
+                    const badgeHtml = `<span class="param-badge" style="background: var(--accent-green, #2ecc71); color: #000; padding: 4px 12px; border-radius: 6px; font-size: 13px; font-weight: bold; margin-left: auto; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">✓ ${displayVal}</span>`;
+                    row.insertAdjacentHTML('beforeend', badgeHtml);
                 }
                 
                 rule.indexes.forEach(idx => {
@@ -643,9 +642,7 @@ window.startTokenizerQueue = function() {
         const btnBack = overlay.querySelector('.btn-back'); 
 
         const updatePreview = () => {
-            overlay.querySelectorAll('.param-row:not(.disabled) .param-preview').forEach(el => {
-                el.innerHTML = '';
-            });
+            overlay.querySelectorAll('.param-row:not(.disabled) .param-preview').forEach(el => el.innerHTML = '');
             const activeRow = overlay.querySelector('.param-row.active-target');
             if (!activeRow) return;
             const selectedText = Array.from(overlay.querySelectorAll('.token.selected')).map(b => b.textContent).join('');
@@ -736,7 +733,9 @@ window.startTokenizerQueue = function() {
             
             const oldBadge = row.querySelector('.param-badge');
             if (oldBadge) oldBadge.remove();
-            row.insertAdjacentHTML('beforeend', `<span class="param-badge">${tokenText}</span>`);
+            
+            const badgeHtml = `<span class="param-badge" style="background: var(--accent-green, #2ecc71); color: #000; padding: 4px 12px; border-radius: 6px; font-size: 13px; font-weight: bold; margin-left: auto; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">✓ ${finalValue || tokenText}</span>`;
+            row.insertAdjacentHTML('beforeend', badgeHtml);
 
             overlay.querySelectorAll('.token.selected').forEach(t => {
                 t.classList.remove('selected');
@@ -809,18 +808,20 @@ window.startTokenizerQueue = function() {
                             if (rule && rule.indexes && rule.indexes.length > 0) {
                                 const gluedText = rule.indexes.map(idx => colTokens[idx]).join('');
                                 
-                                let humanName = window.mapper2State.sysToHumanMap ? window.mapper2State.sysToHumanMap[sysKey] : sysKey;
-                                let dictArray = dicts[humanName] || dicts[sysKey] || [];
-                                let finalVal = gluedText;
+                                let finalVal = rule.value || gluedText;
                                 
-                                if (dictArray.length > 0) {
-                                    for (let dv of dictArray) {
-                                        let strDv = String(dv).trim();
-                                        let baseDv = strDv.split('(')[0].trim();
-                                        if (baseDv.toLowerCase() === gluedText.toLowerCase() || 
-                                           (!isNaN(parseFloat(baseDv)) && parseFloat(baseDv) === parseFloat(gluedText))) {
-                                            finalVal = strDv;
-                                            break;
+                                if (!rule.value) {
+                                    let humanName = window.mapper2State.sysToHumanMap ? window.mapper2State.sysToHumanMap[sysKey] : sysKey;
+                                    let dictArray = dicts[humanName] || dicts[sysKey] || [];
+                                    if (dictArray.length > 0) {
+                                        for (let dv of dictArray) {
+                                            let strDv = String(dv).trim();
+                                            let baseDv = strDv.split('(')[0].trim();
+                                            if (baseDv.toLowerCase() === gluedText.toLowerCase() || 
+                                               (!isNaN(parseFloat(baseDv)) && parseFloat(baseDv) === parseFloat(gluedText))) {
+                                                finalVal = strDv;
+                                                break;
+                                            }
                                         }
                                     }
                                 }
@@ -831,8 +832,6 @@ window.startTokenizerQueue = function() {
                     }
                 });
                 
-                // ИСПРАВЛЕНИЕ 2: Защита от autoCleanInvoiceAttributes
-                // Синхронизируем оперативную память, чтобы очиститель не стирал наши данные!
                 item.attributes = Object.keys(attrsObj).length > 0 ? JSON.stringify(attrsObj) : "";
                 item._attributesObj = attrsObj;
             }
