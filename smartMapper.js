@@ -717,6 +717,10 @@ window.startTokenizerQueue = function() {
                 indexes: tokenIndexes
             };
 
+            // ИСПРАВЛЕНИЕ: Мгновенно сохраняем результат в кэш паттерна, не дожидаясь нажатия "Далее". 
+            // Теперь прогресс никогда не сбросится при навигации!
+            pattern.resolvedAttributes = JSON.parse(JSON.stringify(mappedResults));
+
             row.classList.remove('active-target');
             row.classList.add('disabled');
             row.querySelector('.param-preview').style.display = 'none';
@@ -731,10 +735,32 @@ window.startTokenizerQueue = function() {
             btnDone.style.opacity = '1';
             btnDone.style.pointerEvents = 'auto';
             btnDone.style.cursor = 'pointer';
-            
-            // Автоматический прыжок на следующую строку удален. 
-            // Теперь пользователь сам выбирает, куда кликать дальше.
         };
+
+        // ИСПРАВЛЕНИЕ: Кнопка "Сбросить токены" теперь очищает кэш текущего паттерна и обновляет окно
+        btnClear.addEventListener('click', () => {
+            mappedResults = {};
+            if (pattern.resolvedAttributes) {
+                delete pattern.resolvedAttributes;
+            }
+            processNext(); 
+        });
+
+        if (btnBack) {
+            btnBack.addEventListener('click', () => {
+                if (currentQueueIndex > 0) {
+                    currentQueueIndex--;
+                    processNext();
+                }
+            });
+        }
+
+        // ИСПРАВЛЕНИЕ: Кнопка "Далее" теперь просто проверяет наличие сохраненного кэша и перелистывает очередь
+        btnDone.addEventListener('click', () => {
+            if (!pattern.resolvedAttributes || Object.keys(pattern.resolvedAttributes).length === 0) return;
+            currentQueueIndex++;
+            processNext(); 
+        });
 
         btnClear.addEventListener('click', () => {
             processNext();

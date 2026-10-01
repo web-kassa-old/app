@@ -4789,35 +4789,29 @@ window.renderMapper2Cards = function (templateData) {
   const container = document.getElementById("mapper2CardsContainer");
   container.innerHTML = "";
 
-  // Мягкое сохранение памяти
   window.mapper2State.colMap = window.mapper2State.colMap || {};
   window.mapper2State.dictValues = window.mapper2State.dictValues || {};
   window.mapper2State.splitRules = window.mapper2State.splitRules || {};
 
-  // === НОВЫЙ БЛОК: СВЯЗКА УМНОГО СИТА СО СПАРИВАНИЕМ ШАПОК ===
   if (window.mapper2State.smartRules && templateData && templateData.humanNames && templateData.systemKeys) {
       const headers = window.mapper2State.invoiceHeaders || [];
       
       Object.keys(window.mapper2State.smartRules).forEach(invoiceColName => {
-          // 1. Ищем, под каким индексом находится эта сложная колонка в накладной
           const colIndex = headers.findIndex(h => String(h).trim() === invoiceColName);
           
           if (colIndex !== -1) {
               const selectedParams = window.mapper2State.smartRules[invoiceColName];
               
-              // 2. Перебираем все галочки (параметры), которые ты выбрал в Сите
               selectedParams.forEach(paramName => {
                   const pIdx = templateData.humanNames.indexOf(paramName);
                   if (pIdx !== -1) {
                       const sysKey = templateData.systemKeys[pIdx];
-                      // 3. Жестко привязываем системный ключ Каспи к колонке из накладной
                       window.mapper2State.colMap[sysKey] = colIndex;
                   }
               });
           }
       });
   }
-  // ============================================================
 
   let allReqs = [];
   let learnedSynonyms = {};
@@ -4859,13 +4853,12 @@ window.renderMapper2Cards = function (templateData) {
         name: humName,
         req: isReq,
         desc: t.inc_dict_or_splitter || "Словарь или Сплиттер",
-        descKey: "inc_dict_or_splitter", // Ключ для автоматического перевода подписи
+        descKey: "inc_dict_or_splitter",
         isKaspi: true,
       });
     }
   }
 
-  // Внедряем ключи nameKey и descKey для связки со словарем
   const posBaseFields = [
     {
       sysKey: "name",
@@ -4927,15 +4920,13 @@ window.renderMapper2Cards = function (templateData) {
     if (!allReqs.some((r) => r.sysKey === field.sysKey)) allReqs.push(field);
   });
 
-  const globalSynonyms =
-    typeof invoiceSynonyms !== "undefined" ? invoiceSynonyms : {};
+  const globalSynonyms = typeof invoiceSynonyms !== "undefined" ? invoiceSynonyms : {};
   const headersLower = (window.mapper2State.invoiceHeaders || []).map((h) =>
     String(h || "")
       .trim()
       .toLowerCase(),
   );
 
-  // === СОЗДАЕМ 3 КОРЗИНЫ ДЛЯ КАРТОЧЕК ===
   let htmlRequired = "";
   let htmlOptional = "";
   let htmlFilled = "";
@@ -4945,7 +4936,6 @@ window.renderMapper2Cards = function (templateData) {
       req.sysKey.toLowerCase().includes("sku") ||
       req.name.toLowerCase().includes("артикул");
 
-    // 1. Артикул всегда идет в "Заполненные"
     if (isKaspiSku) {
       htmlFilled += `
             <div class="req-card" style="opacity: 0.6; filter: grayscale(1); cursor: not-allowed; background: var(--bg-panel); border-color: var(--border-light);">
@@ -4974,16 +4964,15 @@ window.renderMapper2Cards = function (templateData) {
       .filter(Boolean);
     let foundIndex = -1;
 
-    // Гарантируем, что learned — это массив (если пришла строка, оборачиваем её в массив)
-const safeLearned = Array.isArray(learned) ? learned : (typeof learned === 'string' ? [learned] : []);
+    const safeLearned = Array.isArray(learned) ? learned : (typeof learned === 'string' ? [learned] : []);
 
-foundIndex = headersLower.findIndex((h) => h && safeLearned.includes(h));
-if (foundIndex === -1)
-  foundIndex = headersLower.findIndex((h) => h && base.includes(h));
-if (foundIndex === -1)
-  foundIndex = headersLower.findIndex(
-    (h) => h && safeLearned.some((w) => w.length > 2 && h.includes(w)),
-  );
+    foundIndex = headersLower.findIndex((h) => h && safeLearned.includes(h));
+    if (foundIndex === -1)
+      foundIndex = headersLower.findIndex((h) => h && base.includes(h));
+    if (foundIndex === -1)
+      foundIndex = headersLower.findIndex(
+        (h) => h && safeLearned.some((w) => w.length > 2 && h.includes(w)),
+      );
     if (foundIndex === -1)
       foundIndex = headersLower.findIndex(
         (h) => h && base.some((w) => w.length > 2 && h.includes(w)),
@@ -5006,10 +4995,10 @@ if (foundIndex === -1)
       statusClass = "status-filled";
       let shortVal =
         dictValue.length > 15 ? dictValue.substring(0, 15) + "..." : dictValue;
-      statusText = `📖 ${shortVal}`;
-      statusI18n = ""; // Если значение выбрано, data-i18n убираем, чтобы не перетереть текст
-      statusStyle =
-        "border: 1px solid #4CAF50; color: #4CAF50; background: rgba(76, 175, 80, 0.1); font-weight: bold;";
+      // ИСПРАВЛЕНИЕ 1: Добавляем галочку и красим кнопку для словаря
+      statusText = `✓ ${shortVal}`;
+      statusI18n = ""; 
+      statusStyle = "border: 1px solid var(--accent-green, #2ecc71); color: var(--accent-green, #2ecc71); background: var(--bg-success-dim, rgba(46, 204, 113, 0.15)); font-weight: bold;";
     } else if (mappedIndex !== undefined) {
       statusClass = "status-filled";
       let colName =
@@ -5027,10 +5016,10 @@ if (foundIndex === -1)
         ruleIndices = splitData.tokens;
 
       if (ruleIndices.length > 0) {
-        statusText = `✂️ ${colName}`;
+        // ИСПРАВЛЕНИЕ 2: Меняем текст кнопки для сплиттера
+        statusText = `✂️️ ${colName}`;
         statusI18n = "";
-        statusStyle =
-          "border: 1px solid #4CAF50; color: #4CAF50; background: rgba(76, 175, 80, 0.1); font-weight: bold;";
+        statusStyle = "border: 1px solid var(--accent-green, #2ecc71); color: var(--accent-green, #2ecc71); background: var(--bg-success-dim, rgba(46, 204, 113, 0.15)); font-weight: bold;";
 
         let sampleText = "";
         for (
@@ -5067,14 +5056,13 @@ if (foundIndex === -1)
                     </div>`;
         }
       } else {
-        statusText = `✅ ${colName}`;
+        // ИСПРАВЛЕНИЕ 3: Меняем текст кнопки для обычного маппинга
+        statusText = `✓ ${colName}`;
         statusI18n = "";
-        statusStyle =
-          "border: 1px solid #4CAF50; color: #4CAF50; background: rgba(76, 175, 80, 0.1); font-weight: bold;";
+        statusStyle = "border: 1px solid var(--accent-green, #2ecc71); color: var(--accent-green, #2ecc71); background: var(--bg-success-dim, rgba(46, 204, 113, 0.15)); font-weight: bold;";
       }
     }
 
-    // 2. Генерируем саму карточку, добавляя атрибуты перевода
     let nameI18nAttr = req.nameKey ? `data-i18n="${req.nameKey}"` : "";
     let descI18nAttr = req.descKey ? `data-i18n="${req.descKey}"` : "";
 
@@ -5088,7 +5076,6 @@ if (foundIndex === -1)
             <div class="req-status ${statusClass}" id="status-${req.sysKey}" style="${statusStyle}" ${statusI18n}>${statusText}</div>
         </div>`;
 
-    // 3. Распределяем карточку по корзинам
     if (statusClass === "status-filled") {
       htmlFilled += cardHtml;
     } else if (req.req) {
@@ -5098,7 +5085,6 @@ if (foundIndex === -1)
     }
   });
 
-  // === СКЛЕИВАЕМ ИТОГОВЫЙ HTML ===
   let finalHtml = "";
 
   if (htmlRequired) {
@@ -5119,7 +5105,6 @@ if (foundIndex === -1)
 
   container.innerHTML = finalHtml;
 
-  // === Скрытие остальных элементов интерфейса ===
   const parseBtn = document.getElementById("parseInvoiceBtn");
   if (parseBtn) parseBtn.style.display = "none";
 
