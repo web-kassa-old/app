@@ -6094,26 +6094,29 @@ window.renderPreviewTable = function () {
           } catch (e) {}
         }
 
+        // ИСПРАВЛЕНИЕ: Разбиваем товар на две строки.
+        // Первая строка: Название, Код, Количество, Цена.
+        // Вторая строка (colspan="2"): Параметры и кнопка, растянутые на всю ширину.
         return `
-        <tr style="border-bottom:1px solid var(--border-light);">
-            <td class="col-main" style="padding:12px 8px; vertical-align: top;">
+        <tr>
+            <td class="col-main" style="padding:12px 8px 4px 8px; vertical-align: top; border-bottom: none;">
                 <div style="font-weight:bold; font-size:13px; line-height:1.2;">${item.item_name}</div>
-                
-                <!-- ПЕРЕНЕСЕННЫЙ КОД ТОВАРА -->
                 <div style="display: flex; align-items: center; gap: 8px; margin-top: 6px;">
                     <span style="color:var(--accent-blue); font-weight:bold; font-size:11px;">Код: ${item.item_id || "AUTO"}</span>
                     ${!item.barcode ? `<span style="font-size:9px; color:var(--accent-green); background: rgba(46, 204, 113, 0.1); padding: 2px 6px; border-radius: 4px; font-weight: bold;">+ EAN-13</span>` : ""}
                 </div>
-
-                ${attrsHtml}
-                
-                <button onclick="window.openEditorMain(${index})" style="width: 100%; background: rgba(128,128,128,0.05); border: 1px dashed var(--border-light); color: var(--text-muted); cursor: pointer; border-radius: 4px; font-size: 11px; margin-top: 10px; padding: 10px;">
-                    ✏️ <span data-i18n="inc_edit_params">${t.inc_edit_params || "Изменить параметры"}</span>
-                </button>
             </td>
-            <td class="col-min" style="padding:12px 8px; vertical-align: top; text-align:right; width: 70px;">
+            <td class="col-min" style="padding:12px 8px 4px 8px; vertical-align: top; text-align:right; width: 70px; border-bottom: none;">
                 <div style="font-size:12px; color:var(--text-muted); margin-bottom: 4px;">${Number(item.qty).toLocaleString("ru-RU")}</div>
                 <div style="font-size:13px; font-weight:bold; color:var(--accent-yellow);">${Number(item.cost).toLocaleString("ru-RU")}</div>
+            </td>
+        </tr>
+        <tr style="border-bottom:1px solid var(--border-light);">
+            <td colspan="2" style="padding: 0 8px 12px 8px; border-top: none;">
+                ${attrsHtml}
+                <button onclick="window.openEditorMain(${index})" style="width: 100%; background: rgba(128,128,128,0.05); border: 1px dashed var(--border-light); color: var(--text-muted); cursor: pointer; border-radius: 4px; font-size: 11px; margin-top: 10px; padding: 10px;">
+                    ✏️️ <span data-i18n="inc_edit_params">${t.inc_edit_params || "Изменить параметры"}</span>
+                </button>
             </td>
         </tr>`;
       })
