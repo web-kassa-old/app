@@ -229,7 +229,14 @@
           C
         </div>
         <div class="num-btn" onclick="addPin('0')">0</div>
-        <div class="num-btn btn-clear" onclick="delPin()">⌫</div>
+        <div
+          class="num-btn btn-clear"
+          onmousedown="qeDelDigit(event)"
+          ontouchstart="qeDelDigit(event)"
+          style="border-radius: 50% !important; aspect-ratio: 1 / 1"
+        >
+          ⌫
+        </div>
       </div>
       <div
         id="version-pin"
@@ -2391,7 +2398,6 @@
                   class="num-btn btn-clear"
                   onmousedown="qeDelDigit(event)"
                   ontouchstart="qeDelDigit(event)"
-                  style="border-radius: 50% !important; aspect-ratio: 1 / 1"
                 >
                   ⌫
                 </div>
