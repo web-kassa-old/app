@@ -5901,15 +5901,19 @@ window.applyMapper2Logic = function () {
                   }
               }
           }
-      } else {
+     } else {
           if (hasDictionary) {
                for (let dv of dict) {
-                   // ИСПРАВЛЕНИЕ 1: Умное сравнение. Теперь "120" поймет, что это "120 (1400 кг)"
                    let strDv = String(dv).trim();
                    let baseDv = strDv.split('(')[0].trim();
+                   
+                   // ФИКС: Строгая проверка. Если в строке есть слэш (115/110), мы запрещаем отрезать от нее куски
+                   let isStrictNumber = /^[\d\.]+$/.test(String(searchString).trim());
+                   
                    if (strDv.toLowerCase() === String(searchString).trim().toLowerCase() ||
                        baseDv.toLowerCase() === String(searchString).trim().toLowerCase() ||
-                       (!isNaN(parseFloat(baseDv)) && parseFloat(baseDv) === parseFloat(searchString))) {
+                       (isStrictNumber && !isNaN(parseFloat(baseDv)) && parseFloat(baseDv) === parseFloat(searchString))) {
+                       
                        matchedDictValue = strDv;
                        foundMatch = true;
                        break;
