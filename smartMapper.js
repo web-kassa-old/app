@@ -693,13 +693,12 @@ window.startTokenizerQueue = function() {
                 t.classList.add('disabled');
             });
             
-            // ИСПРАВЛЕНИЕ 1в: Разблокируем кнопку Далее/Завершить при первом подтвержденном параметре
             btnDone.style.opacity = '1';
             btnDone.style.pointerEvents = 'auto';
             btnDone.style.cursor = 'pointer';
             
-            const nextRow = overlay.querySelector('.param-row:not(.disabled)');
-            if (nextRow) nextRow.click();
+            // Автоматический прыжок на следующую строку удален. 
+            // Теперь пользователь сам выбирает, куда кликать дальше.
         };
 
         btnClear.addEventListener('click', () => {
