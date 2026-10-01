@@ -5929,13 +5929,18 @@ window.applyMapper2Logic = function () {
       if (window.currentImportMode === "kaspi" && hasDictionary && !foundMatch) {
           console.log("🔴 КАРАНТИН ПОЙМАЛ ТОВАР:", humanName, "=>", rawValue);
           itemHasCollisions = true;
+
+          // ДОБАВЛЕНО: Ищем реальное название колонки из шапки загруженного Excel
+          let colIdx = state.colMap[key];
+          let excelHeader = (colIdx !== undefined && state.invoiceHeaders) ? state.invoiceHeaders[colIdx] : "ДАННЫЕ ИЗ НАКЛАДНОЙ";
+
           itemCollisionsList.push({
               sysKey: key,            
               humanName: humanName,   
-              rawString: rawValue     
+              rawString: rawValue,
+              excelColumnName: excelHeader // Передаем это в Токенизатор
           });
           
-          // ЕДИНЫЙ СПИСОК ИСКЛЮЧЕНИЙ (как в Токенизаторе)
           const excludeFromSmart = [
               'Артикул', 'Название товара', 'Бренд', 'Цена', 'Название модели', 'Модель',
               'Рубрика', 'category', 'Сезонность', 'Назначение', 'Тип шины', 'Комплектация', 
@@ -5944,8 +5949,6 @@ window.applyMapper2Logic = function () {
               'Описание', 'Вес для расчета логистики', 'Объединить в одну карточку', 'В наличии'
           ];
           
-          // ИСПРАВЛЕНИЕ: Сохраняем сырое значение ТОЛЬКО для общих текстовых полей (Бренд и т.д.).
-          // Технические параметры (Высота профиля и др.) останутся пустыми, если их не выберут в Токенизаторе!
           if (excludeFromSmart.includes(humanName)) {
               attributesObj[key] = rawValue; 
           }

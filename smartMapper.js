@@ -704,11 +704,8 @@ window.startTokenizerQueue = function () {
     if (paramsList.length === 0)
       paramsList = [{ name: "Неизвестный параметр" }];
 
-    const displayColName =
-      pattern.humanName ||
-      pattern.paramName ||
-      pattern.excelColumnName ||
-      "Многосоставные данные";
+    // ИСПРАВЛЕНИЕ: Приоритет отдается реальному названию колонки из Excel
+    const displayColName = pattern.excelColumnName || "Многосоставные данные";
 
     window.showTokenizer(displayColName, currentTokens, paramsList);
 
