@@ -458,17 +458,17 @@ window.showTokenizer = function(columnName, tokensArray, paramsList) {
             </div>
 
             <div class="workspace">
-                <div class="workspace-label" data-i18n="tok_select_frag">Выберите фрагменты (можно несколько):</div>
-                <div class="tokens-container">
-                    ${tokensHtml}
-                </div>
-            </div>
+    <div class="workspace-label" data-i18n="tok_select_frag">Выберите фрагменты (можно несколько):</div>
+    <div class="tokens-container">
+        ${tokensHtml}
+    </div>
+</div>
 
-            <div class="params-list">
-                ${paramsHtml}
-            </div>
+<div class="params-list" style="max-height: 40vh; overflow-y: auto; padding-right: 5px; margin-bottom: 10px;">
+    ${paramsHtml}
+</div>
 
-            <div class="fallback-zone" style="display: none;">
+<div class="fallback-zone" style="display: none;">
                 <div class="fallback-msg"></div>
                 <select class="fallback-select"></select>
                 <button class="btn-fallback">Подтвердить выбор</button>
@@ -546,12 +546,19 @@ window.startTokenizerQueue = function() {
         let paramsList = [];
         
         // ИСПРАВЛЕНИЕ 1: Убрали фильтр isCodeOrNumber. 
-        // Теперь Токенизатор покажет ВСЕ параметры, включая Бренд, Модель и Сезонность.
         const excludeFromSmart = ['Артикул', 'Название товара', 'Цена', 'Рубрика', 'Код изображений', 'Ссылка на YouTube', 'Ссылка на картинку', 'Описание (мин. 100 символов, макс. 7 000 символов)', 'Описание', 'Вес для расчета логистики', 'Объединить в одну карточку', 'В наличии'];
 
         Object.keys(dicts).forEach(paramName => {
-            if (!excludeFromSmart.includes(paramName)) {
-                paramsList.push({ name: paramName });
+            if (!excludeFromSmart.includes(paramName) && Array.isArray(dicts[paramName])) {
+                const validExamples = dicts[paramName].filter(val => val && String(val).trim() !== '');
+                if (validExamples.length > 0) {
+                    // ВОЗВРАЩАЕМ УДАЛЕННЫЙ ФИЛЬТР: оставляем только параметры с цифрами или короткими кодами (индексы, размеры)
+                    const isCodeOrNumber = validExamples.some(ex => {
+                        const str = String(ex).trim();
+                        return /\d/.test(str) || (/^[a-zA-Z]+$/.test(str) && str.length <= 3);
+                    });
+                    if (isCodeOrNumber) paramsList.push({ name: paramName });
+                }
             }
         });
         
