@@ -298,7 +298,7 @@ window.renderSmartMapperModal = function(complexColumns) {
             }
         });
     }
-}
+};
 
 /**
  * Вспомогательная функция для генерации чекбоксов с примерами
@@ -418,7 +418,7 @@ function saveSmartRules() {
 
 window.showTokenizer = function(columnName, tokensArray, paramsList) {
     const overlay = document.getElementById('tokenizer-overlay');
-    console.log("Оверлей найден?", overlay); // <--- ВСТАВЛЯЙ СЮДА
+    console.log("Оверлей найден?", overlay);
     if (!overlay) return;
 
     // Генерируем кнопки токенов
@@ -485,11 +485,6 @@ window.showTokenizer = function(columnName, tokensArray, paramsList) {
     // Показываем окно
     overlay.style.display = 'flex';
 
-    // Применяем переводы data-i18n
-    // if (typeof window.applyLanguage === 'function') {
-    // window.applyLanguage(window.currentLang || 'ru');
-}
-
     // --- БАЗОВЫЕ ОБРАБОТЧИКИ (ЗАКРЫТИЕ) ---
     const closeModal = () => {
         overlay.style.display = 'none';
@@ -498,7 +493,7 @@ window.showTokenizer = function(columnName, tokensArray, paramsList) {
 
     overlay.querySelector('.close-btn').addEventListener('click', closeModal);
     overlay.querySelector('.btn-back').addEventListener('click', closeModal);
-
+}; // <--- Здесь не хватало закрывающей скобки
 
 window.startTokenizerQueue = function() {
     const queue = window.mapper2State.quarantine || [];
@@ -723,7 +718,3 @@ window.startTokenizerQueue = function() {
     // Запускаем маховик!
     processNext();
 };
-
-// Жестко привязываем функции к объекту window
-window.detectComplexColumns = detectComplexColumns;
-window.renderSmartMapperModal = renderSmartMapperModal;
