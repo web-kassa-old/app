@@ -496,9 +496,20 @@ window.showTokenizer = function(columnName, tokensArray, paramsList) {
 }; // <--- Здесь не хватало закрывающей скобки
 
 window.startTokenizerQueue = function() {
-    const queue = window.mapper2State.quarantine || [];
+    const rawQueue = window.mapper2State.quarantine || [];
     
-    // Если карантин пуст - просто идем на Экран 4
+    // ФИЛЬТР: Отправляем в Токенизатор ТОЛЬКО сложные строки, которые можно разрезать
+    const queue = rawQueue.filter(pattern => {
+        if (!pattern || !pattern.rawString) return false;
+        // Режем строку по нашему правилу
+        const tokens = pattern.rawString.match(/\d+(?:\.\d+)?|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g) || [pattern.rawString];
+        // Считаем только значащие токены (игнорируем одиночные пробелы или тире, если они затесались)
+        const validTokens = tokens.filter(t => t.trim().length > 0 && !/^[\s\-_]+$/.test(t));
+        
+        return validTokens.length > 1; // Пускаем только если есть хотя бы 2 куска!
+    });
+    
+    // Если сложных (слипшихся) паттернов нет - пропускаем этот шаг и идем дальше
     if (queue.length === 0) {
         finishAndGoToPreview();
         return;
