@@ -5566,25 +5566,31 @@ window.updateReqCardStatus = function (sysKey, text, className, previewText) {
   const subtitle = document.getElementById("subtitle-" + sysKey);
 
   if (badge) {
-    // Если это успешный статус, добавляем галочку
     if (className === "status-filled") {
-        badge.innerHTML = `✓ ${text}`;
-        // Делаем кнопку визуально "спаренной" (зеленая заливка)
+        // Убираем эмодзи "🟢", ставим аккуратную галочку и красим кнопку
+        badge.innerText = "✓ " + text.replace(' 🟢', '');
         badge.style.backgroundColor = "var(--bg-success-dim, rgba(46, 204, 113, 0.15))";
         badge.style.borderColor = "var(--accent-green, #2ecc71)";
         badge.style.color = "var(--accent-green, #2ecc71)";
     } else {
         badge.innerText = text;
-        // Сбрасываем стили, если параметр отвязан
-        badge.style.backgroundColor = "";
-        badge.style.borderColor = "";
-        badge.style.color = "";
+        badge.style = "";
     }
     badge.className = "req-status " + className;
   }
 
   if (subtitle && previewText) {
     subtitle.innerHTML = `<span style="color: var(--accent-yellow); font-weight: bold;">Результат: ${previewText}</span>`;
+  }
+
+  // ФИЗИЧЕСКИЙ ПЕРЕНОС КАРТОЧКИ ВНИЗ СПИСКА
+  if (className === "status-filled" && badge) {
+      // Поднимаемся от кнопки до самой карточки (ищем родителя с рамкой или классом)
+      const card = badge.closest('.mapper-card') || badge.closest('div[style*="border"]') || document.getElementById('req-' + sysKey) || document.getElementById('card-' + sysKey);
+      if (card && card.parentElement) {
+          // appendChild автоматически переносит существующий элемент в самый конец контейнера
+          card.parentElement.appendChild(card); 
+      }
   }
 };
 

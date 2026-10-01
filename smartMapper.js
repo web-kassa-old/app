@@ -535,7 +535,9 @@ window.startTokenizerQueue = function() {
         }
 
         const pattern = queue[currentQueueIndex];
-        mappedResults = {}; 
+        
+        // 1. ИСПРАВЛЕНИЕ: Загружаем сохраненный прогресс, если вернулись кнопкой Назад
+        mappedResults = pattern.resolvedAttributes ? JSON.parse(JSON.stringify(pattern.resolvedAttributes)) : {}; 
 
         const currentTokens = pattern.rawString.match(/\d+(?:\.\d+)?|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g) || [pattern.rawString];
         const dicts = window.kaspiDicts || {};
@@ -568,7 +570,6 @@ window.startTokenizerQueue = function() {
             titleEl.textContent = `Паттерн: ${currentQueueIndex + 1} из ${queue.length}`;
         }
 
-        // ИСПРАВЛЕНИЕ 1а и 1б: Меняем текст кнопки в зависимости от того, последний ли это шаг
         const btnDone = overlay.querySelector('.btn-done');
         if (btnDone) {
             const isLastStep = currentQueueIndex === queue.length - 1;
@@ -587,6 +588,40 @@ window.startTokenizerQueue = function() {
         }
 
         attachLogic(pattern, dicts, overlay);
+
+        // 2. ИСПРАВЛЕНИЕ: Восстанавливаем визуальный интерфейс
+        if (Object.keys(mappedResults).length > 0) {
+            Object.keys(mappedResults).forEach(sysKey => {
+                const rule = mappedResults[sysKey];
+                const humanName = Object.keys(window.mapper2State.sysToHumanMap || {}).find(k => window.mapper2State.sysToHumanMap[k] === sysKey) || sysKey;
+                
+                // Блокируем параметры и вписываем склеенный текст
+                const row = Array.from(overlay.querySelectorAll('.param-row')).find(r => r.dataset.paramName === humanName || r.dataset.paramName === sysKey);
+                if (row) {
+                    const gluedText = rule.indexes.map(idx => currentTokens[idx]).join('');
+                    row.classList.remove('active-target');
+                    row.classList.add('disabled');
+                    row.querySelector('.btn-confirm-inline').style.display = 'none';
+                    row.insertAdjacentHTML('beforeend', `<span class="param-badge">${gluedText}</span>`);
+                }
+                
+                // Гасим использованные токены
+                rule.indexes.forEach(idx => {
+                    const tokenBtn = overlay.querySelector(`.token[data-index="${idx}"]`);
+                    if (tokenBtn) {
+                        tokenBtn.classList.remove('selected');
+                        tokenBtn.classList.add('disabled');
+                    }
+                });
+            });
+            
+            // Зажигаем кнопку ДАЛЕЕ, так как на этом экране уже есть готовые спаривания
+            if (btnDone) {
+                btnDone.style.opacity = '1';
+                btnDone.style.pointerEvents = 'auto';
+                btnDone.style.cursor = 'pointer';
+            }
+        }
     }
 
     function attachLogic(pattern, dicts, overlay) {
