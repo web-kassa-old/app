@@ -418,7 +418,6 @@ function saveSmartRules() {
 
 window.showTokenizer = function(columnName, tokensArray, paramsList) {
     const overlay = document.getElementById('tokenizer-overlay');
-    console.log("Оверлей найден?", overlay);
     if (!overlay) return;
 
     // Генерируем кнопки токенов
@@ -428,7 +427,6 @@ window.showTokenizer = function(columnName, tokensArray, paramsList) {
 
     // Генерируем строки параметров
     const paramsHtml = paramsList.map((param, index) => {
-        // Делаем первый параметр активным по умолчанию
         const isActive = index === 0 ? 'active-target' : '';
         const isChecked = index === 0 ? 'checked' : '';
         
@@ -447,9 +445,15 @@ window.showTokenizer = function(columnName, tokensArray, paramsList) {
     // Собираем итоговую верстку модалки
     overlay.innerHTML = `
         <div class="tokenizer-modal">
-            <div class="modal-header">
-                <h2 class="modal-title" data-i18n="tok_pattern">Разрешение конфликта</h2>
-                <button class="close-btn">&times;</button>
+            <!-- ОБНОВЛЕННЫЙ ХЕДЕР С ПОЯСНЕНИЕМ -->
+            <div class="modal-header" style="flex-direction: column; align-items: flex-start; gap: 8px;">
+                <div style="display: flex; justify-content: space-between; width: 100%; align-items: center;">
+                    <h2 class="modal-title" data-i18n="tok_pattern">Разрешение конфликта</h2>
+                    <button class="close-btn">&times;</button>
+                </div>
+                <div class="modal-subtitle" style="font-size: 13px; color: var(--text-muted); line-height: 1.4;">
+                    Скрипт не смог однозначно распределить эти данные. Выберите нужные фрагменты и привяжите их к параметрам из справочника.
+                </div>
             </div>
             
             <div class="toolbar">
@@ -468,32 +472,30 @@ window.showTokenizer = function(columnName, tokensArray, paramsList) {
                 ${paramsHtml}
             </div>
 
-            <!-- Зона фолбэка скрыта по умолчанию -->
             <div class="fallback-zone" style="display: none;">
                 <div class="fallback-msg"></div>
                 <select class="fallback-select"></select>
                 <button class="btn-fallback">Подтвердить выбор</button>
             </div>
             
+            <!-- ОБНОВЛЕННЫЙ ФУТЕР (ИСПРАВЛЕННЫЙ ЦВЕТ КНОПКИ) -->
             <div class="modal-footer" style="display: flex; gap: 10px;">
-                <button type="button" class="btn-back" data-i18n="inc_back" style="flex: 1; background: var(--bg-secondary); border: 1px solid var(--border-light); color: var(--text-main); padding: 14px; border-radius: 6px; font-weight: bold; cursor: pointer;">НАЗАД</button>
-                <button type="button" class="btn-done" style="flex: 2; background: var(--accent-success); color: #000; border: none; padding: 14px; border-radius: 6px; font-weight: bold; cursor: pointer;">ЗАВЕРШИТЬ</button>
+                <button type="button" class="btn-back" data-i18n="inc_back" style="flex: 1; background: var(--bg-panel); border: 1px solid var(--border-light); color: var(--text-main); padding: 14px; border-radius: 6px; font-weight: bold; cursor: pointer;">НАЗАД</button>
+                <button type="button" class="btn-done" style="flex: 2; background: var(--accent-green); color: #000; border: none; padding: 14px; border-radius: 6px; font-weight: bold; cursor: pointer;">ЗАВЕРШИТЬ</button>
             </div>
         </div>
     `;
 
-    // Показываем окно
     overlay.style.display = 'flex';
 
-    // --- БАЗОВЫЕ ОБРАБОТЧИКИ (ЗАКРЫТИЕ) ---
     const closeModal = () => {
         overlay.style.display = 'none';
-        overlay.innerHTML = ''; // Очищаем DOM
+        overlay.innerHTML = ''; 
     };
 
     overlay.querySelector('.close-btn').addEventListener('click', closeModal);
     overlay.querySelector('.btn-back').addEventListener('click', closeModal);
-}; // <--- Здесь не хватало закрывающей скобки
+};
 
 window.startTokenizerQueue = function() {
     const rawQueue = window.mapper2State.quarantine || [];
