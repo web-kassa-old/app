@@ -508,6 +508,7 @@ window.startTokenizerQueue = function() {
     let mappedResults = {}; // Временное хранилище: { sysKey: "Значение из словаря" }
 
     // --- 1. ЗАПУСК ОЧЕРЕДНОГО ПАТТЕРНА ---
+    // --- 1. ЗАПУСК ОЧЕРЕДНОГО ПАТТЕРНА ---
     function processNext() {
         if (currentQueueIndex >= queue.length) {
             // Очередь закончилась, применяем результаты
@@ -518,22 +519,50 @@ window.startTokenizerQueue = function() {
         const pattern = queue[currentQueueIndex];
         mappedResults = {}; // Сбрасываем для нового паттерна
 
-        // Умная нарезка строки (например: "175/70R13" -> ["175", "/", "70", "R", "13"])
+        // Умная нарезка строки
         const currentTokens = pattern.rawString.match(/\d+(?:\.\d+)?|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g) || [pattern.rawString];
 
-        // Достаем список параметров из словаря текущего шаблона
         const dicts = window.kaspiDicts || {};
-        let paramsList = Object.keys(dicts).map(key => ({ name: key }));
+        let paramsList = [];
         
-        // Фоллбэк, если словарь пуст (даем хотя бы исходный параметр)
-        if (paramsList.length === 0) paramsList = [{ name: pattern.humanName }];
+        // --- НОВАЯ ЛОГИКА: Фильтруем параметры (оставляем только цифры и короткие коды) ---
+        const excludeFromSmart = [
+            'Артикул', 'Название товара', 'Бренд', 'Цена', 'Название модели', 
+            'Рубрика', 'Код изображений', 'Ссылка на YouTube', 'Ссылка на картинку',
+            'Описание (мин. 100 символов, макс. 7 000 символов)', 'Описание',
+            'Вес для расчета логистики', 'Объединить в одну карточку', 'В наличии'
+        ];
 
-        // Рисуем UI через функцию, которую мы написали ранее
-        window.showTokenizer(pattern.humanName, currentTokens, paramsList);
+        Object.keys(dicts).forEach(paramName => {
+            if (!excludeFromSmart.includes(paramName) && Array.isArray(dicts[paramName])) {
+                const validExamples = dicts[paramName].filter(val => val && String(val).trim() !== '');
+                if (validExamples.length > 0) {
+                    // Проверяем, есть ли в словаре параметра цифры или короткие английские буквы (коды)
+                    const isCodeOrNumber = validExamples.some(ex => {
+                        const str = String(ex).trim();
+                        return /\d/.test(str) || (/^[a-zA-Z]+$/.test(str) && str.length <= 3);
+                    });
+                    if (isCodeOrNumber) {
+                        paramsList.push({ name: paramName });
+                    }
+                }
+            }
+        });
+        
+        // Фоллбэк, если после фильтра ничего не осталось
+        if (paramsList.length === 0) {
+            paramsList = [{ name: pattern.humanName || 'Неизвестная колонка' }];
+        }
 
-        // Обновляем заголовок очереди (Паттерн: 1 из 3)
+        // Рисуем UI
+        window.showTokenizer(pattern.humanName || 'Неизвестная колонка', currentTokens, paramsList);
+
+        // Обновляем заголовок очереди
         const overlay = document.getElementById('tokenizer-overlay');
-        overlay.querySelector('.modal-title').textContent = `Паттерн: ${currentQueueIndex + 1} из ${queue.length}`;
+        const titleEl = overlay.querySelector('.modal-title');
+        if (titleEl) {
+            titleEl.textContent = `Паттерн: ${currentQueueIndex + 1} из ${queue.length}`;
+        }
 
         // Вешаем логику на кнопки
         attachLogic(pattern, dicts, overlay);
