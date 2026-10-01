@@ -498,7 +498,7 @@ window.showTokenizer = function(columnName, tokensArray, paramsList) {
 
     overlay.querySelector('.close-btn').addEventListener('click', closeModal);
     overlay.querySelector('.btn-back').addEventListener('click', closeModal);
-};
+
 
 window.startTokenizerQueue = function() {
     const queue = window.mapper2State.quarantine || [];
