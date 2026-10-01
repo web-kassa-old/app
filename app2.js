@@ -5904,11 +5904,16 @@ window.applyMapper2Logic = function () {
       } else {
           if (hasDictionary) {
                for (let dv of dict) {
-                  if (String(dv).trim().toLowerCase() === String(searchString).trim().toLowerCase()) {
-                      matchedDictValue = dv;
-                      foundMatch = true;
-                      break;
-                  }
+                   // ИСПРАВЛЕНИЕ 1: Умное сравнение. Теперь "120" поймет, что это "120 (1400 кг)"
+                   let strDv = String(dv).trim();
+                   let baseDv = strDv.split('(')[0].trim();
+                   if (strDv.toLowerCase() === String(searchString).trim().toLowerCase() ||
+                       baseDv.toLowerCase() === String(searchString).trim().toLowerCase() ||
+                       (!isNaN(parseFloat(baseDv)) && parseFloat(baseDv) === parseFloat(searchString))) {
+                       matchedDictValue = strDv;
+                       foundMatch = true;
+                       break;
+                   }
                }
           }
       }
@@ -5922,6 +5927,12 @@ window.applyMapper2Logic = function () {
               humanName: humanName,   
               rawString: rawValue     
           });
+          
+          // ИСПРАВЛЕНИЕ 2 (ГЛАВНОЕ): Мы всё равно сохраняем это слово!
+          // Если Токенизатор его проигнорирует (потому что это не длинная строка), 
+          // параметр "FRONWAY" или нестандартный индекс не исчезнут в никуда, а благополучно доедут до листа сверки.
+          attributesObj[key] = rawValue; 
+          
           return;
       }
 
