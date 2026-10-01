@@ -6009,7 +6009,7 @@ window.renderPreviewTable = function () {
   const t = translations[currentLang] || translations["ru"];
 
   // Запускаем авто-дописывание параметров перед рендером
-  window.autoCleanInvoiceAttributes();
+  // window.autoCleanInvoiceAttributes();
 
   // Скрываем вкладки и валюту по их ID
   const tabs = document.getElementById("mapperTabsContainer");
