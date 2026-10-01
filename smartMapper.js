@@ -536,7 +536,6 @@ window.startTokenizerQueue = function() {
 
         const pattern = queue[currentQueueIndex];
         
-        // 1. ИСПРАВЛЕНИЕ: Загружаем сохраненный прогресс, если вернулись кнопкой Назад
         mappedResults = pattern.resolvedAttributes ? JSON.parse(JSON.stringify(pattern.resolvedAttributes)) : {}; 
 
         const currentTokens = pattern.rawString.match(/\d+(?:\.\d+)?|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g) || [pattern.rawString];
@@ -589,13 +588,11 @@ window.startTokenizerQueue = function() {
 
         attachLogic(pattern, dicts, overlay);
 
-        // 2. ИСПРАВЛЕНИЕ: Восстанавливаем визуальный интерфейс
         if (Object.keys(mappedResults).length > 0) {
             Object.keys(mappedResults).forEach(sysKey => {
                 const rule = mappedResults[sysKey];
                 const humanName = Object.keys(window.mapper2State.sysToHumanMap || {}).find(k => window.mapper2State.sysToHumanMap[k] === sysKey) || sysKey;
                 
-                // Блокируем параметры и вписываем склеенный текст
                 const row = Array.from(overlay.querySelectorAll('.param-row')).find(r => r.dataset.paramName === humanName || r.dataset.paramName === sysKey);
                 if (row) {
                     const gluedText = rule.indexes.map(idx => currentTokens[idx]).join('');
@@ -605,7 +602,6 @@ window.startTokenizerQueue = function() {
                     row.insertAdjacentHTML('beforeend', `<span class="param-badge">${gluedText}</span>`);
                 }
                 
-                // Гасим использованные токены
                 rule.indexes.forEach(idx => {
                     const tokenBtn = overlay.querySelector(`.token[data-index="${idx}"]`);
                     if (tokenBtn) {
@@ -615,7 +611,6 @@ window.startTokenizerQueue = function() {
                 });
             });
             
-            // Зажигаем кнопку ДАЛЕЕ, но ставим защиту от случайного двойного клика (300мс)
             if (btnDone) {
                 btnDone.style.opacity = '1';
                 setTimeout(() => {
@@ -719,8 +714,6 @@ window.startTokenizerQueue = function() {
                 indexes: tokenIndexes
             };
 
-            // ИСПРАВЛЕНИЕ: Мгновенно сохраняем результат в кэш паттерна, не дожидаясь нажатия "Далее". 
-            // Теперь прогресс никогда не сбросится при навигации!
             pattern.resolvedAttributes = JSON.parse(JSON.stringify(mappedResults));
 
             row.classList.remove('active-target');
@@ -735,11 +728,12 @@ window.startTokenizerQueue = function() {
             });
             
             btnDone.style.opacity = '1';
-            btnDone.style.pointerEvents = 'auto';
-            btnDone.style.cursor = 'pointer';
+            setTimeout(() => {
+                btnDone.style.pointerEvents = 'auto';
+                btnDone.style.cursor = 'pointer';
+            }, 300);
         };
 
-        // ИСПРАВЛЕНИЕ: Кнопка "Сбросить токены" теперь очищает кэш текущего паттерна и обновляет окно
         btnClear.addEventListener('click', () => {
             mappedResults = {};
             if (pattern.resolvedAttributes) {
@@ -757,30 +751,10 @@ window.startTokenizerQueue = function() {
             });
         }
 
-        // ИСПРАВЛЕНИЕ: Кнопка "Далее" теперь просто проверяет наличие сохраненного кэша и перелистывает очередь
-        btnDone.addEventListener('click', () => {
-            if (!pattern.resolvedAttributes || Object.keys(pattern.resolvedAttributes).length === 0) return;
-            currentQueueIndex++;
-            processNext(); 
-        });
-
-        btnClear.addEventListener('click', () => {
-            processNext();
-        });
-
-        if (btnBack) {
-            btnBack.addEventListener('click', () => {
-                if (currentQueueIndex > 0) {
-                    currentQueueIndex--;
-                    processNext();
-                }
-            });
-        }
-
+        // ЖЕЛЕЗНАЯ ЗАЩИТА: Строго один триггер на шаг вперед
         btnDone.addEventListener('click', (e) => {
-            // Мгновенно блокируем кнопку, чтобы она не сработала дважды
             if (btnDone.disabled) return;
-            btnDone.disabled = true;
+            btnDone.disabled = true; 
             
             if (!pattern.resolvedAttributes || Object.keys(pattern.resolvedAttributes).length === 0) {
                 btnDone.disabled = false;

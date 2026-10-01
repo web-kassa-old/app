@@ -5552,12 +5552,8 @@ window.updateReqCardStatus = function (sysKey, text, className, previewText) {
 
   if (badge) {
     if (className === "status-filled") {
-        // Убираем кружок, ставим галочку
         badge.innerText = "✓ " + text.replace(' 🟢', '');
-        
-        // КРИТИЧНОЕ ИСПРАВЛЕНИЕ: Удаляем якорь перевода, чтобы скрипт не стирал наш текст!
         badge.removeAttribute("data-i18n"); 
-        
         badge.style.backgroundColor = "var(--bg-success-dim, rgba(46, 204, 113, 0.15))";
         badge.style.borderColor = "var(--accent-green, #2ecc71)";
         badge.style.color = "var(--accent-green, #2ecc71)";
@@ -5573,23 +5569,23 @@ window.updateReqCardStatus = function (sysKey, text, className, previewText) {
     subtitle.innerHTML = `<span style="color: var(--accent-yellow); font-weight: bold;">Результат: ${previewText}</span>`;
   }
 
-  // ФИЗИЧЕСКИЙ ПЕРЕНОС КАРТОЧКИ ВНИЗ
+  // ФИЗИЧЕСКИЙ ПЕРЕНОС БЕЗ ДУБЛИРОВАНИЯ ШАПКИ
   if (className === "status-filled" && badge) {
       const card = badge.closest('.req-card');
       const container = document.getElementById("mapper2CardsContainer");
       if (card && container) {
-          // Ищем заголовок "✅ Из накладной и системы"
-          let filledHeader = Array.from(container.querySelectorAll('.section-header')).find(h => h.textContent.includes('✅'));
+          // Ищем шапку строго по её уникальному якорю перевода
+          let filledHeader = container.querySelector('[data-i18n="desc_invoice_sys"]');
           
           if (!filledHeader) {
-              // Если его нет (мы спарили первую колонку), создаем его
               filledHeader = document.createElement('div');
               filledHeader.className = 'section-header';
+              filledHeader.setAttribute('data-i18n', 'desc_invoice_sys');
               filledHeader.style.cssText = 'color: var(--accent-green); padding: 15px 10px 5px; font-size: 11px; text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px;';
-              filledHeader.innerHTML = '✅ Из накладной и системы';
+              const t = typeof translations !== 'undefined' && translations[currentLang] ? translations[currentLang] : (typeof translations !== 'undefined' ? translations["ru"] : {});
+              filledHeader.innerHTML = '✅ ' + (t.desc_invoice_sys || 'Из накладной и системы');
               container.appendChild(filledHeader);
           }
-          // Переносим карточку в самый конец списка
           container.appendChild(card);
       }
   }
