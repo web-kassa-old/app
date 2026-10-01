@@ -588,7 +588,7 @@ window.startTokenizerQueue = function() {
 
         attachLogic(pattern, dicts, overlay);
 
-        // ИСПРАВЛЕНИЕ 1: Надежная отрисовка зафиксированных бейджей при навигации
+        // ИСПРАВЛЕНИЕ 1: Точное восстановление визуального бейджа и чекбокса при возврате
         if (Object.keys(mappedResults).length > 0) {
             Object.keys(mappedResults).forEach(sysKey => {
                 const rule = mappedResults[sysKey];
@@ -599,11 +599,15 @@ window.startTokenizerQueue = function() {
                     const gluedText = rule.indexes.map(idx => currentTokens[idx]).join('');
                     row.classList.remove('active-target');
                     row.classList.add('disabled');
+                    row.querySelector('.param-preview').style.display = 'none';
                     row.querySelector('.btn-confirm-inline').style.display = 'none';
                     
-                    const previewEl = row.querySelector('.param-preview');
-                    previewEl.style.display = 'block';
-                    previewEl.innerHTML = `<span style="background: var(--bg-panel); color: var(--text-muted); padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: bold; border: 1px solid var(--border-light);">${gluedText}</span>`;
+                    const radio = row.querySelector('input[type="radio"]');
+                    if (radio) radio.checked = true;
+                    
+                    const oldBadge = row.querySelector('.param-badge');
+                    if (oldBadge) oldBadge.remove();
+                    row.insertAdjacentHTML('beforeend', `<span class="param-badge">${gluedText}</span>`);
                 }
                 
                 rule.indexes.forEach(idx => {
@@ -724,12 +728,12 @@ window.startTokenizerQueue = function() {
 
             row.classList.remove('active-target');
             row.classList.add('disabled');
+            row.querySelector('.param-preview').style.display = 'none';
             row.querySelector('.btn-confirm-inline').style.display = 'none';
             
-            // ИСПРАВЛЕНИЕ 1: Надежная отрисовка зафиксированного бейджа при клике
-            const previewEl = row.querySelector('.param-preview');
-            previewEl.style.display = 'block';
-            previewEl.innerHTML = `<span style="background: var(--bg-panel); color: var(--text-muted); padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: bold; border: 1px solid var(--border-light);">${tokenText}</span>`;
+            const oldBadge = row.querySelector('.param-badge');
+            if (oldBadge) oldBadge.remove();
+            row.insertAdjacentHTML('beforeend', `<span class="param-badge">${tokenText}</span>`);
 
             overlay.querySelectorAll('.token.selected').forEach(t => {
                 t.classList.remove('selected');
@@ -774,14 +778,21 @@ window.startTokenizerQueue = function() {
     }
 
     function applyResultsToData() {
+        const dicts = window.kaspiDicts || {};
+
         window.parsedInvoiceData.forEach(item => {
             if (item._hasCollisions) {
-                // ИСПРАВЛЕНИЕ 3 и 4: Сначала загружаем все ранее спаренные данные, чтобы не стереть их
+                // ИСПРАВЛЕНИЕ 2: Бережно копируем ВСЕ старые параметры, чтобы клинер их не тронул
                 let attrsObj = {};
+                
+                if (item._attributesObj) {
+                    Object.assign(attrsObj, item._attributesObj);
+                }
                 if (item.attributes) {
-                    try { attrsObj = JSON.parse(item.attributes); } catch(e) {}
-                } else if (item._attributesObj) {
-                    attrsObj = Object.assign({}, item._attributesObj);
+                    try { 
+                        let parsed = JSON.parse(item.attributes); 
+                        Object.assign(attrsObj, parsed);
+                    } catch(e) {}
                 }
                 
                 item._collisionsList.forEach(col => {
@@ -795,14 +806,30 @@ window.startTokenizerQueue = function() {
                             const rule = resolvedPattern.resolvedAttributes[sysKey];
                             if (rule && rule.indexes && rule.indexes.length > 0) {
                                 const gluedText = rule.indexes.map(idx => colTokens[idx]).join('');
-                                // Добавляем новые параметры к старым, ничего не удаляя
-                                attrsObj[sysKey] = gluedText;
+                                
+                                // Динамический перевод склеенного фрагмента в словарный эталон Kaspi
+                                let humanName = window.mapper2State.sysToHumanMap ? window.mapper2State.sysToHumanMap[sysKey] : sysKey;
+                                let dictArray = dicts[humanName] || dicts[sysKey] || [];
+                                let finalVal = gluedText;
+                                
+                                if (dictArray.length > 0) {
+                                    for (let dv of dictArray) {
+                                        let strDv = String(dv).trim();
+                                        let baseDv = strDv.split('(')[0].trim();
+                                        if (baseDv.toLowerCase() === gluedText.toLowerCase() || 
+                                           (!isNaN(parseFloat(baseDv)) && parseFloat(baseDv) === parseFloat(gluedText))) {
+                                            finalVal = strDv;
+                                            break;
+                                        }
+                                    }
+                                }
+                                
+                                attrsObj[sysKey] = finalVal;
                             }
                         });
                     }
                 });
                 
-                // Сохраняем объединенный список всех параметров
                 item.attributes = Object.keys(attrsObj).length > 0 ? JSON.stringify(attrsObj) : "";
             }
         });
