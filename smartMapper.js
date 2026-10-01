@@ -588,13 +588,16 @@ window.startTokenizerQueue = function() {
 
         attachLogic(pattern, dicts, overlay);
 
-        // ИСПРАВЛЕНИЕ 1: Точное восстановление визуального бейджа и чекбокса при возврате
+        // ИСПРАВЛЕНИЕ 1: Верный поиск имени параметра для восстановления бейджа
         if (Object.keys(mappedResults).length > 0) {
             Object.keys(mappedResults).forEach(sysKey => {
                 const rule = mappedResults[sysKey];
-                const humanName = Object.keys(window.mapper2State.sysToHumanMap || {}).find(k => window.mapper2State.sysToHumanMap[k] === sysKey) || sysKey;
+                
+                // Правильно переводим системный ключ обратно в название из словаря
+                const humanName = (window.mapper2State.sysToHumanMap && window.mapper2State.sysToHumanMap[sysKey]) || sysKey;
                 
                 const row = Array.from(overlay.querySelectorAll('.param-row')).find(r => r.dataset.paramName === humanName || r.dataset.paramName === sysKey);
+                
                 if (row) {
                     const gluedText = rule.indexes.map(idx => currentTokens[idx]).join('');
                     row.classList.remove('active-target');
@@ -782,7 +785,6 @@ window.startTokenizerQueue = function() {
 
         window.parsedInvoiceData.forEach(item => {
             if (item._hasCollisions) {
-                // ИСПРАВЛЕНИЕ 2: Бережно копируем ВСЕ старые параметры, чтобы клинер их не тронул
                 let attrsObj = {};
                 
                 if (item._attributesObj) {
@@ -807,7 +809,6 @@ window.startTokenizerQueue = function() {
                             if (rule && rule.indexes && rule.indexes.length > 0) {
                                 const gluedText = rule.indexes.map(idx => colTokens[idx]).join('');
                                 
-                                // Динамический перевод склеенного фрагмента в словарный эталон Kaspi
                                 let humanName = window.mapper2State.sysToHumanMap ? window.mapper2State.sysToHumanMap[sysKey] : sysKey;
                                 let dictArray = dicts[humanName] || dicts[sysKey] || [];
                                 let finalVal = gluedText;
@@ -830,7 +831,10 @@ window.startTokenizerQueue = function() {
                     }
                 });
                 
+                // ИСПРАВЛЕНИЕ 2: Защита от autoCleanInvoiceAttributes
+                // Синхронизируем оперативную память, чтобы очиститель не стирал наши данные!
                 item.attributes = Object.keys(attrsObj).length > 0 ? JSON.stringify(attrsObj) : "";
+                item._attributesObj = attrsObj;
             }
         });
 
