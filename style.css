@@ -1137,3 +1137,10 @@ button,
 .modal-footer { padding: 16px 20px; border-top: 1px solid var(--border-light); background-color: var(--bg-body); }
 .btn-done { width: 100%; background: var(--bg-modal); color: var(--text-main); border: 1px solid var(--text-muted); padding: 14px; border-radius: 6px; font-weight: bold; cursor: pointer; }
 .btn-done:hover { border-color: var(--text-main); }
+
+/* нижние кнопки окна пин кода */
+#btn-clear-pin,
+#btn-del-pin { 
+    border-radius: 50% !important;
+    aspect-ratio: 1 / 1;
+}

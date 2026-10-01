@@ -4557,36 +4557,48 @@ window.processInvoiceFile = async function () {
     if (!templateName)
       return alert("Пожалуйста, выберите шаблон Kaspi из списка!");
 
-    // === ИЗМЕНЕНИЕ: Динамический перевод текста лоадера ===
-    let tText =
-      typeof translations !== "undefined" &&
-      translations[currentLang] &&
-      translations[currentLang].kaspi_download_tpl
-        ? translations[currentLang].kaspi_download_tpl
-        : "Скачивание структуры шаблона...";
-    window.showLoading(tText);
-    // =====================================================
+    // === ИСПРАВЛЕНИЕ: Внедряем мгновенное кэширование структуры шаблона ===
+    window.kaspiTemplateCache = window.kaspiTemplateCache || {};
 
-    try {
-      const payload = {
-        action: "getKaspiTemplate",
-        api_key: CLIENT_API_KEY,
-        category: templateName,
-      };
-      const res = await window.smartFetch(GATEWAY_URL, payload);
+    if (window.kaspiTemplateCache[templateName]) {
+      // Шаблон уже был скачан ранее, берем его из памяти без запросов к серверу
+      templateData = window.kaspiTemplateCache[templateName];
+      window.showLoading("Чтение накладной...");
+    } else {
+      // Шаблона нет в памяти, скачиваем с сервера и сохраняем
+      let tText =
+        typeof translations !== "undefined" &&
+        translations[currentLang] &&
+        translations[currentLang].kaspi_download_tpl
+          ? translations[currentLang].kaspi_download_tpl
+          : "Скачивание структуры шаблона...";
+      window.showLoading(tText);
 
-      const headersRaw = res.headersJson || res.headers_json || res.headers;
-      if (res && res.success && headersRaw) {
-        templateData =
-          typeof headersRaw === "string" ? JSON.parse(headersRaw) : headersRaw;
-        if (res.memoryJson) templateData.memoryJson = res.memoryJson;
-      } else {
-        throw new Error("Структура шапок пустая");
+      try {
+        const payload = {
+          action: "getKaspiTemplate",
+          api_key: CLIENT_API_KEY,
+          category: templateName,
+        };
+        const res = await window.smartFetch(GATEWAY_URL, payload);
+
+        const headersRaw = res.headersJson || res.headers_json || res.headers;
+        if (res && res.success && headersRaw) {
+          templateData =
+            typeof headersRaw === "string" ? JSON.parse(headersRaw) : headersRaw;
+          if (res.memoryJson) templateData.memoryJson = res.memoryJson;
+          
+          // Сохраняем в кэш, чтобы больше не скачивать при повторном выборе файла
+          window.kaspiTemplateCache[templateName] = templateData;
+        } else {
+          throw new Error("Структура шапок пустая");
+        }
+      } catch (err) {
+        window.hideLoading();
+        return alert("Ошибка загрузки шаблона: " + err.message);
       }
-    } catch (err) {
-      window.hideLoading();
-      return alert("Ошибка загрузки шаблона: " + err.message);
     }
+    // ====================================================================
   } else {
     window.showLoading("Чтение накладной...");
   }
@@ -4647,7 +4659,6 @@ window.processInvoiceFile = async function () {
       .map((s) => String(s).replace(/\s+/g, "").toLowerCase())
       .filter(Boolean);
 
-    // Улучшенный поиск поставщика и номера (поддерживает формат "Метка: Значение" в одной ячейке)
     for (let i = 0; i < Math.min(15, rows.length); i++) {
       let row = rows[i] || [];
       for (let j = 0; j < row.length; j++) {
@@ -4722,7 +4733,6 @@ window.processInvoiceFile = async function () {
       );
       window.mapper2State.invoiceRows = rows.slice(firstDataRowIdx);
 
-      // === ВОЗВРАЩАЕМ ГЕНЕРАЦИЮ СЛЕПКА ФАЙЛА (ДЛЯ БЭКЕНДА) ===
       let fileContentStr =
         window.mapper2State.docNo +
         "_" +
@@ -4735,37 +4745,30 @@ window.processInvoiceFile = async function () {
         hashNum |= 0;
       }
       window.mapper2State.fileHash = "hash_" + Math.abs(hashNum).toString(16);
-      // =======================================================
 
       window.hideLoading();
 
-      // 1. Сохраняем шаблон Каспи глобально, чтобы он не потерялся при переходе
       window.currentTemplateData = templateData;
 
-      // 2. Берем реальные данные из загруженной накладной (Excel)
       let smartHeaders = window.mapper2State.invoiceHeaders || [];
       let smartRows = window.mapper2State.invoiceRows || [];
 
-      // 3. Запускаем Детектор (Безопасный вызов)
-if (typeof window.detectComplexColumns !== 'function') {
-    console.error("ОШИБКА: Функция detectComplexColumns не найдена! Файл smartMapper.js не загрузился или закэширован.");
-    return; // Прерываем работу, чтобы не было красного краша
-}
-const complexColumns = window.detectComplexColumns(smartHeaders, smartRows);
+      if (typeof window.detectComplexColumns !== 'function') {
+          console.error("ОШИБКА: Функция detectComplexColumns не найдена! Файл smartMapper.js не загрузился или закэширован.");
+          return; 
+      }
+      const complexColumns = window.detectComplexColumns(smartHeaders, smartRows);
 
       console.log("Детектор получил шапки Excel:", smartHeaders);
       console.log("Детектор получил строки Excel (первые 2):", smartRows.slice(0, 2));
       console.log("Детектор нашел сложные колонки:", complexColumns);
 
-      // 4. Развилка (Маршрутизация)
       window.mapper2State = window.mapper2State || {};
 
       if (complexColumns && complexColumns.length > 0) {
-          // Сохраняем данные и просим роутер открыть Сито
           window.mapper2State.lastComplexColumns = complexColumns;
           window.navigateIncomeStep('smart');
       } else {
-          // Сито не нужно, просим роутер открыть Шаг 2
           window.navigateIncomeStep(2);
           if (typeof window.renderMapper2Cards === 'function') {
               window.renderMapper2Cards(templateData);
@@ -10251,30 +10254,6 @@ window.generateExportFile = async function (target = 'local') {
 
   try {
     const items = window.kaspiExportItems;
-    
-    // === ДЕБАГ: ПОДМЕНА ПЕРВОГО ТОВАРА НА МЕЧЕНЫЙ ===
-    if (items.length > 0) {
-        items[0] = {
-            item_id: "0_Айди",
-            name: "1_Название",
-            barcode: "2_Штрихкод",
-            price: 333,
-            qty: 444,
-            attributes: {
-                "brand": "5_Бренд",
-                "model": "6_Модель",
-                "radius": "7_Радиус",
-                "season": "8_Сезонность",
-                "spikes": "9_Шипы",
-                "Диаметр диска": "14",
-                "Ширина профиля": "175",
-                "Высота профиля": "70"
-            }
-        };
-        console.log("=== ТЕСТОВЫЙ JSON ТОВАРА ===", JSON.stringify(items[0], null, 2));
-    }
-    // ===============================================
-
     if (!items || items.length === 0) throw new Error("Нет товаров для выгрузки.");
     if (!window.rawKaspiTemplateBuffer) throw new Error("Оригинальный шаблон не найден в памяти.");
 
