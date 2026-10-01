@@ -424,18 +424,16 @@ window.showTokenizer = function(columnName, tokensArray, paramsList) {
         return `<button class="token" data-index="${index}">${token}</button>`;
     }).join('');
 
-    const paramsHtml = paramsList.map((param, index) => {
-        const isActive = index === 0 ? 'active-target' : '';
-        const isChecked = index === 0 ? 'checked' : '';
-        
+    // ИСПРАВЛЕНИЕ 2: Убрали стартовое выделение (active-target и checked)
+    const paramsHtml = paramsList.map((param) => {
         return `
-        <div class="param-row ${isActive}" data-param-name="${param.name}">
+        <div class="param-row" data-param-name="${param.name}">
           <label class="param-info">
-            <input type="radio" name="param_target" value="${param.name}" ${isChecked}>
+            <input type="radio" name="param_target" value="${param.name}">
             <span>${param.name}</span>
           </label>
           <div class="param-preview"></div>
-          <button class="btn-confirm-inline" style="display: ${index === 0 ? 'block' : 'none'};">✔ Ок</button>
+          <button class="btn-confirm-inline" style="display: none;">✔ Ок</button>
         </div>
         `;
     }).join('');
@@ -445,7 +443,6 @@ window.showTokenizer = function(columnName, tokensArray, paramsList) {
             <div class="modal-header" style="flex-direction: column; align-items: flex-start; gap: 8px;">
                 <div style="display: flex; justify-content: space-between; width: 100%; align-items: center;">
                     <h2 class="modal-title" data-i18n="tok_pattern">Разрешение конфликта</h2>
-                    <!-- ЯРКИЙ И ВЫДЕЛЕННЫЙ КРЕСТИК ЗАКРЫТИЯ -->
                     <button class="close-btn" style="background: var(--accent-red); color: #fff; font-size: 12px; font-weight: bold; border: none; border-radius: 6px; padding: 6px 12px; cursor: pointer; display: flex; align-items: center; gap: 6px; text-transform: uppercase; box-shadow: 0 4px 10px rgba(231,76,60,0.3);">
                         <span style="font-size: 18px; line-height: 1;">&times;</span> Закрыть
                     </button>
@@ -479,25 +476,23 @@ window.showTokenizer = function(columnName, tokensArray, paramsList) {
             
             <div class="modal-footer" style="display: flex; gap: 10px;">
                 <button type="button" class="btn-back" data-i18n="inc_back" style="flex: 1; background: var(--bg-panel); border: 1px solid var(--border-light); color: var(--text-main); padding: 14px; border-radius: 6px; font-weight: bold; cursor: pointer;">НАЗАД</button>
-                <button type="button" class="btn-done" style="flex: 2; background: var(--accent-green); color: #000; border: none; padding: 14px; border-radius: 6px; font-weight: bold; cursor: pointer;">ЗАВЕРШИТЬ</button>
+                <!-- ИСПРАВЛЕНИЕ 1в: Кнопка заблокирована по умолчанию -->
+                <button type="button" class="btn-done" style="flex: 2; background: var(--accent-green); color: #000; border: none; padding: 14px; border-radius: 6px; font-weight: bold; opacity: 0.5; pointer-events: none; transition: 0.2s;">ДАЛЕЕ</button>
             </div>
         </div>
     `;
 
     overlay.style.display = 'flex';
 
-    // Правильная логика закрытия: просто прячем окно, возвращаясь на предыдущий экран
     overlay.querySelector('.close-btn').addEventListener('click', () => {
         overlay.style.display = 'none';
         overlay.innerHTML = '';
-        // Никакого принудительного перехода к следующему этапу (Сборке) здесь больше нет
     });
 };
 
 window.startTokenizerQueue = function() {
     const rawQueue = window.mapper2State.quarantine || [];
     
-    // 1. ФИЛЬТР: Отсекаем одиночные значения
     const filteredQueue = rawQueue.filter(pattern => {
         if (!pattern || !pattern.rawString) return false;
         const tokens = pattern.rawString.match(/\d+(?:\.\d+)?|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g) || [pattern.rawString];
@@ -505,17 +500,15 @@ window.startTokenizerQueue = function() {
         return validTokens.length > 1;
     });
 
-    // --- ГЕНЕРАТОР СТРУКТУРНОЙ МАСКИ ---
     function getPatternMask(str) {
         const tokens = str.match(/\d+(?:\.\d+)?|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g) || [str];
         return tokens.map(t => {
-            if (/^\d+(\.\d+)?$/.test(t)) return 'N'; // Number
-            if (/^[a-zA-Zа-яА-ЯёЁ]+$/.test(t)) return 'A'; // Alpha
-            return 'S'; // Symbol
+            if (/^\d+(\.\d+)?$/.test(t)) return 'N';
+            if (/^[a-zA-Zа-яА-ЯёЁ]+$/.test(t)) return 'A';
+            return 'S';
         }).join('-');
     }
 
-    // 2. БАТЧИНГ: Группировка по структурной маске (N-A-N-A)
     const uniquePatternsMap = new Map();
     filteredQueue.forEach(item => {
         const mask = getPatternMask(item.rawString);
@@ -565,7 +558,6 @@ window.startTokenizerQueue = function() {
         
         if (paramsList.length === 0) paramsList = [{ name: 'Неизвестный параметр' }];
 
-        // ДОСТАЕМ ИМЯ КОЛОНКИ: Ищем правильный ключ парсера
         const displayColName = pattern.humanName || pattern.paramName || pattern.excelColumnName || "Многосоставные данные";
 
         window.showTokenizer(displayColName, currentTokens, paramsList);
@@ -576,7 +568,13 @@ window.startTokenizerQueue = function() {
             titleEl.textContent = `Паттерн: ${currentQueueIndex + 1} из ${queue.length}`;
         }
 
-        // Блокируем кнопку "Назад", если мы на первом шаге
+        // ИСПРАВЛЕНИЕ 1а и 1б: Меняем текст кнопки в зависимости от того, последний ли это шаг
+        const btnDone = overlay.querySelector('.btn-done');
+        if (btnDone) {
+            const isLastStep = currentQueueIndex === queue.length - 1;
+            btnDone.textContent = isLastStep ? "ЗАВЕРШИТЬ" : "ДАЛЕЕ";
+        }
+
         const backBtn = overlay.querySelector('.btn-back');
         if (backBtn) {
             if (currentQueueIndex === 0) {
@@ -599,7 +597,7 @@ window.startTokenizerQueue = function() {
         const btnFallback = overlay.querySelector('.btn-fallback');
         const btnClear = overlay.querySelector('.btn-clear');
         const btnDone = overlay.querySelector('.btn-done');
-        const btnBack = overlay.querySelector('.btn-back'); // Нашли кнопку Назад
+        const btnBack = overlay.querySelector('.btn-back'); 
 
         const updatePreview = () => {
             overlay.querySelectorAll('.param-row:not(.disabled) .param-preview').forEach(el => el.textContent = '');
@@ -676,7 +674,6 @@ window.startTokenizerQueue = function() {
             let sysKey = Object.keys(window.mapper2State.sysToHumanMap || {}).find(k => window.mapper2State.sysToHumanMap[k] === humanName);
             if (!sysKey) sysKey = humanName;
             
-            // СОХРАНЯЕМ ИНДЕКСЫ: Чтобы потом применить маску к другим строкам
             const selectedTokens = Array.from(overlay.querySelectorAll('.token.selected'));
             const tokenIndexes = selectedTokens.map(t => parseInt(t.dataset.index));
             
@@ -696,6 +693,11 @@ window.startTokenizerQueue = function() {
                 t.classList.add('disabled');
             });
             
+            // ИСПРАВЛЕНИЕ 1в: Разблокируем кнопку Далее/Завершить при первом подтвержденном параметре
+            btnDone.style.opacity = '1';
+            btnDone.style.pointerEvents = 'auto';
+            btnDone.style.cursor = 'pointer';
+            
             const nextRow = overlay.querySelector('.param-row:not(.disabled)');
             if (nextRow) nextRow.click();
         };
@@ -704,7 +706,6 @@ window.startTokenizerQueue = function() {
             processNext();
         });
 
-        // ОБРАБОТЧИК: Шаг НАЗАД
         if (btnBack) {
             btnBack.addEventListener('click', () => {
                 if (currentQueueIndex > 0) {
@@ -715,24 +716,21 @@ window.startTokenizerQueue = function() {
         }
 
         btnDone.addEventListener('click', () => {
-            if (Object.keys(mappedResults).length === 0) {
-                alert("Вы не привязали ни одного фрагмента!\nПожалуйста, выделите нужные токены, выберите параметр из списка и нажмите '✔ ОК'.\nЕсли привязывать нечего, закройте окно крестиком в правом верхнем углу.");
-                return; 
-            }
+            // Если кнопка как-то нажалась без результатов — просто блокируем
+            if (Object.keys(mappedResults).length === 0) return; 
+            
             pattern.resolvedAttributes = mappedResults;
             currentQueueIndex++;
             processNext(); 
         });
     }
 
-    // --- ФИНАЛИЗАЦИЯ: АВТО-ПРИМЕНЕНИЕ ИНДЕКСОВ К МАСКАМ ---
     function applyResultsToData() {
         window.parsedInvoiceData.forEach(item => {
             if (item._hasCollisions) {
                 let attrsObj = item._attributesObj || {};
                 
                 item._collisionsList.forEach(col => {
-                    // Ищем маску проблемной строки и подтягиваем твое решение
                     const mask = getPatternMask(col.rawString);
                     const resolvedPattern = queue.find(q => q.mask === mask);
                     
@@ -742,7 +740,6 @@ window.startTokenizerQueue = function() {
                         Object.keys(resolvedPattern.resolvedAttributes).forEach(sysKey => {
                             const rule = resolvedPattern.resolvedAttributes[sysKey];
                             if (rule && rule.indexes && rule.indexes.length > 0) {
-                                // Автоматически склеиваем кусочки для новой строки по твоим старым индексам!
                                 const gluedText = rule.indexes.map(idx => colTokens[idx]).join('');
                                 attrsObj[sysKey] = gluedText;
                             }
