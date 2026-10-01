@@ -6008,7 +6008,7 @@ window.renderPreviewTable = function () {
   const state = window.mapper2State;
   const t = translations[currentLang] || translations["ru"];
 
-  // === НОВОЕ: Запускаем авто-дописывание параметров перед рендером ===
+  // Запускаем авто-дописывание параметров перед рендером
   window.autoCleanInvoiceAttributes();
 
   // Скрываем вкладки и валюту по их ID
@@ -6018,7 +6018,6 @@ window.renderPreviewTable = function () {
   const currency = document.getElementById("mapperCurrencyBlock");
   if (currency) currency.style.display = "none";
 
-  // Хитрый трюк: вешаем перевод на статус поставщика, только если он реально не указан
   const supplierI18nAttr = !state.supplier
     ? `data-i18n="inc_not_specified"`
     : "";
@@ -6072,18 +6071,22 @@ window.renderPreviewTable = function () {
 
         return `
         <tr style="border-bottom:1px solid var(--border-light);">
-            <td class="col-min" style="padding:12px 8px; vertical-align: top;">
-                <div style="color:var(--accent-blue); font-weight:bold; font-size:12px;">${item.item_id || "AUTO"}</div>
-                ${!item.barcode ? `<div style="font-size:9px; color:var(--accent-green); margin-top:4px;">+ EAN-13</div>` : ""}
-            </td>
             <td class="col-main" style="padding:12px 8px; vertical-align: top;">
                 <div style="font-weight:bold; font-size:13px; line-height:1.2;">${item.item_name}</div>
+                
+                <!-- ПЕРЕНЕСЕННЫЙ КОД ТОВАРА -->
+                <div style="display: flex; align-items: center; gap: 8px; margin-top: 6px;">
+                    <span style="color:var(--accent-blue); font-weight:bold; font-size:11px;">Код: ${item.item_id || "AUTO"}</span>
+                    ${!item.barcode ? `<span style="font-size:9px; color:var(--accent-green); background: rgba(46, 204, 113, 0.1); padding: 2px 6px; border-radius: 4px; font-weight: bold;">+ EAN-13</span>` : ""}
+                </div>
+
                 ${attrsHtml}
+                
                 <button onclick="window.openEditorMain(${index})" style="width: 100%; background: rgba(128,128,128,0.05); border: 1px dashed var(--border-light); color: var(--text-muted); cursor: pointer; border-radius: 4px; font-size: 11px; margin-top: 10px; padding: 10px;">
                     ✏️ <span data-i18n="inc_edit_params">${t.inc_edit_params || "Изменить параметры"}</span>
                 </button>
             </td>
-            <td class="col-min" style="padding:12px 8px; vertical-align: top; text-align:right;">
+            <td class="col-min" style="padding:12px 8px; vertical-align: top; text-align:right; width: 70px;">
                 <div style="font-size:12px; color:var(--text-muted); margin-bottom: 4px;">${Number(item.qty).toLocaleString("ru-RU")}</div>
                 <div style="font-size:13px; font-weight:bold; color:var(--accent-yellow);">${Number(item.cost).toLocaleString("ru-RU")}</div>
             </td>

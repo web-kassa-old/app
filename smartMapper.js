@@ -588,6 +588,7 @@ window.startTokenizerQueue = function() {
 
         attachLogic(pattern, dicts, overlay);
 
+        // ИСПРАВЛЕНИЕ 1: Надежная отрисовка зафиксированных бейджей при навигации
         if (Object.keys(mappedResults).length > 0) {
             Object.keys(mappedResults).forEach(sysKey => {
                 const rule = mappedResults[sysKey];
@@ -599,7 +600,10 @@ window.startTokenizerQueue = function() {
                     row.classList.remove('active-target');
                     row.classList.add('disabled');
                     row.querySelector('.btn-confirm-inline').style.display = 'none';
-                    row.insertAdjacentHTML('beforeend', `<span class="param-badge">${gluedText}</span>`);
+                    
+                    const previewEl = row.querySelector('.param-preview');
+                    previewEl.style.display = 'block';
+                    previewEl.innerHTML = `<span style="background: var(--bg-panel); color: var(--text-muted); padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: bold; border: 1px solid var(--border-light);">${gluedText}</span>`;
                 }
                 
                 rule.indexes.forEach(idx => {
@@ -632,7 +636,9 @@ window.startTokenizerQueue = function() {
         const btnBack = overlay.querySelector('.btn-back'); 
 
         const updatePreview = () => {
-            overlay.querySelectorAll('.param-row:not(.disabled) .param-preview').forEach(el => el.textContent = '');
+            overlay.querySelectorAll('.param-row:not(.disabled) .param-preview').forEach(el => {
+                el.innerHTML = '';
+            });
             const activeRow = overlay.querySelector('.param-row.active-target');
             if (!activeRow) return;
             const selectedText = Array.from(overlay.querySelectorAll('.token.selected')).map(b => b.textContent).join('');
@@ -718,9 +724,12 @@ window.startTokenizerQueue = function() {
 
             row.classList.remove('active-target');
             row.classList.add('disabled');
-            row.querySelector('.param-preview').style.display = 'none';
             row.querySelector('.btn-confirm-inline').style.display = 'none';
-            row.insertAdjacentHTML('beforeend', `<span class="param-badge">${tokenText}</span>`);
+            
+            // ИСПРАВЛЕНИЕ 1: Надежная отрисовка зафиксированного бейджа при клике
+            const previewEl = row.querySelector('.param-preview');
+            previewEl.style.display = 'block';
+            previewEl.innerHTML = `<span style="background: var(--bg-panel); color: var(--text-muted); padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: bold; border: 1px solid var(--border-light);">${tokenText}</span>`;
 
             overlay.querySelectorAll('.token.selected').forEach(t => {
                 t.classList.remove('selected');
@@ -751,7 +760,6 @@ window.startTokenizerQueue = function() {
             });
         }
 
-        // ЖЕЛЕЗНАЯ ЗАЩИТА: Строго один триггер на шаг вперед
         btnDone.addEventListener('click', (e) => {
             if (btnDone.disabled) return;
             btnDone.disabled = true; 
@@ -768,7 +776,13 @@ window.startTokenizerQueue = function() {
     function applyResultsToData() {
         window.parsedInvoiceData.forEach(item => {
             if (item._hasCollisions) {
-                let attrsObj = item._attributesObj || {};
+                // ИСПРАВЛЕНИЕ 3 и 4: Сначала загружаем все ранее спаренные данные, чтобы не стереть их
+                let attrsObj = {};
+                if (item.attributes) {
+                    try { attrsObj = JSON.parse(item.attributes); } catch(e) {}
+                } else if (item._attributesObj) {
+                    attrsObj = Object.assign({}, item._attributesObj);
+                }
                 
                 item._collisionsList.forEach(col => {
                     const mask = getPatternMask(col.rawString);
@@ -781,12 +795,14 @@ window.startTokenizerQueue = function() {
                             const rule = resolvedPattern.resolvedAttributes[sysKey];
                             if (rule && rule.indexes && rule.indexes.length > 0) {
                                 const gluedText = rule.indexes.map(idx => colTokens[idx]).join('');
+                                // Добавляем новые параметры к старым, ничего не удаляя
                                 attrsObj[sysKey] = gluedText;
                             }
                         });
                     }
                 });
                 
+                // Сохраняем объединенный список всех параметров
                 item.attributes = Object.keys(attrsObj).length > 0 ? JSON.stringify(attrsObj) : "";
             }
         });
