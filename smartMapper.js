@@ -615,11 +615,13 @@ window.startTokenizerQueue = function() {
                 });
             });
             
-            // Зажигаем кнопку ДАЛЕЕ, так как на этом экране уже есть готовые спаривания
+            // Зажигаем кнопку ДАЛЕЕ, но ставим защиту от случайного двойного клика (300мс)
             if (btnDone) {
                 btnDone.style.opacity = '1';
-                btnDone.style.pointerEvents = 'auto';
-                btnDone.style.cursor = 'pointer';
+                setTimeout(() => {
+                    btnDone.style.pointerEvents = 'auto';
+                    btnDone.style.cursor = 'pointer';
+                }, 300);
             }
         }
     }
@@ -775,11 +777,15 @@ window.startTokenizerQueue = function() {
             });
         }
 
-        btnDone.addEventListener('click', () => {
-            // Если кнопка как-то нажалась без результатов — просто блокируем
-            if (Object.keys(mappedResults).length === 0) return; 
+        btnDone.addEventListener('click', (e) => {
+            // Мгновенно блокируем кнопку, чтобы она не сработала дважды
+            if (btnDone.disabled) return;
+            btnDone.disabled = true;
             
-            pattern.resolvedAttributes = mappedResults;
+            if (!pattern.resolvedAttributes || Object.keys(pattern.resolvedAttributes).length === 0) {
+                btnDone.disabled = false;
+                return;
+            }
             currentQueueIndex++;
             processNext(); 
         });

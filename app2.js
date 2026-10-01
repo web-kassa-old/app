@@ -5552,13 +5552,18 @@ window.updateReqCardStatus = function (sysKey, text, className, previewText) {
 
   if (badge) {
     if (className === "status-filled") {
-        // Убираем эмодзи "🟢", ставим аккуратную галочку и красим кнопку
+        // Убираем кружок, ставим галочку
         badge.innerText = "✓ " + text.replace(' 🟢', '');
+        
+        // КРИТИЧНОЕ ИСПРАВЛЕНИЕ: Удаляем якорь перевода, чтобы скрипт не стирал наш текст!
+        badge.removeAttribute("data-i18n"); 
+        
         badge.style.backgroundColor = "var(--bg-success-dim, rgba(46, 204, 113, 0.15))";
         badge.style.borderColor = "var(--accent-green, #2ecc71)";
         badge.style.color = "var(--accent-green, #2ecc71)";
     } else {
         badge.innerText = text;
+        badge.setAttribute("data-i18n", "inc_select");
         badge.style = "";
     }
     badge.className = "req-status " + className;
@@ -5568,13 +5573,24 @@ window.updateReqCardStatus = function (sysKey, text, className, previewText) {
     subtitle.innerHTML = `<span style="color: var(--accent-yellow); font-weight: bold;">Результат: ${previewText}</span>`;
   }
 
-  // ФИЗИЧЕСКИЙ ПЕРЕНОС КАРТОЧКИ ВНИЗ СПИСКА
+  // ФИЗИЧЕСКИЙ ПЕРЕНОС КАРТОЧКИ ВНИЗ
   if (className === "status-filled" && badge) {
-      // Поднимаемся от кнопки до самой карточки (ищем родителя с рамкой или классом)
-      const card = badge.closest('.mapper-card') || badge.closest('div[style*="border"]') || document.getElementById('req-' + sysKey) || document.getElementById('card-' + sysKey);
-      if (card && card.parentElement) {
-          // appendChild автоматически переносит существующий элемент в самый конец контейнера
-          card.parentElement.appendChild(card); 
+      const card = badge.closest('.req-card');
+      const container = document.getElementById("mapper2CardsContainer");
+      if (card && container) {
+          // Ищем заголовок "✅ Из накладной и системы"
+          let filledHeader = Array.from(container.querySelectorAll('.section-header')).find(h => h.textContent.includes('✅'));
+          
+          if (!filledHeader) {
+              // Если его нет (мы спарили первую колонку), создаем его
+              filledHeader = document.createElement('div');
+              filledHeader.className = 'section-header';
+              filledHeader.style.cssText = 'color: var(--accent-green); padding: 15px 10px 5px; font-size: 11px; text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px;';
+              filledHeader.innerHTML = '✅ Из накладной и системы';
+              container.appendChild(filledHeader);
+          }
+          // Переносим карточку в самый конец списка
+          container.appendChild(card);
       }
   }
 };
