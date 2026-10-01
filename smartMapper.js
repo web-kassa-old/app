@@ -591,11 +591,17 @@ window.startTokenizerQueue = function() {
 
         // Функция обновления превью (склейка выбранных токенов)
         const updatePreview = () => {
+            // 1. Сначала жестко стираем желтый текст превью во всех незаблокированных строках
+            overlay.querySelectorAll('.param-row:not(.disabled) .param-preview').forEach(el => {
+                el.textContent = '';
+            });
+
+            // 2. Вписываем выбранные токены ТОЛЬКО в текущую активную строку
             const activeRow = overlay.querySelector('.param-row.active-target');
             if (!activeRow) return;
-            const previewEl = activeRow.querySelector('.param-preview');
+            
             const selectedText = Array.from(overlay.querySelectorAll('.token.selected')).map(b => b.textContent).join('');
-            previewEl.textContent = selectedText;
+            activeRow.querySelector('.param-preview').textContent = selectedText;
         };
 
         // Клик по токену
