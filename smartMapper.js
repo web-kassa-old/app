@@ -500,45 +500,50 @@ window.showTokenizer = function(columnName, tokensArray, paramsList) {
 window.startTokenizerQueue = function() {
     const rawQueue = window.mapper2State.quarantine || [];
     
-    // ФИЛЬТР: Отправляем в Токенизатор ТОЛЬКО сложные строки, которые можно разрезать
-    const queue = rawQueue.filter(pattern => {
+    // 1. ЖЕСТКИЙ ФИЛЬТР: Отсекаем одиночные токены (типа просто "82")
+    const filteredQueue = rawQueue.filter(pattern => {
         if (!pattern || !pattern.rawString) return false;
-        // Режем строку по нашему правилу
         const tokens = pattern.rawString.match(/\d+(?:\.\d+)?|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g) || [pattern.rawString];
-        // Считаем только значащие токены (игнорируем одиночные пробелы или тире, если они затесались)
         const validTokens = tokens.filter(t => t.trim().length > 0 && !/^[\s\-_]+$/.test(t));
-        
-        return validTokens.length > 1; // Пускаем только если есть хотя бы 2 куска!
+        return validTokens.length > 1;
+    });
+
+    // 2. УМНАЯ ГРУППИРОВКА (Batching): Схлопываем одинаковые строки
+    // Если в очереди 16 одинаковых конфликтов, мы оставим только 1 уникальный вопрос
+    const uniquePatternsMap = new Map();
+    filteredQueue.forEach(item => {
+        if (!uniquePatternsMap.has(item.rawString)) {
+            uniquePatternsMap.set(item.rawString, item);
+        }
     });
     
-    // Если сложных (слипшихся) паттернов нет - пропускаем этот шаг и идем дальше
+    // Теперь наша очередь состоит только из уникальных проблем
+    const queue = Array.from(uniquePatternsMap.values());
+
+    // Если всё отсеялось - идем сразу на сборку
     if (queue.length === 0) {
         finishAndGoToPreview();
         return;
     }
 
     let currentQueueIndex = 0;
-    let mappedResults = {}; // Временное хранилище: { sysKey: "Значение из словаря" }
+    let mappedResults = {}; 
 
-    // --- 1. ЗАПУСК ОЧЕРЕДНОГО ПАТТЕРНА ---
-    // --- 1. ЗАПУСК ОЧЕРЕДНОГО ПАТТЕРНА ---
+    // --- ЗАПУСК ОЧЕРЕДНОГО ПАТТЕРНА ---
     function processNext() {
         if (currentQueueIndex >= queue.length) {
-            // Очередь закончилась, применяем результаты
             applyResultsToData();
             return;
         }
 
         const pattern = queue[currentQueueIndex];
-        mappedResults = {}; // Сбрасываем для нового паттерна
+        mappedResults = {}; 
 
-        // Умная нарезка строки
         const currentTokens = pattern.rawString.match(/\d+(?:\.\d+)?|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g) || [pattern.rawString];
 
         const dicts = window.kaspiDicts || {};
         let paramsList = [];
         
-        // --- НОВАЯ ЛОГИКА: Фильтруем параметры (оставляем только цифры и короткие коды) ---
         const excludeFromSmart = [
             'Артикул', 'Название товара', 'Бренд', 'Цена', 'Название модели', 
             'Рубрика', 'Код изображений', 'Ссылка на YouTube', 'Ссылка на картинку',
@@ -550,7 +555,6 @@ window.startTokenizerQueue = function() {
             if (!excludeFromSmart.includes(paramName) && Array.isArray(dicts[paramName])) {
                 const validExamples = dicts[paramName].filter(val => val && String(val).trim() !== '');
                 if (validExamples.length > 0) {
-                    // Проверяем, есть ли в словаре параметра цифры или короткие английские буквы (коды)
                     const isCodeOrNumber = validExamples.some(ex => {
                         const str = String(ex).trim();
                         return /\d/.test(str) || (/^[a-zA-Z]+$/.test(str) && str.length <= 3);
@@ -562,26 +566,26 @@ window.startTokenizerQueue = function() {
             }
         });
         
-        // Фоллбэк, если после фильтра ничего не осталось
         if (paramsList.length === 0) {
-            paramsList = [{ name: pattern.humanName || 'Неизвестная колонка' }];
+            paramsList = [{ name: 'Неизвестный параметр' }];
         }
 
-        // Рисуем UI
-        window.showTokenizer(pattern.humanName || 'Неизвестная колонка', currentTokens, paramsList);
+        // ФИКСАЦИЯ НАЗВАНИЯ КОЛОНКИ: 
+        // Вместо прыгающих "Ширина/Высота", пишем универсальную фразу (или берем имя из Excel, если парсер его сохранил)
+        const displayColName = pattern.excelColumnName || pattern.originalColumn || "Многосоставные данные из накладной";
 
-        // Обновляем заголовок очереди
+        window.showTokenizer(displayColName, currentTokens, paramsList);
+
         const overlay = document.getElementById('tokenizer-overlay');
         const titleEl = overlay.querySelector('.modal-title');
         if (titleEl) {
             titleEl.textContent = `Паттерн: ${currentQueueIndex + 1} из ${queue.length}`;
         }
 
-        // Вешаем логику на кнопки
         attachLogic(pattern, dicts, overlay);
     }
 
-    // --- 2. ЛОГИКА ИНТЕРФЕЙСА (Клики, склейка, проверки) ---
+    // --- ЛОГИКА ИНТЕРФЕЙСА (с ластиком и защитой) ---
     function attachLogic(pattern, dicts, overlay) {
         const tokensBtns = overlay.querySelectorAll('.token');
         const paramRows = overlay.querySelectorAll('.param-row');
@@ -591,43 +595,31 @@ window.startTokenizerQueue = function() {
         const btnClear = overlay.querySelector('.btn-clear');
         const btnDone = overlay.querySelector('.btn-done');
 
-        // Функция обновления превью (склейка выбранных токенов)
+        // Встроенный ластик (чистим неактивные строки)
         const updatePreview = () => {
-            // 1. Сначала жестко стираем желтый текст превью во всех незаблокированных строках
-            overlay.querySelectorAll('.param-row:not(.disabled) .param-preview').forEach(el => {
-                el.textContent = '';
-            });
-
-            // 2. Вписываем выбранные токены ТОЛЬКО в текущую активную строку
+            overlay.querySelectorAll('.param-row:not(.disabled) .param-preview').forEach(el => el.textContent = '');
             const activeRow = overlay.querySelector('.param-row.active-target');
             if (!activeRow) return;
-            
             const selectedText = Array.from(overlay.querySelectorAll('.token.selected')).map(b => b.textContent).join('');
             activeRow.querySelector('.param-preview').textContent = selectedText;
         };
 
-        // Клик по токену
         tokensBtns.forEach(btn => {
             btn.addEventListener('click', () => {
                 if (btn.classList.contains('disabled')) return;
                 btn.classList.toggle('selected');
-                fallbackZone.style.display = 'none'; // Прячем ошибку, если начали новый выбор
+                fallbackZone.style.display = 'none'; 
                 updatePreview();
             });
         });
 
-        // Клик по строке параметра (переключение радио-кнопки)
         paramRows.forEach(row => {
             row.addEventListener('click', (e) => {
                 if (row.classList.contains('disabled')) return;
-                
-                // Деактивируем остальные
                 paramRows.forEach(r => {
                     r.classList.remove('active-target');
                     r.querySelector('.btn-confirm-inline').style.display = 'none';
                 });
-                
-                // Активируем текущую
                 row.classList.add('active-target');
                 row.querySelector('input[type="radio"]').checked = true;
                 row.querySelector('.btn-confirm-inline').style.display = 'block';
@@ -635,26 +627,20 @@ window.startTokenizerQueue = function() {
             });
         });
 
-        // Клик по галочке "✔ Ок"
         paramRows.forEach(row => {
             const confirmBtn = row.querySelector('.btn-confirm-inline');
             confirmBtn.addEventListener('click', (e) => {
-                e.stopPropagation(); // Чтобы не сработал клик по самой строке
-                
+                e.stopPropagation(); 
                 const paramName = row.querySelector('input[type="radio"]').value;
                 const gluedText = row.querySelector('.param-preview').textContent;
-                
                 if (!gluedText) return;
 
-                // Ищем в справочнике
                 let dictArray = dicts[paramName] || [];
                 let matchedValue = null;
                 
                 for (let dv of dictArray) {
                     let strDv = String(dv).trim();
                     let baseDv = strDv.split('(')[0].trim();
-                    
-                    // Математическое или точное текстовое совпадение
                     if (baseDv.toLowerCase() === gluedText.toLowerCase() || 
                        (!isNaN(parseFloat(baseDv)) && parseFloat(baseDv) === parseFloat(gluedText))) {
                         matchedValue = strDv;
@@ -665,7 +651,6 @@ window.startTokenizerQueue = function() {
                 if (matchedValue) {
                     lockParameter(row, paramName, matchedValue, gluedText);
                 } else {
-                    // ФОЛЛБЭК: Значение не найдено!
                     overlay.querySelector('.fallback-msg').innerHTML = `Значение <b>"${gluedText}"</b> не найдено в справочнике. Выберите вручную:`;
                     fallbackSelect.innerHTML = `<option value="" disabled selected>Справочник: ${paramName}...</option>` + 
                         dictArray.map(val => `<option value="${val}">${val}</option>`).join('');
@@ -674,81 +659,71 @@ window.startTokenizerQueue = function() {
             });
         });
 
-        // Клик по подтверждению Фоллбэка
         btnFallback.addEventListener('click', () => {
             const activeRow = overlay.querySelector('.param-row.active-target');
             const paramName = activeRow.querySelector('input[type="radio"]').value;
             const gluedText = activeRow.querySelector('.param-preview').textContent;
             const selectedVal = fallbackSelect.value;
-            
             if (!selectedVal) return;
-            
             lockParameter(activeRow, paramName, selectedVal, gluedText);
             fallbackZone.style.display = 'none';
         });
 
-        // Функция фиксации (блокировки) параметра и токенов
         const lockParameter = (row, humanName, finalValue, tokenText) => {
-            // Находим системный ключ для этого параметра, чтобы правильно сохранить в JSON
             let sysKey = Object.keys(window.mapper2State.sysToHumanMap || {}).find(k => window.mapper2State.sysToHumanMap[k] === humanName);
             if (!sysKey) sysKey = humanName;
-            
-            mappedResults[sysKey] = finalValue; // Сохраняем в память!
+            mappedResults[sysKey] = finalValue; 
 
-            // Блокируем UI строки
             row.classList.remove('active-target');
             row.classList.add('disabled');
             row.querySelector('.param-preview').style.display = 'none';
             row.querySelector('.btn-confirm-inline').style.display = 'none';
             row.insertAdjacentHTML('beforeend', `<span class="param-badge">${tokenText}</span>`);
 
-            // Блокируем выбранные токены
             overlay.querySelectorAll('.token.selected').forEach(t => {
                 t.classList.remove('selected');
                 t.classList.add('disabled');
             });
             
-            // Авто-фокус на следующую свободную строку
             const nextRow = overlay.querySelector('.param-row:not(.disabled)');
             if (nextRow) nextRow.click();
         };
 
-        // Кнопка Сбросить (просто перезапускаем текущий паттерн)
         btnClear.addEventListener('click', () => {
             processNext();
         });
 
-        // Кнопка Завершить
+        // 3. ЗАЩИТА: Блокируем пустые клики по кнопке Завершить
         btnDone.addEventListener('click', () => {
-            // Сохраняем результаты работы над этим паттерном
+            if (Object.keys(mappedResults).length === 0) {
+                alert("Вы не привязали ни одного фрагмента!\nПожалуйста, выделите нужные токены, выберите параметр из списка и нажмите '✔ ОК'.\nЕсли привязывать нечего, нажмите кнопку 'НАЗАД'.");
+                return; 
+            }
             pattern.resolvedAttributes = mappedResults;
             currentQueueIndex++;
-            processNext(); // Идем к следующему
+            processNext(); 
         });
     }
 
-    // --- 3. ФИНАЛИЗАЦИЯ И ПЕРЕХОД ---
+    // --- ФИНАЛИЗАЦИЯ И МАСШТАБИРОВАНИЕ ---
     function applyResultsToData() {
-        // Проходим по всем сформированным товарам
         window.parsedInvoiceData.forEach(item => {
             if (item._hasCollisions) {
                 let attrsObj = item._attributesObj || {};
                 
-                // Для каждой коллизии этого товара ищем, как клиент ее разрешил
                 item._collisionsList.forEach(col => {
-                    const resolvedPattern = queue.find(q => q.rawString === col.rawString && q.sysKey === col.sysKey);
+                    // Ищем решение по сырой строке (так как мы схлопнули дубликаты)
+                    const resolvedPattern = queue.find(q => q.rawString === col.rawString);
                     if (resolvedPattern && resolvedPattern.resolvedAttributes) {
-                        // Вливаем вручную спаренные атрибуты
                         Object.assign(attrsObj, resolvedPattern.resolvedAttributes);
                     }
                 });
                 
-                // Обновляем финальную JSON-строку атрибутов
                 item.attributes = Object.keys(attrsObj).length > 0 ? JSON.stringify(attrsObj) : "";
             }
         });
 
-        window.mapper2State.quarantine = []; // Очищаем карантин
+        window.mapper2State.quarantine = []; 
         finishAndGoToPreview();
     }
 
@@ -763,6 +738,5 @@ window.startTokenizerQueue = function() {
         document.getElementById("invoicePreviewArea").style.display = "flex";
     }
 
-    // Запускаем маховик!
     processNext();
 };
