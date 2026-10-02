@@ -5378,7 +5378,6 @@ window.openKaspiDictSearch = function () {
 
   modal = document.createElement("div");
   modal.id = "kaspiDictModal";
-  // Темный полупрозрачный фон на весь экран
   modal.style.cssText = "display:flex; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:999999; flex-direction:column; align-items:center; justify-content:center; padding: 15px; box-sizing:border-box; backdrop-filter:blur(3px);";
 
   let clearBtnHtml = `
@@ -5386,18 +5385,18 @@ window.openKaspiDictSearch = function () {
           <span>✖</span> ${t.inc_clear_selection || "Очистить выбор"}
       </div>`;
 
-  // Внутренний бокс, который решает проблему ширины хедера и пропавшего списка
   modal.innerHTML = `
-      <div id="dictModalContent" style="background:var(--bg-body, #1e1e1e); color:var(--text-main, #fff); width:100%; max-width:420px; border-radius:10px; display:flex; flex-direction:column; max-height:85vh; box-sizing:border-box; overflow:hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.2);">
+      <div id="dictModalContent" style="background:var(--bg-body, #fff); color:var(--text-main, #000); width:100%; max-width:420px; border-radius:12px; display:flex; flex-direction:column; max-height:85vh; box-sizing:border-box; overflow:hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.2);">
 
           <!-- ХЕДЕР -->
-          <div style="display: flex; align-items: center; justify-content: space-between; padding: 15px 20px; border-bottom: 1px solid var(--border-light, #444); background: var(--bg-panel, #2a2a2a);">
+          <div style="display: flex; align-items: center; justify-content: space-between; padding: 15px 20px; border-bottom: 1px solid var(--border-light, #ddd); background: var(--bg-panel, #f9f9f9);">
               <span onclick="document.getElementById('kaspiDictModal').remove()" style="color:var(--accent-blue, #3b82f6); font-size:16px; cursor:pointer; display:flex; align-items:center; gap:5px; flex-shrink: 0;">
                   <span style="font-size:20px; margin-top:-2px;">&#10094;</span> 
               </span>
               <div style="flex: 1; display: flex; flex-direction: column; text-align: left; padding: 0 10px; overflow: hidden;">
-                  <b style="font-size:14px; color:var(--text-main); text-transform:uppercase; text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${reqName}</b>
-                  <div id="dictModalCountInfo" style="font-size: 11px; font-weight: bold; color: var(--text-muted); margin-top: 2px;">
+                  <!-- ВАЖНО: Вернули id="dictModalTitle", чтобы filterDictionary не падал -->
+                  <b id="dictModalTitle" style="font-size:14px; color:var(--text-main, #000); text-transform:uppercase; text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${reqName}</b>
+                  <div id="dictModalCountInfo" style="font-size: 11px; font-weight: bold; color: var(--text-muted, #888); margin-top: 2px;">
                       <span id="dictModalCountText">${t.dict_total || "Всего:"}</span> <span id="dictTotalCount">${dict.length}</span>
                   </div>
               </div>
@@ -5410,17 +5409,17 @@ window.openKaspiDictSearch = function () {
                   placeholder="${t.inc_search_enter || "Поиск..."}"
                   onfocus="this.select()"
                   oninput="window.filterDictionary()"
-                  style="width:100%; padding:10px; border:1px solid var(--accent-blue, #3b82f6); background:var(--bg-panel, #2a2a2a); color:var(--text-main, #fff); border-radius:6px; font-size:15px; outline:none; box-sizing:border-box;">
+                  style="width:100%; padding:10px; border:1px solid var(--accent-blue, #3b82f6); background:var(--bg-panel, #fff); color:var(--text-main, #000); border-radius:6px; font-size:15px; outline:none; box-sizing:border-box;">
               
-              <label style="display:flex; align-items:center; gap:10px; margin-top:15px; padding:15px; background:var(--bg-panel, #2a2a2a); border-radius:8px; border:1px solid var(--border-light, #444); cursor:pointer;">
+              <label style="display:flex; align-items:center; gap:10px; margin-top:15px; padding:15px; background:var(--bg-panel, #fff); border-radius:8px; border:1px solid var(--border-light, #ddd); cursor:pointer;">
                   <input type="checkbox" id="dictModalApplyAll" ${isGlobal ? "checked" : ""} style="width:20px; height:20px;">
-                  <span style="font-size:14px; color:var(--text-main);">${t.inc_apply_all || "Применить ко всем товарам"}</span>
+                  <span style="font-size:14px; color:var(--text-main, #000);">${t.inc_apply_all || "Применить ко всем товарам"}</span>
               </label>
               ${clearBtnHtml}
           </div>
 
-          <!-- СПИСОК -->
-          <ul id="dictModalList" style="list-style:none; padding:0; margin:0; overflow-y:auto; flex:1; overscroll-behavior:contain;"></ul>
+          <!-- СПИСОК (Без лишних div-оберток, чтобы flex:1 работал верно) -->
+          <ul id="dictModalList" style="list-style:none; padding:0; margin:0; overflow-y:auto; flex:1; overscroll-behavior:contain; background:var(--bg-body, #fff);"></ul>
 
       </div>
   `;
