@@ -5357,34 +5357,28 @@ window.openKaspiDictSearch = function () {
   const t = typeof translations !== "undefined" && translations[lang] ? translations[lang] : {};
 
   if (dict.length === 0) {
-    return alert(
-      (t.msg_dict_empty_1 || "") + reqName + (t.msg_dict_empty_2 || "")
-    );
+    return alert((t.msg_dict_empty_1 || "") + reqName + (t.msg_dict_empty_2 || ""));
   }
 
-  // Прячем нижнюю шторку маппера
   document.getElementById("bottom-sheet").style.transform = "translateY(100%)";
   setTimeout(() => {
     let overlay = document.getElementById("sheet-overlay");
     if (overlay) overlay.style.display = "none";
   }, 300);
 
-  // Сбрасываем временный выбор
   window.tempSelectedDictValue = null;
   window.currentModalSysKey = sysKey;
   window.currentModalDict = dict;
 
-  // Проверяем, стоит ли глобальная галочка для этого поля
   if (!window.applyToAllMap) window.applyToAllMap = {};
   let isGlobal = window.applyToAllMap[sysKey] !== undefined;
 
-  // Удаляем старое окно, если оно зависло
-  let modal = document.getElementById("editorFieldModal");
+  // ИСПРАВЛЕНИЕ 1: Возвращаем родной ID kaspiDictModal, чтобы ядро не падало
+  let modal = document.getElementById("kaspiDictModal");
   if (modal) modal.remove();
 
-  // СОЗДАЕМ КРАСИВУЮ ШТОРКУ ИЗ ФИНАЛЬНОГО РЕДАКТОРА
   modal = document.createElement("div");
-  modal.id = "editorFieldModal"; // Маскируемся под красивое окно
+  modal.id = "kaspiDictModal"; 
   modal.className = "kaspi-modal-overlay";
 
   let clearBtnHtml = `
@@ -5408,14 +5402,14 @@ window.openKaspiDictSearch = function () {
 
   let listHtml = `
       <div style="flex:1; overflow-y:auto; padding: 10px 20px 20px 20px; -webkit-overflow-scrolling: touch;">
-          <!-- Сохранили старый ID dictModalList, чтобы твоя функция filterDictionary продолжала работать без изменений -->
           <ul id="dictModalList" style="list-style:none; padding:0; margin:0; background:var(--bg-panel); border-radius:8px; border:1px solid var(--border-light);">
           </ul>
       </div>`;
 
+  // ИСПРАВЛЕНИЕ 2: Добавлен padding: 15px 20px; в kaspi-modal-header
   modal.innerHTML = `
-      <div class="kaspi-modal-header" style="display: flex; align-items: center; justify-content: space-between;">
-          <span onclick="document.getElementById('editorFieldModal').remove()" style="color:var(--accent-blue); font-size:16px; cursor:pointer; display:flex; align-items:center; gap:5px; flex-shrink: 0;">
+      <div class="kaspi-modal-header" style="display: flex; align-items: center; justify-content: space-between; padding: 15px 20px; border-bottom: 1px solid var(--border-light);">
+          <span onclick="document.getElementById('kaspiDictModal').remove()" style="color:var(--accent-blue); font-size:16px; cursor:pointer; display:flex; align-items:center; gap:5px; flex-shrink: 0;">
               <span style="font-size:20px; margin-top:-2px;">&#10094;</span> 
           </span>
           <div style="flex: 1; display: flex; flex-direction: column; text-align: left; padding: 0 10px; overflow: hidden;">
@@ -5438,7 +5432,7 @@ window.openKaspiDictSearch = function () {
   }
   container.appendChild(modal);
 
-  window.filterDictionary(); // Рендерим список
+  window.filterDictionary();
 };
 
 // Функция завершения выбора (вызывается по кнопке ОК)
@@ -5449,17 +5443,25 @@ window.confirmKaspiDictSelection = function() {
         return alert(tr.err_select_val || "Пожалуйста, сначала выберите значение из списка.");
     }
     
-    // Считываем состояние чекбокса
     const applyAll = document.getElementById("dictModalApplyAll").checked;
     
-    // Закрываем шторку
-    const modal = document.getElementById("editorFieldModal");
-    if (modal) modal.remove();
+    if (applyAll) {
+        if (!window.applyToAllMap) window.applyToAllMap = {};
+        window.applyToAllMap[window.currentModalSysKey] = true;
+    } else {
+        if (window.applyToAllMap && window.applyToAllMap[window.currentModalSysKey]) {
+            delete window.applyToAllMap[window.currentModalSysKey];
+        }
+    }
     
-    // Передаем данные дальше в оригинальную функцию сохранения маппера
+    // ИСПРАВЛЕНИЕ 3: Вызываем сохранение ДО удаления окна, чтобы ядро не падало
     if (typeof window.selectDictionaryValue === "function") {
         window.selectDictionaryValue(window.tempSelectedDictValue, false, applyAll);
     }
+    
+    // Теперь окно можно безопасно добить
+    const modal = document.getElementById("kaspiDictModal");
+    if (modal) modal.remove();
 };
 
 // Функция очистки выбора
@@ -5477,13 +5479,15 @@ window.filterDictionary = function () {
     .trim();
   const list = document.getElementById("dictModalList");
   const countText = document.getElementById("dictModalCountText");
-  const totalCount = document.getElementById("dictTotalCount");
-  const dict = window.currentModalDict || [];
+    const totalCount = document.getElementById("dictTotalCount");
+    
+    // Подтягиваем переводы прямо внутри фильтра
+    const lang = window.currentLang || localStorage.getItem("pos_lang") || "ru";
+    const tr = typeof translations !== "undefined" && translations[lang] ? translations[lang] : {};
 
-  list.innerHTML = "";
-
-  if (countText && totalCount) {
-    countText.innerText = query === "" ? "Всего:" : "Найдено:";
+    if (countText && totalCount) {
+        // Динамически применяем нужный язык
+        countText.innerText = query === "" ? (tr.dict_total || "Всего:") : (tr.dict_found || "Найдено:");
     totalCount.innerText = dict.length;
   }
 
