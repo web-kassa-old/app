@@ -5145,7 +5145,7 @@ window.openColumnSelector = function (sysKey, reqName, isKaspi) {
     : "";
 
   colList.innerHTML = `
-    <div style="position: sticky; top: 0; background: var(--bg-panel, #1e1e1e); z-index: 10; padding: 15px 20px; margin: -20px -20px 15px -20px; border-bottom: 1px solid var(--border-light, #333); display: flex; justify-content: space-between; align-items: center;">
+    <div style="position: sticky; top: 0; background: var(--bg-panel, #1e1e1e); z-index: 10; padding: 15px 20px; margin: -20px 0 15px 0; border-bottom: 1px solid var(--border-light, #333); display: flex; justify-content: space-between; align-items: center;">
         <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; font-weight: bold;" data-i18n="mapper_inv_cols">
     Колонки из накладной
 </div>
@@ -10534,18 +10534,13 @@ window.selectImportMode = function (mode) {
 
     const select = document.getElementById("kaspiTemplateSelect");
     
-    // === ИСПРАВЛЕНИЕ: Добавлен блокиратор двойных запросов ===
+    // === ИСПРАВЛЕНИЕ 1: Железобетонный замок на загрузку списка шаблонов ===
+    // Запрашиваем список с сервера ровно один раз за сессию
     if (
-      select &&
-      select.options.length <= 2 &&
-      select.dataset.fetching !== "true" && // Проверяем, не запущен ли уже поиск
+      !window.kaspiTemplatesLoaded &&
       typeof window.loadKaspiTemplatesFromServer === "function"
     ) {
-      select.dataset.fetching = "true"; // Вешаем замок
-      
-      // Снимаем замок через 5 секунд (страховка на случай, если сервер долго отвечает)
-      setTimeout(() => { select.dataset.fetching = "false"; }, 5000); 
-
+      window.kaspiTemplatesLoaded = true; 
       window.loadKaspiTemplatesFromServer();
     }
 
@@ -10594,6 +10589,28 @@ window.handleTemplateChange = function (event) {
       "Загрузите файл Excel",
       "📁",
     );
+
+    // === ИСПРАВЛЕНИЕ 2: Фоновая загрузка структуры шаблона ===
+    // Как только выбран шаблон, незаметно качаем его в кэш.
+    window.kaspiTemplateCache = window.kaspiTemplateCache || {};
+    if (!window.kaspiTemplateCache[val]) {
+      const payload = {
+        action: "getKaspiTemplate",
+        api_key: typeof CLIENT_API_KEY !== "undefined" ? CLIENT_API_KEY : "", 
+        category: val,
+      };
+      
+      window.smartFetch(typeof GATEWAY_URL !== "undefined" ? GATEWAY_URL : "", payload)
+        .then((res) => {
+          const headersRaw = res.headersJson || res.headers_json || res.headers;
+          if (res && res.success && headersRaw) {
+            let templateData = typeof headersRaw === "string" ? JSON.parse(headersRaw) : headersRaw;
+            if (res.memoryJson) templateData.memoryJson = res.memoryJson;
+            window.kaspiTemplateCache[val] = templateData; // Сохраняем результат
+          }
+        })
+        .catch((e) => console.log("Фоновая загрузка шаблона не удалась, будет скачан при загрузке файла", e));
+    }
   } else {
     window.setUploadButtonState(
       false,
