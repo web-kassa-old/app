@@ -5504,6 +5504,12 @@ window.filterDictionary = function () {
         
         // Записываем во временную переменную
         window.tempSelectedDictValue = safeVal;
+
+        // НОВОЕ: Копируем оригинальное значение в поле поиска
+        const searchInput = document.getElementById("dictModalSearch");
+        if (searchInput) {
+            searchInput.value = val; 
+        }
     };
     
     list.appendChild(li);
