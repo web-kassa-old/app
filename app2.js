@@ -5488,10 +5488,24 @@ window.filterDictionary = function () {
     let safeVal = String(val).replace(/'/g, "\\'");
 
     const li = document.createElement("li");
-    li.style.cssText =
-      "padding:15px; border-bottom:1px solid var(--border-light, #333); cursor:pointer; font-size:14px;";
+    li.style.cssText = "padding:15px; border-bottom:1px solid var(--border-light, #333); cursor:pointer; font-size:14px; transition: background 0.2s;";
     li.innerHTML = highlighted;
-    li.onclick = () => window.selectDictionaryValue(safeVal, false);
+    
+    // НОВАЯ ЛОГИКА КЛИКА: только выделяем цветом и запоминаем значение
+    li.onclick = () => {
+        // Очищаем стили у всех элементов списка
+        document.querySelectorAll('#dictModalList li').forEach(el => {
+            el.style.background = 'transparent';
+            el.style.borderLeft = 'none';
+        });
+        // Подсвечиваем выбранный
+        li.style.background = 'rgba(59, 130, 246, 0.15)';
+        li.style.borderLeft = '4px solid var(--accent-blue, #3b82f6)';
+        
+        // Записываем во временную переменную
+        window.tempSelectedDictValue = safeVal;
+    };
+    
     list.appendChild(li);
   });
 
@@ -5501,6 +5515,28 @@ window.filterDictionary = function () {
       `<li style="padding:15px; text-align:center; color:var(--text-muted, #888); font-size:13px; font-style:italic; background:rgba(0,0,0,0.2);">И еще ${allFiltered.length - displayLimit} вариантов...</li>`,
     );
   }
+};
+
+window.closeKaspiDictSearch = function() {
+    const modal = document.getElementById("kaspiDictModal");
+    if (modal) modal.style.display = "none";
+    
+    // Возвращаем нижнюю шторку маппера на место
+    let overlay = document.getElementById("sheet-overlay");
+    if (overlay) overlay.style.display = "block";
+    setTimeout(() => {
+        let sheet = document.getElementById("bottom-sheet");
+        if (sheet) sheet.style.transform = "translateY(0)";
+    }, 10);
+};
+
+window.confirmDictSelection = function(isCustom = false) {
+    if (!window.tempSelectedDictValue) {
+        alert("Пожалуйста, сначала выберите значение из списка.");
+        return;
+    }
+    // Если всё ок, передаем эстафету нашей главной функции сохранения
+    window.selectDictionaryValue(window.tempSelectedDictValue, isCustom);
 };
 
 window.selectDictionaryValue = function (value, isCustom) {
