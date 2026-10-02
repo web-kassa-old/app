@@ -511,13 +511,16 @@ window.showTokenizer = function (columnName, tokensArray, paramsList) {
   const overlay = document.getElementById("tokenizer-overlay");
   if (!overlay) return;
 
+  // 1. Получаем текущие переводы
+  const lang = window.currentLang || localStorage.getItem("pos_lang") || "ru";
+  const tr = typeof translations !== "undefined" && translations[lang] ? translations[lang] : {};
+
   const tokensHtml = tokensArray
     .map((token, index) => {
       return `<button class="token" data-index="${index}">${token}</button>`;
     })
     .join("");
 
-  // ИСПРАВЛЕНИЕ 2: Убрали стартовое выделение (active-target и checked)
   const paramsHtml = paramsList
     .map((param) => {
       return `
@@ -527,57 +530,62 @@ window.showTokenizer = function (columnName, tokensArray, paramsList) {
             <span>${param.name}</span>
           </label>
           <div class="param-preview"></div>
-          <button class="btn-confirm-inline" style="display: none;">✔ Ок</button>
+          <button class="btn-confirm-inline" style="display: none;" data-i18n="tok_ok">✔ ${tr.tok_ok || "ОК"}</button>
         </div>
         `;
     })
     .join("");
 
+  // 2. Внедряем переводы в HTML
   overlay.innerHTML = `
         <div class="tokenizer-modal">
             <div class="modal-header" style="flex-direction: column; align-items: flex-start; gap: 8px;">
                 <div style="display: flex; justify-content: space-between; width: 100%; align-items: center;">
-                    <h2 class="modal-title" data-i18n="tok_pattern">Разрешение конфликта</h2>
+                    <h2 class="modal-title" data-i18n="tok_pattern">${tr.tok_pattern || "Паттерн"}</h2>
                     <button class="close-btn" style="background: var(--accent-red); color: #fff; font-size: 12px; font-weight: bold; border: none; border-radius: 6px; padding: 6px 12px; cursor: pointer; display: flex; align-items: center; gap: 6px; text-transform: uppercase; box-shadow: 0 4px 10px rgba(231,76,60,0.3);">
-                        <span style="font-size: 18px; line-height: 1;">&times;</span> Закрыть
+                        <span style="font-size: 18px; line-height: 1;">&times;</span> <span data-i18n="tok_close">${tr.tok_close || "Закрыть"}</span>
                     </button>
                 </div>
-                <div class="modal-subtitle" style="font-size: 13px; color: var(--text-muted); line-height: 1.4;">
-                    Скрипт не смог однозначно распределить эти данные. Выберите нужные фрагменты и привяжите их к параметрам из справочника.
+                <div class="modal-subtitle" data-i18n="tok_desc" style="font-size: 13px; color: var(--text-muted); line-height: 1.4;">
+                    ${tr.tok_desc || "Скрипт не смог однозначно распределить эти данные. Выберите нужные фрагменты и привяжите их к параметрам из справочника."}
                 </div>
             </div>
             
             <div class="toolbar">
-                <div class="toolbar-label"><span data-i18n="tok_source">Колонка:</span> ${columnName}</div>
-                <button class="btn-clear" data-i18n="tok_clear">✕ Сбросить токены</button>
+                <div class="toolbar-label"><span data-i18n="tok_source">${tr.tok_source || "Колонка:"}</span> ${columnName}</div>
+                <button class="btn-clear" data-i18n="tok_clear">✕ ${tr.tok_clear || "Сбросить токены"}</button>
             </div>
 
             <div class="workspace">
-    <div class="workspace-label" data-i18n="tok_select_frag">Выберите фрагменты (можно несколько):</div>
-    <div class="tokens-container">
-        ${tokensHtml}
-    </div>
-</div>
+                <div class="workspace-label" data-i18n="tok_select_frag">${tr.tok_select_frag || "Выберите фрагменты (можно несколько):"}</div>
+                <div class="tokens-container">
+                    ${tokensHtml}
+                </div>
+            </div>
 
-<div class="params-list" style="max-height: 40vh; overflow-y: auto; padding-right: 5px; margin-bottom: 10px;">
-    ${paramsHtml}
-</div>
+            <div class="params-list" style="max-height: 40vh; overflow-y: auto; padding-right: 5px; margin-bottom: 10px;">
+                ${paramsHtml}
+            </div>
 
-<div class="fallback-zone" style="display: none;">
+            <div class="fallback-zone" style="display: none;">
                 <div class="fallback-msg"></div>
                 <select class="fallback-select"></select>
-                <button class="btn-fallback">Подтвердить выбор</button>
+                <button class="btn-fallback" data-i18n="tok_confirm_fallback">${tr.tok_confirm_fallback || "Подтвердить выбор"}</button>
             </div>
             
             <div class="modal-footer" style="display: flex; gap: 10px;">
-                <button type="button" class="btn-back" data-i18n="inc_back" style="flex: 1; background: var(--bg-panel); border: 1px solid var(--border-light); color: var(--text-main); padding: 14px; border-radius: 6px; font-weight: bold; cursor: pointer;">НАЗАД</button>
-                <!-- ИСПРАВЛЕНИЕ 1в: Кнопка заблокирована по умолчанию -->
-                <button type="button" class="btn-done" style="flex: 2; background: var(--accent-green); color: #000; border: none; padding: 14px; border-radius: 6px; font-weight: bold; opacity: 0.5; pointer-events: none; transition: 0.2s;">ДАЛЕЕ</button>
+                <button type="button" class="btn-back" data-i18n="inc_back" style="flex: 1; background: var(--bg-panel); border: 1px solid var(--border-light); color: var(--text-main); padding: 14px; border-radius: 6px; font-weight: bold; cursor: pointer;">${tr.inc_back || "НАЗАД"}</button>
+                <button type="button" class="btn-done" style="flex: 2; background: var(--accent-green); color: #000; border: none; padding: 14px; border-radius: 6px; font-weight: bold; opacity: 0.5; pointer-events: none; transition: 0.2s;">${tr.tok_next || "ДАЛЕЕ"}</button>
             </div>
         </div>
     `;
 
   overlay.style.display = "flex";
+
+  // 3. Форсируем применение переводов, если в приложении есть эта функция
+  if (typeof window.applyLanguage === "function") {
+    window.applyLanguage();
+  }
 
   overlay.querySelector(".close-btn").addEventListener("click", () => {
     overlay.style.display = "none";
@@ -710,15 +718,18 @@ window.startTokenizerQueue = function () {
     window.showTokenizer(displayColName, currentTokens, paramsList);
 
     const overlay = document.getElementById("tokenizer-overlay");
+    const lang = window.currentLang || localStorage.getItem("pos_lang") || "ru";
+    const tr = typeof translations !== "undefined" && translations[lang] ? translations[lang] : {};
+
     const titleEl = overlay.querySelector(".modal-title");
     if (titleEl) {
-      titleEl.textContent = `Паттерн: ${currentQueueIndex + 1} из ${queue.length}`;
+      titleEl.textContent = `${tr.tok_pattern || "Паттерн:"} ${currentQueueIndex + 1} ${tr.tok_of || "из"} ${queue.length}`;
     }
 
     const btnDone = overlay.querySelector(".btn-done");
     if (btnDone) {
       const isLastStep = currentQueueIndex === queue.length - 1;
-      btnDone.textContent = isLastStep ? "ЗАВЕРШИТЬ" : "ДАЛЕЕ";
+      btnDone.textContent = isLastStep ? (tr.tok_finish || "ЗАВЕРШИТЬ") : (tr.tok_next || "ДАЛЕЕ");
     }
 
     const backBtn = overlay.querySelector(".btn-back");
@@ -861,10 +872,14 @@ window.startTokenizerQueue = function () {
         if (matchedValue) {
           lockParameter(row, paramName, matchedValue, gluedText);
         } else {
-          overlay.querySelector(".fallback-msg").innerHTML =
-            `Значение <b>"${gluedText}"</b> не найдено в справочнике. Выберите вручную:`;
+          const lang = window.currentLang || localStorage.getItem("pos_lang") || "ru";
+          const tr = typeof translations !== "undefined" && translations[lang] ? translations[lang] : {};
+          
+          let notFoundMsg = tr.tok_not_found || `Значение <b>"{val}"</b> не найдено в справочнике. Выберите вручную:`;
+          overlay.querySelector(".fallback-msg").innerHTML = notFoundMsg.replace("{val}", gluedText);
+          
           fallbackSelect.innerHTML =
-            `<option value="" disabled selected>Справочник: ${paramName}...</option>` +
+            `<option value="" disabled selected>${tr.tok_dict_name || "Справочник:"} ${paramName}...</option>` +
             dictArray
               .map((val) => `<option value="${val}">${val}</option>`)
               .join("");
