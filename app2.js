@@ -3621,7 +3621,7 @@ window.openExportModal = async function() {
 
     // ВКЛЮЧАЕМ ГЛОБАЛЬНЫЙ ЛОАДЕР
     if (typeof window.showLoading === "function") {
-        window.showLoading(null, "loading_data");
+        window.showLoading(null, "loading_export_data");
     }
 
     try {
