@@ -5497,32 +5497,23 @@ window.filterDictionary = function () {
 window.selectDictionaryValue = function (value, isCustom) {
   let sysKey = window.currentModalSysKey;
 
-  // Очищаем старые привязки (если были)
+  // 1. Очищаем старые привязки (если были)
   if (window.mapper2State.colMap) delete window.mapper2State.colMap[sysKey];
-  if (window.mapper2State.splitRules)
-    delete window.mapper2State.splitRules[sysKey];
-
+  if (window.mapper2State.splitRules) delete window.mapper2State.splitRules[sysKey];
   if (!window.mapper2State.dictValues) window.mapper2State.dictValues = {};
 
-  // Записываем новое значение
+  // 2. Записываем новое значение
   window.mapper2State.dictValues[sysKey] = value;
 
-  // Жестко окрашиваем карточку в зеленый стиль
-  const statusEl = document.getElementById("status-" + sysKey);
-  if (statusEl) {
-    let shortVal = value.length > 15 ? value.substring(0, 15) + "..." : value;
-    statusEl.className = "req-status";
-    statusEl.style.cssText =
-      "border: 1px solid #4CAF50; color: #4CAF50; background: rgba(76, 175, 80, 0.1); font-weight: bold;";
-    statusEl.innerText = `📖 ${shortVal}`;
-
-    // Очищаем старое превью сплиттера, если оно там висело
-    const previewEl = document.getElementById("preview-" + sysKey);
-    if (previewEl) previewEl.innerHTML = "";
-  }
-
-  // Закрываем модалку
+  // 3. Закрываем модалку справочника
   document.getElementById("kaspiDictModal").style.display = "none";
+
+  // === 4. ПЕРЕРИСОВЫВАЕМ КАРТОЧКИ (второй маппер) ===
+  if (typeof window.renderMapper2Cards === "function") {
+      window.renderMapper2Cards(); 
+  } else {
+      console.error("Функция renderMapper2Cards не найдена!");
+  }
 };
 
 // Функция выбора и сохранения
