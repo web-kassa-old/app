@@ -5542,7 +5542,14 @@ window.filterDictionary = function () {
 window.selectKaspiDictItem = function(val) {
     // 1. Сохраняем во временную переменную
     window.tempSelectedDictValue = val;
-    // 2. Перерисовываем список, чтобы появилась синяя подсветка и галочка
+    
+    // 2. ПЕРЕНОСИМ ВЫБОР В ПОЛЕ ПОИСКА
+    let searchEl = document.getElementById("dictModalSearch");
+    if (searchEl) {
+        searchEl.value = val;
+    }
+    
+    // 3. Перерисовываем список (он отфильтруется по этому слову и подсветится)
     window.filterDictionary(); 
 };
 

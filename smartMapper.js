@@ -811,7 +811,12 @@ window.startTokenizerQueue = function () {
 
     const titleEl = overlay.querySelector(".modal-title");
     if (titleEl) {
-      titleEl.textContent = `${tr.tok_pattern || "Паттерн:"} ${currentQueueIndex + 1} ${tr.tok_of || "из"} ${queue.length}`;
+      // Используем шаблон, который сам знает, куда ставить цифры
+      let progressTemplate = tr.tok_progress || "Паттерн {current} из {total}";
+      
+      titleEl.textContent = progressTemplate
+        .replace("{current}", currentQueueIndex + 1)
+        .replace("{total}", queue.length);
     }
 
     const btnDone = overlay.querySelector(".btn-done");

@@ -488,10 +488,12 @@ const translations = {
     tok_ok: "ОК",
     tok_confirm_fallback: "Подтвердить выбор",
     inc_apply_all: "Применить ко всем товарам",
-inc_clear_selection: "Очистить выбор",
-inc_search_enter: "Поиск...",
-tok_not_found: "Значение <b>\"{val}\"</b> не найдено в справочнике. Выберите вручную:",
-tok_dict_name: "Справочник:"
+    inc_clear_selection: "Очистить выбор",
+    inc_search_enter: "Поиск...",
+    tok_not_found:
+      'Значение <b>"{val}"</b> не найдено в справочнике. Выберите вручную:',
+    tok_dict_name: "Справочник:",
+    tok_progress: "Паттерн {current} из {total}",
   },
   kz: {
     btn_sale: "САТУ",
@@ -972,7 +974,7 @@ tok_dict_name: "Справочник:"
     tok_desc:
       "Скрипт бұл деректерді нақты бөле алмады. Қажетті фрагменттерді таңдап, оларды анықтамалық параметрлермен байланыстырыңыз.",
     tok_source: "Баған:",
-    tok_clear: "Токендерді тастау",
+    tok_clear: "Токендерді таңдау",
     tok_select_frag: "Фрагменттерді таңдаңыз (бірнешеуін таңдауға болады):",
     tok_finish: "АЯҚТАУ",
     tok_next: "ЖАЛҒАСТЫРУ",
@@ -982,9 +984,11 @@ tok_dict_name: "Справочник:"
     tok_ok: "ОК",
     tok_confirm_fallback: "Таңдауды растау",
     inc_apply_all: "Барлық тауарларға қолдану",
-inc_clear_selection: "Таңдауды тазарту",
-inc_search_enter: "Іздеу...",
-tok_not_found: "<b>\"{val}\"</b> мәні анықтамалықтан табылмады. Қолмен таңдаңыз:",
-tok_dict_name: "Анықтамалық:"
+    inc_clear_selection: "Таңдауды тазарту",
+    inc_search_enter: "Іздеу...",
+    tok_not_found:
+      '<b>"{val}"</b> мәні анықтамалықтан табылмады. Қолмен таңдаңыз:',
+    tok_dict_name: "Анықтамалық:",
+    tok_progress: "Үлгі: {total} ішінен {current}",
   },
 };
