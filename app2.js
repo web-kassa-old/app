@@ -1815,12 +1815,17 @@ async function login(user) {
   if (typeof loadSuppliers === "function") {
     loadSuppliers();
   }
-  if (typeof loadKaspiTemplatesFromServer === "function") {
+  
+  // === ИСПРАВЛЕНИЕ: Мягкая проверка перед загрузкой шаблонов ===
+  const tplSelect = document.getElementById("kaspiTemplateSelect");
+  // Если пунктов больше 2 (дефолтные "-- Выберите --" и "Новый шаблон"), значит список уже скачан
+  const isAlreadyLoaded = tplSelect && tplSelect.options.length > 2;
+
+  if (typeof loadKaspiTemplatesFromServer === "function" && !isAlreadyLoaded) {
     loadKaspiTemplatesFromServer(true);
   }
 
   // 3. Запускаем фоновый пульс только теперь.
-  // Он сработает ровно через 60 секунд после успешной отрисовки товаров.
   if (typeof startBackgroundPulse === "function") {
     startBackgroundPulse();
   }
@@ -10708,9 +10713,6 @@ window.showImportHelp = function () {
 // Функция запроса списка шаблонов
 // Добавили параметр isSilent (по умолчанию false)
 window.loadKaspiTemplatesFromServer = async function (isSilent = false) {
-  // === СТАВИМ КАПКАН ЗДЕСЬ ===
-  console.trace("🔴 ПОЙМАН ВЫЗОВ ЗАГРУЗКИ ШАБЛОНОВ! Смотри стек вызовов ниже:");
-  
   const select = document.getElementById("kaspiTemplateSelect");
   if (!select) return;
 
