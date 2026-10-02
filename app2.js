@@ -3634,18 +3634,16 @@ window.openExportModal = async function() {
 
     try {
         const url = typeof APPS_SCRIPT_URL !== "undefined" ? APPS_SCRIPT_URL : window.APPS_SCRIPT_URL;
-        const payload = { action: 'getPendingExportsBackend', api_key: CLIENT_API_KEY };
-        
-        const response = await fetch(url, { method: 'POST', body: JSON.stringify(payload) });
+        const response = await fetch(url, { method: 'POST', body: JSON.stringify({ action: 'getPendingExportsBackend', api_key: CLIENT_API_KEY }) });
         const res = await response.json();
 
-        if (res && res.success && res.pendingGroups && res.pendingGroups.length > 0) {
+        if (res?.success && res?.pendingGroups?.length > 0) {
+            const tr = translations[window.currentLang || localStorage.getItem("pos_lang") || "ru"] || {};
             
-            select.innerHTML = `<option value="" data-i18n="export_select_batch">${textSelectBatch}</option>`;
-            res.pendingGroups.forEach(group => {
-                select.innerHTML += `<option value="${group.hash}">${group.name} (ожидает: ${group.count} шт.)</option>`;
-            });
-            
+            select.innerHTML = `<option value="">${textSelectBatch}</option>` + 
+                res.pendingGroups.map(g => 
+                    `<option value="${g.hash}">${g.name} ${(tr.exp_pending || "(ожидает: {count} шт.)").replace("{count}", g.count)}</option>`
+                ).join("");
         } else {
             // === ПЕРЕХВАТ СЕРВЕРНОГО ОТВЕТА ===
             // Если сервер вернул ошибку, И это НЕ наша стандартная фраза про пустые партии

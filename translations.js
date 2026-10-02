@@ -494,6 +494,7 @@ const translations = {
       'Значение <b>"{val}"</b> не найдено в справочнике. Выберите вручную:',
     tok_dict_name: "Справочник:",
     tok_progress: "Паттерн {current} из {total}",
+    exp_pending: "(ожидает: {count} шт.)",
   },
   kz: {
     btn_sale: "САТУ",
@@ -990,5 +991,6 @@ const translations = {
       '<b>"{val}"</b> мәні анықтамалықтан табылмады. Қолмен таңдаңыз:',
     tok_dict_name: "Анықтамалық:",
     tok_progress: "Үлгі: {total} ішінен {current}",
+    exp_pending: "(күтілуде: {count} дана)",
   },
 };
