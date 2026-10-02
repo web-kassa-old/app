@@ -467,10 +467,11 @@ const translations = {
     pattern: "Модель",
     code: "Артикул",
     smart_mapper_back: "НАЗАД",
-    "loading_export_data": "Загрузка партий...",
-    "export_select_batch": "-- Выберите партию для выгрузки --",
-    "export_no_batches": "Нет партий, ожидающих выгрузки",
-    "export_network_error": "Ошибка сети (см. консоль)"
+   loading_export_data: "Загрузка партий...",
+export_select_batch: "-- Выберите партию для выгрузки --",
+export_no_batches: "Нет партий, ожидающих выгрузки",
+export_network_error: "Ошибка сети (см. консоль)",
+select_category_export: "Выберите партию для выгрузки:"
   },
   kz: {
     btn_sale: "САТУ",
@@ -940,9 +941,10 @@ const translations = {
     pattern: "Моделі",
     code: "Артикул",
     smart_mapper_back: "АРТҚА",
-    "loading_export_data": "Топтамаларды жүктеу...",
-    "export_select_batch": "-- Жүктеп шығару үшін топтаманы таңдаңыз --",
-    "export_no_batches": "Жүктеп шығаруды күтіп тұрған топтамалар жоқ",
-    "export_network_error": "Желі қатесі (консольді қараңыз)"
+    loading_export_data: "Топтамаларды жүктеу...",
+export_select_batch: "-- Жүктеп шығару үшін топтаманы таңдаңыз --",
+export_no_batches: "Жүктеп шығаруды күтіп тұрған топтамалар жоқ",
+export_network_error: "Желі қатесі (консольді қараңыз)",
+select_category_export: "Жүктеп шығару үшін топтаманы таңдаңыз:"
   },
 };

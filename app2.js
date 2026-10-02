@@ -3616,62 +3616,46 @@ window.openExportModal = async function() {
     if (modal) modal.style.display = 'flex';
     if (btnArea) btnArea.style.display = 'none'; 
 
-    // === БЕРЕМ ПЕРЕВОДЫ ИЗ СЛОВАРЯ ===
-    // Защита от ошибок, если переменные еще не успели загрузиться
-    const t = (typeof translations !== "undefined" && typeof currentLang !== "undefined") 
-              ? (translations[currentLang] || translations["ru"]) 
-              : {};
-              
-    // Присваиваем тексты с запасным вариантом (fallback) на русском
-    const textLoading = t.loading_export_data || "Загрузка партий...";
-    const textSelectBatch = t.export_select_batch || "-- Выберите партию для выгрузки --";
-    const textNoBatches = t.export_no_batches || "Нет партий, ожидающих выгрузки";
-    const textNetworkError = t.export_network_error || "Ошибка сети (см. консоль)";
+    // Используем ключ из словаря для лоадера
+    select.innerHTML = `<option value="" data-i18n="loading_export_data">Загрузка партий...</option>`;
 
-    // Вставляем текст и атрибут data-i18n
-    select.innerHTML = `<option value="" data-i18n="loading_export_data">${textLoading}</option>`;
-
-    // Включаем глобальный лоадер с правильным текстом
     if (typeof window.showLoading === "function") {
-        window.showLoading(textLoading, "loading_export_data");
+        window.showLoading(
+            (translations && translations[currentLang] && translations[currentLang].loading_export_data) || "Загрузка партий...", 
+            "loading_export_data"
+        );
     }
+    
+    // Применяем перевод к начальному состоянию лоадера
+    if (typeof applyLanguage === "function" && typeof currentLang !== "undefined") applyLanguage(currentLang);
 
     try {
         const url = typeof APPS_SCRIPT_URL !== "undefined" ? APPS_SCRIPT_URL : window.APPS_SCRIPT_URL;
         const payload = { action: 'getPendingExportsBackend', api_key: CLIENT_API_KEY };
         
-        const response = await fetch(url, {
-            method: 'POST',
-            body: JSON.stringify(payload)
-        });
+        const response = await fetch(url, { method: 'POST', body: JSON.stringify(payload) });
         const res = await response.json();
 
         if (res && res.success && res.pendingGroups && res.pendingGroups.length > 0) {
-            
-            select.innerHTML = `<option value="" data-i18n="export_select_batch">${textSelectBatch}</option>`;
-            
+            select.innerHTML = `<option value="" data-i18n="export_select_batch">-- Выберите партию для выгрузки --</option>`;
             res.pendingGroups.forEach(group => {
+                // Динамические данные от сервера не переводятся через data-i18n
                 select.innerHTML += `<option value="${group.hash}">${group.name} (ожидает: ${group.count} шт.)</option>`;
             });
-            
         } else {
             if (res && res.error) {
-                // Серверная ошибка (оставляем без data-i18n, так как текст генерирует сервер)
                 select.innerHTML = `<option value="">${res.error}</option>`;
-                console.log("ОТВЕТ СЕРВЕРА:", res);
             } else {
-                // Стандартное отсутствие партий
-                select.innerHTML = `<option value="" data-i18n="export_no_batches">${textNoBatches}</option>`;
+                select.innerHTML = `<option value="" data-i18n="export_no_batches">Нет партий, ожидающих выгрузки</option>`;
             }
         }
     } catch (e) {
         console.error("Ошибка загрузки данных для экспорта:", e);
-        select.innerHTML = `<option value="" data-i18n="export_network_error">${textNetworkError}</option>`;
+        select.innerHTML = `<option value="" data-i18n="export_network_error">Ошибка сети (см. консоль)</option>`;
     } finally {
-        if (typeof window.hideLoading === "function") {
-            window.hideLoading();
-        }
-        // На всякий случай прогоняем через функцию перевода, если вдруг список изменился
+        if (typeof window.hideLoading === "function") window.hideLoading();
+        
+        // КРИТИЧЕСКИ ВАЖНО: принудительно переводим новые элементы <option>, которые только что вставили
         if (typeof applyLanguage === "function" && typeof currentLang !== "undefined") {
             applyLanguage(currentLang);
         }
