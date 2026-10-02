@@ -5484,108 +5484,66 @@ window.clearKaspiDictSelection = function() {
     window.filterDictionary(); // перерисовываем список
 };
 
+// Полностью обновленная функция фильтрации и рендера списка
 window.filterDictionary = function () {
-  const query = document
-    .getElementById("dictModalSearch")
-    .value.toLowerCase()
-    .trim();
-  const list = document.getElementById("dictModalList");
-  const countText = document.getElementById("dictModalCountText");
-    const totalCount = document.getElementById("dictTotalCount");
+    let searchEl = document.getElementById("dictModalSearch");
+    let listEl = document.getElementById("dictModalList");
+    let countText = document.getElementById("dictModalCountText");
+    let totalCount = document.getElementById("dictTotalCount");
     
-    // Подтягиваем переводы прямо внутри фильтра
+    // Защита от ошибок, если окно еще не открыто
+    if (!searchEl || !listEl) return;
+
+    let query = searchEl.value.toLowerCase().trim();
+    let dict = window.currentModalDict || [];
+
+    // Фильтруем справочник по запросу
+    let filtered = dict.filter(item => String(item).toLowerCase().includes(query));
+
+    // Локализация счетчика
     const lang = window.currentLang || localStorage.getItem("pos_lang") || "ru";
     const tr = typeof translations !== "undefined" && translations[lang] ? translations[lang] : {};
-
+    
     if (countText && totalCount) {
-        // Динамически применяем нужный язык
         countText.innerText = query === "" ? (tr.dict_total || "Всего:") : (tr.dict_found || "Найдено:");
-    totalCount.innerText = dict.length;
-  }
-
-  let allFiltered = dict;
-
-  if (query !== "") {
-    allFiltered = dict.filter((val) =>
-      String(val).toLowerCase().includes(query),
-    );
-    allFiltered.sort((a, b) => {
-      const strA = String(a).toLowerCase();
-      const strB = String(b).toLowerCase();
-      const getScore = (str) => {
-        if (str.startsWith(query)) return 1;
-        if (new RegExp(`(^|\\s|_|-)${query}`).test(str)) return 2;
-        return 3;
-      };
-      const scoreA = getScore(strA);
-      const scoreB = getScore(strB);
-      if (scoreA !== scoreB) return scoreA - scoreB;
-      return strA.localeCompare(strB);
-    });
-  }
-
-  const displayLimit = 100;
-  const filteredToDisplay = allFiltered.slice(0, displayLimit);
-
-  if (filteredToDisplay.length === 0) {
-    if (query.length > 0) {
-      let safeQuery = query.replace(/'/g, "\\'");
-      list.innerHTML = `
-                <li style="padding:15px; text-align:center; color:#888;">
-                    <div style="margin-bottom: 10px;">Ничего не найдено</div>
-                    <button onclick="window.selectDictionaryValue('${safeQuery}', true)" style="padding:10px 15px; background:#eab308; color:#854d0e; border:none; border-radius:6px; font-weight:bold; width:100%; font-size:14px; cursor:pointer;">
-                        ✏️ Использовать "${query}"
-                    </button>
-                </li>`;
+        totalCount.innerText = filtered.length;
     }
-    return;
-  }
 
-  filteredToDisplay.forEach((val) => {
-    const regex = new RegExp(`(${query})`, "gi");
-    const highlighted = query
-      ? String(val).replace(
-          regex,
-          "<mark style='background:#fef08a; color:#854d0e;'>$1</mark>",
-        )
-      : val;
+    // Если ничего не нашли
+    if (filtered.length === 0) {
+        listEl.innerHTML = `<div style="padding: 20px; text-align: center; color: var(--text-muted, #888); font-size: 14px;">${tr.tok_not_found || "Ничего не найдено"}</div>`;
+        return;
+    }
 
-    let safeVal = String(val).replace(/'/g, "\\'");
-
-    const li = document.createElement("li");
-    li.style.cssText = "padding:15px; border-bottom:1px solid var(--border-light, #333); cursor:pointer; font-size:14px; transition: background 0.2s;";
-    li.innerHTML = highlighted;
-    
-    // НОВАЯ ЛОГИКА КЛИКА: только выделяем цветом и запоминаем значение
-    li.onclick = () => {
-        // Очищаем стили у всех элементов списка
-        document.querySelectorAll('#dictModalList li').forEach(el => {
-            el.style.background = 'transparent';
-            el.style.borderLeft = 'none';
-        });
-        // Подсвечиваем выбранный
-        li.style.background = 'rgba(59, 130, 246, 0.15)';
-        li.style.borderLeft = '4px solid var(--accent-blue, #3b82f6)';
+    // Рендерим пункты меню
+    listEl.innerHTML = filtered.map(val => {
+        let safeVal = String(val).replace(/'/g, "\\'").replace(/"/g, "&quot;");
         
-        // Записываем во временную переменную
-        window.tempSelectedDictValue = safeVal;
-
-        // НОВОЕ: Копируем оригинальное значение в поле поиска
-        const searchInput = document.getElementById("dictModalSearch");
-        if (searchInput) {
-            searchInput.value = val; 
+        // Красивая подсветка совпадений текста при поиске
+        let displayVal = val;
+        if (query) {
+            let regex = new RegExp(`(${query})`, "gi");
+            displayVal = String(val).replace(regex, "<mark style='background:#fef08a; color:#854d0e; padding:0 2px; border-radius:2px;'>$1</mark>");
         }
-    };
-    
-    list.appendChild(li);
-  });
+        
+        // Проверяем, выбран ли этот пункт
+        let isSelected = window.tempSelectedDictValue === val;
+        let bg = isSelected ? "rgba(59, 130, 246, 0.15)" : "transparent";
+        let check = isSelected ? `<span style="color:var(--accent-blue, #3b82f6); font-weight:bold; font-size:16px;">✔</span>` : "";
+        
+        // Генерируем строку списка
+        return `<li onclick="window.selectKaspiDictItem('${safeVal}')" style="display:flex; justify-content:space-between; align-items:center; padding:15px 20px; border-bottom:1px solid var(--border-light, #ddd); cursor:pointer; background:${bg}; font-size:14px; color:var(--text-main, #000); transition: background 0.2s;">
+            <span>${displayVal}</span>${check}
+        </li>`;
+    }).join("");
+};
 
-  if (allFiltered.length > displayLimit) {
-    list.insertAdjacentHTML(
-      "beforeend",
-      `<li style="padding:15px; text-align:center; color:var(--text-muted, #888); font-size:13px; font-style:italic; background:rgba(0,0,0,0.2);">И еще ${allFiltered.length - displayLimit} вариантов...</li>`,
-    );
-  }
+// Функция клика по элементу списка
+window.selectKaspiDictItem = function(val) {
+    // 1. Сохраняем во временную переменную
+    window.tempSelectedDictValue = val;
+    // 2. Перерисовываем список, чтобы появилась синяя подсветка и галочка
+    window.filterDictionary(); 
 };
 
 window.selectDictionaryValue = function (value, isCustom) {
