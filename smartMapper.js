@@ -536,7 +536,7 @@ window.showTokenizer = function (columnName, tokensArray, paramsList) {
     })
     .join("");
 
-  // 2. Внедряем переводы в HTML
+  // 2. Внедряем переводы в HTML и заменяем fallback-zone на новый интерфейс
   overlay.innerHTML = `
         <div class="tokenizer-modal">
             <div class="modal-header" style="flex-direction: column; align-items: flex-start; gap: 8px;">
@@ -567,10 +567,36 @@ window.showTokenizer = function (columnName, tokensArray, paramsList) {
                 ${paramsHtml}
             </div>
 
+            <!-- ОБНОВЛЕННАЯ ЗОНА РУЧНОГО ВЫБОРА -->
             <div class="fallback-zone" style="display: none;">
-                <div class="fallback-msg"></div>
-                <select class="fallback-select"></select>
-                <button class="btn-fallback" data-i18n="tok_confirm_fallback">${tr.tok_confirm_fallback || "Подтвердить выбор"}</button>
+                <div class="fallback-msg" style="padding-bottom: 10px; color: #ff4444; font-size: 13px;"></div>
+                
+                <div style="background:var(--bg-body); border-radius: 8px; border: 1px solid var(--border-light); overflow: hidden;">
+                    <div style="padding:15px; border-bottom: 1px solid var(--border-light);">
+                        <input type="text" class="fallback-search-input kaspi-input-field" 
+                            placeholder="${tr.inc_search_enter || 'Поиск...'}"
+                            oninput="window.filterTokenizerDict(this)"
+                            style="width: 100%; box-sizing: border-box;">
+                        
+                        <label style="display:flex; align-items:center; gap:10px; margin-top:15px; padding:15px; background:var(--bg-panel); border-radius:8px; border:1px solid var(--border-light); cursor:pointer;">
+                            <input type="checkbox" class="fallback-apply-all" style="width:20px; height:20px;">
+                            <span style="font-size:14px; color:var(--text-main);">${tr.inc_apply_all || 'Применить ко всем товарам'}</span>
+                        </label>
+                        
+                        <div class="btn-clear-fallback" onclick="window.clearFallbackSelection()" style="display:flex; align-items:center; justify-content:center; gap:8px; margin-top:10px; padding:12px; background:rgba(255,68,68,0.1); color:#ff4444; border-radius:8px; border:1px solid rgba(255,68,68,0.3); font-size:14px; font-weight:bold; cursor:pointer; transition:background 0.2s;">
+                            <span>✖</span> ${tr.inc_clear_selection || 'Очистить выбор'}
+                        </div>
+                    </div>
+                    
+                    <div style="max-height: 200px; overflow-y:auto; padding: 10px;">
+                        <ul class="fallback-dict-list" style="list-style:none; padding:0; margin:0; background:var(--bg-panel); border-radius:8px;">
+                            <!-- Сюда JS вставит <li> элементы справочника -->
+                        </ul>
+                    </div>
+                </div>
+                
+                <!-- Скрытая кнопка для совместимости с логикой подтверждения -->
+                <button class="btn-fallback" style="display:none;"></button>
             </div>
             
             <div class="modal-footer" style="display: flex; gap: 10px;">
@@ -591,6 +617,68 @@ window.showTokenizer = function (columnName, tokensArray, paramsList) {
     overlay.style.display = "none";
     overlay.innerHTML = "";
   });
+};
+
+// Функция очистки для кнопки "Очистить выбор"
+window.clearFallbackSelection = function() {
+    const overlay = document.getElementById("tokenizer-overlay");
+    if (!overlay) return;
+    
+    const searchInput = overlay.querySelector(".fallback-search-input");
+    if(searchInput) searchInput.value = "";
+    
+    const applyAllCheckbox = overlay.querySelector(".fallback-apply-all");
+    if(applyAllCheckbox) applyAllCheckbox.checked = false;
+    
+    // Сбрасываем список к изначальному состоянию
+    if (typeof window.filterTokenizerDict === "function") {
+        window.filterTokenizerDict({ value: "" });
+    }
+};
+
+window.filterTokenizerDict = function(inputEl) {
+    const query = inputEl.value.toLowerCase().trim();
+    const ul = document.querySelector("#tokenizer-overlay .fallback-dict-list");
+    if (!ul || !window.currentTokenizerDict) return;
+    
+    const filtered = window.currentTokenizerDict.filter(val => String(val).toLowerCase().includes(query));
+    
+    ul.innerHTML = filtered
+        .map((val) => {
+            const regex = new RegExp(`(${query})`, "gi");
+            const highlighted = query ? String(val).replace(regex, "<mark style='background:#fef08a; color:#854d0e;'>$1</mark>") : val;
+            return `<li onclick="window.selectTokenizerDictValue('${String(val).replace(/'/g, "\\'")}', this)" class="param-row" style="padding:15px; border-bottom:1px solid var(--border-light); cursor:pointer; font-size:14px;"><span style="color:var(--text-main);">${highlighted}</span></li>`;
+        })
+        .join("");
+};
+
+window.selectTokenizerDictValue = function(val, liElement) {
+    // Подсвечиваем выбранный элемент
+    const ul = document.querySelector("#tokenizer-overlay .fallback-dict-list");
+    ul.querySelectorAll("li").forEach(li => {
+        li.style.background = 'transparent';
+        li.querySelector('span.check-mark')?.remove();
+    });
+    liElement.style.background = 'rgba(59, 130, 246, 0.15)';
+    liElement.insertAdjacentHTML('beforeend', '<span class="check-mark" style="color:var(--accent-blue); float:right;">✔</span>');
+
+    // Находим активную строку, забираем значение чекбокса и завершаем выбор
+    const overlay = document.getElementById("tokenizer-overlay");
+    const activeRow = overlay.querySelector(".param-row.active-target");
+    const paramName = activeRow.querySelector('input[type="radio"]').value;
+    const gluedText = activeRow.querySelector(".param-preview").textContent;
+    
+    const applyToAll = overlay.querySelector(".fallback-apply-all").checked;
+    
+    // Вызываем оригинальную функцию завершения Токенизатора
+    // (функцию lockParameter нужно вынести из локальной области или сымитировать клик.
+    // Проще всего сохранить значения в глобальные переменные и сымитировать клик по старой кнопке btn-fallback)
+    
+    window.tempFallbackVal = val;
+    window.tempFallbackApplyAll = applyToAll;
+    
+    const btnFallback = overlay.querySelector(".btn-fallback");
+    if (btnFallback) btnFallback.click();
 };
 
 window.startTokenizerQueue = function () {
@@ -892,8 +980,17 @@ window.startTokenizerQueue = function () {
       const activeRow = overlay.querySelector(".param-row.active-target");
       const paramName = activeRow.querySelector('input[type="radio"]').value;
       const gluedText = activeRow.querySelector(".param-preview").textContent;
-      const selectedVal = fallbackSelect.value;
+      const selectedVal = window.tempFallbackVal; // ИЗМЕНЕНО: берем из глобальной переменной
       if (!selectedVal) return;
+      
+      // Если чекбокс нажат, добавляем ключ в глобальный applyToAllMap
+      if (window.tempFallbackApplyAll) {
+          if (!window.applyToAllMap) window.applyToAllMap = {};
+          // Находим системный ключ для этого параметра
+          let sysKey = Object.keys(window.mapper2State.sysToHumanMap || {}).find(k => window.mapper2State.sysToHumanMap[k] === paramName) || paramName;
+          window.applyToAllMap[sysKey] = true;
+      }
+      
       lockParameter(activeRow, paramName, selectedVal, gluedText);
       fallbackZone.style.display = "none";
     });

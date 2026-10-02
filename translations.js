@@ -487,6 +487,11 @@ const translations = {
     tok_dict_name: "Справочник:",
     tok_ok: "ОК",
     tok_confirm_fallback: "Подтвердить выбор",
+    inc_apply_all: "Применить ко всем товарам",
+inc_clear_selection: "Очистить выбор",
+inc_search_enter: "Поиск...",
+tok_not_found: "Значение <b>\"{val}\"</b> не найдено в справочнике. Выберите вручную:",
+tok_dict_name: "Справочник:"
   },
   kz: {
     btn_sale: "САТУ",
@@ -976,5 +981,10 @@ const translations = {
     tok_dict_name: "Анықтамалық:",
     tok_ok: "ОК",
     tok_confirm_fallback: "Таңдауды растау",
+    inc_apply_all: "Барлық тауарларға қолдану",
+inc_clear_selection: "Таңдауды тазарту",
+inc_search_enter: "Іздеу...",
+tok_not_found: "<b>\"{val}\"</b> мәні анықтамалықтан табылмады. Қолмен таңдаңыз:",
+tok_dict_name: "Анықтамалық:"
   },
 };
