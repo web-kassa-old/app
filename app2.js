@@ -5373,55 +5373,56 @@ window.openKaspiDictSearch = function () {
   if (!window.applyToAllMap) window.applyToAllMap = {};
   let isGlobal = window.applyToAllMap[sysKey] !== undefined;
 
-  // ИСПРАВЛЕНИЕ 1: Возвращаем родной ID kaspiDictModal, чтобы ядро не падало
   let modal = document.getElementById("kaspiDictModal");
   if (modal) modal.remove();
 
   modal = document.createElement("div");
-  modal.id = "kaspiDictModal"; 
-  modal.className = "kaspi-modal-overlay";
+  modal.id = "kaspiDictModal";
+  // Темный полупрозрачный фон на весь экран
+  modal.style.cssText = "display:flex; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:999999; flex-direction:column; align-items:center; justify-content:center; padding: 15px; box-sizing:border-box; backdrop-filter:blur(3px);";
 
   let clearBtnHtml = `
       <div onclick="window.clearKaspiDictSelection()" style="display:flex; align-items:center; justify-content:center; gap:8px; margin-top:10px; padding:12px; background:rgba(255,68,68,0.1); color:#ff4444; border-radius:8px; border:1px solid rgba(255,68,68,0.3); font-size:14px; font-weight:bold; cursor:pointer; transition:background 0.2s;">
           <span>✖</span> ${t.inc_clear_selection || "Очистить выбор"}
       </div>`;
 
-  let controlHtml = `
-      <div style="padding:15px 20px 10px 20px; background:var(--bg-body); flex-shrink:0; z-index:2; box-shadow: 0 4px 10px rgba(0,0,0,0.15);">
-          <input type="text" id="dictModalSearch" class="kaspi-input-field" value="" 
-              placeholder="${t.inc_search_enter || "Поиск..."}"
-              onfocus="this.select()"
-              oninput="window.filterDictionary()">
-          
-          <label style="display:flex; align-items:center; gap:10px; margin-top:15px; padding:15px; background:var(--bg-panel); border-radius:8px; border:1px solid var(--border-light); cursor:pointer;">
-              <input type="checkbox" id="dictModalApplyAll" ${isGlobal ? "checked" : ""} style="width:20px; height:20px;">
-              <span style="font-size:14px; color:var(--text-main);">${t.inc_apply_all || "Применить ко всем товарам"}</span>
-          </label>
-          ${clearBtnHtml}
-      </div>`;
-
-  let listHtml = `
-      <div style="flex:1; overflow-y:auto; padding: 10px 20px 20px 20px; -webkit-overflow-scrolling: touch;">
-          <ul id="dictModalList" style="list-style:none; padding:0; margin:0; background:var(--bg-panel); border-radius:8px; border:1px solid var(--border-light);">
-          </ul>
-      </div>`;
-
-  // ИСПРАВЛЕНИЕ 2: Добавлен padding: 15px 20px; в kaspi-modal-header
+  // Внутренний бокс, который решает проблему ширины хедера и пропавшего списка
   modal.innerHTML = `
-      <div class="kaspi-modal-header" style="display: flex; align-items: center; justify-content: space-between; padding: 15px 20px; border-bottom: 1px solid var(--border-light);">
-          <span onclick="document.getElementById('kaspiDictModal').remove()" style="color:var(--accent-blue); font-size:16px; cursor:pointer; display:flex; align-items:center; gap:5px; flex-shrink: 0;">
-              <span style="font-size:20px; margin-top:-2px;">&#10094;</span> 
-          </span>
-          <div style="flex: 1; display: flex; flex-direction: column; text-align: left; padding: 0 10px; overflow: hidden;">
-              <b style="font-size:14px; color:var(--text-main); text-transform:uppercase; text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${reqName}</b>
-              <div id="dictModalCountInfo" style="font-size: 11px; font-weight: bold; color: var(--text-muted); margin-top: 2px;">
-                  <span id="dictModalCountText">${t.dict_total || "Всего:"}</span> <span id="dictTotalCount">${dict.length}</span>
+      <div id="dictModalContent" style="background:var(--bg-body, #1e1e1e); color:var(--text-main, #fff); width:100%; max-width:420px; border-radius:10px; display:flex; flex-direction:column; max-height:85vh; box-sizing:border-box; overflow:hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.2);">
+
+          <!-- ХЕДЕР -->
+          <div style="display: flex; align-items: center; justify-content: space-between; padding: 15px 20px; border-bottom: 1px solid var(--border-light, #444); background: var(--bg-panel, #2a2a2a);">
+              <span onclick="document.getElementById('kaspiDictModal').remove()" style="color:var(--accent-blue, #3b82f6); font-size:16px; cursor:pointer; display:flex; align-items:center; gap:5px; flex-shrink: 0;">
+                  <span style="font-size:20px; margin-top:-2px;">&#10094;</span> 
+              </span>
+              <div style="flex: 1; display: flex; flex-direction: column; text-align: left; padding: 0 10px; overflow: hidden;">
+                  <b style="font-size:14px; color:var(--text-main); text-transform:uppercase; text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${reqName}</b>
+                  <div id="dictModalCountInfo" style="font-size: 11px; font-weight: bold; color: var(--text-muted); margin-top: 2px;">
+                      <span id="dictModalCountText">${t.dict_total || "Всего:"}</span> <span id="dictTotalCount">${dict.length}</span>
+                  </div>
               </div>
+              <span onclick="window.confirmKaspiDictSelection()" style="color:var(--accent-green, #2ecc71); font-size:16px; font-weight:bold; cursor:pointer; flex-shrink: 0;">${t.inc_save || "OK"}</span>
           </div>
-          <span onclick="window.confirmKaspiDictSelection()" style="color:var(--accent-green); font-size:16px; font-weight:bold; cursor:pointer; flex-shrink: 0;">${t.inc_save || "OK"}</span>
+
+          <!-- ПОИСК И ГАЛОЧКА -->
+          <div style="padding:15px 20px 10px 20px; flex-shrink:0;">
+              <input type="text" id="dictModalSearch" class="kaspi-input-field" value="" 
+                  placeholder="${t.inc_search_enter || "Поиск..."}"
+                  onfocus="this.select()"
+                  oninput="window.filterDictionary()"
+                  style="width:100%; padding:10px; border:1px solid var(--accent-blue, #3b82f6); background:var(--bg-panel, #2a2a2a); color:var(--text-main, #fff); border-radius:6px; font-size:15px; outline:none; box-sizing:border-box;">
+              
+              <label style="display:flex; align-items:center; gap:10px; margin-top:15px; padding:15px; background:var(--bg-panel, #2a2a2a); border-radius:8px; border:1px solid var(--border-light, #444); cursor:pointer;">
+                  <input type="checkbox" id="dictModalApplyAll" ${isGlobal ? "checked" : ""} style="width:20px; height:20px;">
+                  <span style="font-size:14px; color:var(--text-main);">${t.inc_apply_all || "Применить ко всем товарам"}</span>
+              </label>
+              ${clearBtnHtml}
+          </div>
+
+          <!-- СПИСОК -->
+          <ul id="dictModalList" style="list-style:none; padding:0; margin:0; overflow-y:auto; flex:1; overscroll-behavior:contain;"></ul>
+
       </div>
-      ${controlHtml}
-      ${listHtml}
   `;
 
   let container = document.getElementById("modalContainer");
@@ -5432,7 +5433,7 @@ window.openKaspiDictSearch = function () {
   }
   container.appendChild(modal);
 
-  window.filterDictionary();
+  window.filterDictionary(); // Рендерим список
 };
 
 // Функция завершения выбора (вызывается по кнопке ОК)
