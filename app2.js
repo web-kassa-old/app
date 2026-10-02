@@ -3616,18 +3616,21 @@ window.openExportModal = async function() {
     if (modal) modal.style.display = 'flex';
     if (btnArea) btnArea.style.display = 'none'; 
 
-    // Используем ключ из словаря для лоадера
-    select.innerHTML = `<option value="" data-i18n="loading_export_data">Загрузка партий...</option>`;
+    // === БЕРЕМ ПЕРЕВОДЫ ИЗ СЛОВАРЯ ===
+    const t = (typeof translations !== "undefined" && typeof currentLang !== "undefined") 
+              ? (translations[currentLang] || translations["ru"]) 
+              : {};
+              
+    const textLoading = t.loading_export_data || "Загрузка партий...";
+    const textSelectBatch = t.export_select_batch || "-- Выберите партию для выгрузки --";
+    const textNoBatches = t.export_no_batches || "Нет партий, ожидающих выгрузки";
+    const textNetworkError = t.export_network_error || "Ошибка сети (см. консоль)";
+
+    select.innerHTML = `<option value="" data-i18n="loading_export_data">${textLoading}</option>`;
 
     if (typeof window.showLoading === "function") {
-        window.showLoading(
-            (translations && translations[currentLang] && translations[currentLang].loading_export_data) || "Загрузка партий...", 
-            "loading_export_data"
-        );
+        window.showLoading(textLoading, "loading_export_data");
     }
-    
-    // Применяем перевод к начальному состоянию лоадера
-    if (typeof applyLanguage === "function" && typeof currentLang !== "undefined") applyLanguage(currentLang);
 
     try {
         const url = typeof APPS_SCRIPT_URL !== "undefined" ? APPS_SCRIPT_URL : window.APPS_SCRIPT_URL;
@@ -3637,25 +3640,30 @@ window.openExportModal = async function() {
         const res = await response.json();
 
         if (res && res.success && res.pendingGroups && res.pendingGroups.length > 0) {
-            select.innerHTML = `<option value="" data-i18n="export_select_batch">-- Выберите партию для выгрузки --</option>`;
+            
+            select.innerHTML = `<option value="" data-i18n="export_select_batch">${textSelectBatch}</option>`;
             res.pendingGroups.forEach(group => {
-                // Динамические данные от сервера не переводятся через data-i18n
                 select.innerHTML += `<option value="${group.hash}">${group.name} (ожидает: ${group.count} шт.)</option>`;
             });
+            
         } else {
-            if (res && res.error) {
+            // === ПЕРЕХВАТ СЕРВЕРНОГО ОТВЕТА ===
+            // Если сервер вернул ошибку, И это НЕ наша стандартная фраза про пустые партии
+            if (res && res.error && res.error !== "Нет партий, ожидающих выгрузки") {
                 select.innerHTML = `<option value="">${res.error}</option>`;
+                console.log("ОТВЕТ СЕРВЕРА:", res);
             } else {
-                select.innerHTML = `<option value="" data-i18n="export_no_batches">Нет партий, ожидающих выгрузки</option>`;
+                // Вставляем наш переведенный текст и вешаем атрибут для будущих переключений
+                select.innerHTML = `<option value="" data-i18n="export_no_batches">${textNoBatches}</option>`;
             }
         }
     } catch (e) {
         console.error("Ошибка загрузки данных для экспорта:", e);
-        select.innerHTML = `<option value="" data-i18n="export_network_error">Ошибка сети (см. консоль)</option>`;
+        select.innerHTML = `<option value="" data-i18n="export_network_error">${textNetworkError}</option>`;
     } finally {
         if (typeof window.hideLoading === "function") window.hideLoading();
         
-        // КРИТИЧЕСКИ ВАЖНО: принудительно переводим новые элементы <option>, которые только что вставили
+        // Обновляем DOM для подстраховки
         if (typeof applyLanguage === "function" && typeof currentLang !== "undefined") {
             applyLanguage(currentLang);
         }
