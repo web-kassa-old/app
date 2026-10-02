@@ -10708,6 +10708,9 @@ window.showImportHelp = function () {
 // Функция запроса списка шаблонов
 // Добавили параметр isSilent (по умолчанию false)
 window.loadKaspiTemplatesFromServer = async function (isSilent = false) {
+  // === СТАВИМ КАПКАН ЗДЕСЬ ===
+  console.trace("🔴 ПОЙМАН ВЫЗОВ ЗАГРУЗКИ ШАБЛОНОВ! Смотри стек вызовов ниже:");
+  
   const select = document.getElementById("kaspiTemplateSelect");
   if (!select) return;
 
