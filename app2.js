@@ -3615,13 +3615,25 @@ window.openExportModal = async function() {
     
     if (modal) modal.style.display = 'flex';
     if (btnArea) btnArea.style.display = 'none'; 
-    
-    // Добавлен ключ перевода loading_data
-    select.innerHTML = '<option value="" data-i18n="loading_data">-- Загрузка... --</option>';
 
-    // ВКЛЮЧАЕМ ГЛОБАЛЬНЫЙ ЛОАДЕР
+    // === БЕРЕМ ПЕРЕВОДЫ ИЗ СЛОВАРЯ ===
+    // Защита от ошибок, если переменные еще не успели загрузиться
+    const t = (typeof translations !== "undefined" && typeof currentLang !== "undefined") 
+              ? (translations[currentLang] || translations["ru"]) 
+              : {};
+              
+    // Присваиваем тексты с запасным вариантом (fallback) на русском
+    const textLoading = t.loading_export_data || "Загрузка партий...";
+    const textSelectBatch = t.export_select_batch || "-- Выберите партию для выгрузки --";
+    const textNoBatches = t.export_no_batches || "Нет партий, ожидающих выгрузки";
+    const textNetworkError = t.export_network_error || "Ошибка сети (см. консоль)";
+
+    // Вставляем текст и атрибут data-i18n
+    select.innerHTML = `<option value="" data-i18n="loading_export_data">${textLoading}</option>`;
+
+    // Включаем глобальный лоадер с правильным текстом
     if (typeof window.showLoading === "function") {
-        window.showLoading(null, "loading_export_data");
+        window.showLoading(textLoading, "loading_export_data");
     }
 
     try {
@@ -3635,32 +3647,31 @@ window.openExportModal = async function() {
         const res = await response.json();
 
         if (res && res.success && res.pendingGroups && res.pendingGroups.length > 0) {
-            // Добавлен ключ export_select_batch
-            select.innerHTML = '<option value="" data-i18n="export_select_batch">-- Выберите партию для выгрузки --</option>';
+            
+            select.innerHTML = `<option value="" data-i18n="export_select_batch">${textSelectBatch}</option>`;
+            
             res.pendingGroups.forEach(group => {
                 select.innerHTML += `<option value="${group.hash}">${group.name} (ожидает: ${group.count} шт.)</option>`;
             });
+            
         } else {
-            const errorMsg = res && res.error ? res.error : "Нет партий, ожидающих выгрузки";
             if (res && res.error) {
-                // Серверная ошибка (обычно динамическая, без data-i18n)
-                select.innerHTML = `<option value="">${errorMsg}</option>`;
+                // Серверная ошибка (оставляем без data-i18n, так как текст генерирует сервер)
+                select.innerHTML = `<option value="">${res.error}</option>`;
                 console.log("ОТВЕТ СЕРВЕРА:", res);
             } else {
-                // Стандартное отсутствие партий с ключом export_no_batches
-                select.innerHTML = `<option value="" data-i18n="export_no_batches">${errorMsg}</option>`;
+                // Стандартное отсутствие партий
+                select.innerHTML = `<option value="" data-i18n="export_no_batches">${textNoBatches}</option>`;
             }
         }
     } catch (e) {
         console.error("Ошибка загрузки данных для экспорта:", e);
-        // Добавлен ключ export_network_error
-        select.innerHTML = '<option value="" data-i18n="export_network_error">Ошибка сети (см. консоль)</option>';
+        select.innerHTML = `<option value="" data-i18n="export_network_error">${textNetworkError}</option>`;
     } finally {
-        // ВЫКЛЮЧАЕМ ГЛОБАЛЬНЫЙ ЛОАДЕР
         if (typeof window.hideLoading === "function") {
             window.hideLoading();
         }
-        // ПРИНУДИТЕЛЬНО ПРИМЕНЯЕМ ПЕРЕВОД К НОВЫМ ЭЛЕМЕНТАМ СПИСКА
+        // На всякий случай прогоняем через функцию перевода, если вдруг список изменился
         if (typeof applyLanguage === "function" && typeof currentLang !== "undefined") {
             applyLanguage(currentLang);
         }
