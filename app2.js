@@ -3616,13 +3616,18 @@ window.openExportModal = async function() {
     if (modal) modal.style.display = 'flex';
     if (btnArea) btnArea.style.display = 'none'; 
     
-    select.innerHTML = '<option value="">-- Загрузка... --</option>';
+    // Добавлен ключ перевода loading_data
+    select.innerHTML = '<option value="" data-i18n="loading_data">-- Загрузка... --</option>';
+
+    // ВКЛЮЧАЕМ ГЛОБАЛЬНЫЙ ЛОАДЕР
+    if (typeof window.showLoading === "function") {
+        window.showLoading(null, "loading_data");
+    }
 
     try {
         const url = typeof APPS_SCRIPT_URL !== "undefined" ? APPS_SCRIPT_URL : window.APPS_SCRIPT_URL;
         const payload = { action: 'getPendingExportsBackend', api_key: CLIENT_API_KEY };
         
-        // === ПРЯМОЙ ЗАПРОС: Всегда свежие данные, никакого кэша ===
         const response = await fetch(url, {
             method: 'POST',
             body: JSON.stringify(payload)
@@ -3630,19 +3635,35 @@ window.openExportModal = async function() {
         const res = await response.json();
 
         if (res && res.success && res.pendingGroups && res.pendingGroups.length > 0) {
-            select.innerHTML = '<option value="">-- Выберите партию для выгрузки --</option>';
+            // Добавлен ключ export_select_batch
+            select.innerHTML = '<option value="" data-i18n="export_select_batch">-- Выберите партию для выгрузки --</option>';
             res.pendingGroups.forEach(group => {
                 select.innerHTML += `<option value="${group.hash}">${group.name} (ожидает: ${group.count} шт.)</option>`;
             });
         } else {
-            // Если сервер вернул ошибку, покажем её. Если просто пусто - покажем стандартный текст.
             const errorMsg = res && res.error ? res.error : "Нет партий, ожидающих выгрузки";
-            select.innerHTML = `<option value="">${errorMsg}</option>`;
-            if (res && res.error) console.log("ОТВЕТ СЕРВЕРА:", res);
+            if (res && res.error) {
+                // Серверная ошибка (обычно динамическая, без data-i18n)
+                select.innerHTML = `<option value="">${errorMsg}</option>`;
+                console.log("ОТВЕТ СЕРВЕРА:", res);
+            } else {
+                // Стандартное отсутствие партий с ключом export_no_batches
+                select.innerHTML = `<option value="" data-i18n="export_no_batches">${errorMsg}</option>`;
+            }
         }
     } catch (e) {
         console.error("Ошибка загрузки данных для экспорта:", e);
-        select.innerHTML = '<option value="">Ошибка сети (см. консоль)</option>';
+        // Добавлен ключ export_network_error
+        select.innerHTML = '<option value="" data-i18n="export_network_error">Ошибка сети (см. консоль)</option>';
+    } finally {
+        // ВЫКЛЮЧАЕМ ГЛОБАЛЬНЫЙ ЛОАДЕР
+        if (typeof window.hideLoading === "function") {
+            window.hideLoading();
+        }
+        // ПРИНУДИТЕЛЬНО ПРИМЕНЯЕМ ПЕРЕВОД К НОВЫМ ЭЛЕМЕНТАМ СПИСКА
+        if (typeof applyLanguage === "function" && typeof currentLang !== "undefined") {
+            applyLanguage(currentLang);
+        }
     }
 };
 
