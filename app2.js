@@ -4815,9 +4815,19 @@ window.processInvoiceFile = async function () {
 
 // 2. ОТРИСОВКА КАРТОЧЕК НА ГЛАВНОМ ЭКРАНЕ
 window.renderMapper2Cards = function (templateData) {
+  // === КЭШИРОВАНИЕ ДАННЫХ ===
+  // Запоминаем данные при первом вызове, чтобы перерисовка работала при вызове без аргументов
+  if (templateData) {
+      window.lastTemplateData = templateData;
+  } else {
+      templateData = window.lastTemplateData || {};
+  }
+
   const t = translations[currentLang] || translations["ru"];
 
-  window.kaspiDicts = templateData.dictionary || {};
+  // Защита: если dictionary нет в templateData, берем из памяти или ставим пустой объект
+  window.kaspiDicts = templateData.dictionary || window.kaspiDicts || {};
+  
   const container = document.getElementById("mapper2CardsContainer");
   container.innerHTML = "";
 
