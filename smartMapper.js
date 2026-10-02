@@ -649,7 +649,7 @@ window.startTokenizerQueue = function () {
       : {};
 
     const currentTokens = pattern.rawString.match(
-      /\d+(?:\.\d+)?|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g,
+      /\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g,
     ) || [pattern.rawString];
     const dicts = window.kaspiDicts || {};
     let paramsList = [];
