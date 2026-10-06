@@ -3736,6 +3736,8 @@ window.handleCardSelectForExport = async function(selectedHash, btnElement) {
             throw new Error("Сбой на сервере. Ответ: " + text.substring(0, 150));
         }
 
+        console.log("ОТВЕТ БЭКЕНДА getKaspiExportItems:", res);
+
         if (res && res.success && res.templateBase64 && res.items && res.items.length > 0) {
             
             // 1. Расшифровка Base64
