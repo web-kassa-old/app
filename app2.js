@@ -3639,19 +3639,29 @@ window.openExportModal = async function() {
             const pendingTemplate = t.exp_pending || "(ожидает: {count} шт.)";
             
             // Генерируем красивые плашки
+            // Внутри window.openExportModal, там где мы рисуем карточки (container.innerHTML = ...)
+            
             container.innerHTML = res.pendingGroups.map(g => {
-                const pendingText = pendingTemplate.replace("{count}", g.count);
+                // Если бэкенд скажет, что партия уже выгружена (или у нее уже сохранен конфиг)
+                const isExported = g.isExported === true || g.hasConfig === true; 
                 
-                // В будущем бэкенд может передавать флаг g.hasConfig для зеленой кнопки. Пока делаем синюю.
-                const isConfigured = g.hasConfig === true; 
-                const btnText = isConfigured ? (t.exp_btn_repeat || "Изменить / Выгрузить") : (t.exp_btn_start || "Настроить экспорт");
-                const btnColor = isConfigured ? "var(--accent-green, #2ecc71)" : "var(--accent-blue, #3b82f6)";
+                // Тексты
+                const pendingText = t.exp_pending ? t.exp_pending.replace("{count}", g.count) : `(ожидает: ${g.count} шт.)`;
+                const doneText = t.exp_done ? t.exp_done.replace("{count}", g.count) : `(выгружено: ${g.count} шт.)`;
+                const statusText = isExported ? doneText : pendingText;
+                
+                const btnText = isExported ? (t.exp_btn_repeat || "Выгрузить повторно") : (t.exp_btn_start || "Настроить экспорт");
+                
+                // Цвета и стили
+                const btnColor = isExported ? "var(--accent-green, #2ecc71)" : "var(--accent-blue, #3b82f6)";
+                const cardBg = isExported ? "var(--bg-body, #f1f5f9)" : "var(--bg-panel, #ffffff)"; // Выгруженные чуть серее
+                const opacity = isExported ? "0.8" : "1"; // Слегка приглушаем старые партии
 
                 return `
-                    <div class="export-card" style="background: var(--bg-panel, #f9f9f9); border: 1px solid var(--border-light, #ddd); border-radius: 8px; padding: 15px; display: flex; justify-content: space-between; align-items: center; transition: all 0.2s;">
+                    <div class="export-card" style="background: ${cardBg}; opacity: ${opacity}; border: 1px solid var(--border-light, #ddd); border-radius: 8px; padding: 15px; display: flex; justify-content: space-between; align-items: center; transition: all 0.2s;">
                         <div style="display: flex; flex-direction: column; gap: 5px;">
                             <b style="font-size: 14px; color: var(--text-main, #000);">${g.name}</b>
-                            <span style="font-size: 12px; color: var(--text-muted, #888);">${pendingText}</span>
+                            <span style="font-size: 12px; color: ${isExported ? 'var(--accent-green, #2ecc71)' : 'var(--text-muted, #888)'}; font-weight: ${isExported ? 'bold' : 'normal'};">${statusText}</span>
                         </div>
                         <button onclick="window.handleCardSelectForExport('${g.hash}', this)" style="background: ${btnColor}; color: #fff; border: none; padding: 10px 15px; border-radius: 6px; font-size: 12px; font-weight: bold; cursor: pointer; white-space: nowrap;">
                             ${btnText}
@@ -3751,10 +3761,20 @@ window.handleCardSelectForExport = async function(selectedHash, btnElement) {
             window.kaspiExportRowIndexes = res.rowIndexes; 
             window.kaspiTargetSheetName = res.templateConfig.targetSheetName || null;
 
-            // ЗДЕСЬ МЫ БУДЕМ ПРЫГАТЬ В ОКНО СВЕРКИ.
-            // Если в res.templateConfig есть данные маппинга, мы откроем окно превью.
-            // Пока что, чтобы ничего не сломать, мы просто показываем нижние кнопки:
-            btnArea.style.display = 'flex'; 
+            // Прячем текущее окно со списком партий
+            document.getElementById('export-modal').style.display = 'none';
+            
+            // Если конфигурация уже есть (повторная выгрузка) -> прыгаем в финал
+            // Если нет (новая) -> запускаем маппер
+            if (res.templateConfig && Object.keys(res.templateConfig).length > 0) {
+                // ТУТ НУЖНА ФУНКЦИЯ ОТКРЫТИЯ ПОСЛЕДНЕГО ОКНА (ПРЕВЬЮ)
+                // Например: window.openPreviewModal();
+                console.log("Конфиг найден. Запускаем превью.");
+            } else {
+                // ТУТ НУЖНА ФУНКЦИЯ ЗАПУСКА ЭКРАНА МАППЕРА
+                // Например: window.initMapper();
+                console.log("Новая партия. Запускаем маппер.");
+            } 
 
         } else {
             const err = res.error || "Не удалось загрузить данные или нет товаров для выгрузки.";

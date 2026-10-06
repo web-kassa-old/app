@@ -495,6 +495,7 @@ const translations = {
     tok_dict_name: "Справочник:",
     tok_progress: "Паттерн {current} из {total}",
     exp_pending: "(ожидает: {count} шт.)",
+    exp_done: "(выгружено: {count} шт.)",
   },
   kz: {
     btn_sale: "САТУ",
@@ -992,5 +993,6 @@ const translations = {
     tok_dict_name: "Анықтамалық:",
     tok_progress: "Үлгі: {total} ішінен {current}",
     exp_pending: "(күтілуде: {count} дана)",
+    exp_done: "(жүктеп шығарылды: {count} дана)",
   },
 };
