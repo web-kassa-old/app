@@ -3767,14 +3767,25 @@ window.handleCardSelectForExport = async function(selectedHash, btnElement) {
             const exportModal = document.getElementById('export-modal');
             if (exportModal) exportModal.style.display = 'none';
             
-            // ИСПРАВЛЕНИЕ: Точная проверка, сохранял ли пользователь настройки маппинга
             const hasMapping = res.templateConfig && res.templateConfig.mapping && Object.keys(res.templateConfig.mapping).length > 0;
             
+            // Функция для принудительного показа всех родительских контейнеров
+            function showParents(elementId) {
+                let el = document.getElementById(elementId);
+                while (el && el.tagName !== 'BODY') {
+                    if (window.getComputedStyle(el).display === 'none' || el.style.display === 'none') {
+                        el.style.display = 'block'; 
+                    }
+                    el = el.parentElement;
+                }
+            }
+
             if (hasMapping) {
-                // КОНФИГ ЕСТЬ: Прыгаем в финальное окно (Step 3)
+                // КОНФИГ ЕСТЬ: Прыгаем в превью (Step 3)
                 window.mapper2State = Object.assign({}, window.mapper2State || {}, res.templateConfig);
                 window.parsedInvoiceData = res.items; 
                 
+                showParents("invoicePreviewArea"); // Раскрываем все родительские слои
                 window.renderPreviewTable(); 
                 
                 const step3 = document.getElementById("invoicePreviewArea");
@@ -3791,14 +3802,18 @@ window.handleCardSelectForExport = async function(selectedHash, btnElement) {
                 }
 
             } else {
-                // КОНФИГА НЕТ: Запускаем настройку карточек маппера (Step 2)
+                // КОНФИГА НЕТ: Запускаем Маппер (Step 2)
+                window.parsedInvoiceData = res.items;
                 window.mapper2State = { 
                     colMap: {}, 
                     dictValues: {}, 
                     splitRules: {},
-                    invoiceHeaders: Object.keys(res.items[0] || {}) 
+                    invoiceHeaders: Object.keys(res.items[0] || {}),
+                    // Имитируем строки, чтобы renderMapper2Cards не выдал ошибку
+                    invoiceRows: res.items.map(item => Object.values(item)) 
                 };
                 
+                showParents("mapper2Area"); // Раскрываем все родительские слои
                 window.renderMapper2Cards(res.templateConfig);
                 
                 const step2 = document.getElementById("mapper2Area");
