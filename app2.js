@@ -3764,13 +3764,14 @@ window.handleCardSelectForExport = async function(selectedHash, btnElement) {
             window.kaspiExportRowIndexes = res.rowIndexes; 
             window.kaspiTargetSheetName = res.templateConfig.targetSheetName || null;
 
-            // Прячем текущее модальное окно со списком партий
             const exportModal = document.getElementById('export-modal');
             if (exportModal) exportModal.style.display = 'none';
             
-            // Если конфигурация уже есть (повторная выгрузка) -> прыгаем в финал (Step 3)
-            if (res.templateConfig && Object.keys(res.templateConfig).length > 0) {
-                
+            // ИСПРАВЛЕНИЕ: Точная проверка, сохранял ли пользователь настройки маппинга
+            const hasMapping = res.templateConfig && res.templateConfig.mapping && Object.keys(res.templateConfig.mapping).length > 0;
+            
+            if (hasMapping) {
+                // КОНФИГ ЕСТЬ: Прыгаем в финальное окно (Step 3)
                 window.mapper2State = Object.assign({}, window.mapper2State || {}, res.templateConfig);
                 window.parsedInvoiceData = res.items; 
                 
@@ -3781,7 +3782,6 @@ window.handleCardSelectForExport = async function(selectedHash, btnElement) {
                 if (step3) step3.style.display = "flex";
                 if (step2) step2.style.display = "none";
                 
-                // Прячем кнопку отправки накладной, показываем кнопки скачивания
                 const sendBtn = document.getElementById("sendInvoiceBtn");
                 if (sendBtn) sendBtn.style.display = 'none';
                 
@@ -3791,7 +3791,7 @@ window.handleCardSelectForExport = async function(selectedHash, btnElement) {
                 }
 
             } else {
-                // Если конфига нет (новая партия) -> запускаем маппер (Step 2)
+                // КОНФИГА НЕТ: Запускаем настройку карточек маппера (Step 2)
                 window.mapper2State = { 
                     colMap: {}, 
                     dictValues: {}, 
