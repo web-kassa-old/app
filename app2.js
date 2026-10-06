@@ -3705,7 +3705,7 @@ window.handleCardSelectForExport = async function(selectedHash, btnElement) {
     const btnArea = document.getElementById('exportActionButtons');
 
     if (!selectedHash) {
-        btnArea.style.display = 'none';
+        if (btnArea) btnArea.style.display = 'none';
         return;
     }
 
@@ -3738,7 +3738,7 @@ window.handleCardSelectForExport = async function(selectedHash, btnElement) {
 
         if (res && res.success && res.templateBase64 && res.items && res.items.length > 0) {
             
-            // Расшифровка Base64 (без изменений)
+            // 1. Расшифровка Base64
             try {
                 let base64Data = res.templateBase64;
                 if (base64Data.includes(',')) base64Data = base64Data.split(',')[1];
@@ -3756,30 +3756,61 @@ window.handleCardSelectForExport = async function(selectedHash, btnElement) {
                 throw new Error("Не удалось расшифровать бланк. Файл поврежден.");
             }
 
+            // 2. === НАШ НОВЫЙ БЛОК НАВИГАЦИИ ===
             window.kaspiExportItems = res.items;           
             window.kaspiExportConfig = res.templateConfig; 
             window.kaspiExportRowIndexes = res.rowIndexes; 
             window.kaspiTargetSheetName = res.templateConfig.targetSheetName || null;
 
-            // Прячем текущее окно со списком партий
-            document.getElementById('export-modal').style.display = 'none';
+            // Прячем текущее модальное окно со списком партий
+            const exportModal = document.getElementById('export-modal');
+            if (exportModal) exportModal.style.display = 'none';
             
-            // Если конфигурация уже есть (повторная выгрузка) -> прыгаем в финал
-            // Если нет (новая) -> запускаем маппер
+            // Если конфигурация уже есть (повторная выгрузка) -> прыгаем в финал (Step 3)
             if (res.templateConfig && Object.keys(res.templateConfig).length > 0) {
-                // ТУТ НУЖНА ФУНКЦИЯ ОТКРЫТИЯ ПОСЛЕДНЕГО ОКНА (ПРЕВЬЮ)
-                // Например: window.openPreviewModal();
-                console.log("Конфиг найден. Запускаем превью.");
+                
+                window.mapper2State = Object.assign({}, window.mapper2State || {}, res.templateConfig);
+                window.parsedInvoiceData = res.items; 
+                
+                window.renderPreviewTable(); 
+                
+                const step3 = document.getElementById("invoicePreviewArea");
+                const step2 = document.getElementById("mapper2Area");
+                if (step3) step3.style.display = "flex";
+                if (step2) step2.style.display = "none";
+                
+                // Прячем кнопку отправки накладной, показываем кнопки скачивания
+                const sendBtn = document.getElementById("sendInvoiceBtn");
+                if (sendBtn) sendBtn.style.display = 'none';
+                
+                if (btnArea) {
+                    btnArea.style.display = 'flex';
+                    if (step3) step3.appendChild(btnArea);
+                }
+
             } else {
-                // ТУТ НУЖНА ФУНКЦИЯ ЗАПУСКА ЭКРАНА МАППЕРА
-                // Например: window.initMapper();
-                console.log("Новая партия. Запускаем маппер.");
-            } 
+                // Если конфига нет (новая партия) -> запускаем маппер (Step 2)
+                window.mapper2State = { 
+                    colMap: {}, 
+                    dictValues: {}, 
+                    splitRules: {},
+                    invoiceHeaders: Object.keys(res.items[0] || {}) 
+                };
+                
+                window.renderMapper2Cards(res.templateConfig);
+                
+                const step2 = document.getElementById("mapper2Area");
+                const step3 = document.getElementById("invoicePreviewArea");
+                if (step2) step2.style.display = "flex";
+                if (step3) step3.style.display = "none";
+            }
+            // ====================================
 
         } else {
+            // Эти блоки мы не трогаем, чтобы скрипт умел обрабатывать ошибки
             const err = res.error || "Не удалось загрузить данные или нет товаров для выгрузки.";
             alert("⚠️ Ошибка сервера: " + err);
-            btnArea.style.display = 'none';
+            if (btnArea) btnArea.style.display = 'none';
         }
     } catch (e) {
         console.error("Полная ошибка загрузки данных партии:", e);
