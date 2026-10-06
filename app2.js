@@ -3610,11 +3610,12 @@ function toggleIncomeModule() {
 // 1. Открытие модалки экспорта и загрузка списка категорий
 window.openExportModal = async function() {
     const modal = document.getElementById('export-modal');
-    const select = document.getElementById('exportCategorySelect');
+    const container = document.getElementById('exportCardsContainer');
     const btnArea = document.getElementById('exportActionButtons');
     
     if (modal) modal.style.display = 'flex';
     if (btnArea) btnArea.style.display = 'none'; 
+    if (container) container.innerHTML = ''; // Очищаем старые плашки
 
     // === БЕРЕМ ПЕРЕВОДЫ ИЗ СЛОВАРЯ ===
     const t = (typeof translations !== "undefined" && typeof currentLang !== "undefined") 
@@ -3622,11 +3623,8 @@ window.openExportModal = async function() {
               : {};
               
     const textLoading = t.loading_export_data || "Загрузка партий...";
-    const textSelectBatch = t.export_select_batch || "-- Выберите партию для выгрузки --";
     const textNoBatches = t.export_no_batches || "Нет партий, ожидающих выгрузки";
     const textNetworkError = t.export_network_error || "Ошибка сети (см. консоль)";
-
-    select.innerHTML = `<option value="" data-i18n="loading_export_data">${textLoading}</option>`;
 
     if (typeof window.showLoading === "function") {
         window.showLoading(textLoading, "loading_export_data");
@@ -3638,33 +3636,42 @@ window.openExportModal = async function() {
         const res = await response.json();
 
         if (res?.success && res?.pendingGroups?.length > 0) {
-            const tr = translations[window.currentLang || localStorage.getItem("pos_lang") || "ru"] || {};
+            const pendingTemplate = t.exp_pending || "(ожидает: {count} шт.)";
             
-            select.innerHTML = `<option value="">${textSelectBatch}</option>` + 
-                res.pendingGroups.map(g => 
-                    `<option value="${g.hash}">${g.name} ${(tr.exp_pending || "(ожидает: {count} шт.)").replace("{count}", g.count)}</option>`
-                ).join("");
+            // Генерируем красивые плашки
+            container.innerHTML = res.pendingGroups.map(g => {
+                const pendingText = pendingTemplate.replace("{count}", g.count);
+                
+                // В будущем бэкенд может передавать флаг g.hasConfig для зеленой кнопки. Пока делаем синюю.
+                const isConfigured = g.hasConfig === true; 
+                const btnText = isConfigured ? (t.exp_btn_repeat || "Изменить / Выгрузить") : (t.exp_btn_start || "Настроить экспорт");
+                const btnColor = isConfigured ? "var(--accent-green, #2ecc71)" : "var(--accent-blue, #3b82f6)";
+
+                return `
+                    <div class="export-card" style="background: var(--bg-panel, #f9f9f9); border: 1px solid var(--border-light, #ddd); border-radius: 8px; padding: 15px; display: flex; justify-content: space-between; align-items: center; transition: all 0.2s;">
+                        <div style="display: flex; flex-direction: column; gap: 5px;">
+                            <b style="font-size: 14px; color: var(--text-main, #000);">${g.name}</b>
+                            <span style="font-size: 12px; color: var(--text-muted, #888);">${pendingText}</span>
+                        </div>
+                        <button onclick="window.handleCardSelectForExport('${g.hash}', this)" style="background: ${btnColor}; color: #fff; border: none; padding: 10px 15px; border-radius: 6px; font-size: 12px; font-weight: bold; cursor: pointer; white-space: nowrap;">
+                            ${btnText}
+                        </button>
+                    </div>
+                `;
+            }).join("");
         } else {
-            // === ПЕРЕХВАТ СЕРВЕРНОГО ОТВЕТА ===
-            // Если сервер вернул ошибку, И это НЕ наша стандартная фраза про пустые партии
             if (res && res.error && res.error !== "Нет партий, ожидающих выгрузки") {
-                select.innerHTML = `<option value="">${res.error}</option>`;
-                console.log("ОТВЕТ СЕРВЕРА:", res);
+                container.innerHTML = `<div style="padding: 20px; text-align: center; color: var(--text-main);">${res.error}</div>`;
             } else {
-                // Вставляем наш переведенный текст и вешаем атрибут для будущих переключений
-                select.innerHTML = `<option value="" data-i18n="export_no_batches">${textNoBatches}</option>`;
+                container.innerHTML = `<div style="padding: 20px; text-align: center; color: var(--text-muted);">${textNoBatches}</div>`;
             }
         }
     } catch (e) {
         console.error("Ошибка загрузки данных для экспорта:", e);
-        select.innerHTML = `<option value="" data-i18n="export_network_error">${textNetworkError}</option>`;
+        container.innerHTML = `<div style="padding: 20px; text-align: center; color: red;">${textNetworkError}</div>`;
     } finally {
         if (typeof window.hideLoading === "function") window.hideLoading();
-        
-        // Обновляем DOM для подстраховки
-        if (typeof applyLanguage === "function" && typeof currentLang !== "undefined") {
-            applyLanguage(currentLang);
-        }
+        if (typeof applyLanguage === "function" && typeof currentLang !== "undefined") applyLanguage(currentLang);
     }
 };
 
@@ -3683,8 +3690,8 @@ window.closeExportModal = function() {
 };
 
 // 2. Обработка выбора категории из списка
-window.handleCategorySelectForExport = async function(event) {
-    const selectedHash = event.target.value.trim();
+// Новая функция принимает хэш и саму кнопку (чтобы подсветить нужную плашку)
+window.handleCardSelectForExport = async function(selectedHash, btnElement) {
     const btnArea = document.getElementById('exportActionButtons');
 
     if (!selectedHash) {
@@ -3692,21 +3699,25 @@ window.handleCategorySelectForExport = async function(event) {
         return;
     }
 
+    // Визуально сбрасываем рамки у всех плашек
+    const allCards = document.querySelectorAll('.export-card');
+    allCards.forEach(card => card.style.border = '1px solid var(--border-light, #ddd)');
+    
+    // Подсвечиваем активную плашку синей рамкой
+    const selectedCard = btnElement.closest('.export-card');
+    if (selectedCard) {
+        selectedCard.style.border = '2px solid var(--accent-blue, #3b82f6)';
+    }
+
     if (typeof window.showLoading === 'function') window.showLoading(null, 'kaspi_loading');
 
     try {
         const url = typeof APPS_SCRIPT_URL !== "undefined" ? APPS_SCRIPT_URL : window.APPS_SCRIPT_URL;
-        
         const payload = { action: 'getKaspiExportItemsBackend', api_key: CLIENT_API_KEY, hash: selectedHash };
         
-        // === ИСПОЛЬЗУЕМ ЧИСТЫЙ FETCH ВМЕСТО SMARTFETCH ===
-        const response = await fetch(url, {
-            method: 'POST',
-            body: JSON.stringify(payload)
-        });
-        
-        // Читаем ответ как текст, чтобы поймать системные ошибки Google
+        const response = await fetch(url, { method: 'POST', body: JSON.stringify(payload) });
         const text = await response.text(); 
+        
         let res;
         try {
             res = JSON.parse(text);
@@ -3717,47 +3728,37 @@ window.handleCategorySelectForExport = async function(event) {
 
         if (res && res.success && res.templateBase64 && res.items && res.items.length > 0) {
             
-            // === БРОНИРОВАННАЯ РАСШИФРОВКА BASE64 ===
+            // Расшифровка Base64 (без изменений)
             try {
                 let base64Data = res.templateBase64;
-                
-                // 1. Отрезаем технический заголовок "data:..." если он есть
-                if (base64Data.includes(',')) {
-                    base64Data = base64Data.split(',')[1];
-                }
-                
-                // 2. Жестко вычищаем пробелы, переносы строк и любой мусор
+                if (base64Data.includes(',')) base64Data = base64Data.split(',')[1];
                 base64Data = base64Data.replace(/[^A-Za-z0-9+/=]/g, "");
-                
-                // 3. Восстанавливаем длину (atob требует, чтобы количество символов было кратно 4)
-                while (base64Data.length % 4 !== 0) {
-                    base64Data += "=";
-                }
+                while (base64Data.length % 4 !== 0) base64Data += "=";
 
-                // 4. Расшифровываем
                 const binaryString = window.atob(base64Data);
                 const bytes = new Uint8Array(binaryString.length);
                 for (let i = 0; i < binaryString.length; i++) {
                     bytes[i] = binaryString.charCodeAt(i);
                 }
-                window.rawKaspiTemplateBuffer = bytes.buffer; // Готовый бинарник!
-
+                window.rawKaspiTemplateBuffer = bytes.buffer; 
             } catch (decodeErr) {
                 console.error("Ошибка очистки Base64:", decodeErr);
                 throw new Error("Не удалось расшифровать бланк. Файл поврежден.");
             }
-            // ==========================================
 
             window.kaspiExportItems = res.items;           
             window.kaspiExportConfig = res.templateConfig; 
             window.kaspiExportRowIndexes = res.rowIndexes; 
             window.kaspiTargetSheetName = res.templateConfig.targetSheetName || null;
 
-            btnArea.style.display = 'flex'; // Показываем кнопки
+            // ЗДЕСЬ МЫ БУДЕМ ПРЫГАТЬ В ОКНО СВЕРКИ.
+            // Если в res.templateConfig есть данные маппинга, мы откроем окно превью.
+            // Пока что, чтобы ничего не сломать, мы просто показываем нижние кнопки:
+            btnArea.style.display = 'flex'; 
+
         } else {
             const err = res.error || "Не удалось загрузить данные или нет товаров для выгрузки.";
             alert("⚠️ Ошибка сервера: " + err);
-            console.error("Полный ответ сервера:", res);
             btnArea.style.display = 'none';
         }
     } catch (e) {
