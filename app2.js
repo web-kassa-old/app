@@ -3762,16 +3762,15 @@ window.handleCardSelectForExport = async function(selectedHash, btnElement) {
             window.kaspiExportConfig = res.templateConfig; 
             window.kaspiExportRowIndexes = res.rowIndexes; 
             window.kaspiTargetSheetName = res.templateConfig.targetSheetName || null;
-
-            window.isKaspiExportMode = true;
+            window.isKaspiExportMode = true; // Флаг включен!
 
             const exportModal = document.getElementById('export-modal');
             if (exportModal) exportModal.style.display = 'none';
             
-            // Проверяем наличие colMap или dictValues, так как именно в них хранятся настройки спаривания
-const hasMapping = res.templateConfig && (res.templateConfig.colMap || res.templateConfig.dictValues);
+            // Проверяем: есть ли конфиг ИЛИ это уже выгруженная ранее партия (market_status != pending)
+            const hasMapping = res.templateConfig && (res.templateConfig.colMap || res.templateConfig.dictValues);
+            const isRepeatedBatch = res.items.some(item => item.market_status && item.market_status !== 'pending');
             
-            // Функция для принудительного показа всех родительских контейнеров
             function showParents(elementId) {
                 let el = document.getElementById(elementId);
                 while (el && el.tagName !== 'BODY') {
@@ -3782,12 +3781,15 @@ const hasMapping = res.templateConfig && (res.templateConfig.colMap || res.templ
                 }
             }
 
-            if (hasMapping) {
-                // КОНФИГ ЕСТЬ: Прыгаем в превью (Step 3)
-                window.mapper2State = Object.assign({}, window.mapper2State || {}, res.templateConfig);
+            // ПУТЬ 1: Если конфиг есть ИЛИ мы нажали зеленую кнопку повторной выгрузки -> Прыгаем на Шаг 3
+            if (hasMapping || isRepeatedBatch) {
+                window.mapper2State = Object.assign({
+                    invoiceHeaders: Object.keys(res.items[0] || {})
+                }, window.mapper2State || {}, res.templateConfig || {});
+                
                 window.parsedInvoiceData = res.items; 
                 
-                showParents("invoicePreviewArea"); // Раскрываем все родительские слои
+                showParents("invoicePreviewArea");
                 window.renderPreviewTable(); 
                 
                 const step3 = document.getElementById("invoicePreviewArea");
@@ -3795,27 +3797,29 @@ const hasMapping = res.templateConfig && (res.templateConfig.colMap || res.templ
                 if (step3) step3.style.display = "flex";
                 if (step2) step2.style.display = "none";
                 
+                // Прячем опасную кнопку "Оприходовать"
                 const sendBtn = document.getElementById("sendInvoiceBtn");
                 if (sendBtn) sendBtn.style.display = 'none';
                 
+                // Показываем кнопки экспорта
+                const btnArea = document.getElementById('exportActionButtons');
                 if (btnArea) {
                     btnArea.style.display = 'flex';
                     if (step3) step3.appendChild(btnArea);
                 }
 
             } else {
-                // КОНФИГА НЕТ: Запускаем Маппер (Step 2)
+                // ПУТЬ 2: Если партия абсолютно новая (ожидает выгрузки) и конфига нет -> Шаг 2
                 window.parsedInvoiceData = res.items;
                 window.mapper2State = { 
                     colMap: {}, 
                     dictValues: {}, 
                     splitRules: {},
                     invoiceHeaders: Object.keys(res.items[0] || {}),
-                    // Имитируем строки, чтобы renderMapper2Cards не выдал ошибку
                     invoiceRows: res.items.map(item => Object.values(item)) 
                 };
                 
-                showParents("mapper2Area"); // Раскрываем все родительские слои
+                showParents("mapper2Area");
                 window.renderMapper2Cards(res.templateConfig);
                 
                 const step2 = document.getElementById("mapper2Area");
@@ -3823,7 +3827,6 @@ const hasMapping = res.templateConfig && (res.templateConfig.colMap || res.templ
                 if (step2) step2.style.display = "flex";
                 if (step3) step3.style.display = "none";
             }
-            // ====================================
 
         } else {
             // Эти блоки мы не трогаем, чтобы скрипт умел обрабатывать ошибки
