@@ -3777,7 +3777,7 @@ window.handleCardSelectForExport = async function(selectedHash, btnElement) {
                 }
             }
 
-            // Генерируем стейт и красивые названия для параметров (чтобы таблица была читаемой)
+            // Генерируем стейт для словарей
             window.mapper2State = Object.assign({
                 invoiceHeaders: Object.keys(res.items[0] || {})
             }, window.mapper2State || {}, res.templateConfig || {});
@@ -3791,22 +3791,37 @@ window.handleCardSelectForExport = async function(selectedHash, btnElement) {
                 }
             }
             
-            window.parsedInvoiceData = res.items; 
+            // ИСПРАВЛЕНИЕ 1: Адаптируем ключи из базы данных под формат таблицы Превью
+            window.parsedInvoiceData = res.items.map(dbItem => {
+                return {
+                    item_name: dbItem.name || dbItem.item_name || 'Без названия',
+                    item_id: dbItem.id || dbItem.item_id || 'AUTO',
+                    qty: dbItem.qty || dbItem.quantity || 0,
+                    cost: dbItem.price || dbItem.cost || 0,
+                    barcode: dbItem.barcode || '',
+                    attributes: dbItem.attributes || '{}'
+                };
+            });
             
-            // В РЕЖИМЕ ЭКСПОРТА МЫ ВСЕГДА ПРЫГАЕМ СРАЗУ НА ШАГ 3 (ТАБЛИЦА)
+            // Раскрываем окно
             showParents("invoicePreviewArea");
-            window.renderPreviewTable(); 
             
-            const step3 = document.getElementById("invoicePreviewArea");
+            // ИСПРАВЛЕНИЕ 2: Жестко прячем Шаг 1 и Шаг 2, оставляем только Шаг 3
+            const step1 = document.getElementById("uploadStepArea");
             const step2 = document.getElementById("mapper2Area");
-            if (step3) step3.style.display = "flex";
+            const step3 = document.getElementById("invoicePreviewArea");
+            if (step1) step1.style.display = "none";
             if (step2) step2.style.display = "none";
+            if (step3) step3.style.display = "flex";
+
+            // Рисуем таблицу (теперь с правильными данными!)
+            window.renderPreviewTable(); 
             
             // Прячем опасную кнопку "Оприходовать"
             const sendBtn = document.getElementById("sendInvoiceBtn");
             if (sendBtn) sendBtn.style.display = 'none';
             
-            // Показываем зеленые и синие кнопки экспорта
+            // Показываем кнопки экспорта
             const btnArea = document.getElementById('exportActionButtons');
             if (btnArea) {
                 btnArea.style.display = 'flex';
