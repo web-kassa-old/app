@@ -3768,7 +3768,8 @@ window.handleCardSelectForExport = async function(selectedHash, btnElement) {
             const exportModal = document.getElementById('export-modal');
             if (exportModal) exportModal.style.display = 'none';
             
-            const hasMapping = res.templateConfig && res.templateConfig.mapping && Object.keys(res.templateConfig.mapping).length > 0;
+            // Проверяем наличие colMap или dictValues, так как именно в них хранятся настройки спаривания
+const hasMapping = res.templateConfig && (res.templateConfig.colMap || res.templateConfig.dictValues);
             
             // Функция для принудительного показа всех родительских контейнеров
             function showParents(elementId) {
