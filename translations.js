@@ -496,6 +496,8 @@ const translations = {
     tok_progress: "Паттерн {current} из {total}",
     exp_pending: "(ожидает: {count} шт.)",
     exp_done: "(выгружено: {count} шт.)",
+    exp_btn_start: "Настроить экспорт",
+    exp_btn_repeat: "Выгрузить повторно",
   },
   kz: {
     btn_sale: "САТУ",
@@ -994,5 +996,7 @@ const translations = {
     tok_progress: "Үлгі: {total} ішінен {current}",
     exp_pending: "(күтілуде: {count} дана)",
     exp_done: "(жүктеп шығарылды: {count} дана)",
+    exp_btn_start: "Экспортты баптау",
+    exp_btn_repeat: "Қайта жүктеп шығару",
   },
 };
