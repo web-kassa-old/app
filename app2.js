@@ -3686,6 +3686,7 @@ window.openExportModal = async function() {
 };
 
 window.closeExportModal = function() {
+  window.isKaspiExportMode = false;
   const modal = document.getElementById("export-modal");
   const select = document.getElementById("exportCategorySelect");
   const btnArea = document.getElementById("exportActionButtons");
@@ -3736,8 +3737,6 @@ window.handleCardSelectForExport = async function(selectedHash, btnElement) {
             throw new Error("Сбой на сервере. Ответ: " + text.substring(0, 150));
         }
 
-        console.log("ОТВЕТ БЭКЕНДА getKaspiExportItems:", res);
-
         if (res && res.success && res.templateBase64 && res.items && res.items.length > 0) {
             
             // 1. Расшифровка Base64
@@ -3763,6 +3762,8 @@ window.handleCardSelectForExport = async function(selectedHash, btnElement) {
             window.kaspiExportConfig = res.templateConfig; 
             window.kaspiExportRowIndexes = res.rowIndexes; 
             window.kaspiTargetSheetName = res.templateConfig.targetSheetName || null;
+
+            window.isKaspiExportMode = true;
 
             const exportModal = document.getElementById('export-modal');
             if (exportModal) exportModal.style.display = 'none';
@@ -4567,6 +4568,8 @@ window.mapper2State = {
 
 // === РОУТЕР ШАГОВ ПРИЕМКИ (ОБНОВЛЕННЫЙ) ===
 window.navigateIncomeStep = function (stepNumber, isBack = false) {
+  window.isKaspiExportMode = false;
+
   // 1. Ведем запись в историю (если идем вперед)
   window.mapper2State = window.mapper2State || {};
   window.mapper2State.history = window.mapper2State.history || [];
@@ -6273,6 +6276,21 @@ window.renderPreviewTable = function () {
         </tr>`;
       })
       .join("");
+
+  // === ЛОГИКА ДЛЯ РЕЖИМА ЭКСПОРТА ===
+    if (window.isKaspiExportMode) {
+        // Прячем кнопку "Оприходовать"
+        const sendBtn = document.getElementById("sendInvoiceBtn");
+        if (sendBtn) sendBtn.style.display = "none";
+        
+        // Показываем кнопки выгрузки
+        const exportBtns = document.getElementById("exportActionButtons");
+        const step3 = document.getElementById("invoicePreviewArea");
+        if (exportBtns && step3) {
+            exportBtns.style.display = "flex";
+            step3.appendChild(exportBtns);
+        }
+    }
 };
 
 // === 1. ГЛАВНОЕ ОКНО РЕДАКТИРОВАНИЯ ===
