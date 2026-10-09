@@ -3767,10 +3767,6 @@ window.handleCardSelectForExport = async function(selectedHash, btnElement) {
             const exportModal = document.getElementById('export-modal');
             if (exportModal) exportModal.style.display = 'none';
             
-            // Проверяем: есть ли конфиг ИЛИ это уже выгруженная ранее партия (market_status != pending)
-            const hasMapping = res.templateConfig && (res.templateConfig.colMap || res.templateConfig.dictValues);
-            const isRepeatedBatch = res.items.some(item => item.market_status && item.market_status !== 'pending');
-            
             function showParents(elementId) {
                 let el = document.getElementById(elementId);
                 while (el && el.tagName !== 'BODY') {
@@ -3781,51 +3777,40 @@ window.handleCardSelectForExport = async function(selectedHash, btnElement) {
                 }
             }
 
-            // ПУТЬ 1: Если конфиг есть ИЛИ мы нажали зеленую кнопку повторной выгрузки -> Прыгаем на Шаг 3
-            if (hasMapping || isRepeatedBatch) {
-                window.mapper2State = Object.assign({
-                    invoiceHeaders: Object.keys(res.items[0] || {})
-                }, window.mapper2State || {}, res.templateConfig || {});
-                
-                window.parsedInvoiceData = res.items; 
-                
-                showParents("invoicePreviewArea");
-                window.renderPreviewTable(); 
-                
-                const step3 = document.getElementById("invoicePreviewArea");
-                const step2 = document.getElementById("mapper2Area");
-                if (step3) step3.style.display = "flex";
-                if (step2) step2.style.display = "none";
-                
-                // Прячем опасную кнопку "Оприходовать"
-                const sendBtn = document.getElementById("sendInvoiceBtn");
-                if (sendBtn) sendBtn.style.display = 'none';
-                
-                // Показываем кнопки экспорта
-                const btnArea = document.getElementById('exportActionButtons');
-                if (btnArea) {
-                    btnArea.style.display = 'flex';
-                    if (step3) step3.appendChild(btnArea);
+            // Генерируем стейт и красивые названия для параметров (чтобы таблица была читаемой)
+            window.mapper2State = Object.assign({
+                invoiceHeaders: Object.keys(res.items[0] || {})
+            }, window.mapper2State || {}, res.templateConfig || {});
+            
+            if (res.templateConfig && res.templateConfig.systemKeys) {
+                window.mapper2State.sysToHumanMap = {};
+                for (let i = 0; i < res.templateConfig.systemKeys.length; i++) {
+                    const sKey = res.templateConfig.systemKeys[i];
+                    const hName = res.templateConfig.humanNames[i];
+                    if (sKey && hName) window.mapper2State.sysToHumanMap[sKey] = hName;
                 }
-
-            } else {
-                // ПУТЬ 2: Если партия абсолютно новая (ожидает выгрузки) и конфига нет -> Шаг 2
-                window.parsedInvoiceData = res.items;
-                window.mapper2State = { 
-                    colMap: {}, 
-                    dictValues: {}, 
-                    splitRules: {},
-                    invoiceHeaders: Object.keys(res.items[0] || {}),
-                    invoiceRows: res.items.map(item => Object.values(item)) 
-                };
-                
-                showParents("mapper2Area");
-                window.renderMapper2Cards(res.templateConfig);
-                
-                const step2 = document.getElementById("mapper2Area");
-                const step3 = document.getElementById("invoicePreviewArea");
-                if (step2) step2.style.display = "flex";
-                if (step3) step3.style.display = "none";
+            }
+            
+            window.parsedInvoiceData = res.items; 
+            
+            // В РЕЖИМЕ ЭКСПОРТА МЫ ВСЕГДА ПРЫГАЕМ СРАЗУ НА ШАГ 3 (ТАБЛИЦА)
+            showParents("invoicePreviewArea");
+            window.renderPreviewTable(); 
+            
+            const step3 = document.getElementById("invoicePreviewArea");
+            const step2 = document.getElementById("mapper2Area");
+            if (step3) step3.style.display = "flex";
+            if (step2) step2.style.display = "none";
+            
+            // Прячем опасную кнопку "Оприходовать"
+            const sendBtn = document.getElementById("sendInvoiceBtn");
+            if (sendBtn) sendBtn.style.display = 'none';
+            
+            // Показываем зеленые и синие кнопки экспорта
+            const btnArea = document.getElementById('exportActionButtons');
+            if (btnArea) {
+                btnArea.style.display = 'flex';
+                if (step3) step3.appendChild(btnArea);
             }
 
         } else {
