@@ -3816,36 +3816,49 @@ window.handleCardSelectForExport = async function(selectedHash, btnElement, isEx
                 return flatItem;
             });
 
-            // Теперь, когда данные распакованы, собираем ВСЕ заголовки для Маппера
+            // === ФИЛЬТРУЕМ КОЛОНКИ ДЛЯ МАППЕРА ===
+            // Собираем ВСЕ заголовки, НО удаляем системную колонку attributes, чтобы она не пугала на Шаге 2
             const allHeaders = new Set();
             window.parsedInvoiceData.forEach(item => {
-                Object.keys(item).forEach(k => allHeaders.add(k));
+                Object.keys(item).forEach(k => {
+                    if (k !== 'attributes' && k !== 'kaspi_attributes' && k !== 'params') {
+                        allHeaders.add(k);
+                    }
+                });
             });
             const extractedHeaders = Array.from(allHeaders);
 
-            // Генерируем стейт для Маппера с полным набором колонок!
+            // Генерируем стейт для Маппера с полным набором чистых колонок!
             window.mapper2State = Object.assign({
                 colMap: {}, 
                 dictValues: {}, 
                 splitRules: {},
-                invoiceHeaders: extractedHeaders, // <-- Теперь Маппер увидит ВСЕ колонки!
+                invoiceHeaders: extractedHeaders, 
                 invoiceRows: window.parsedInvoiceData.map(item => extractedHeaders.map(h => item[h])) 
             }, res.templateConfig || {});
             
-            // Раскрываем окно на Шаге 2 (Маппер)
-            showParents("mapper2Area");
-            window.renderMapper2Cards(res.templateConfig);
-            
+            // === УМНАЯ НАВИГАЦИЯ (То, что ты просил) ===
             const step1 = document.getElementById("uploadStepArea");
             const step2 = document.getElementById("mapper2Area");
             const step3 = document.getElementById("invoicePreviewArea");
             
-            // Показываем Маппер, прячем остальные. Кнопка "Назад" будет работать!
             if (step1) step1.style.display = "none";
-            if (step3) step3.style.display = "none";
-            if (step2) step2.style.display = "flex";
             
-            // Если на Шаге 3 есть кнопка "Назад" - возвращаем её видимость
+            // Если это повторная выгрузка (зеленая кнопка) -> СРАЗУ ШАГ 3
+            if (isExported) {
+                if (step2) step2.style.display = "none";
+                if (step3) step3.style.display = "flex";
+                showParents("invoicePreviewArea");
+                window.renderPreviewTable(); 
+            } else {
+                // Если синяя кнопка (новая партия) -> ШАГ 2
+                if (step3) step3.style.display = "none";
+                if (step2) step2.style.display = "flex";
+                showParents("mapper2Area");
+                window.renderMapper2Cards(res.templateConfig);
+            }
+            
+            // ВАЖНО: Возвращаем кнопку НАЗАД на Шаге 3, чтобы можно было вернуться в Маппер или к загрузке Excel!
             if (step3) {
                 const allBtns = step3.querySelectorAll('button');
                 allBtns.forEach(b => {
