@@ -3777,10 +3777,13 @@ window.handleCardSelectForExport = async function(selectedHash, btnElement) {
                 }
             }
 
-            // Генерируем стейт для словарей
+            // Генерируем стейт для словарей и ставим заглушки вместо UNKNOWN
             window.mapper2State = Object.assign({
                 invoiceHeaders: Object.keys(res.items[0] || {})
             }, window.mapper2State || {}, res.templateConfig || {});
+            
+            window.mapper2State.supplier = "Kaspi (Экспорт)";
+            window.mapper2State.docNo = res.templateConfig.templateName || "Партия";
             
             if (res.templateConfig && res.templateConfig.systemKeys) {
                 window.mapper2State.sysToHumanMap = {};
@@ -3791,22 +3794,30 @@ window.handleCardSelectForExport = async function(selectedHash, btnElement) {
                 }
             }
             
-            // ИСПРАВЛЕНИЕ 1: Адаптируем ключи из базы данных под формат таблицы Превью
+            // ИСПРАВЛЕНИЕ: Умный адаптер данных (сохраняем все ключи и переводим атрибуты в строку)
             window.parsedInvoiceData = res.items.map(dbItem => {
-                return {
-                    item_name: dbItem.name || dbItem.item_name || 'Без названия',
-                    item_id: dbItem.id || dbItem.item_id || 'AUTO',
-                    qty: dbItem.qty || dbItem.quantity || 0,
-                    cost: dbItem.price || dbItem.cost || 0,
-                    barcode: dbItem.barcode || '',
-                    attributes: dbItem.attributes || '{}'
-                };
+                let attrs = dbItem.attributes || dbItem.kaspi_attributes || dbItem.params || '{}';
+                if (typeof attrs === 'object') {
+                    attrs = JSON.stringify(attrs); // Таблица требует JSON-строку
+                }
+
+                // Сливаем оригинальный объект с нужными для таблицы ключами
+                return Object.assign({}, dbItem, {
+                    item_name: dbItem.item_name || dbItem.name || dbItem.title || 'Без названия',
+                    item_id: dbItem.item_id || dbItem.id || dbItem.sku || 'AUTO',
+                    qty: Number(dbItem.qty) || Number(dbItem.quantity) || Number(dbItem.available_qty) || 0,
+                    
+                    // Вот здесь фронтенд берет price от бэкенда и отдает таблице как cost
+                    cost: Number(dbItem.cost) || Number(dbItem.price) || Number(dbItem.price_in) || Number(dbItem.buy_price) || 0,
+                    
+                    barcode: dbItem.barcode || dbItem.ean || '',
+                    attributes: attrs
+                });
             });
             
             // Раскрываем окно
             showParents("invoicePreviewArea");
             
-            // ИСПРАВЛЕНИЕ 2: Жестко прячем Шаг 1 и Шаг 2, оставляем только Шаг 3
             const step1 = document.getElementById("uploadStepArea");
             const step2 = document.getElementById("mapper2Area");
             const step3 = document.getElementById("invoicePreviewArea");
@@ -3814,12 +3825,22 @@ window.handleCardSelectForExport = async function(selectedHash, btnElement) {
             if (step2) step2.style.display = "none";
             if (step3) step3.style.display = "flex";
 
-            // Рисуем таблицу (теперь с правильными данными!)
+            // Рисуем таблицу
             window.renderPreviewTable(); 
             
             // Прячем опасную кнопку "Оприходовать"
             const sendBtn = document.getElementById("sendInvoiceBtn");
             if (sendBtn) sendBtn.style.display = 'none';
+            
+            // Прячем кнопку "НАЗАД", чтобы не сломать процесс
+            if (step3) {
+                const allBtns = step3.querySelectorAll('button');
+                allBtns.forEach(b => {
+                    if (b.innerText.trim().toUpperCase() === 'НАЗАД' || b.textContent.includes('НАЗАД')) {
+                        b.style.display = 'none';
+                    }
+                });
+            }
             
             // Показываем кнопки экспорта
             const btnArea = document.getElementById('exportActionButtons');
