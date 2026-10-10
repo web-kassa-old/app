@@ -3766,12 +3766,14 @@ window.handleCardSelectForExport = async function(selectedHash, btnElement, isEx
                 throw new Error("Не удалось расшифровать бланк. Файл поврежден.");
             }
 
-            // 2. === НАШ НОВЫЙ БЛОК НАВИГАЦИИ ===
+            // 2. === ВОЗВРАЩАЕМ ПОЛНЫЙ ЦИКЛ МАППЕРА ===
             window.kaspiExportItems = res.items;           
             window.kaspiExportConfig = res.templateConfig; 
             window.kaspiExportRowIndexes = res.rowIndexes; 
             window.kaspiTargetSheetName = res.templateConfig.targetSheetName || null;
-            window.isKaspiExportMode = true; // Флаг включен!
+            
+            // ВАЖНО: Включаем флаг экспорта. Он отключит кнопку "Оприходовать" на финальном шаге!
+            window.isKaspiExportMode = true; 
 
             const exportModal = document.getElementById('export-modal');
             if (exportModal) exportModal.style.display = 'none';
@@ -3786,67 +3788,35 @@ window.handleCardSelectForExport = async function(selectedHash, btnElement, isEx
                 }
             }
 
-            // Генерируем стейт для словарей и ставим заглушки вместо UNKNOWN
+            // Подготавливаем стейт для Маппера (чтобы он не выдал ошибку)
+            window.parsedInvoiceData = res.items; 
             window.mapper2State = Object.assign({
-                invoiceHeaders: Object.keys(res.items[0] || {})
-            }, window.mapper2State || {}, res.templateConfig || {});
+                colMap: {}, 
+                dictValues: {}, 
+                splitRules: {},
+                invoiceHeaders: Object.keys(res.items[0] || {}),
+                invoiceRows: res.items.map(item => Object.values(item)) 
+            }, res.templateConfig || {});
             
-            window.mapper2State.supplier = "Kaspi (Экспорт)";
-            window.mapper2State.docNo = res.templateConfig.templateName || "Партия";
-            
-            if (res.templateConfig && res.templateConfig.systemKeys) {
-                window.mapper2State.sysToHumanMap = {};
-                for (let i = 0; i < res.templateConfig.systemKeys.length; i++) {
-                    const sKey = res.templateConfig.systemKeys[i];
-                    const hName = res.templateConfig.humanNames[i];
-                    if (sKey && hName) window.mapper2State.sysToHumanMap[sKey] = hName;
-                }
-            }
-            
-            // ИСПРАВЛЕНИЕ: Умный адаптер данных
-            window.parsedInvoiceData = res.items.map(dbItem => {
-                let attrs = dbItem.attributes || dbItem.kaspi_attributes || dbItem.params || '{}';
-                if (typeof attrs === 'object') {
-                    attrs = JSON.stringify(attrs); // Таблица требует JSON-строку
-                }
-
-                // Сливаем оригинальный объект с нужными для таблицы ключами
-                return Object.assign({}, dbItem, {
-                    item_name: dbItem.item_name || dbItem.name || dbItem.title || 'Без названия',
-                    item_id: dbItem.item_id || dbItem.id || dbItem.sku || 'AUTO',
-                    qty: Number(dbItem.qty) || Number(dbItem.quantity) || Number(dbItem.available_qty) || 0,
-                    
-                    // Вот здесь фронтенд берет price от бэкенда и отдает таблице как cost
-                    cost: Number(dbItem.cost) || Number(dbItem.price) || Number(dbItem.price_in) || Number(dbItem.buy_price) || 0,
-                    
-                    barcode: dbItem.barcode || dbItem.ean || '',
-                    attributes: attrs
-                });
-            });
-            
-            // Раскрываем окно
-            showParents("invoicePreviewArea");
+            // Раскрываем окно на Шаге 2 (Маппер)
+            showParents("mapper2Area");
+            window.renderMapper2Cards(res.templateConfig);
             
             const step1 = document.getElementById("uploadStepArea");
             const step2 = document.getElementById("mapper2Area");
             const step3 = document.getElementById("invoicePreviewArea");
+            
+            // Показываем Маппер, прячем остальные. Кнопка "Назад" будет работать!
             if (step1) step1.style.display = "none";
-            if (step2) step2.style.display = "none";
-            if (step3) step3.style.display = "flex";
-
-            // Рисуем таблицу
-            window.renderPreviewTable(); 
+            if (step3) step3.style.display = "none";
+            if (step2) step2.style.display = "flex";
             
-            // Прячем опасную кнопку "Оприходовать"
-            const sendBtn = document.getElementById("sendInvoiceBtn");
-            if (sendBtn) sendBtn.style.display = 'none';
-            
-            // Прячем кнопку "НАЗАД", чтобы не сломать процесс
+            // Если на Шаге 3 есть кнопка "Назад" - возвращаем её видимость
             if (step3) {
                 const allBtns = step3.querySelectorAll('button');
                 allBtns.forEach(b => {
                     if (b.innerText.trim().toUpperCase() === 'НАЗАД' || b.textContent.includes('НАЗАД')) {
-                        b.style.display = 'none';
+                        b.style.display = ''; // Сбрасываем скрытие
                     }
                 });
             }
@@ -10520,11 +10490,9 @@ window.generateExportFile = async function (target = 'local') {
           let sourceDbField = "";
           
           // === НОВАЯ, УМНАЯ ЧИТАЛКА ПАМЯТИ ===
-          // 1. Ищем прямое совпадение по системному ключу или русскому названию
           if (memory[kaspiKey]) sourceDbField = memory[kaspiKey];
           else if (memory[humanKey]) sourceDbField = memory[humanKey];
           else {
-              // 2. Fallback: на случай, если память записана "наоборот"
               for (const [key, value] of Object.entries(memory)) {
                   if (Array.isArray(value) && (value.includes(kaspiKey) || value.includes(humanKey))) {
                       sourceDbField = key; break;
@@ -10550,12 +10518,10 @@ window.generateExportFile = async function (target = 'local') {
           else if (sourceDbField === 'price') value = Number(item.price || item.cost || item.retail_price) || 0;
           else if (sourceDbField === 'qty') value = Number(item.qty || item.quantity) || 0;
           
-          // Если значение жестко выбрано из справочника Каспи (static_)
           else if (sourceDbField && sourceDbField.startsWith("static_")) {
               value = sourceDbField.replace("static_", "");
           }
           
-          // Если это характеристика из базы (json_...)
           else if (sourceDbField && sourceDbField.startsWith("json_")) {
               const attrKey = sourceDbField.replace("json_", "");
               let attrs = {};
@@ -10564,7 +10530,6 @@ window.generateExportFile = async function (target = 'local') {
               if (attrs[attrKey] !== undefined && attrs[attrKey] !== null && attrs[attrKey] !== "") {
                   value = attrs[attrKey];
               } else {
-                  // Ищем без учета регистра (на случай если в базе "диаметр", а в памяти "Диаметр")
                   const lowerAttrKey = attrKey.toLowerCase();
                   for (const [k, v] of Object.entries(attrs)) {
                       if (k.toLowerCase() === lowerAttrKey) {
@@ -10579,7 +10544,6 @@ window.generateExportFile = async function (target = 'local') {
               if (attrs[sourceDbField] !== undefined && attrs[sourceDbField] !== null) value = attrs[sourceDbField];
           }
 
-          // Записываем в ячейку только если нашли реальное значение
           if (value !== "" && value !== undefined && value !== null) {
               targetRow.getCell(colNumber).value = value;
               rowHasData = true;
@@ -10597,6 +10561,32 @@ window.generateExportFile = async function (target = 'local') {
     const buffer = await workbook.xlsx.writeBuffer();
     const dateStr = new Date().toISOString().slice(0, 10);
     const fileName = `Kaspi_Export_${dateStr}.xlsx`;
+
+    // === ТИХОЕ АВТОСОХРАНЕНИЕ АТРИБУТОВ (Только в режиме экспорта) ===
+    if (window.isKaspiExportMode && window.parsedInvoiceData) {
+        const url = typeof APPS_SCRIPT_URL !== "undefined" ? APPS_SCRIPT_URL : window.APPS_SCRIPT_URL;
+        
+        // Собираем только ID товара и его финальный JSON-атрибут из обновленной таблицы
+        const itemsToUpdate = window.parsedInvoiceData.map(item => ({
+            item_id: item.item_id || item.id,
+            attributes: typeof item.attributes === 'object' ? JSON.stringify(item.attributes) : (item.attributes || "{}")
+        }));
+
+        // Отправляем асинхронно, не блокируя скачивание файла
+        fetch(url, {
+            method: 'POST',
+            body: JSON.stringify({
+                action: 'silentUpdateAttributesBackend',
+                api_key: CLIENT_API_KEY,
+                items: itemsToUpdate
+            })
+        }).then(res => res.json())
+          .then(data => {
+              if (data.success) console.log("✅ Параметры товаров успешно обновлены в базе!");
+              else console.warn("⚠️ Ошибка тихого сохранения:", data.error);
+          }).catch(e => console.error("Ошибка сети при сохранении параметров:", e));
+    }
+    // ===================================================================
 
     if (target === 'local') {
       const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
