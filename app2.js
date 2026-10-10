@@ -3765,13 +3765,13 @@ window.handleCardSelectForExport = async function(selectedHash, btnElement, isEx
                 throw new Error("Не удалось расшифровать бланк. Файл поврежден.");
             }
 
-            // 2. === ВОЗВРАЩАЕМ ПОЛНЫЙ ЦИКЛ МАППЕРА ===
+            // 2. === НАШ ЦИКЛ ЭКСПОРТА ===
             window.kaspiExportItems = res.items;           
             window.kaspiExportConfig = res.templateConfig; 
             window.kaspiExportRowIndexes = res.rowIndexes; 
             window.kaspiTargetSheetName = res.templateConfig.targetSheetName || null;
             
-            // ВАЖНО: Включаем флаг экспорта.
+            // Включаем флаг экспорта (отключит оприходование)
             window.isKaspiExportMode = true; 
 
             const exportModal = document.getElementById('export-modal');
@@ -3787,7 +3787,7 @@ window.handleCardSelectForExport = async function(selectedHash, btnElement, isEx
                 }
             }
 
-            // === ИСПРАВЛЕНИЕ: ВИРТУАЛЬНАЯ РАСПАКОВКА ===
+            // === ВИРТУАЛЬНАЯ РАСПАКОВКА ===
             window.parsedInvoiceData = res.items.map(dbItem => {
                 let attrs = {};
                 try {
@@ -3795,7 +3795,6 @@ window.handleCardSelectForExport = async function(selectedHash, btnElement, isEx
                     attrs = typeof rawAttr === 'string' ? JSON.parse(rawAttr) : rawAttr;
                 } catch (e) {}
 
-                // Создаем плоский объект с базовыми полями
                 const flatItem = Object.assign({}, dbItem, {
                     item_name: dbItem.item_name || dbItem.name || dbItem.title || 'Без названия',
                     item_id: dbItem.item_id || dbItem.id || dbItem.sku || 'AUTO',
@@ -3804,20 +3803,17 @@ window.handleCardSelectForExport = async function(selectedHash, btnElement, isEx
                     barcode: dbItem.barcode || dbItem.ean || ''
                 });
 
-                // МАГИЯ: Высыпаем все ключи из JSON (кармана) прямо в корень товара!
                 for (const [key, value] of Object.entries(attrs)) {
                     if (flatItem[key] === undefined) {
                         flatItem[key] = value;
                     }
                 }
                 
-                // Возвращаем строку для тех функций, которые ждут строгий JSON
                 flatItem.attributes = JSON.stringify(attrs); 
                 return flatItem;
             });
 
-            // === ФИЛЬТРУЕМ КОЛОНКИ ДЛЯ МАППЕРА ===
-            // Собираем ВСЕ заголовки, НО удаляем системную колонку attributes, чтобы она не пугала на Шаге 2
+            // Удаляем системную колонку attributes для Маппера
             const allHeaders = new Set();
             window.parsedInvoiceData.forEach(item => {
                 Object.keys(item).forEach(k => {
@@ -3828,7 +3824,6 @@ window.handleCardSelectForExport = async function(selectedHash, btnElement, isEx
             });
             const extractedHeaders = Array.from(allHeaders);
 
-            // Генерируем стейт для Маппера с полным набором чистых колонок!
             window.mapper2State = Object.assign({
                 colMap: {}, 
                 dictValues: {}, 
@@ -3837,28 +3832,41 @@ window.handleCardSelectForExport = async function(selectedHash, btnElement, isEx
                 invoiceRows: window.parsedInvoiceData.map(item => extractedHeaders.map(h => item[h])) 
             }, res.templateConfig || {});
             
-            // === УМНАЯ НАВИГАЦИЯ (То, что ты просил) ===
+            // === ВОССТАНОВЛЕНИЕ ЗАГОЛОВКОВ И ПЕРЕВОДА НА РУССКИЙ ===
+            window.mapper2State.supplier = "Kaspi (Экспорт)";
+            window.mapper2State.docNo = res.templateConfig.templateName || "Партия";
+            
+            if (res.templateConfig && res.templateConfig.systemKeys) {
+                window.mapper2State.sysToHumanMap = {};
+                for (let i = 0; i < res.templateConfig.systemKeys.length; i++) {
+                    const sKey = res.templateConfig.systemKeys[i];
+                    const hName = res.templateConfig.humanNames[i];
+                    if (sKey && hName) window.mapper2State.sysToHumanMap[sKey] = hName;
+                }
+            }
+            // =========================================================
+
             const step1 = document.getElementById("uploadStepArea");
             const step2 = document.getElementById("mapper2Area");
             const step3 = document.getElementById("invoicePreviewArea");
             
             if (step1) step1.style.display = "none";
             
-            // Если это повторная выгрузка (зеленая кнопка) -> СРАЗУ ШАГ 3
+            // === ВОССТАНОВЛЕНИЕ МАППЕРА: Рендерим его всегда, чтобы кнопка "Назад" не вела в пустоту! ===
+            window.renderMapper2Cards(res.templateConfig);
+            
+            // Умная навигация
             if (isExported) {
                 if (step2) step2.style.display = "none";
                 if (step3) step3.style.display = "flex";
                 showParents("invoicePreviewArea");
                 window.renderPreviewTable(); 
             } else {
-                // Если синяя кнопка (новая партия) -> ШАГ 2
                 if (step3) step3.style.display = "none";
                 if (step2) step2.style.display = "flex";
                 showParents("mapper2Area");
-                window.renderMapper2Cards(res.templateConfig);
             }
             
-            // ВАЖНО: Возвращаем кнопку НАЗАД на Шаге 3, чтобы можно было вернуться в Маппер или к загрузке Excel!
             if (step3) {
                 const allBtns = step3.querySelectorAll('button');
                 allBtns.forEach(b => {
@@ -3868,7 +3876,6 @@ window.handleCardSelectForExport = async function(selectedHash, btnElement, isEx
                 });
             }
             
-            // Показываем кнопки экспорта
             const btnArea = document.getElementById('exportActionButtons');
             if (btnArea) {
                 btnArea.style.display = 'flex';
