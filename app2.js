@@ -1567,26 +1567,28 @@ function checkBlockTimer() {
 function applyLanguage(lang) {
   // 1. Лечим корень: если язык не передали (вызов из Токенизатора) или в кэше "undefined"
   if (!lang || lang === "undefined") {
-      lang = window.currentLang || localStorage.getItem("pos_lang");
-      if (!lang || lang === "undefined") lang = "ru"; // финальный фолбэк
+    lang = window.currentLang || localStorage.getItem("pos_lang");
+    if (!lang || lang === "undefined") lang = "ru"; // финальный фолбэк
   }
 
   currentLang = lang;
   localStorage.setItem("pos_lang", lang);
   document.getElementById("lang-ru").classList.toggle("active", lang === "ru");
   document.getElementById("lang-kz").classList.toggle("active", lang === "kz");
-  
+
   document.querySelectorAll("[data-i18n]").forEach((el) => {
     const key = el.getAttribute("data-i18n");
     // 2. Безопасная 1574 строка: проверяем, что словарь для языка существует
-    if (translations[lang] && translations[lang][key]) el.innerText = translations[lang][key];
+    if (translations[lang] && translations[lang][key])
+      el.innerText = translations[lang][key];
   });
-  
+
   document.querySelectorAll("[data-i18n-placeholder]").forEach((el) => {
     const key = el.getAttribute("data-i18n-placeholder");
-    if (translations[lang] && translations[lang][key]) el.placeholder = translations[lang][key];
+    if (translations[lang] && translations[lang][key])
+      el.placeholder = translations[lang][key];
   });
-  
+
   sm(mode);
 }
 
@@ -1815,7 +1817,7 @@ async function login(user) {
   if (typeof loadSuppliers === "function") {
     loadSuppliers();
   }
-  
+
   // === ИСПРАВЛЕНИЕ: Мягкая проверка перед загрузкой шаблонов ===
   const tplSelect = document.getElementById("kaspiTemplateSelect");
   // Если пунктов больше 2 (дефолтные "-- Выберите --" и "Новый шаблон"), значит список уже скачан
@@ -3591,15 +3593,15 @@ document.addEventListener("click", function (event) {
 
 function toggleIncomeModule() {
   const modal = document.getElementById("income-modal");
-  
+
   // === ОЧИСТКА ПАМЯТИ МАТРЕШКИ ===
   window.mapper2State = window.mapper2State || {};
   window.mapper2State.history = [];
 
   if (modal.style.display === "none" || modal.style.display === "") {
     // Принудительно включаем Шаг 1 перед открытием (true означает, что шаг не пишется в историю дублем)
-    if (typeof window.navigateIncomeStep === 'function') {
-      window.navigateIncomeStep(1, true); 
+    if (typeof window.navigateIncomeStep === "function") {
+      window.navigateIncomeStep(1, true);
     }
     modal.style.display = "flex";
   } else {
@@ -3608,82 +3610,108 @@ function toggleIncomeModule() {
 }
 
 // 1. Открытие модалки экспорта и загрузка списка категорий
-window.openExportModal = async function() {
-    const modal = document.getElementById('export-modal');
-    const container = document.getElementById('exportCardsContainer');
-    const btnArea = document.getElementById('exportActionButtons');
-    
-    if (modal) modal.style.display = 'flex';
-    if (btnArea) btnArea.style.display = 'none'; 
-    if (container) container.innerHTML = ''; // Очищаем старые плашки
+window.openExportModal = async function () {
+  const modal = document.getElementById("export-modal");
+  const container = document.getElementById("exportCardsContainer");
+  const btnArea = document.getElementById("exportActionButtons");
 
-    // === БЕРЕМ ПЕРЕВОДЫ ИЗ СЛОВАРЯ ===
-    const t = (typeof translations !== "undefined" && typeof currentLang !== "undefined") 
-              ? (translations[currentLang] || translations["ru"]) 
-              : {};
-              
-    const textLoading = t.loading_export_data || "Загрузка партий...";
-    const textNoBatches = t.export_no_batches || "Нет партий, ожидающих выгрузки";
-    const textNetworkError = t.export_network_error || "Ошибка сети (см. консоль)";
+  if (modal) modal.style.display = "flex";
+  if (btnArea) btnArea.style.display = "none";
+  if (container) container.innerHTML = ""; // Очищаем старые плашки
 
-    if (typeof window.showLoading === "function") {
-        window.showLoading(textLoading, "loading_export_data");
-    }
+  // === БЕРЕМ ПЕРЕВОДЫ ИЗ СЛОВАРЯ ===
+  const t =
+    typeof translations !== "undefined" && typeof currentLang !== "undefined"
+      ? translations[currentLang] || translations["ru"]
+      : {};
 
-    try {
-        const url = typeof APPS_SCRIPT_URL !== "undefined" ? APPS_SCRIPT_URL : window.APPS_SCRIPT_URL;
-        const response = await fetch(url, { method: 'POST', body: JSON.stringify({ action: 'getPendingExportsBackend', api_key: CLIENT_API_KEY }) });
-        const res = await response.json();
+  const textLoading = t.loading_export_data || "Загрузка партий...";
+  const textNoBatches = t.export_no_batches || "Нет партий, ожидающих выгрузки";
+  const textNetworkError =
+    t.export_network_error || "Ошибка сети (см. консоль)";
 
-        if (res?.success && res?.pendingGroups?.length > 0) {
-            
-            // Генерируем красивые плашки
-            container.innerHTML = res.pendingGroups.map(g => {
-                // Если бэкенд скажет, что партия уже выгружена (или у нее уже сохранен конфиг)
-                const isExported = g.isExported === true || g.hasConfig === true; 
-                
-                // Тексты
-                const pendingText = t.exp_pending ? t.exp_pending.replace("{count}", g.count) : `(ожидает: ${g.count} шт.)`;
-                const doneText = t.exp_done ? t.exp_done.replace("{count}", g.count) : `(выгружено: ${g.count} шт.)`;
-                const statusText = isExported ? doneText : pendingText;
-                
-                const btnText = isExported ? (t.exp_btn_repeat || "Выгрузить повторно") : (t.exp_btn_start || "Настроить экспорт");
-                
-                // Цвета и стили
-                const btnColor = isExported ? "var(--accent-green, #2ecc71)" : "var(--accent-blue, #3b82f6)";
-                const cardBg = isExported ? "var(--bg-body, #f1f5f9)" : "var(--bg-panel, #ffffff)"; 
-                const opacity = isExported ? "0.8" : "1"; 
+  if (typeof window.showLoading === "function") {
+    window.showLoading(textLoading, "loading_export_data");
+  }
 
-                // ИСПРАВЛЕНИЕ: Добавляем ${isExported} третьим параметром в onclick!
-                return `
+  try {
+    const url =
+      typeof APPS_SCRIPT_URL !== "undefined"
+        ? APPS_SCRIPT_URL
+        : window.APPS_SCRIPT_URL;
+    const response = await fetch(url, {
+      method: "POST",
+      body: JSON.stringify({
+        action: "getPendingExportsBackend",
+        api_key: CLIENT_API_KEY,
+      }),
+    });
+    const res = await response.json();
+
+    if (res?.success && res?.pendingGroups?.length > 0) {
+      // Генерируем красивые плашки
+      container.innerHTML = res.pendingGroups
+        .map((g) => {
+          // Если бэкенд скажет, что партия уже выгружена (или у нее уже сохранен конфиг)
+          const isExported = g.isExported === true || g.hasConfig === true;
+
+          // Тексты
+          const pendingText = t.exp_pending
+            ? t.exp_pending.replace("{count}", g.count)
+            : `(ожидает: ${g.count} шт.)`;
+          const doneText = t.exp_done
+            ? t.exp_done.replace("{count}", g.count)
+            : `(выгружено: ${g.count} шт.)`;
+          const statusText = isExported ? doneText : pendingText;
+
+          const btnText = isExported
+            ? t.exp_btn_repeat || "ПРОСМОТР И ВЫГРУЗКА"
+            : t.exp_btn_start || "НАСТРОИТЬ ЭКСПОРТ";
+
+          // Цвета и стили
+          const btnColor = isExported
+            ? "var(--accent-green, #2ecc71)"
+            : "var(--accent-blue, #3b82f6)";
+          const cardBg = isExported
+            ? "var(--bg-body, #f1f5f9)"
+            : "var(--bg-panel, #ffffff)";
+          const opacity = isExported ? "0.8" : "1";
+
+          // ИСПРАВЛЕНИЕ: Добавляем ${isExported} третьим параметром в onclick!
+          return `
                     <div class="export-card" style="background: ${cardBg}; opacity: ${opacity}; border: 1px solid var(--border-light, #ddd); border-radius: 8px; padding: 15px; display: flex; justify-content: space-between; align-items: center; transition: all 0.2s;">
                         <div style="display: flex; flex-direction: column; gap: 5px;">
                             <b style="font-size: 14px; color: var(--text-main, #000);">${g.name}</b>
-                            <span style="font-size: 12px; color: ${isExported ? 'var(--accent-green, #2ecc71)' : 'var(--text-muted, #888)'}; font-weight: ${isExported ? 'bold' : 'normal'};">${statusText}</span>
+                            <span style="font-size: 12px; color: ${isExported ? "var(--accent-green, #2ecc71)" : "var(--text-muted, #888)"}; font-weight: ${isExported ? "bold" : "normal"};">${statusText}</span>
                         </div>
                         <button onclick="window.handleCardSelectForExport('${g.hash}', this, ${isExported})" style="background: ${btnColor}; color: #fff; border: none; padding: 10px 15px; border-radius: 6px; font-size: 12px; font-weight: bold; cursor: pointer; white-space: nowrap;">
                             ${btnText}
                         </button>
                     </div>
                 `;
-            }).join("");
-        } else {
-            if (res && res.error && res.error !== "Нет партий, ожидающих выгрузки") {
-                container.innerHTML = `<div style="padding: 20px; text-align: center; color: var(--text-main);">${res.error}</div>`;
-            } else {
-                container.innerHTML = `<div style="padding: 20px; text-align: center; color: var(--text-muted);">${textNoBatches}</div>`;
-            }
-        }
-    } catch (e) {
-        console.error("Ошибка загрузки данных для экспорта:", e);
-        container.innerHTML = `<div style="padding: 20px; text-align: center; color: red;">${textNetworkError}</div>`;
-    } finally {
-        if (typeof window.hideLoading === "function") window.hideLoading();
-        if (typeof applyLanguage === "function" && typeof currentLang !== "undefined") applyLanguage(currentLang);
+        })
+        .join("");
+    } else {
+      if (res && res.error && res.error !== "Нет партий, ожидающих выгрузки") {
+        container.innerHTML = `<div style="padding: 20px; text-align: center; color: var(--text-main);">${res.error}</div>`;
+      } else {
+        container.innerHTML = `<div style="padding: 20px; text-align: center; color: var(--text-muted);">${textNoBatches}</div>`;
+      }
     }
+  } catch (e) {
+    console.error("Ошибка загрузки данных для экспорта:", e);
+    container.innerHTML = `<div style="padding: 20px; text-align: center; color: red;">${textNetworkError}</div>`;
+  } finally {
+    if (typeof window.hideLoading === "function") window.hideLoading();
+    if (
+      typeof applyLanguage === "function" &&
+      typeof currentLang !== "undefined"
+    )
+      applyLanguage(currentLang);
+  }
 };
 
-window.closeExportModal = function() {
+window.closeExportModal = function () {
   window.isKaspiExportMode = false;
   const modal = document.getElementById("export-modal");
   const select = document.getElementById("exportCategorySelect");
@@ -3691,9 +3719,10 @@ window.closeExportModal = function() {
   const mapperArea = document.getElementById("exportMapperArea");
 
   if (modal) modal.style.display = "none";
-  
+
   // Сбрасываем селекты и прячем кнопки при закрытии окна
-  if (select) select.innerHTML = '<option value="">-- Выберите категорию --</option>';
+  if (select)
+    select.innerHTML = '<option value="">-- Выберите категорию --</option>';
   if (btnArea) btnArea.style.display = "none";
   if (mapperArea) mapperArea.style.display = "none";
 };
@@ -3701,198 +3730,246 @@ window.closeExportModal = function() {
 // 2. Обработка выбора категории из списка
 // Новая функция принимает хэш и саму кнопку (чтобы подсветить нужную плашку)
 // ДОБАВЛЕН ТРЕТИЙ ПАРАМЕТР: isExported = false
-window.handleCardSelectForExport = async function(selectedHash, btnElement, isExported = false) {
-    const btnArea = document.getElementById('exportActionButtons');
+window.handleCardSelectForExport = async function (
+  selectedHash,
+  btnElement,
+  isExported = false,
+) {
+  const btnArea = document.getElementById("exportActionButtons");
 
-    if (!selectedHash) {
-        if (btnArea) btnArea.style.display = 'none';
-        return;
+  if (!selectedHash) {
+    if (btnArea) btnArea.style.display = "none";
+    return;
+  }
+
+  // Визуально сбрасываем рамки у всех плашек
+  const allCards = document.querySelectorAll(".export-card");
+  allCards.forEach(
+    (card) => (card.style.border = "1px solid var(--border-light, #ddd)"),
+  );
+
+  // Подсвечиваем активную плашку синей рамкой
+  if (btnElement) {
+    const selectedCard = btnElement.closest(".export-card");
+    if (selectedCard) {
+      selectedCard.style.border = "2px solid var(--accent-blue, #3b82f6)";
     }
+  }
 
-    // Визуально сбрасываем рамки у всех плашек
-    const allCards = document.querySelectorAll('.export-card');
-    allCards.forEach(card => card.style.border = '1px solid var(--border-light, #ddd)');
-    
-    // Подсвечиваем активную плашку синей рамкой
-    if (btnElement) {
-        const selectedCard = btnElement.closest('.export-card');
-        if (selectedCard) {
-            selectedCard.style.border = '2px solid var(--accent-blue, #3b82f6)';
-        }
-    }
+  if (typeof window.showLoading === "function")
+    window.showLoading(null, "kaspi_loading");
 
-    if (typeof window.showLoading === 'function') window.showLoading(null, 'kaspi_loading');
+  try {
+    const url =
+      typeof APPS_SCRIPT_URL !== "undefined"
+        ? APPS_SCRIPT_URL
+        : window.APPS_SCRIPT_URL;
 
+    // === ПЕРЕДАЕМ СТАТУС НА СЕРВЕР ===
+    const payload = {
+      action: "getKaspiExportItemsBackend",
+      api_key: CLIENT_API_KEY,
+      hash: selectedHash,
+      status: isExported ? "exported" : "pending",
+    };
+
+    const response = await fetch(url, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    const text = await response.text();
+
+    let res;
     try {
-        const url = typeof APPS_SCRIPT_URL !== "undefined" ? APPS_SCRIPT_URL : window.APPS_SCRIPT_URL;
-        
-        // === ПЕРЕДАЕМ СТАТУС НА СЕРВЕР ===
-        const payload = { 
-            action: 'getKaspiExportItemsBackend', 
-            api_key: CLIENT_API_KEY, 
-            hash: selectedHash,
-            status: isExported ? 'exported' : 'pending'
-        };
-        
-        const response = await fetch(url, { method: 'POST', body: JSON.stringify(payload) });
-        const text = await response.text(); 
-        
-        let res;
-        try {
-            res = JSON.parse(text);
-        } catch (e) {
-            console.error("Сервер вернул не JSON:", text);
-            throw new Error("Сбой на сервере. Ответ: " + text.substring(0, 150));
-        }
-
-        if (res && res.success && res.templateBase64 && res.items && res.items.length > 0) {
-            
-            // 1. Расшифровка Base64
-            try {
-                let base64Data = res.templateBase64;
-                if (base64Data.includes(',')) base64Data = base64Data.split(',')[1];
-                base64Data = base64Data.replace(/[^A-Za-z0-9+/=]/g, "");
-                while (base64Data.length % 4 !== 0) base64Data += "=";
-
-                const binaryString = window.atob(base64Data);
-                const bytes = new Uint8Array(binaryString.length);
-                for (let i = 0; i < binaryString.length; i++) {
-                    bytes[i] = binaryString.charCodeAt(i);
-                }
-                window.rawKaspiTemplateBuffer = bytes.buffer; 
-            } catch (decodeErr) {
-                console.error("Ошибка очистки Base64:", decodeErr);
-                throw new Error("Не удалось расшифровать бланк. Файл поврежден.");
-            }
-
-            // 2. === НАШ ЦИКЛ ЭКСПОРТА ===
-            window.kaspiExportItems = res.items;           
-            window.kaspiExportConfig = res.templateConfig; 
-            window.kaspiExportRowIndexes = res.rowIndexes; 
-            window.kaspiTargetSheetName = res.templateConfig.targetSheetName || null;
-            
-            // Включаем флаг экспорта (отключит оприходование)
-            window.isKaspiExportMode = true; 
-
-            const exportModal = document.getElementById('export-modal');
-            if (exportModal) exportModal.style.display = 'none';
-            
-            function showParents(elementId) {
-                let el = document.getElementById(elementId);
-                while (el && el.tagName !== 'BODY') {
-                    if (window.getComputedStyle(el).display === 'none' || el.style.display === 'none') {
-                        el.style.display = 'block'; 
-                    }
-                    el = el.parentElement;
-                }
-            }
-
-            // === ВИРТУАЛЬНАЯ РАСПАКОВКА ===
-            window.parsedInvoiceData = res.items.map(dbItem => {
-                let attrs = {};
-                try {
-                    let rawAttr = dbItem.attributes || dbItem.kaspi_attributes || dbItem.params || '{}';
-                    attrs = typeof rawAttr === 'string' ? JSON.parse(rawAttr) : rawAttr;
-                } catch (e) {}
-
-                const flatItem = Object.assign({}, dbItem, {
-                    item_name: dbItem.item_name || dbItem.name || dbItem.title || 'Без названия',
-                    item_id: dbItem.item_id || dbItem.id || dbItem.sku || 'AUTO',
-                    qty: Number(dbItem.qty) || Number(dbItem.quantity) || Number(dbItem.available_qty) || 0,
-                    cost: Number(dbItem.cost) || Number(dbItem.price) || Number(dbItem.price_in) || Number(dbItem.buy_price) || 0,
-                    barcode: dbItem.barcode || dbItem.ean || ''
-                });
-
-                for (const [key, value] of Object.entries(attrs)) {
-                    if (flatItem[key] === undefined) {
-                        flatItem[key] = value;
-                    }
-                }
-                
-                flatItem.attributes = JSON.stringify(attrs); 
-                return flatItem;
-            });
-
-            // Удаляем системную колонку attributes для Маппера
-            const allHeaders = new Set();
-            window.parsedInvoiceData.forEach(item => {
-                Object.keys(item).forEach(k => {
-                    if (k !== 'attributes' && k !== 'kaspi_attributes' && k !== 'params') {
-                        allHeaders.add(k);
-                    }
-                });
-            });
-            const extractedHeaders = Array.from(allHeaders);
-
-            window.mapper2State = Object.assign({
-                colMap: {}, 
-                dictValues: {}, 
-                splitRules: {},
-                invoiceHeaders: extractedHeaders, 
-                invoiceRows: window.parsedInvoiceData.map(item => extractedHeaders.map(h => item[h])) 
-            }, res.templateConfig || {});
-            
-            // === ВОССТАНОВЛЕНИЕ ЗАГОЛОВКОВ И ПЕРЕВОДА НА РУССКИЙ ===
-            window.mapper2State.supplier = "Kaspi (Экспорт)";
-            window.mapper2State.docNo = res.templateConfig.templateName || "Партия";
-            
-            if (res.templateConfig && res.templateConfig.systemKeys) {
-                window.mapper2State.sysToHumanMap = {};
-                for (let i = 0; i < res.templateConfig.systemKeys.length; i++) {
-                    const sKey = res.templateConfig.systemKeys[i];
-                    const hName = res.templateConfig.humanNames[i];
-                    if (sKey && hName) window.mapper2State.sysToHumanMap[sKey] = hName;
-                }
-            }
-            // =========================================================
-
-            const step1 = document.getElementById("uploadStepArea");
-            const step2 = document.getElementById("mapper2Area");
-            const step3 = document.getElementById("invoicePreviewArea");
-            
-            if (step1) step1.style.display = "none";
-            
-            // === ВОССТАНОВЛЕНИЕ МАППЕРА: Рендерим его всегда, чтобы кнопка "Назад" не вела в пустоту! ===
-            window.renderMapper2Cards(res.templateConfig);
-            
-            // Умная навигация
-            if (isExported) {
-                if (step2) step2.style.display = "none";
-                if (step3) step3.style.display = "flex";
-                showParents("invoicePreviewArea");
-                window.renderPreviewTable(); 
-            } else {
-                if (step3) step3.style.display = "none";
-                if (step2) step2.style.display = "flex";
-                showParents("mapper2Area");
-            }
-            
-            if (step3) {
-                const allBtns = step3.querySelectorAll('button');
-                allBtns.forEach(b => {
-                    if (b.innerText.trim().toUpperCase() === 'НАЗАД' || b.textContent.includes('НАЗАД')) {
-                        b.style.display = ''; 
-                    }
-                });
-            }
-            
-            const btnArea = document.getElementById('exportActionButtons');
-            if (btnArea) {
-                btnArea.style.display = 'flex';
-                if (step3) step3.appendChild(btnArea);
-            }
-
-        } else {
-            const err = res.error || "Не удалось загрузить данные или нет товаров для выгрузки.";
-            alert("⚠️ Ошибка сервера: " + err);
-            if (btnArea) btnArea.style.display = 'none';
-        }
+      res = JSON.parse(text);
     } catch (e) {
-        console.error("Полная ошибка загрузки данных партии:", e);
-        alert("⚠️ Критическая ошибка: " + e.message);
-    } finally {
-        if (typeof window.hideLoading === 'function') window.hideLoading();
+      console.error("Сервер вернул не JSON:", text);
+      throw new Error("Сбой на сервере. Ответ: " + text.substring(0, 150));
     }
+
+    if (
+      res &&
+      res.success &&
+      res.templateBase64 &&
+      res.items &&
+      res.items.length > 0
+    ) {
+      // 1. Расшифровка Base64
+      try {
+        let base64Data = res.templateBase64;
+        if (base64Data.includes(",")) base64Data = base64Data.split(",")[1];
+        base64Data = base64Data.replace(/[^A-Za-z0-9+/=]/g, "");
+        while (base64Data.length % 4 !== 0) base64Data += "=";
+
+        const binaryString = window.atob(base64Data);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        window.rawKaspiTemplateBuffer = bytes.buffer;
+      } catch (decodeErr) {
+        console.error("Ошибка очистки Base64:", decodeErr);
+        throw new Error("Не удалось расшифровать бланк. Файл поврежден.");
+      }
+
+      // 2. === НАШ ЦИКЛ ЭКСПОРТА ===
+      window.kaspiExportItems = res.items;
+      window.kaspiExportConfig = res.templateConfig;
+      window.kaspiExportRowIndexes = res.rowIndexes;
+      window.kaspiTargetSheetName = res.templateConfig.targetSheetName || null;
+
+      // Включаем флаг экспорта (отключит оприходование)
+      window.isKaspiExportMode = true;
+
+      const exportModal = document.getElementById("export-modal");
+      if (exportModal) exportModal.style.display = "none";
+
+      function showParents(elementId) {
+        let el = document.getElementById(elementId);
+        while (el && el.tagName !== "BODY") {
+          if (
+            window.getComputedStyle(el).display === "none" ||
+            el.style.display === "none"
+          ) {
+            el.style.display = "block";
+          }
+          el = el.parentElement;
+        }
+      }
+
+      // === ВИРТУАЛЬНАЯ РАСПАКОВКА ===
+      window.parsedInvoiceData = res.items.map((dbItem) => {
+        let attrs = {};
+        try {
+          let rawAttr =
+            dbItem.attributes ||
+            dbItem.kaspi_attributes ||
+            dbItem.params ||
+            "{}";
+          attrs = typeof rawAttr === "string" ? JSON.parse(rawAttr) : rawAttr;
+        } catch (e) {}
+
+        const flatItem = Object.assign({}, dbItem, {
+          item_name:
+            dbItem.item_name || dbItem.name || dbItem.title || "Без названия",
+          item_id: dbItem.item_id || dbItem.id || dbItem.sku || "AUTO",
+          qty:
+            Number(dbItem.qty) ||
+            Number(dbItem.quantity) ||
+            Number(dbItem.available_qty) ||
+            0,
+          cost:
+            Number(dbItem.cost) ||
+            Number(dbItem.price) ||
+            Number(dbItem.price_in) ||
+            Number(dbItem.buy_price) ||
+            0,
+          barcode: dbItem.barcode || dbItem.ean || "",
+        });
+
+        for (const [key, value] of Object.entries(attrs)) {
+          if (flatItem[key] === undefined) {
+            flatItem[key] = value;
+          }
+        }
+
+        flatItem.attributes = JSON.stringify(attrs);
+        return flatItem;
+      });
+
+      // Удаляем системную колонку attributes для Маппера
+      const allHeaders = new Set();
+      window.parsedInvoiceData.forEach((item) => {
+        Object.keys(item).forEach((k) => {
+          if (
+            k !== "attributes" &&
+            k !== "kaspi_attributes" &&
+            k !== "params"
+          ) {
+            allHeaders.add(k);
+          }
+        });
+      });
+      const extractedHeaders = Array.from(allHeaders);
+
+      window.mapper2State = Object.assign(
+        {
+          colMap: {},
+          dictValues: {},
+          splitRules: {},
+          invoiceHeaders: extractedHeaders,
+          invoiceRows: window.parsedInvoiceData.map((item) =>
+            extractedHeaders.map((h) => item[h]),
+          ),
+        },
+        res.templateConfig || {},
+      );
+
+      // === ВОССТАНОВЛЕНИЕ ЗАГОЛОВКОВ И ПЕРЕВОДА НА РУССКИЙ ===
+      window.mapper2State.supplier = "Kaspi (Экспорт)";
+      window.mapper2State.docNo = res.templateConfig.templateName || "Партия";
+
+      if (res.templateConfig && res.templateConfig.systemKeys) {
+        window.mapper2State.sysToHumanMap = {};
+        for (let i = 0; i < res.templateConfig.systemKeys.length; i++) {
+          const sKey = res.templateConfig.systemKeys[i];
+          const hName = res.templateConfig.humanNames[i];
+          if (sKey && hName) window.mapper2State.sysToHumanMap[sKey] = hName;
+        }
+      }
+      // =========================================================
+
+      const step1 = document.getElementById("uploadStepArea");
+      const step2 = document.getElementById("mapper2Area");
+      const step3 = document.getElementById("invoicePreviewArea");
+
+      if (step1) step1.style.display = "none";
+
+      // === ВОССТАНОВЛЕНИЕ МАППЕРА: Рендерим его всегда, чтобы кнопка "Назад" не вела в пустоту! ===
+      window.renderMapper2Cards(res.templateConfig);
+
+      // Умная навигация
+      if (isExported) {
+        if (step2) step2.style.display = "none";
+        if (step3) step3.style.display = "flex";
+        showParents("invoicePreviewArea");
+        window.renderPreviewTable();
+      } else {
+        if (step3) step3.style.display = "none";
+        if (step2) step2.style.display = "flex";
+        showParents("mapper2Area");
+      }
+
+      if (step3) {
+        const allBtns = step3.querySelectorAll("button");
+        allBtns.forEach((b) => {
+          if (
+            b.innerText.trim().toUpperCase() === "НАЗАД" ||
+            b.textContent.includes("НАЗАД")
+          ) {
+            b.style.display = "";
+          }
+        });
+      }
+
+      const btnArea = document.getElementById("exportActionButtons");
+      if (btnArea) {
+        btnArea.style.display = "flex";
+        if (step3) step3.appendChild(btnArea);
+      }
+    } else {
+      const err =
+        res.error ||
+        "Не удалось загрузить данные или нет товаров для выгрузки.";
+      alert("⚠️ Ошибка сервера: " + err);
+      if (btnArea) btnArea.style.display = "none";
+    }
+  } catch (e) {
+    console.error("Полная ошибка загрузки данных партии:", e);
+    alert("⚠️ Критическая ошибка: " + e.message);
+  } finally {
+    if (typeof window.hideLoading === "function") window.hideLoading();
+  }
 };
 
 window.askCategoryName = function (defaultText) {
@@ -3978,7 +4055,11 @@ async function handleTemplateUpload(event) {
   if (modal) modal.style.display = "none";
 
   if (typeof window.showLoading === "function") {
-    window.showLoading(typeof translations !== 'undefined' && translations[currentLang] ? translations[currentLang].msg_analyze_template : "Анализ шаблона...");
+    window.showLoading(
+      typeof translations !== "undefined" && translations[currentLang]
+        ? translations[currentLang].msg_analyze_template
+        : "Анализ шаблона...",
+    );
   }
 
   if (fileNameSpan) {
@@ -3998,30 +4079,45 @@ async function handleTemplateUpload(event) {
         await workbook.xlsx.load(e.target.result);
 
         const getSafeText = (cell) => {
-            if (!cell || cell.value === null || cell.value === undefined) return "";
-            if (typeof cell.value === 'object') {
-                if (cell.value.richText) return cell.value.richText.map(rt => rt.text).join('').trim();
-                if (cell.value.result !== undefined) return String(cell.value.result).trim();
-            }
-            return String(cell.value).trim();
+          if (!cell || cell.value === null || cell.value === undefined)
+            return "";
+          if (typeof cell.value === "object") {
+            if (cell.value.richText)
+              return cell.value.richText
+                .map((rt) => rt.text)
+                .join("")
+                .trim();
+            if (cell.value.result !== undefined)
+              return String(cell.value.result).trim();
+          }
+          return String(cell.value).trim();
         };
 
-        let targetSheet = workbook.worksheets.find((s) => s.name.toLowerCase() === "attributes");
-        if (!targetSheet) targetSheet = workbook.worksheets.length > 1 ? workbook.worksheets[1] : workbook.worksheets[0];
+        let targetSheet = workbook.worksheets.find(
+          (s) => s.name.toLowerCase() === "attributes",
+        );
+        if (!targetSheet)
+          targetSheet =
+            workbook.worksheets.length > 1
+              ? workbook.worksheets[1]
+              : workbook.worksheets[0];
         window.kaspiTargetSheetName = targetSheet.name;
 
         const jsonData = [];
         targetSheet.eachRow((row, rowNumber) => {
           if (rowNumber > 20) return;
           let rowData = [];
-          const maxCols = targetSheet.columnCount > 0 ? targetSheet.columnCount : 100;
+          const maxCols =
+            targetSheet.columnCount > 0 ? targetSheet.columnCount : 100;
           for (let i = 1; i <= maxCols; i++) {
             rowData.push(getSafeText(row.getCell(i)));
           }
           jsonData.push(rowData);
         });
 
-        let requirements = [], systemKeys = [], humanNames = [];
+        let requirements = [],
+          systemKeys = [],
+          humanNames = [];
         const humMarkers = ["артикул", "модель", "бренд", "цена"];
         const sysMarkers = ["merchant_sku", "model", "brand", "price"];
 
@@ -4030,14 +4126,27 @@ async function handleTemplateUpload(event) {
           if (!rowText.trim()) continue;
 
           let humMatch = 0;
-          humMarkers.forEach((m) => { if (rowText.includes(m)) humMatch++; });
-          if (humMatch >= 2) { humanNames = jsonData[i]; continue; }
+          humMarkers.forEach((m) => {
+            if (rowText.includes(m)) humMatch++;
+          });
+          if (humMatch >= 2) {
+            humanNames = jsonData[i];
+            continue;
+          }
 
           let sysMatch = 0;
-          sysMarkers.forEach((m) => { if (rowText.includes(m)) sysMatch++; });
-          if (sysMatch >= 2) { systemKeys = jsonData[i]; continue; }
+          sysMarkers.forEach((m) => {
+            if (rowText.includes(m)) sysMatch++;
+          });
+          if (sysMatch >= 2) {
+            systemKeys = jsonData[i];
+            continue;
+          }
 
-          if (rowText.includes("обязательное") || rowText.includes("обязат.")) { requirements = jsonData[i]; continue; }
+          if (rowText.includes("обязательное") || rowText.includes("обязат.")) {
+            requirements = jsonData[i];
+            continue;
+          }
         }
 
         if (humanNames.length === 0 || systemKeys.length === 0) {
@@ -4050,20 +4159,33 @@ async function handleTemplateUpload(event) {
           return;
         }
 
-        while (humanNames.length > 0 && !humanNames[humanNames.length - 1]) humanNames.pop();
-        while (systemKeys.length > 0 && !systemKeys[systemKeys.length - 1]) systemKeys.pop();
+        while (humanNames.length > 0 && !humanNames[humanNames.length - 1])
+          humanNames.pop();
+        while (systemKeys.length > 0 && !systemKeys[systemKeys.length - 1])
+          systemKeys.pop();
 
         const hashData = new TextEncoder().encode(systemKeys.join("|"));
         const hashBuffer = await crypto.subtle.digest("SHA-256", hashData);
         const hashArray = Array.from(new Uint8Array(hashBuffer));
-        const templateHash = "hash_" + hashArray.map((b) => b.toString(16).padStart(2, "0")).join("").substring(0, 12);
+        const templateHash =
+          "hash_" +
+          hashArray
+            .map((b) => b.toString(16).padStart(2, "0"))
+            .join("")
+            .substring(0, 12);
 
         let valuesData = [];
-        let valuesSheet = workbook.worksheets.find((s) => s.name.toLowerCase() === "values" || s.name.toLowerCase() === "value" || s.name.toLowerCase() === "значения");
+        let valuesSheet = workbook.worksheets.find(
+          (s) =>
+            s.name.toLowerCase() === "values" ||
+            s.name.toLowerCase() === "value" ||
+            s.name.toLowerCase() === "значения",
+        );
         if (valuesSheet) {
           valuesSheet.eachRow((row) => {
             let rData = [];
-            const maxCols = valuesSheet.columnCount > 0 ? valuesSheet.columnCount : 50;
+            const maxCols =
+              valuesSheet.columnCount > 0 ? valuesSheet.columnCount : 50;
             for (let i = 1; i <= maxCols; i++) {
               rData.push(getSafeText(row.getCell(i)));
             }
@@ -4073,7 +4195,11 @@ async function handleTemplateUpload(event) {
 
         if (typeof window.hideLoading === "function") window.hideLoading();
 
-        const defaultCategory = file.name.replace(".xlsx", "").replace(".xls", "").replace(".xlsm", "").trim();
+        const defaultCategory = file.name
+          .replace(".xlsx", "")
+          .replace(".xls", "")
+          .replace(".xlsm", "")
+          .trim();
         let categoryName = await window.askCategoryName(defaultCategory);
 
         if (!categoryName) {
@@ -4089,12 +4215,17 @@ async function handleTemplateUpload(event) {
 
         if (templateSelect) {
           const existingOption = Array.from(templateSelect.options).find(
-            (opt) => opt.value.toLowerCase() === categoryName.toLowerCase() || opt.getAttribute("data-hash") === templateHash || opt.value === templateHash
+            (opt) =>
+              opt.value.toLowerCase() === categoryName.toLowerCase() ||
+              opt.getAttribute("data-hash") === templateHash ||
+              opt.value === templateHash,
           );
 
           if (existingOption) {
             isDuplicate = true;
-            const overwrite = confirm("Шаблон с таким именем или структурой уже существует. Перезаписать?");
+            const overwrite = confirm(
+              "Шаблон с таким именем или структурой уже существует. Перезаписать?",
+            );
             if (!overwrite) {
               if (fileNameSpan) {
                 fileNameSpan.innerText = "Загрузка отменена";
@@ -4106,7 +4237,8 @@ async function handleTemplateUpload(event) {
           }
         }
 
-        if (typeof window.showLoading === "function") window.showLoading("Сохранение...");
+        if (typeof window.showLoading === "function")
+          window.showLoading("Сохранение...");
         if (fileNameSpan) {
           fileNameSpan.innerText = `⏳ Сохранение...`;
           fileNameSpan.style.color = "var(--accent-blue)";
@@ -4121,7 +4253,11 @@ async function handleTemplateUpload(event) {
             let colValues = [];
             for (let i = 1; i < valuesData.length; i++) {
               let cellValue = valuesData[i][colIndex];
-              if (cellValue !== undefined && cellValue !== null && cellValue !== "") {
+              if (
+                cellValue !== undefined &&
+                cellValue !== null &&
+                cellValue !== ""
+              ) {
                 colValues.push(String(cellValue).trim());
               }
             }
@@ -4140,60 +4276,70 @@ async function handleTemplateUpload(event) {
           dictionary: dictionary,
         };
 
-        let binary = '';
+        let binary = "";
         const bytes = new Uint8Array(e.target.result);
         const len = bytes.byteLength;
         for (let i = 0; i < len; i++) {
-            binary += String.fromCharCode(bytes[i]);
+          binary += String.fromCharCode(bytes[i]);
         }
         const base64String = window.btoa(binary);
 
         const payload = {
           action: "saveKaspiTemplate",
-          api_key: typeof CLIENT_API_KEY !== "undefined" ? CLIENT_API_KEY : (window.CLIENT_API_KEY || ""),
+          api_key:
+            typeof CLIENT_API_KEY !== "undefined"
+              ? CLIENT_API_KEY
+              : window.CLIENT_API_KEY || "",
           category: categoryName,
           headersJson: JSON.stringify(extractedHeaders),
           fileBase64: base64String,
         };
 
         const res = await window.smartFetch(
-          typeof APPS_SCRIPT_URL !== "undefined" ? APPS_SCRIPT_URL : (window.APPS_SCRIPT_URL || ""),
+          typeof APPS_SCRIPT_URL !== "undefined"
+            ? APPS_SCRIPT_URL
+            : window.APPS_SCRIPT_URL || "",
           payload,
         );
 
         if (res && res.success) {
-            if (templateSelect) {
-              if (!isDuplicate) {
-                const newOption = document.createElement("option");
-                newOption.value = templateHash;
-                newOption.text = categoryName;
-                newOption.setAttribute("data-hash", templateHash);
-                templateSelect.appendChild(newOption);
-              }
-              templateSelect.value = templateHash;
+          if (templateSelect) {
+            if (!isDuplicate) {
+              const newOption = document.createElement("option");
+              newOption.value = templateHash;
+              newOption.text = categoryName;
+              newOption.setAttribute("data-hash", templateHash);
+              templateSelect.appendChild(newOption);
             }
+            templateSelect.value = templateHash;
+          }
         } else {
-            if (res && res.error === "kaspi_dup_hash") {
-                throw new Error("⚠️ Шаблон уже существует");
-            }
-            throw new Error(res ? res.error : "Пустой ответ от сервера");
+          if (res && res.error === "kaspi_dup_hash") {
+            throw new Error("⚠️ Шаблон уже существует");
+          }
+          throw new Error(res ? res.error : "Пустой ответ от сервера");
         }
 
-        if (typeof window.showLoading === "function") window.showLoading("Подключение БД...");
+        if (typeof window.showLoading === "function")
+          window.showLoading("Подключение БД...");
         if (fileNameSpan) {
           fileNameSpan.innerText = `⏳ Подключение БД...`;
           fileNameSpan.style.color = "var(--accent-blue)";
         }
 
         const dbResponse = await window.smartFetch(
-  typeof APPS_SCRIPT_URL !== "undefined" ? APPS_SCRIPT_URL : (window.APPS_SCRIPT_URL || ""),
-  {
-    action: "getKaspiExportData",
-    api_key: typeof CLIENT_API_KEY !== "undefined" ? CLIENT_API_KEY : "",
-  }
-);
+          typeof APPS_SCRIPT_URL !== "undefined"
+            ? APPS_SCRIPT_URL
+            : window.APPS_SCRIPT_URL || "",
+          {
+            action: "getKaspiExportData",
+            api_key:
+              typeof CLIENT_API_KEY !== "undefined" ? CLIENT_API_KEY : "",
+          },
+        );
 
-        const dynKeys = dbResponse && dbResponse.success ? dbResponse.dynamicKeys : [];
+        const dynKeys =
+          dbResponse && dbResponse.success ? dbResponse.dynamicKeys : [];
 
         if (fileNameSpan) {
           fileNameSpan.innerText = `✅ Шаблон готов (${categoryName})`;
@@ -4201,7 +4347,13 @@ async function handleTemplateUpload(event) {
         }
 
         if (typeof renderMapperUI === "function") {
-          renderMapperUI(systemKeys, humanNames, valuesData, requirements, dynKeys);
+          renderMapperUI(
+            systemKeys,
+            humanNames,
+            valuesData,
+            requirements,
+            dynKeys,
+          );
         }
 
         if (typeof updateFileNameCompactUI === "function") {
@@ -4586,27 +4738,27 @@ window.mapper2State = window.mapper2State || {};
 window.mapper2State.history = []; // Тот самый пустой список шагов
 
 // Универсальная функция возврата
-window.navigateBack = function() {
-    window.mapper2State = window.mapper2State || {};
-    let history = window.mapper2State.history || [];
-    
-    // Вычеркиваем текущий шаг (например, 'smart')
-    if (history.length > 0) {
-        history.pop();
-    }
+window.navigateBack = function () {
+  window.mapper2State = window.mapper2State || {};
+  let history = window.mapper2State.history || [];
 
-    // Смотрим, куда возвращаться
-    if (history.length > 0) {
-        const previousStep = history[history.length - 1];
-        if (typeof window.navigateIncomeStep === 'function') {
-            window.navigateIncomeStep(previousStep, true); 
-        }
-    } else {
-        // Если история пуста, принудительно возвращаемся на стартовый Шаг 1
-        if (typeof window.navigateIncomeStep === 'function') {
-            window.navigateIncomeStep(1, true); 
-        }
+  // Вычеркиваем текущий шаг (например, 'smart')
+  if (history.length > 0) {
+    history.pop();
+  }
+
+  // Смотрим, куда возвращаться
+  if (history.length > 0) {
+    const previousStep = history[history.length - 1];
+    if (typeof window.navigateIncomeStep === "function") {
+      window.navigateIncomeStep(previousStep, true);
     }
+  } else {
+    // Если история пуста, принудительно возвращаемся на стартовый Шаг 1
+    if (typeof window.navigateIncomeStep === "function") {
+      window.navigateIncomeStep(1, true);
+    }
+  }
 };
 
 window.mapper2State = {
@@ -4632,7 +4784,8 @@ window.navigateIncomeStep = function (stepNumber, isBack = false) {
   window.mapper2State.history = window.mapper2State.history || [];
 
   if (!isBack) {
-    const lastStep = window.mapper2State.history[window.mapper2State.history.length - 1];
+    const lastStep =
+      window.mapper2State.history[window.mapper2State.history.length - 1];
     if (lastStep !== stepNumber) {
       window.mapper2State.history.push(stepNumber);
     }
@@ -4741,9 +4894,11 @@ window.processInvoiceFile = async function () {
         const headersRaw = res.headersJson || res.headers_json || res.headers;
         if (res && res.success && headersRaw) {
           templateData =
-            typeof headersRaw === "string" ? JSON.parse(headersRaw) : headersRaw;
+            typeof headersRaw === "string"
+              ? JSON.parse(headersRaw)
+              : headersRaw;
           if (res.memoryJson) templateData.memoryJson = res.memoryJson;
-          
+
           // Сохраняем в кэш, чтобы больше не скачивать при повторном выборе файла
           window.kaspiTemplateCache[templateName] = templateData;
         } else {
@@ -4909,26 +5064,34 @@ window.processInvoiceFile = async function () {
       let smartHeaders = window.mapper2State.invoiceHeaders || [];
       let smartRows = window.mapper2State.invoiceRows || [];
 
-      if (typeof window.detectComplexColumns !== 'function') {
-          console.error("ОШИБКА: Функция detectComplexColumns не найдена! Файл smartMapper.js не загрузился или закэширован.");
-          return; 
+      if (typeof window.detectComplexColumns !== "function") {
+        console.error(
+          "ОШИБКА: Функция detectComplexColumns не найдена! Файл smartMapper.js не загрузился или закэширован.",
+        );
+        return;
       }
-      const complexColumns = window.detectComplexColumns(smartHeaders, smartRows);
+      const complexColumns = window.detectComplexColumns(
+        smartHeaders,
+        smartRows,
+      );
 
       console.log("Детектор получил шапки Excel:", smartHeaders);
-      console.log("Детектор получил строки Excel (первые 2):", smartRows.slice(0, 2));
+      console.log(
+        "Детектор получил строки Excel (первые 2):",
+        smartRows.slice(0, 2),
+      );
       console.log("Детектор нашел сложные колонки:", complexColumns);
 
       window.mapper2State = window.mapper2State || {};
 
       if (complexColumns && complexColumns.length > 0) {
-          window.mapper2State.lastComplexColumns = complexColumns;
-          window.navigateIncomeStep('smart');
+        window.mapper2State.lastComplexColumns = complexColumns;
+        window.navigateIncomeStep("smart");
       } else {
-          window.navigateIncomeStep(2);
-          if (typeof window.renderMapper2Cards === 'function') {
-              window.renderMapper2Cards(templateData);
-          }
+        window.navigateIncomeStep(2);
+        if (typeof window.renderMapper2Cards === "function") {
+          window.renderMapper2Cards(templateData);
+        }
       }
     } else {
       throw new Error("Не удалось найти таблицу с товарами");
@@ -4945,16 +5108,16 @@ window.renderMapper2Cards = function (templateData) {
   // === КЭШИРОВАНИЕ ДАННЫХ ===
   // Запоминаем данные при первом вызове, чтобы перерисовка работала при вызове без аргументов
   if (templateData) {
-      window.lastTemplateData = templateData;
+    window.lastTemplateData = templateData;
   } else {
-      templateData = window.lastTemplateData || {};
+    templateData = window.lastTemplateData || {};
   }
 
   const t = translations[currentLang] || translations["ru"];
 
   // Защита: если dictionary нет в templateData, берем из памяти или ставим пустой объект
   window.kaspiDicts = templateData.dictionary || window.kaspiDicts || {};
-  
+
   const container = document.getElementById("mapper2CardsContainer");
   container.innerHTML = "";
 
@@ -4962,24 +5125,31 @@ window.renderMapper2Cards = function (templateData) {
   window.mapper2State.dictValues = window.mapper2State.dictValues || {};
   window.mapper2State.splitRules = window.mapper2State.splitRules || {};
 
-  if (window.mapper2State.smartRules && templateData && templateData.humanNames && templateData.systemKeys) {
-      const headers = window.mapper2State.invoiceHeaders || [];
-      
-      Object.keys(window.mapper2State.smartRules).forEach(invoiceColName => {
-          const colIndex = headers.findIndex(h => String(h).trim() === invoiceColName);
-          
-          if (colIndex !== -1) {
-              const selectedParams = window.mapper2State.smartRules[invoiceColName];
-              
-              selectedParams.forEach(paramName => {
-                  const pIdx = templateData.humanNames.indexOf(paramName);
-                  if (pIdx !== -1) {
-                      const sysKey = templateData.systemKeys[pIdx];
-                      window.mapper2State.colMap[sysKey] = colIndex;
-                  }
-              });
+  if (
+    window.mapper2State.smartRules &&
+    templateData &&
+    templateData.humanNames &&
+    templateData.systemKeys
+  ) {
+    const headers = window.mapper2State.invoiceHeaders || [];
+
+    Object.keys(window.mapper2State.smartRules).forEach((invoiceColName) => {
+      const colIndex = headers.findIndex(
+        (h) => String(h).trim() === invoiceColName,
+      );
+
+      if (colIndex !== -1) {
+        const selectedParams = window.mapper2State.smartRules[invoiceColName];
+
+        selectedParams.forEach((paramName) => {
+          const pIdx = templateData.humanNames.indexOf(paramName);
+          if (pIdx !== -1) {
+            const sysKey = templateData.systemKeys[pIdx];
+            window.mapper2State.colMap[sysKey] = colIndex;
           }
-      });
+        });
+      }
+    });
   }
 
   let allReqs = [];
@@ -5089,7 +5259,8 @@ window.renderMapper2Cards = function (templateData) {
     if (!allReqs.some((r) => r.sysKey === field.sysKey)) allReqs.push(field);
   });
 
-  const globalSynonyms = typeof invoiceSynonyms !== "undefined" ? invoiceSynonyms : {};
+  const globalSynonyms =
+    typeof invoiceSynonyms !== "undefined" ? invoiceSynonyms : {};
   const headersLower = (window.mapper2State.invoiceHeaders || []).map((h) =>
     String(h || "")
       .trim()
@@ -5133,7 +5304,11 @@ window.renderMapper2Cards = function (templateData) {
       .filter(Boolean);
     let foundIndex = -1;
 
-    const safeLearned = Array.isArray(learned) ? learned : (typeof learned === 'string' ? [learned] : []);
+    const safeLearned = Array.isArray(learned)
+      ? learned
+      : typeof learned === "string"
+        ? [learned]
+        : [];
 
     foundIndex = headersLower.findIndex((h) => h && safeLearned.includes(h));
     if (foundIndex === -1)
@@ -5166,8 +5341,9 @@ window.renderMapper2Cards = function (templateData) {
         dictValue.length > 15 ? dictValue.substring(0, 15) + "..." : dictValue;
       // ИСПРАВЛЕНИЕ 1: Добавляем галочку и красим кнопку для словаря
       statusText = `✓ ${shortVal}`;
-      statusI18n = ""; 
-      statusStyle = "border: 1px solid var(--accent-green, #2ecc71); color: var(--accent-green, #2ecc71); background: var(--bg-success-dim, rgba(46, 204, 113, 0.15)); font-weight: bold;";
+      statusI18n = "";
+      statusStyle =
+        "border: 1px solid var(--accent-green, #2ecc71); color: var(--accent-green, #2ecc71); background: var(--bg-success-dim, rgba(46, 204, 113, 0.15)); font-weight: bold;";
     } else if (mappedIndex !== undefined) {
       statusClass = "status-filled";
       let colName =
@@ -5188,7 +5364,8 @@ window.renderMapper2Cards = function (templateData) {
         // ИСПРАВЛЕНИЕ 2: Меняем текст кнопки для сплиттера
         statusText = `✂️️ ${colName}`;
         statusI18n = "";
-        statusStyle = "border: 1px solid var(--accent-green, #2ecc71); color: var(--accent-green, #2ecc71); background: var(--bg-success-dim, rgba(46, 204, 113, 0.15)); font-weight: bold;";
+        statusStyle =
+          "border: 1px solid var(--accent-green, #2ecc71); color: var(--accent-green, #2ecc71); background: var(--bg-success-dim, rgba(46, 204, 113, 0.15)); font-weight: bold;";
 
         let sampleText = "";
         for (
@@ -5228,7 +5405,8 @@ window.renderMapper2Cards = function (templateData) {
         // ИСПРАВЛЕНИЕ 3: Меняем текст кнопки для обычного маппинга
         statusText = `✓ ${colName}`;
         statusI18n = "";
-        statusStyle = "border: 1px solid var(--accent-green, #2ecc71); color: var(--accent-green, #2ecc71); background: var(--bg-success-dim, rgba(46, 204, 113, 0.15)); font-weight: bold;";
+        statusStyle =
+          "border: 1px solid var(--accent-green, #2ecc71); color: var(--accent-green, #2ecc71); background: var(--bg-success-dim, rgba(46, 204, 113, 0.15)); font-weight: bold;";
       }
     }
 
@@ -5481,10 +5659,15 @@ window.openKaspiDictSearch = function () {
   let dict = window.kaspiDicts[reqName] || [];
 
   const lang = window.currentLang || localStorage.getItem("pos_lang") || "ru";
-  const t = typeof translations !== "undefined" && translations[lang] ? translations[lang] : {};
+  const t =
+    typeof translations !== "undefined" && translations[lang]
+      ? translations[lang]
+      : {};
 
   if (dict.length === 0) {
-    return alert((t.msg_dict_empty_1 || "") + reqName + (t.msg_dict_empty_2 || ""));
+    return alert(
+      (t.msg_dict_empty_1 || "") + reqName + (t.msg_dict_empty_2 || ""),
+    );
   }
 
   // Прячем нижнюю шторку
@@ -5507,10 +5690,12 @@ window.openKaspiDictSearch = function () {
   modal = document.createElement("div");
   modal.id = "kaspiDictModal";
   // Прижимаем окно к верхней части экрана (flex-start) с отступом
-  modal.style.cssText = "display:flex; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:999999; flex-direction:column; align-items:center; justify-content:flex-start; padding-top:40px; padding-left:15px; padding-right:15px; box-sizing:border-box; backdrop-filter:blur(3px);";
+  modal.style.cssText =
+    "display:flex; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:999999; flex-direction:column; align-items:center; justify-content:flex-start; padding-top:40px; padding-left:15px; padding-right:15px; box-sizing:border-box; backdrop-filter:blur(3px);";
 
   modal.onclick = (e) => {
-    if (e.target.id === "kaspiDictModal") document.getElementById("kaspiDictModal").remove();
+    if (e.target.id === "kaspiDictModal")
+      document.getElementById("kaspiDictModal").remove();
   };
 
   let clearBtnHtml = `
@@ -5564,120 +5749,145 @@ window.openKaspiDictSearch = function () {
   // Скрытие клавиатуры при скролле
   const listElem = document.getElementById("dictModalList");
   if (listElem) {
-      listElem.addEventListener("touchstart", () => {
-          const searchEl = document.getElementById("dictModalSearch");
-          if (searchEl) searchEl.blur();
-      }, { passive: true });
+    listElem.addEventListener(
+      "touchstart",
+      () => {
+        const searchEl = document.getElementById("dictModalSearch");
+        if (searchEl) searchEl.blur();
+      },
+      { passive: true },
+    );
   }
 
   // Запускаем рендер элементов списка
-  window.filterDictionary(); 
+  window.filterDictionary();
 };
 
 // Функция завершения выбора (вызывается по кнопке ОК)
-window.confirmKaspiDictSelection = function() {
-    if (!window.tempSelectedDictValue) {
-        const lang = window.currentLang || "ru";
-        const tr = typeof translations !== "undefined" && translations[lang] ? translations[lang] : {};
-        return alert(tr.err_select_val || "Пожалуйста, сначала выберите значение из списка.");
+window.confirmKaspiDictSelection = function () {
+  if (!window.tempSelectedDictValue) {
+    const lang = window.currentLang || "ru";
+    const tr =
+      typeof translations !== "undefined" && translations[lang]
+        ? translations[lang]
+        : {};
+    return alert(
+      tr.err_select_val || "Пожалуйста, сначала выберите значение из списка.",
+    );
+  }
+
+  const applyAll = document.getElementById("dictModalApplyAll").checked;
+
+  if (applyAll) {
+    if (!window.applyToAllMap) window.applyToAllMap = {};
+    window.applyToAllMap[window.currentModalSysKey] = true;
+  } else {
+    if (
+      window.applyToAllMap &&
+      window.applyToAllMap[window.currentModalSysKey]
+    ) {
+      delete window.applyToAllMap[window.currentModalSysKey];
     }
-    
-    const applyAll = document.getElementById("dictModalApplyAll").checked;
-    
-    if (applyAll) {
-        if (!window.applyToAllMap) window.applyToAllMap = {};
-        window.applyToAllMap[window.currentModalSysKey] = true;
-    } else {
-        if (window.applyToAllMap && window.applyToAllMap[window.currentModalSysKey]) {
-            delete window.applyToAllMap[window.currentModalSysKey];
-        }
-    }
-    
-    // ИСПРАВЛЕНИЕ 3: Вызываем сохранение ДО удаления окна, чтобы ядро не падало
-    if (typeof window.selectDictionaryValue === "function") {
-        window.selectDictionaryValue(window.tempSelectedDictValue, false, applyAll);
-    }
-    
-    // Теперь окно можно безопасно добить
-    const modal = document.getElementById("kaspiDictModal");
-    if (modal) modal.remove();
+  }
+
+  // ИСПРАВЛЕНИЕ 3: Вызываем сохранение ДО удаления окна, чтобы ядро не падало
+  if (typeof window.selectDictionaryValue === "function") {
+    window.selectDictionaryValue(window.tempSelectedDictValue, false, applyAll);
+  }
+
+  // Теперь окно можно безопасно добить
+  const modal = document.getElementById("kaspiDictModal");
+  if (modal) modal.remove();
 };
 
 // Функция очистки выбора
-window.clearKaspiDictSelection = function() {
-    window.tempSelectedDictValue = null;
-    document.getElementById("dictModalSearch").value = "";
-    document.getElementById("dictModalApplyAll").checked = false;
-    window.filterDictionary(); // перерисовываем список
+window.clearKaspiDictSelection = function () {
+  window.tempSelectedDictValue = null;
+  document.getElementById("dictModalSearch").value = "";
+  document.getElementById("dictModalApplyAll").checked = false;
+  window.filterDictionary(); // перерисовываем список
 };
 
 // Полностью обновленная функция фильтрации и рендера списка
 window.filterDictionary = function () {
-    let searchEl = document.getElementById("dictModalSearch");
-    let listEl = document.getElementById("dictModalList");
-    let countText = document.getElementById("dictModalCountText");
-    let totalCount = document.getElementById("dictTotalCount");
-    
-    // Защита от ошибок, если окно еще не открыто
-    if (!searchEl || !listEl) return;
+  let searchEl = document.getElementById("dictModalSearch");
+  let listEl = document.getElementById("dictModalList");
+  let countText = document.getElementById("dictModalCountText");
+  let totalCount = document.getElementById("dictTotalCount");
 
-    let query = searchEl.value.toLowerCase().trim();
-    let dict = window.currentModalDict || [];
+  // Защита от ошибок, если окно еще не открыто
+  if (!searchEl || !listEl) return;
 
-    // Фильтруем справочник по запросу
-    let filtered = dict.filter(item => String(item).toLowerCase().includes(query));
+  let query = searchEl.value.toLowerCase().trim();
+  let dict = window.currentModalDict || [];
 
-    // Локализация счетчика
-    const lang = window.currentLang || localStorage.getItem("pos_lang") || "ru";
-    const tr = typeof translations !== "undefined" && translations[lang] ? translations[lang] : {};
-    
-    if (countText && totalCount) {
-        countText.innerText = query === "" ? (tr.dict_total || "Всего:") : (tr.dict_found || "Найдено:");
-        totalCount.innerText = filtered.length;
-    }
+  // Фильтруем справочник по запросу
+  let filtered = dict.filter((item) =>
+    String(item).toLowerCase().includes(query),
+  );
 
-    // Если ничего не нашли
-    if (filtered.length === 0) {
-        listEl.innerHTML = `<div style="padding: 20px; text-align: center; color: var(--text-muted, #888); font-size: 14px;">${tr.tok_not_found || "Ничего не найдено"}</div>`;
-        return;
-    }
+  // Локализация счетчика
+  const lang = window.currentLang || localStorage.getItem("pos_lang") || "ru";
+  const tr =
+    typeof translations !== "undefined" && translations[lang]
+      ? translations[lang]
+      : {};
 
-    // Рендерим пункты меню
-    listEl.innerHTML = filtered.map(val => {
-        let safeVal = String(val).replace(/'/g, "\\'").replace(/"/g, "&quot;");
-        
-        // Красивая подсветка совпадений текста при поиске
-        let displayVal = val;
-        if (query) {
-            let regex = new RegExp(`(${query})`, "gi");
-            displayVal = String(val).replace(regex, "<mark style='background:#fef08a; color:#854d0e; padding:0 2px; border-radius:2px;'>$1</mark>");
-        }
-        
-        // Проверяем, выбран ли этот пункт
-        let isSelected = window.tempSelectedDictValue === val;
-        let bg = isSelected ? "rgba(59, 130, 246, 0.15)" : "transparent";
-        let check = isSelected ? `<span style="color:var(--accent-blue, #3b82f6); font-weight:bold; font-size:16px;">✔</span>` : "";
-        
-        // Генерируем строку списка
-        return `<li onclick="window.selectKaspiDictItem('${safeVal}')" style="display:flex; justify-content:space-between; align-items:center; padding:15px 20px; border-bottom:1px solid var(--border-light, #ddd); cursor:pointer; background:${bg}; font-size:14px; color:var(--text-main, #000); transition: background 0.2s;">
+  if (countText && totalCount) {
+    countText.innerText =
+      query === "" ? tr.dict_total || "Всего:" : tr.dict_found || "Найдено:";
+    totalCount.innerText = filtered.length;
+  }
+
+  // Если ничего не нашли
+  if (filtered.length === 0) {
+    listEl.innerHTML = `<div style="padding: 20px; text-align: center; color: var(--text-muted, #888); font-size: 14px;">${tr.tok_not_found || "Ничего не найдено"}</div>`;
+    return;
+  }
+
+  // Рендерим пункты меню
+  listEl.innerHTML = filtered
+    .map((val) => {
+      let safeVal = String(val).replace(/'/g, "\\'").replace(/"/g, "&quot;");
+
+      // Красивая подсветка совпадений текста при поиске
+      let displayVal = val;
+      if (query) {
+        let regex = new RegExp(`(${query})`, "gi");
+        displayVal = String(val).replace(
+          regex,
+          "<mark style='background:#fef08a; color:#854d0e; padding:0 2px; border-radius:2px;'>$1</mark>",
+        );
+      }
+
+      // Проверяем, выбран ли этот пункт
+      let isSelected = window.tempSelectedDictValue === val;
+      let bg = isSelected ? "rgba(59, 130, 246, 0.15)" : "transparent";
+      let check = isSelected
+        ? `<span style="color:var(--accent-blue, #3b82f6); font-weight:bold; font-size:16px;">✔</span>`
+        : "";
+
+      // Генерируем строку списка
+      return `<li onclick="window.selectKaspiDictItem('${safeVal}')" style="display:flex; justify-content:space-between; align-items:center; padding:15px 20px; border-bottom:1px solid var(--border-light, #ddd); cursor:pointer; background:${bg}; font-size:14px; color:var(--text-main, #000); transition: background 0.2s;">
             <span>${displayVal}</span>${check}
         </li>`;
-    }).join("");
+    })
+    .join("");
 };
 
 // Функция клика по элементу списка
-window.selectKaspiDictItem = function(val) {
-    // 1. Сохраняем во временную переменную
-    window.tempSelectedDictValue = val;
-    
-    // 2. ПЕРЕНОСИМ ВЫБОР В ПОЛЕ ПОИСКА
-    let searchEl = document.getElementById("dictModalSearch");
-    if (searchEl) {
-        searchEl.value = val;
-    }
-    
-    // 3. Перерисовываем список (он отфильтруется по этому слову и подсветится)
-    window.filterDictionary(); 
+window.selectKaspiDictItem = function (val) {
+  // 1. Сохраняем во временную переменную
+  window.tempSelectedDictValue = val;
+
+  // 2. ПЕРЕНОСИМ ВЫБОР В ПОЛЕ ПОИСКА
+  let searchEl = document.getElementById("dictModalSearch");
+  if (searchEl) {
+    searchEl.value = val;
+  }
+
+  // 3. Перерисовываем список (он отфильтруется по этому слову и подсветится)
+  window.filterDictionary();
 };
 
 window.selectDictionaryValue = function (value, isCustom) {
@@ -5685,7 +5895,8 @@ window.selectDictionaryValue = function (value, isCustom) {
 
   // 1. Очищаем старые привязки (если были)
   if (window.mapper2State.colMap) delete window.mapper2State.colMap[sysKey];
-  if (window.mapper2State.splitRules) delete window.mapper2State.splitRules[sysKey];
+  if (window.mapper2State.splitRules)
+    delete window.mapper2State.splitRules[sysKey];
   if (!window.mapper2State.dictValues) window.mapper2State.dictValues = {};
 
   // 2. Записываем новое значение
@@ -5696,9 +5907,9 @@ window.selectDictionaryValue = function (value, isCustom) {
 
   // === 4. ПЕРЕРИСОВЫВАЕМ КАРТОЧКИ (второй маппер) ===
   if (typeof window.renderMapper2Cards === "function") {
-      window.renderMapper2Cards(); 
+    window.renderMapper2Cards();
   } else {
-      console.error("Функция renderMapper2Cards не найдена!");
+    console.error("Функция renderMapper2Cards не найдена!");
   }
 };
 
@@ -5761,15 +5972,16 @@ window.updateReqCardStatus = function (sysKey, text, className, previewText) {
 
   if (badge) {
     if (className === "status-filled") {
-        badge.innerText = "✓ " + text.replace(' 🟢', '');
-        badge.removeAttribute("data-i18n"); 
-        badge.style.backgroundColor = "var(--bg-success-dim, rgba(46, 204, 113, 0.15))";
-        badge.style.borderColor = "var(--accent-green, #2ecc71)";
-        badge.style.color = "var(--accent-green, #2ecc71)";
+      badge.innerText = "✓ " + text.replace(" 🟢", "");
+      badge.removeAttribute("data-i18n");
+      badge.style.backgroundColor =
+        "var(--bg-success-dim, rgba(46, 204, 113, 0.15))";
+      badge.style.borderColor = "var(--accent-green, #2ecc71)";
+      badge.style.color = "var(--accent-green, #2ecc71)";
     } else {
-        badge.innerText = text;
-        badge.setAttribute("data-i18n", "inc_select");
-        badge.style = "";
+      badge.innerText = text;
+      badge.setAttribute("data-i18n", "inc_select");
+      badge.style = "";
     }
     badge.className = "req-status " + className;
   }
@@ -5780,23 +5992,32 @@ window.updateReqCardStatus = function (sysKey, text, className, previewText) {
 
   // ФИЗИЧЕСКИЙ ПЕРЕНОС БЕЗ ДУБЛИРОВАНИЯ ШАПКИ
   if (className === "status-filled" && badge) {
-      const card = badge.closest('.req-card');
-      const container = document.getElementById("mapper2CardsContainer");
-      if (card && container) {
-          // Ищем шапку строго по её уникальному якорю перевода
-          let filledHeader = container.querySelector('[data-i18n="desc_invoice_sys"]');
-          
-          if (!filledHeader) {
-              filledHeader = document.createElement('div');
-              filledHeader.className = 'section-header';
-              filledHeader.setAttribute('data-i18n', 'desc_invoice_sys');
-              filledHeader.style.cssText = 'color: var(--accent-green); padding: 15px 10px 5px; font-size: 11px; text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px;';
-              const t = typeof translations !== 'undefined' && translations[currentLang] ? translations[currentLang] : (typeof translations !== 'undefined' ? translations["ru"] : {});
-              filledHeader.innerHTML = '✅ ' + (t.desc_invoice_sys || 'Из накладной и системы');
-              container.appendChild(filledHeader);
-          }
-          container.appendChild(card);
+    const card = badge.closest(".req-card");
+    const container = document.getElementById("mapper2CardsContainer");
+    if (card && container) {
+      // Ищем шапку строго по её уникальному якорю перевода
+      let filledHeader = container.querySelector(
+        '[data-i18n="desc_invoice_sys"]',
+      );
+
+      if (!filledHeader) {
+        filledHeader = document.createElement("div");
+        filledHeader.className = "section-header";
+        filledHeader.setAttribute("data-i18n", "desc_invoice_sys");
+        filledHeader.style.cssText =
+          "color: var(--accent-green); padding: 15px 10px 5px; font-size: 11px; text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px;";
+        const t =
+          typeof translations !== "undefined" && translations[currentLang]
+            ? translations[currentLang]
+            : typeof translations !== "undefined"
+              ? translations["ru"]
+              : {};
+        filledHeader.innerHTML =
+          "✅ " + (t.desc_invoice_sys || "Из накладной и системы");
+        container.appendChild(filledHeader);
       }
+      container.appendChild(card);
+    }
   }
 };
 
@@ -5818,12 +6039,7 @@ window.selectMapper2Col = function (colIndex, colName) {
   }
 
   // Передаем чистое имя колонки (без лишних эмодзи кружочков)
-  updateReqCardStatus(
-    sysKey,
-    colName,
-    "status-filled",
-    previewVal || "Пусто"
-  );
+  updateReqCardStatus(sysKey, colName, "status-filled", previewVal || "Пусто");
   closeSheet();
 };
 
@@ -5956,13 +6172,24 @@ window.applyMapper2Logic = function () {
   const state = window.mapper2State;
 
   const qtyIdx = state.colMap["qty"];
-  const priceIdx = state.colMap["price"] !== undefined ? state.colMap["price"] : state.colMap["cost"];
-  const nameIdx = state.colMap["name"] !== undefined ? state.colMap["name"] : state.colMap["model"];
+  const priceIdx =
+    state.colMap["price"] !== undefined
+      ? state.colMap["price"]
+      : state.colMap["cost"];
+  const nameIdx =
+    state.colMap["name"] !== undefined
+      ? state.colMap["name"]
+      : state.colMap["model"];
 
   if (qtyIdx === undefined || priceIdx === undefined || nameIdx === undefined) {
     const lang = window.currentLang || localStorage.getItem("pos_lang") || "ru";
-    const tr = typeof translations !== "undefined" && translations[lang] ? translations[lang] : {};
-    const errorMsg = tr.mapper_err_missing_cols || "⚠️ Обязательно привяжите колонки:\n1. Наименование (или model)\n2. Количество (qty)\n3. Цена (price)";
+    const tr =
+      typeof translations !== "undefined" && translations[lang]
+        ? translations[lang]
+        : {};
+    const errorMsg =
+      tr.mapper_err_missing_cols ||
+      "⚠️ Обязательно привяжите колонки:\n1. Наименование (или model)\n2. Количество (qty)\n3. Цена (price)";
     return alert(errorMsg);
   }
 
@@ -5972,7 +6199,9 @@ window.applyMapper2Logic = function () {
     const templateName = templateSelect ? templateSelect.value : "";
     if (templateName) {
       let currentMemory = {};
-      try { currentMemory = JSON.parse(window.mapper2State.rawMemoryJson || "{}"); } catch (e) {}
+      try {
+        currentMemory = JSON.parse(window.mapper2State.rawMemoryJson || "{}");
+      } catch (e) {}
       let memoryUpdated = false;
 
       Object.keys(state.colMap).forEach((sysKey) => {
@@ -5980,7 +6209,9 @@ window.applyMapper2Logic = function () {
         let headerText = state.invoiceHeaders[colIndex];
         if (headerText) {
           let cleanWord = String(headerText).trim().toLowerCase();
-          if (!Array.isArray(currentMemory[sysKey])) { currentMemory[sysKey] = []; }
+          if (!Array.isArray(currentMemory[sysKey])) {
+            currentMemory[sysKey] = [];
+          }
           if (!currentMemory[sysKey].includes(cleanWord)) {
             currentMemory[sysKey].push(cleanWord);
             memoryUpdated = true;
@@ -5994,9 +6225,17 @@ window.applyMapper2Logic = function () {
       }
 
       if (memoryUpdated) {
-        const payload = { action: "updateKaspiMemory", api_key: CLIENT_API_KEY, category: templateName, memoryJson: JSON.stringify(currentMemory) };
-        window.smartFetch(GATEWAY_URL, payload)
-          .then(() => console.log("Словарь синонимов дополнен новыми заголовками"))
+        const payload = {
+          action: "updateKaspiMemory",
+          api_key: CLIENT_API_KEY,
+          category: templateName,
+          memoryJson: JSON.stringify(currentMemory),
+        };
+        window
+          .smartFetch(GATEWAY_URL, payload)
+          .then(() =>
+            console.log("Словарь синонимов дополнен новыми заголовками"),
+          )
           .catch((e) => console.error("Ошибка обновления словаря", e));
       }
     }
@@ -6007,21 +6246,27 @@ window.applyMapper2Logic = function () {
   window.invoiceGroups[state.docNo] = {
     supplier: state.supplier,
     items: [],
-    originalFiles: [{ fileName: state.fileName, fileBase64: state.originalBase64 }],
+    originalFiles: [
+      { fileName: state.fileName, fileBase64: state.originalBase64 },
+    ],
   };
 
   const regex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,]/g;
-  let mappedIndices = Object.values(state.colMap).filter((v) => v !== undefined);
+  let mappedIndices = Object.values(state.colMap).filter(
+    (v) => v !== undefined,
+  );
 
   // === КАРАНТИН: Подготовка массива для коллизий ===
-  window.mapper2State.quarantine = []; 
+  window.mapper2State.quarantine = [];
 
   state.invoiceRows.forEach((row, index) => {
     if (!row || row.length === 0) return;
 
     const getValue = (primaryKey, kaspiKey) => {
-      if (state.dictValues && state.dictValues[primaryKey]) return state.dictValues[primaryKey];
-      if (kaspiKey && state.dictValues && state.dictValues[kaspiKey]) return state.dictValues[kaspiKey];
+      if (state.dictValues && state.dictValues[primaryKey])
+        return state.dictValues[primaryKey];
+      if (kaspiKey && state.dictValues && state.dictValues[kaspiKey])
+        return state.dictValues[kaspiKey];
 
       let colIdx = state.colMap[primaryKey];
       if (colIdx === undefined && kaspiKey) colIdx = state.colMap[kaspiKey];
@@ -6059,18 +6304,32 @@ window.applyMapper2Logic = function () {
     let rawCbm = getValue("cbm");
     let cbm = rawCbm ? parseFloat(String(rawCbm).replace(",", ".")) : "";
     let rawWeight = getValue("weight");
-    let weight = rawWeight ? parseFloat(String(rawWeight).replace(",", ".")) : "";
+    let weight = rawWeight
+      ? parseFloat(String(rawWeight).replace(",", "."))
+      : "";
 
     let attributesObj = {};
-    let itemHasCollisions = false; 
-    let itemCollisionsList = []; 
+    let itemHasCollisions = false;
+    let itemCollisionsList = [];
 
     // === ИДЕАЛЬНЫЙ ПАРСЕР И КАРАНТИН ===
     const processAttribute = (key) => {
       let lowerKey = String(key).toLowerCase();
       let rawValue = getValue(key);
 
-      if (["qty", "price", "cost", "name", "model", "barcode", "cbm", "weight"].includes(lowerKey)) return;
+      if (
+        [
+          "qty",
+          "price",
+          "cost",
+          "name",
+          "model",
+          "barcode",
+          "cbm",
+          "weight",
+        ].includes(lowerKey)
+      )
+        return;
       if (!rawValue) return;
 
       let humanName = state.sysToHumanMap ? state.sysToHumanMap[key] : key;
@@ -6078,17 +6337,39 @@ window.applyMapper2Logic = function () {
       let searchString = rawValue;
       let extractedDirectly = null;
 
-      let isMetric = searchString.match(/(\d{3})\s*[\/\\]\s*(\d{2,3})\s*[a-zA-Z-]*\s*(\d{2})/);
-      let isImperial = searchString.match(/(\d{2}(?:\.\d+)?)\s*[xXхХ*]\s*(\d{1,2}(?:\.\d+)?)\s*[a-zA-Z-]*\s*(\d{2})/i);
+      let isMetric = searchString.match(
+        /(\d{3})\s*[\/\\]\s*(\d{2,3})\s*[a-zA-Z-]*\s*(\d{2})/,
+      );
+      let isImperial = searchString.match(
+        /(\d{2}(?:\.\d+)?)\s*[xXхХ*]\s*(\d{1,2}(?:\.\d+)?)\s*[a-zA-Z-]*\s*(\d{2})/i,
+      );
 
       if (isMetric) {
-          if (lowerHuman.includes("ширина")) extractedDirectly = isMetric[1];
-          else if (lowerHuman.includes("высота") || lowerHuman.includes("профиль")) extractedDirectly = isMetric[2];
-          else if (lowerHuman.includes("диаметр") || lowerHuman.includes("диск") || lowerHuman.includes("радиус")) extractedDirectly = isMetric[3];
+        if (lowerHuman.includes("ширина")) extractedDirectly = isMetric[1];
+        else if (
+          lowerHuman.includes("высота") ||
+          lowerHuman.includes("профиль")
+        )
+          extractedDirectly = isMetric[2];
+        else if (
+          lowerHuman.includes("диаметр") ||
+          lowerHuman.includes("диск") ||
+          lowerHuman.includes("радиус")
+        )
+          extractedDirectly = isMetric[3];
       } else if (isImperial) {
-          if (lowerHuman.includes("ширина")) extractedDirectly = isImperial[1];
-          else if (lowerHuman.includes("высота") || lowerHuman.includes("профиль")) extractedDirectly = isImperial[2];
-          else if (lowerHuman.includes("диаметр") || lowerHuman.includes("диск") || lowerHuman.includes("радиус")) extractedDirectly = isImperial[3];
+        if (lowerHuman.includes("ширина")) extractedDirectly = isImperial[1];
+        else if (
+          lowerHuman.includes("высота") ||
+          lowerHuman.includes("профиль")
+        )
+          extractedDirectly = isImperial[2];
+        else if (
+          lowerHuman.includes("диаметр") ||
+          lowerHuman.includes("диск") ||
+          lowerHuman.includes("радиус")
+        )
+          extractedDirectly = isImperial[3];
       }
 
       let dict = window.kaspiDicts && window.kaspiDicts[humanName];
@@ -6097,69 +6378,101 @@ window.applyMapper2Logic = function () {
       let matchedDictValue = searchString;
 
       if (extractedDirectly !== null) {
-          matchedDictValue = extractedDirectly; 
-          if (hasDictionary) {
-              for (let dv of dict) {
-                  let strDv = String(dv).trim();
-                  if (!strDv) continue;
-                  let baseDv = strDv.split('(')[0].trim();
-                  if (!isNaN(parseFloat(baseDv)) && parseFloat(baseDv) === parseFloat(extractedDirectly)) {
-                      matchedDictValue = strDv;
-                      foundMatch = true;
-                      break;
-                  }
-              }
+        matchedDictValue = extractedDirectly;
+        if (hasDictionary) {
+          for (let dv of dict) {
+            let strDv = String(dv).trim();
+            if (!strDv) continue;
+            let baseDv = strDv.split("(")[0].trim();
+            if (
+              !isNaN(parseFloat(baseDv)) &&
+              parseFloat(baseDv) === parseFloat(extractedDirectly)
+            ) {
+              matchedDictValue = strDv;
+              foundMatch = true;
+              break;
+            }
           }
-     } else {
-          if (hasDictionary) {
-               for (let dv of dict) {
-                   let strDv = String(dv).trim();
-                   let baseDv = strDv.split('(')[0].trim();
-                   
-                   // ФИКС: Строгая проверка. Если в строке есть слэш (115/110), мы запрещаем отрезать от нее куски
-                   let isStrictNumber = /^[\d\.]+$/.test(String(searchString).trim());
-                   
-                   if (strDv.toLowerCase() === String(searchString).trim().toLowerCase() ||
-                       baseDv.toLowerCase() === String(searchString).trim().toLowerCase() ||
-                       (isStrictNumber && !isNaN(parseFloat(baseDv)) && parseFloat(baseDv) === parseFloat(searchString))) {
-                       
-                       matchedDictValue = strDv;
-                       foundMatch = true;
-                       break;
-                   }
-               }
+        }
+      } else {
+        if (hasDictionary) {
+          for (let dv of dict) {
+            let strDv = String(dv).trim();
+            let baseDv = strDv.split("(")[0].trim();
+
+            // ФИКС: Строгая проверка. Если в строке есть слэш (115/110), мы запрещаем отрезать от нее куски
+            let isStrictNumber = /^[\d\.]+$/.test(String(searchString).trim());
+
+            if (
+              strDv.toLowerCase() ===
+                String(searchString).trim().toLowerCase() ||
+              baseDv.toLowerCase() ===
+                String(searchString).trim().toLowerCase() ||
+              (isStrictNumber &&
+                !isNaN(parseFloat(baseDv)) &&
+                parseFloat(baseDv) === parseFloat(searchString))
+            ) {
+              matchedDictValue = strDv;
+              foundMatch = true;
+              break;
+            }
           }
+        }
       }
 
       // 🔴 ФИНАЛЬНЫЙ КАПКАН
-      if (window.currentImportMode === "kaspi" && hasDictionary && !foundMatch) {
-          console.log("🔴 КАРАНТИН ПОЙМАЛ ТОВАР:", humanName, "=>", rawValue);
-          itemHasCollisions = true;
+      if (
+        window.currentImportMode === "kaspi" &&
+        hasDictionary &&
+        !foundMatch
+      ) {
+        console.log("🔴 КАРАНТИН ПОЙМАЛ ТОВАР:", humanName, "=>", rawValue);
+        itemHasCollisions = true;
 
-          // ДОБАВЛЕНО: Ищем реальное название колонки из шапки загруженного Excel
-          let colIdx = state.colMap[key];
-          let excelHeader = (colIdx !== undefined && state.invoiceHeaders) ? state.invoiceHeaders[colIdx] : "ДАННЫЕ ИЗ НАКЛАДНОЙ";
+        // ДОБАВЛЕНО: Ищем реальное название колонки из шапки загруженного Excel
+        let colIdx = state.colMap[key];
+        let excelHeader =
+          colIdx !== undefined && state.invoiceHeaders
+            ? state.invoiceHeaders[colIdx]
+            : "ДАННЫЕ ИЗ НАКЛАДНОЙ";
 
-          itemCollisionsList.push({
-              sysKey: key,            
-              humanName: humanName,   
-              rawString: rawValue,
-              excelColumnName: excelHeader // Передаем это в Токенизатор
-          });
-          
-          const excludeFromSmart = [
-              'Артикул', 'Название товара', 'Бренд', 'Цена', 'Название модели', 'Модель',
-              'Рубрика', 'category', 'Сезонность', 'Назначение', 'Тип шины', 'Комплектация', 
-              'Тип рисунка протектора', 'Шипы', 'Код изображений', 'Ссылка на YouTube', 
-              'Ссылка на картинку', 'Описание (мин. 100 символов, макс. 7 000 символов)', 
-              'Описание', 'Вес для расчета логистики', 'Объединить в одну карточку', 'В наличии'
-          ];
-          
-          if (excludeFromSmart.includes(humanName)) {
-              attributesObj[key] = rawValue; 
-          }
-          
-          return;
+        itemCollisionsList.push({
+          sysKey: key,
+          humanName: humanName,
+          rawString: rawValue,
+          excelColumnName: excelHeader, // Передаем это в Токенизатор
+        });
+
+        const excludeFromSmart = [
+          "Артикул",
+          "Название товара",
+          "Бренд",
+          "Цена",
+          "Название модели",
+          "Модель",
+          "Рубрика",
+          "category",
+          "Сезонность",
+          "Назначение",
+          "Тип шины",
+          "Комплектация",
+          "Тип рисунка протектора",
+          "Шипы",
+          "Код изображений",
+          "Ссылка на YouTube",
+          "Ссылка на картинку",
+          "Описание (мин. 100 символов, макс. 7 000 символов)",
+          "Описание",
+          "Вес для расчета логистики",
+          "Объединить в одну карточку",
+          "В наличии",
+        ];
+
+        if (excludeFromSmart.includes(humanName)) {
+          attributesObj[key] = rawValue;
+        }
+
+        return;
       }
 
       attributesObj[key] = matchedDictValue;
@@ -6167,13 +6480,18 @@ window.applyMapper2Logic = function () {
 
     // Собираем ВСЕ ключи: обычные привязки, статику и результаты Сита
     let allKeys = new Set(Object.keys(state.colMap));
-    if (state.dictValues) Object.keys(state.dictValues).forEach(k => allKeys.add(k));
-    if (state.splitRules) Object.keys(state.splitRules).forEach(k => allKeys.add(k));
-    
+    if (state.dictValues)
+      Object.keys(state.dictValues).forEach((k) => allKeys.add(k));
+    if (state.splitRules)
+      Object.keys(state.splitRules).forEach((k) => allKeys.add(k));
+
     // Прогоняем их все через наш умный сканер
-    allKeys.forEach(key => processAttribute(key));
-    
-    let finalAttributes = Object.keys(attributesObj).length > 0 ? JSON.stringify(attributesObj) : "";
+    allKeys.forEach((key) => processAttribute(key));
+
+    let finalAttributes =
+      Object.keys(attributesObj).length > 0
+        ? JSON.stringify(attributesObj)
+        : "";
 
     const itemData = {
       doc_no: state.docNo,
@@ -6184,48 +6502,62 @@ window.applyMapper2Logic = function () {
       cost: price,
       cbm: cbm,
       weight: weight,
-      attributes: finalAttributes, 
+      attributes: finalAttributes,
       raw_logistics: rawLogisticsStr.trim(),
-      staff_id: typeof currentUser !== "undefined" && currentUser ? currentUser.uid : "Auto-Import",
+      staff_id:
+        typeof currentUser !== "undefined" && currentUser
+          ? currentUser.uid
+          : "Auto-Import",
       id: rawId,
       name: name,
       desc: name,
       description: name,
       barcode: barcode,
       category: "Новые товары",
-      
+
       _hasCollisions: itemHasCollisions,
       _collisionsList: itemCollisionsList,
-      _attributesObj: attributesObj 
+      _attributesObj: attributesObj,
     };
 
     window.parsedInvoiceData.push(itemData);
     window.invoiceGroups[state.docNo].items.push(itemData);
 
     if (itemHasCollisions) {
-       itemCollisionsList.forEach(collision => {
-           const exists = window.mapper2State.quarantine.find(q => q.rawString === collision.rawString && q.sysKey === collision.sysKey);
-           if (!exists) {
-               window.mapper2State.quarantine.push(collision);
-           }
-       });
+      itemCollisionsList.forEach((collision) => {
+        const exists = window.mapper2State.quarantine.find(
+          (q) =>
+            q.rawString === collision.rawString &&
+            q.sysKey === collision.sysKey,
+        );
+        if (!exists) {
+          window.mapper2State.quarantine.push(collision);
+        }
+      });
     }
-
   });
 
   if (window.parsedInvoiceData.length === 0) {
-    return alert("Не удалось сформировать товары. Убедитесь, что в колонках «Количество» и «Цена» находятся ТОЛЬКО цифры.");
+    return alert(
+      "Не удалось сформировать товары. Убедитесь, что в колонках «Количество» и «Цена» находятся ТОЛЬКО цифры.",
+    );
   }
 
-// === ПРОВЕРКА КАРАНТИНА И ЗАПУСК ТОКЕНИЗАТОРА ===
-  if (window.mapper2State.quarantine && window.mapper2State.quarantine.length > 0) {
-      console.log("Внимание: Найдены сложные нераспознанные форматы. Запуск Токенизатора...", window.mapper2State.quarantine);
-      if (typeof window.startTokenizerQueue === 'function') {
-          window.startTokenizerQueue();
-      } else {
-          alert("Найдены сложные форматы, но модуль Токенизатора еще не загружен.");
-      }
-      return; 
+  // === ПРОВЕРКА КАРАНТИНА И ЗАПУСК ТОКЕНИЗАТОРА ===
+  if (
+    window.mapper2State.quarantine &&
+    window.mapper2State.quarantine.length > 0
+  ) {
+    console.log(
+      "Внимание: Найдены сложные нераспознанные форматы. Запуск Токенизатора...",
+      window.mapper2State.quarantine,
+    );
+    if (typeof window.startTokenizerQueue === "function") {
+      window.startTokenizerQueue();
+    } else {
+      alert("Найдены сложные форматы, но модуль Токенизатора еще не загружен.");
+    }
+    return;
   }
 
   // Если всё чисто, пускаем на Экран 4
@@ -6236,14 +6568,13 @@ window.applyMapper2Logic = function () {
   // === ЖЕСТКИЙ БЛОКИРАТОР ДЛЯ РЕЖИМА ЭКСПОРТА ===
   // Если мы пришли сюда из режима выгрузки Kaspi, прячем кнопку оприходования!
   if (window.isKaspiExportMode) {
-      const sendBtn = document.getElementById('sendInvoiceBtn'); // Зеленая кнопка "Оприходовать"
-      if (sendBtn) sendBtn.style.display = 'none';
-      
-      const exportBtns = document.getElementById('exportActionButtons'); // Синие кнопки выгрузки
-      if (exportBtns) exportBtns.style.display = 'flex';
+    const sendBtn = document.getElementById("sendInvoiceBtn"); // Зеленая кнопка "Оприходовать"
+    if (sendBtn) sendBtn.style.display = "none";
+
+    const exportBtns = document.getElementById("exportActionButtons"); // Синие кнопки выгрузки
+    if (exportBtns) exportBtns.style.display = "flex";
   }
   // ==============================================
-
 }; // <-- Конец функции applyMapper2Logic
 
 // === ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ РЕДАКТОРА ===
@@ -6347,72 +6678,83 @@ window.renderPreviewTable = function () {
       .join("");
 
   // === ЛОГИКА ДЛЯ РЕЖИМА ЭКСПОРТА ===
-    if (window.isKaspiExportMode) {
-        // Прячем кнопку "Оприходовать"
-        const sendBtn = document.getElementById("sendInvoiceBtn");
-        if (sendBtn) sendBtn.style.display = "none";
-        
-        // Показываем кнопки выгрузки
-        const exportBtns = document.getElementById("exportActionButtons");
-        const step3 = document.getElementById("invoicePreviewArea");
-        
-        if (exportBtns && step3) {
-            exportBtns.style.display = "flex";
-            step3.appendChild(exportBtns);
-            
-            // --- СОЗДАЕМ КНОПКУ ПОЛНОГО СБРОСА ---
-            let resetBtn = document.getElementById('kaspiResetExportBtn');
-            if (!resetBtn) {
-                resetBtn = document.createElement('button');
-                resetBtn.id = 'kaspiResetExportBtn';
-                
-                // Поддержка тем через CSS-переменные
-                resetBtn.style.background = 'var(--btn-danger-bg, #ef4444)';
-                resetBtn.style.color = 'var(--btn-danger-text, #ffffff)';
-                resetBtn.style.border = '1px solid var(--btn-danger-border, #dc2626)';
-                resetBtn.style.padding = '10px 15px';
-                resetBtn.style.borderRadius = '6px';
-                resetBtn.style.fontWeight = 'bold';
-                resetBtn.style.cursor = 'pointer';
-                resetBtn.style.marginLeft = '10px';
-                
-                // Мультиязычность
-                resetBtn.setAttribute('data-i18n', 'kaspi_reset_invoice');
-                resetBtn.innerText = '🔄 Перезалить накладную (Сброс)'; 
-                
-                resetBtn.onclick = function(e) {
-                    e.preventDefault();
-                    
-                    if (!confirm('Очистить таблицу и загрузить накладную заново?')) return;
-                    
-                    // Очищаем текущие данные Маппера
-                    window.parsedInvoiceData = [];
-                    if (window.mapper2State) window.mapper2State.colMap = {};
-                    
-                    // Скрываем Шаг 3, показываем Шаг 1
-                    document.getElementById("invoicePreviewArea").style.display = "none";
-                    
-                    const step1 = document.getElementById("uploadStepArea");
-                    if (step1) {
-                        step1.style.display = "block";
-                        // Если функция showParents доступна глобально, можно использовать её для надежности:
-                        if (typeof window.showParents === 'function') {
-                            window.showParents("uploadStepArea");
-                        }
-                    }
-                };
-                
-                exportBtns.appendChild(resetBtn);
-                
-                // Применяем перевод сразу после создания кнопки
-                if (typeof window.applyTranslations === 'function') {
-                    window.applyTranslations();
-                } else if (typeof window.updateLanguage === 'function') {
-                    window.updateLanguage();
-                }
-            }
+  if (window.isKaspiExportMode) {
+    // Прячем кнопку "Оприходовать"
+    const sendBtn = document.getElementById("sendInvoiceBtn");
+    if (sendBtn) sendBtn.style.display = "none";
+
+    // Показываем кнопки выгрузки
+    const exportBtns = document.getElementById("exportActionButtons");
+    const step3 = document.getElementById("invoicePreviewArea");
+
+    if (exportBtns && step3) {
+      exportBtns.style.display = "flex";
+      step3.appendChild(exportBtns);
+
+      // --- СОЗДАЕМ КНОПКУ ПОЛНОГО СБРОСА ---
+      let resetBtn = document.getElementById("kaspiResetExportBtn");
+      if (!resetBtn) {
+        resetBtn = document.createElement("button");
+        resetBtn.id = "kaspiResetExportBtn";
+
+        // Поддержка тем через CSS-переменные
+        resetBtn.style.background = "var(--btn-danger-bg, #ef4444)";
+        resetBtn.style.color = "var(--btn-danger-text, #ffffff)";
+        resetBtn.style.border = "1px solid var(--btn-danger-border, #dc2626)";
+        resetBtn.style.padding = "10px 15px";
+        resetBtn.style.borderRadius = "6px";
+        resetBtn.style.fontWeight = "bold";
+        resetBtn.style.cursor = "pointer";
+        resetBtn.style.marginLeft = "10px";
+
+        // Мультиязычность
+        resetBtn.setAttribute("data-i18n", "kaspi_reset_invoice");
+        resetBtn.innerText = "🔄 Перезалить накладную (Сброс)";
+
+        resetBtn.onclick = function (e) {
+          e.preventDefault();
+
+          // Достаем перевод для алерта
+          let confirmMsg = "Очистить таблицу и загрузить накладную заново?";
+          if (typeof window.t === "function") {
+            confirmMsg = window.t("kaspi_reset_confirm") || confirmMsg;
+          } else {
+            const translatedEl = document.querySelector(
+              '[data-i18n="kaspi_reset_confirm"]',
+            );
+            if (translatedEl) confirmMsg = translatedEl.innerText;
+          }
+
+          if (!confirm(confirmMsg)) return;
+
+          // 1. Очищаем старые связи
+          window.parsedInvoiceData = [];
+          if (window.mapper2State) window.mapper2State.colMap = {};
+
+          // 2. Полностью очищаем и закрываем поломанное модальное окно
+          const modal = document.getElementById("modalContainer");
+          if (modal) {
+            modal.innerHTML = "";
+            modal.style.display = "none";
+          }
+
+          // 3. Открываем стартовое меню заново (как будто клиент только что зашел)
+          if (typeof window.openExportModal === "function") {
+            window.openExportModal();
+          }
+        };
+
+        exportBtns.appendChild(resetBtn);
+
+        // Применяем перевод сразу после создания кнопки
+        if (typeof window.applyTranslations === "function") {
+          window.applyTranslations();
+        } else if (typeof window.updateLanguage === "function") {
+          window.updateLanguage();
         }
+      }
     }
+  }
 };
 
 // === 1. ГЛАВНОЕ ОКНО РЕДАКТИРОВАНИЯ ===
@@ -6660,8 +7002,15 @@ window.saveAllEdits = function () {
       : "";
 
   // ИСПРАВЛЕНИЕ: Пытаемся обновить invoiceGroups ТОЛЬКО если мы не в режиме экспорта
-  if (!window.isKaspiExportMode && window.invoiceGroups && item.doc_no && window.invoiceGroups[item.doc_no]) {
-      window.invoiceGroups[item.doc_no].items[window.currentEditIndex].attributes = item.attributes;
+  if (
+    !window.isKaspiExportMode &&
+    window.invoiceGroups &&
+    item.doc_no &&
+    window.invoiceGroups[item.doc_no]
+  ) {
+    window.invoiceGroups[item.doc_no].items[
+      window.currentEditIndex
+    ].attributes = item.attributes;
   }
 
   if (Object.keys(window.applyToAllMap).length > 0) {
@@ -6675,10 +7024,16 @@ window.saveAllEdits = function () {
         rowAttrs[globalKey] = window.applyToAllMap[globalKey];
       });
       row.attributes = JSON.stringify(rowAttrs);
-      
+
       // ИСПРАВЛЕНИЕ: Массовое обновление для групп тоже защищаем
-      if (!window.isKaspiExportMode && window.invoiceGroups && row.doc_no && window.invoiceGroups[row.doc_no]) {
-          window.invoiceGroups[row.doc_no].items[rIdx].attributes = row.attributes;
+      if (
+        !window.isKaspiExportMode &&
+        window.invoiceGroups &&
+        row.doc_no &&
+        window.invoiceGroups[row.doc_no]
+      ) {
+        window.invoiceGroups[row.doc_no].items[rIdx].attributes =
+          row.attributes;
       }
     });
   }
@@ -7092,27 +7447,29 @@ async function sendInvoiceToBackend() {
 
   // === 1. ПОЛУЧАЕМ ВЫБРАННЫЙ ШАБЛОН ===
   const templateDropdown = document.getElementById("kaspiTemplateSelect");
-  const selectedCategory = templateDropdown ? templateDropdown.value.trim() : "";
+  const selectedCategory = templateDropdown
+    ? templateDropdown.value.trim()
+    : "";
 
   // === 1.5. СОБИРАЕМ КАСПИ-МАППИНГ НА ЛЕТУ ИЗ ПРОВЕРЕННЫХ ТОВАРОВ ===
   let autoGeneratedMapper = {};
   if (selectedCategory && window.parsedInvoiceData.length > 0) {
     try {
       // Берем первый товар как образец для сборки правил
-      const sampleItem = window.parsedInvoiceData[0]; 
+      const sampleItem = window.parsedInvoiceData[0];
       let itemAttrs = {};
       if (sampleItem.attributes) {
         itemAttrs = JSON.parse(sampleItem.attributes);
       }
-      
-      Object.keys(itemAttrs).forEach(key => {
+
+      Object.keys(itemAttrs).forEach((key) => {
         if (window.applyToAllMap && window.applyToAllMap[key]) {
           autoGeneratedMapper[key] = "static_" + window.applyToAllMap[key];
         } else {
-          autoGeneratedMapper[key] = "json_" + key; 
+          autoGeneratedMapper[key] = "json_" + key;
         }
       });
-    } catch(e) {
+    } catch (e) {
       console.error("Ошибка при сборке маппера:", e);
     }
   }
@@ -7191,9 +7548,9 @@ async function sendInvoiceToBackend() {
           docNo: docNo,
           currency: document.getElementById("invoiceCurrency").value,
           fingerprint: fp,
-          market_category: selectedCategory, 
+          market_category: selectedCategory,
           market_status: "pending",
-          kaspi_mapper: autoGeneratedMapper
+          kaspi_mapper: autoGeneratedMapper,
         }),
       });
 
@@ -7261,7 +7618,7 @@ async function sendInvoiceToBackend() {
     // Очистка памяти роутера
     window.mapper2State = window.mapper2State || {};
     window.mapper2State.history = [];
-    
+
     // Возврат интерфейса на 1-й шаг (с флагом true, чтобы не дублировать в историю)
     if (typeof window.navigateIncomeStep === "function") {
       window.navigateIncomeStep(1, true);
@@ -9215,7 +9572,7 @@ window.startNtScanner = function () {
 
   Quagga.onDetected(window.handleNtQuaggaDetection);
 };
-handleTemplateUpload
+handleTemplateUpload;
 // 3. Обработка штрихкода
 window.handleNtQuaggaDetection = function (result) {
   if (!result || !result.codeResult || !result.codeResult.code) return;
@@ -9485,10 +9842,13 @@ window.processKaspiTemplate = async function () {
   // === АВТО-ФИКС ДЛЯ ФАЙЛОВ .xlsm ===
   // Расширяем фильтр файлов на лету, чтобы окно увидело .xlsm
   if (fileInput) {
-      let acceptAttr = fileInput.getAttribute("accept") || "";
-      if (!acceptAttr.includes(".xlsm")) {
-          fileInput.setAttribute("accept", acceptAttr ? acceptAttr + ", .xlsm, .xml" : ".xlsm, .xlsx, .xls, .xml");
-      }
+    let acceptAttr = fileInput.getAttribute("accept") || "";
+    if (!acceptAttr.includes(".xlsm")) {
+      fileInput.setAttribute(
+        "accept",
+        acceptAttr ? acceptAttr + ", .xlsm, .xml" : ".xlsm, .xlsx, .xls, .xml",
+      );
+    }
   }
 
   statusDiv.innerText = "";
@@ -9506,17 +9866,22 @@ window.processKaspiTemplate = async function () {
 
   const templateSelect = document.getElementById("kaspiTemplateSelect");
   if (templateSelect) {
-    const existingOptions = Array.from(templateSelect.options).map((opt) => opt.text.trim().toLowerCase());
+    const existingOptions = Array.from(templateSelect.options).map((opt) =>
+      opt.text.trim().toLowerCase(),
+    );
     if (existingOptions.includes(categoryName.toLowerCase())) {
       statusDiv.innerText = "⚠️ Категория с таким именем уже существует!";
       statusDiv.style.color = "#ff4444";
       nameInput.style.borderColor = "#ff4444";
-      setTimeout(() => { nameInput.style.borderColor = "#555"; }, 2000);
+      setTimeout(() => {
+        nameInput.style.borderColor = "#555";
+      }, 2000);
       return;
     }
   }
 
-  if (typeof window.showLoading === "function") window.showLoading(null, "kaspi_saving");
+  if (typeof window.showLoading === "function")
+    window.showLoading(null, "kaspi_saving");
   saveBtn.disabled = true;
 
   try {
@@ -9529,22 +9894,35 @@ window.processKaspiTemplate = async function () {
         await workbook.xlsx.load(e.target.result);
 
         const getSafeText = (cell) => {
-            if (!cell || cell.value === null || cell.value === undefined) return "";
-            if (typeof cell.value === 'object') {
-                if (cell.value.richText) return cell.value.richText.map(rt => rt.text).join('').trim();
-                if (cell.value.result !== undefined) return String(cell.value.result).trim();
-            }
-            return String(cell.value).trim();
+          if (!cell || cell.value === null || cell.value === undefined)
+            return "";
+          if (typeof cell.value === "object") {
+            if (cell.value.richText)
+              return cell.value.richText
+                .map((rt) => rt.text)
+                .join("")
+                .trim();
+            if (cell.value.result !== undefined)
+              return String(cell.value.result).trim();
+          }
+          return String(cell.value).trim();
         };
 
-        let targetSheet = workbook.worksheets.find(s => s.name.toLowerCase() === "attributes");
-        if (!targetSheet) targetSheet = workbook.worksheets.length > 1 ? workbook.worksheets[1] : workbook.worksheets[0];
+        let targetSheet = workbook.worksheets.find(
+          (s) => s.name.toLowerCase() === "attributes",
+        );
+        if (!targetSheet)
+          targetSheet =
+            workbook.worksheets.length > 1
+              ? workbook.worksheets[1]
+              : workbook.worksheets[0];
 
         const jsonData = [];
         targetSheet.eachRow((row, rowNumber) => {
           if (rowNumber > 20) return;
           let rowData = [];
-          const maxCols = targetSheet.columnCount > 0 ? targetSheet.columnCount : 100;
+          const maxCols =
+            targetSheet.columnCount > 0 ? targetSheet.columnCount : 100;
           for (let i = 1; i <= maxCols; i++) {
             rowData.push(getSafeText(row.getCell(i)));
           }
@@ -9562,52 +9940,82 @@ window.processKaspiTemplate = async function () {
           if (!rowText.trim()) continue;
 
           let humMatch = 0;
-          humMarkers.forEach((m) => { if (rowText.includes(m)) humMatch++; });
-          if (humMatch >= 2) { humanNames = jsonData[i]; continue; }
+          humMarkers.forEach((m) => {
+            if (rowText.includes(m)) humMatch++;
+          });
+          if (humMatch >= 2) {
+            humanNames = jsonData[i];
+            continue;
+          }
 
           let sysMatch = 0;
-          sysMarkers.forEach((m) => { if (rowText.includes(m)) sysMatch++; });
-          if (sysMatch >= 2) { systemKeys = jsonData[i]; continue; }
+          sysMarkers.forEach((m) => {
+            if (rowText.includes(m)) sysMatch++;
+          });
+          if (sysMatch >= 2) {
+            systemKeys = jsonData[i];
+            continue;
+          }
 
-          if (rowText.includes("обязательное") || rowText.includes("обязат.")) { requirements = jsonData[i]; continue; }
+          if (rowText.includes("обязательное") || rowText.includes("обязат.")) {
+            requirements = jsonData[i];
+            continue;
+          }
         }
 
         if (humanNames.length === 0 || systemKeys.length === 0) {
           throw new Error("Не удалось распознать структуру шаблона.");
         }
 
-        while (humanNames.length > 0 && !humanNames[humanNames.length - 1]) humanNames.pop();
-        while (systemKeys.length > 0 && !systemKeys[systemKeys.length - 1]) systemKeys.pop();
+        while (humanNames.length > 0 && !humanNames[humanNames.length - 1])
+          humanNames.pop();
+        while (systemKeys.length > 0 && !systemKeys[systemKeys.length - 1])
+          systemKeys.pop();
 
         // === ГЕНЕРАЦИЯ ХЭША ===
         const hashData = new TextEncoder().encode(systemKeys.join("|"));
         const hashBuffer = await crypto.subtle.digest("SHA-256", hashData);
         const hashArray = Array.from(new Uint8Array(hashBuffer));
-        const templateHash = "hash_" + hashArray.map((b) => b.toString(16).padStart(2, "0")).join("").substring(0, 12);
+        const templateHash =
+          "hash_" +
+          hashArray
+            .map((b) => b.toString(16).padStart(2, "0"))
+            .join("")
+            .substring(0, 12);
 
         if (templateSelect) {
-          const matchingOption = Array.from(templateSelect.options).find(opt => opt.getAttribute("data-hash") === templateHash || opt.value === templateHash);
+          const matchingOption = Array.from(templateSelect.options).find(
+            (opt) =>
+              opt.getAttribute("data-hash") === templateHash ||
+              opt.value === templateHash,
+          );
           if (matchingOption) {
             if (typeof window.hideLoading === "function") window.hideLoading();
             statusDiv.innerText = "⚠️ Шаблон с такой структурой уже загружен!";
             statusDiv.style.color = "#ff4444";
             saveBtn.disabled = false;
-            return; 
+            return;
           }
         }
 
         let dictionary = {};
-        let valueSheet = workbook.worksheets.find(s => s.name.toLowerCase() === "values" || s.name.toLowerCase() === "value" || s.name.toLowerCase() === "значения");
+        let valueSheet = workbook.worksheets.find(
+          (s) =>
+            s.name.toLowerCase() === "values" ||
+            s.name.toLowerCase() === "value" ||
+            s.name.toLowerCase() === "значения",
+        );
 
         if (valueSheet) {
           const rowsData = [];
           valueSheet.eachRow((row) => {
-             let rData = [];
-             const maxCols = valueSheet.columnCount > 0 ? valueSheet.columnCount : 50;
-             for (let i = 1; i <= maxCols; i++) {
-                 rData.push(getSafeText(row.getCell(i)));
-             }
-             rowsData.push(rData);
+            let rData = [];
+            const maxCols =
+              valueSheet.columnCount > 0 ? valueSheet.columnCount : 50;
+            for (let i = 1; i <= maxCols; i++) {
+              rData.push(getSafeText(row.getCell(i)));
+            }
+            rowsData.push(rData);
           });
 
           if (rowsData.length > 0) {
@@ -9618,7 +10026,11 @@ window.processKaspiTemplate = async function () {
               let colValues = [];
               for (let i = 1; i < rowsData.length; i++) {
                 let cellValue = rowsData[i][colIndex];
-                if (cellValue !== undefined && cellValue !== null && cellValue !== "") {
+                if (
+                  cellValue !== undefined &&
+                  cellValue !== null &&
+                  cellValue !== ""
+                ) {
                   colValues.push(String(cellValue).trim());
                 }
               }
@@ -9646,37 +10058,45 @@ window.processKaspiTemplate = async function () {
             const base64String = base64Reader.result.split(",")[1];
             const payload = {
               action: "saveKaspiTemplate",
-              api_key: typeof CLIENT_API_KEY !== "undefined" ? CLIENT_API_KEY : window.CLIENT_API_KEY,
+              api_key:
+                typeof CLIENT_API_KEY !== "undefined"
+                  ? CLIENT_API_KEY
+                  : window.CLIENT_API_KEY,
               category: categoryName,
               headersJson: JSON.stringify(extractedHeaders),
               fileBase64: base64String,
             };
 
             const res = await window.smartFetch(
-              typeof APPS_SCRIPT_URL !== "undefined" ? APPS_SCRIPT_URL : window.APPS_SCRIPT_URL,
+              typeof APPS_SCRIPT_URL !== "undefined"
+                ? APPS_SCRIPT_URL
+                : window.APPS_SCRIPT_URL,
               payload,
             );
 
             if (res && res.success) {
-              
               // === ПРАВИЛЬНОЕ ДОБАВЛЕНИЕ В СПИСОК С НУЖНЫМ ХЭШЕМ ===
               if (templateSelect) {
                 const newOption = document.createElement("option");
-                newOption.value = templateHash; 
+                newOption.value = templateHash;
                 newOption.text = categoryName;
                 newOption.setAttribute("data-hash", templateHash);
                 templateSelect.appendChild(newOption);
-                templateSelect.value = templateHash; 
+                templateSelect.value = templateHash;
               }
-              
-              if (typeof window.hideLoading === "function") window.hideLoading();
+
+              if (typeof window.hideLoading === "function")
+                window.hideLoading();
               statusDiv.innerText = "✅ Успешно сохранено!";
 
               setTimeout(async () => {
-                if (typeof closeKaspiManager === "function") closeKaspiManager();
+                if (typeof closeKaspiManager === "function")
+                  closeKaspiManager();
 
                 if (window.kaspiModalSource === "income") {
-                  if (typeof window.loadKaspiTemplatesFromServer === "function") {
+                  if (
+                    typeof window.loadKaspiTemplatesFromServer === "function"
+                  ) {
                     await window.loadKaspiTemplatesFromServer();
                     if (templateSelect) {
                       templateSelect.value = templateHash;
@@ -9687,7 +10107,9 @@ window.processKaspiTemplate = async function () {
               }, 1000);
             } else {
               if (res && res.error === "kaspi_dup_hash") {
-                throw new Error("⚠️ Дубликат шаблона! (такая структура уже загружена)");
+                throw new Error(
+                  "⚠️ Дубликат шаблона! (такая структура уже загружена)",
+                );
               }
               throw new Error(res ? res.error : "Пустой ответ");
             }
@@ -9812,7 +10234,11 @@ window.processKaspiTemplate = async function () {
       opt.text.trim().toLowerCase(),
     );
     if (existingOptions.includes(categoryName.toLowerCase())) {
-      statusDiv.innerText = "⚠️ " + (typeof translations !== 'undefined' && translations[currentLang] ? translations[currentLang]["kaspi_dup_error"] : "Категория с таким именем уже существует!");
+      statusDiv.innerText =
+        "⚠️ " +
+        (typeof translations !== "undefined" && translations[currentLang]
+          ? translations[currentLang]["kaspi_dup_error"]
+          : "Категория с таким именем уже существует!");
       statusDiv.style.color = "#ff4444";
       nameInput.style.borderColor = "#ff4444";
       setTimeout(() => {
@@ -9822,7 +10248,8 @@ window.processKaspiTemplate = async function () {
     }
   }
 
-  if (typeof window.showLoading === "function") window.showLoading(null, "kaspi_saving");
+  if (typeof window.showLoading === "function")
+    window.showLoading(null, "kaspi_saving");
   saveBtn.disabled = true;
 
   try {
@@ -9836,22 +10263,35 @@ window.processKaspiTemplate = async function () {
         await workbook.xlsx.load(e.target.result);
 
         const getSafeText = (cell) => {
-            if (!cell || cell.value === null || cell.value === undefined) return "";
-            if (typeof cell.value === 'object') {
-                if (cell.value.richText) return cell.value.richText.map(rt => rt.text).join('').trim();
-                if (cell.value.result !== undefined) return String(cell.value.result).trim();
-            }
-            return String(cell.value).trim();
+          if (!cell || cell.value === null || cell.value === undefined)
+            return "";
+          if (typeof cell.value === "object") {
+            if (cell.value.richText)
+              return cell.value.richText
+                .map((rt) => rt.text)
+                .join("")
+                .trim();
+            if (cell.value.result !== undefined)
+              return String(cell.value.result).trim();
+          }
+          return String(cell.value).trim();
         };
 
-        let targetSheet = workbook.worksheets.find(s => s.name.toLowerCase() === "attributes");
-        if (!targetSheet) targetSheet = workbook.worksheets.length > 1 ? workbook.worksheets[1] : workbook.worksheets[0];
+        let targetSheet = workbook.worksheets.find(
+          (s) => s.name.toLowerCase() === "attributes",
+        );
+        if (!targetSheet)
+          targetSheet =
+            workbook.worksheets.length > 1
+              ? workbook.worksheets[1]
+              : workbook.worksheets[0];
 
         const jsonData = [];
         targetSheet.eachRow((row, rowNumber) => {
           if (rowNumber > 20) return;
           let rowData = [];
-          const maxCols = targetSheet.columnCount > 0 ? targetSheet.columnCount : 100;
+          const maxCols =
+            targetSheet.columnCount > 0 ? targetSheet.columnCount : 100;
           for (let i = 1; i <= maxCols; i++) {
             rowData.push(getSafeText(row.getCell(i)));
           }
@@ -9869,14 +10309,18 @@ window.processKaspiTemplate = async function () {
           if (!rowText.trim()) continue;
 
           let humMatch = 0;
-          humMarkers.forEach((m) => { if (rowText.includes(m)) humMatch++; });
+          humMarkers.forEach((m) => {
+            if (rowText.includes(m)) humMatch++;
+          });
           if (humMatch >= 2) {
             humanNames = jsonData[i];
             continue;
           }
 
           let sysMatch = 0;
-          sysMarkers.forEach((m) => { if (rowText.includes(m)) sysMatch++; });
+          sysMarkers.forEach((m) => {
+            if (rowText.includes(m)) sysMatch++;
+          });
           if (sysMatch >= 2) {
             systemKeys = jsonData[i];
             continue;
@@ -9893,38 +10337,60 @@ window.processKaspiTemplate = async function () {
         }
 
         // Очищаем хвосты от пустых колонок, чтобы хэш был идеальным
-        while (humanNames.length > 0 && !humanNames[humanNames.length - 1]) humanNames.pop();
-        while (systemKeys.length > 0 && !systemKeys[systemKeys.length - 1]) systemKeys.pop();
+        while (humanNames.length > 0 && !humanNames[humanNames.length - 1])
+          humanNames.pop();
+        while (systemKeys.length > 0 && !systemKeys[systemKeys.length - 1])
+          systemKeys.pop();
 
         // === ГЕНЕРАЦИЯ ХЭША ===
         const hashData = new TextEncoder().encode(systemKeys.join("|"));
         const hashBuffer = await crypto.subtle.digest("SHA-256", hashData);
         const hashArray = Array.from(new Uint8Array(hashBuffer));
-        const templateHash = "hash_" + hashArray.map((b) => b.toString(16).padStart(2, "0")).join("").substring(0, 12);
+        const templateHash =
+          "hash_" +
+          hashArray
+            .map((b) => b.toString(16).padStart(2, "0"))
+            .join("")
+            .substring(0, 12);
 
         if (templateSelect) {
-          const matchingOption = Array.from(templateSelect.options).find(opt => opt.getAttribute("data-hash") === templateHash);
+          const matchingOption = Array.from(templateSelect.options).find(
+            (opt) => opt.getAttribute("data-hash") === templateHash,
+          );
           if (matchingOption) {
             if (typeof window.hideLoading === "function") window.hideLoading();
-            statusDiv.innerText = "⚠️ " + (typeof translations !== 'undefined' && translations[currentLang] ? translations[currentLang]["kaspi_dup_hash_front"].replace("{name}", matchingOption.text) : "Шаблон уже загружен!");
+            statusDiv.innerText =
+              "⚠️ " +
+              (typeof translations !== "undefined" && translations[currentLang]
+                ? translations[currentLang]["kaspi_dup_hash_front"].replace(
+                    "{name}",
+                    matchingOption.text,
+                  )
+                : "Шаблон уже загружен!");
             statusDiv.style.color = "#ff4444";
             saveBtn.disabled = false;
-            return; 
+            return;
           }
         }
 
         let dictionary = {};
-        let valueSheet = workbook.worksheets.find(s => s.name.toLowerCase() === "values" || s.name.toLowerCase() === "value" || s.name.toLowerCase() === "значения");
+        let valueSheet = workbook.worksheets.find(
+          (s) =>
+            s.name.toLowerCase() === "values" ||
+            s.name.toLowerCase() === "value" ||
+            s.name.toLowerCase() === "значения",
+        );
 
         if (valueSheet) {
           const rowsData = [];
           valueSheet.eachRow((row) => {
-             let rData = [];
-             const maxCols = valueSheet.columnCount > 0 ? valueSheet.columnCount : 50;
-             for (let i = 1; i <= maxCols; i++) {
-                 rData.push(getSafeText(row.getCell(i)));
-             }
-             rowsData.push(rData);
+            let rData = [];
+            const maxCols =
+              valueSheet.columnCount > 0 ? valueSheet.columnCount : 50;
+            for (let i = 1; i <= maxCols; i++) {
+              rData.push(getSafeText(row.getCell(i)));
+            }
+            rowsData.push(rData);
           });
 
           if (rowsData.length > 0) {
@@ -9935,7 +10401,11 @@ window.processKaspiTemplate = async function () {
               let colValues = [];
               for (let i = 1; i < rowsData.length; i++) {
                 let cellValue = rowsData[i][colIndex];
-                if (cellValue !== undefined && cellValue !== null && cellValue !== "") {
+                if (
+                  cellValue !== undefined &&
+                  cellValue !== null &&
+                  cellValue !== ""
+                ) {
                   colValues.push(String(cellValue).trim());
                 }
               }
@@ -9963,30 +10433,48 @@ window.processKaspiTemplate = async function () {
             const base64String = base64Reader.result.split(",")[1];
             const payload = {
               action: "saveKaspiTemplate",
-              api_key: typeof CLIENT_API_KEY !== "undefined" ? CLIENT_API_KEY : window.CLIENT_API_KEY,
+              api_key:
+                typeof CLIENT_API_KEY !== "undefined"
+                  ? CLIENT_API_KEY
+                  : window.CLIENT_API_KEY,
               category: categoryName,
               headersJson: JSON.stringify(extractedHeaders),
               fileBase64: base64String,
             };
 
             const res = await window.smartFetch(
-              typeof APPS_SCRIPT_URL !== "undefined" ? APPS_SCRIPT_URL : window.APPS_SCRIPT_URL,
+              typeof APPS_SCRIPT_URL !== "undefined"
+                ? APPS_SCRIPT_URL
+                : window.APPS_SCRIPT_URL,
               payload,
             );
 
             if (res && res.success) {
-              if (typeof window.hideLoading === "function") window.hideLoading();
-              statusDiv.innerText = "✅ " + (typeof translations !== 'undefined' && translations[currentLang] ? translations[currentLang]["kaspi_success"] : "Успешно!");
+              if (typeof window.hideLoading === "function")
+                window.hideLoading();
+              statusDiv.innerText =
+                "✅ " +
+                (typeof translations !== "undefined" &&
+                translations[currentLang]
+                  ? translations[currentLang]["kaspi_success"]
+                  : "Успешно!");
 
               setTimeout(async () => {
-                if (typeof closeKaspiManager === "function") closeKaspiManager();
+                if (typeof closeKaspiManager === "function")
+                  closeKaspiManager();
 
                 if (window.kaspiModalSource === "income") {
-                  if (typeof window.loadKaspiTemplatesFromServer === "function") {
+                  if (
+                    typeof window.loadKaspiTemplatesFromServer === "function"
+                  ) {
                     await window.loadKaspiTemplatesFromServer();
                     if (templateSelect) {
                       for (let i = 0; i < templateSelect.options.length; i++) {
-                        if (templateSelect.options[i].text.trim().toLowerCase() === categoryName.toLowerCase()) {
+                        if (
+                          templateSelect.options[i].text
+                            .trim()
+                            .toLowerCase() === categoryName.toLowerCase()
+                        ) {
                           templateSelect.selectedIndex = i;
                           templateSelect.dispatchEvent(new Event("change"));
                           break;
@@ -9998,7 +10486,15 @@ window.processKaspiTemplate = async function () {
               }, 1000);
             } else {
               if (res && res.error === "kaspi_dup_hash") {
-                throw new Error("⚠️ " + (typeof translations !== 'undefined' && translations[currentLang] ? translations[currentLang]["kaspi_dup_hash_back"].replace("{name}", res.existingName) : "Дубликат шаблона!"));
+                throw new Error(
+                  "⚠️ " +
+                    (typeof translations !== "undefined" &&
+                    translations[currentLang]
+                      ? translations[currentLang][
+                          "kaspi_dup_hash_back"
+                        ].replace("{name}", res.existingName)
+                      : "Дубликат шаблона!"),
+                );
               }
               throw new Error(res ? res.error : "Пустой ответ");
             }
@@ -10008,7 +10504,12 @@ window.processKaspiTemplate = async function () {
             if (err.message && err.message.includes("⚠️")) {
               statusDiv.innerText = err.message;
             } else {
-              statusDiv.innerText = "❌ " + (typeof translations !== 'undefined' && translations[currentLang] ? translations[currentLang]["kaspi_err_net"] : "Ошибка сети");
+              statusDiv.innerText =
+                "❌ " +
+                (typeof translations !== "undefined" &&
+                translations[currentLang]
+                  ? translations[currentLang]["kaspi_err_net"]
+                  : "Ошибка сети");
             }
             statusDiv.style.color = "#ff4444";
           } finally {
@@ -10538,143 +11039,194 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 });
 // Генерация итогового прайс-листа для Kaspi
-window.generateExportFile = async function (target = 'local') {
+window.generateExportFile = async function (target = "local") {
   const btn = document.getElementById("generateExportBtn");
   const originalText = btn ? btn.innerText : "Выгрузить";
 
   if (btn) {
-      btn.innerText = "⏳ Формирование файла...";
-      btn.disabled = true;
+    btn.innerText = "⏳ Формирование файла...";
+    btn.disabled = true;
   }
-  if (typeof window.showLoading === "function") window.showLoading(null, "kaspi_saving");
+  if (typeof window.showLoading === "function")
+    window.showLoading(null, "kaspi_saving");
 
   try {
     // БЕРЕМ ДАННЫЕ ЛИБО ИЗ ТАБЛИЦЫ (с учетом ручных правок), ЛИБО СЫРЫЕ
     const items = window.parsedInvoiceData || window.kaspiExportItems;
-    if (!items || items.length === 0) throw new Error("Нет товаров для выгрузки.");
-    if (!window.rawKaspiTemplateBuffer) throw new Error("Оригинальный шаблон не найден в памяти.");
+    if (!items || items.length === 0)
+      throw new Error("Нет товаров для выгрузки.");
+    if (!window.rawKaspiTemplateBuffer)
+      throw new Error("Оригинальный шаблон не найден в памяти.");
 
     const getSafeText = (cell) => {
-        if (!cell || cell.value === null || cell.value === undefined) return "";
-        if (typeof cell.value === 'object') {
-            if (cell.value.richText) return cell.value.richText.map(rt => rt.text).join('').trim();
-            if (cell.value.result !== undefined) return String(cell.value.result).trim();
-        }
-        return String(cell.value).trim();
+      if (!cell || cell.value === null || cell.value === undefined) return "";
+      if (typeof cell.value === "object") {
+        if (cell.value.richText)
+          return cell.value.richText
+            .map((rt) => rt.text)
+            .join("")
+            .trim();
+        if (cell.value.result !== undefined)
+          return String(cell.value.result).trim();
+      }
+      return String(cell.value).trim();
     };
 
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(window.rawKaspiTemplateBuffer);
-    let worksheet = window.kaspiTargetSheetName ? workbook.getWorksheet(window.kaspiTargetSheetName) : null;
-    
+    let worksheet = window.kaspiTargetSheetName
+      ? workbook.getWorksheet(window.kaspiTargetSheetName)
+      : null;
+
     let sysKeyRowIndex = -1;
     let startRow = 4;
-    
+
     if (!worksheet) {
-        workbook.worksheets.forEach(ws => {
-            for (let i = 1; i <= 6; i++) {
-                const row = ws.getRow(i);
-                let found = false;
-                if (row) {
-                    row.eachCell(cell => {
-                        if (getSafeText(cell) === 'merchant_sku') found = true;
-                    });
-                }
-                if (found) {
-                    worksheet = ws;
-                    sysKeyRowIndex = i;
-                    startRow = i + 2; 
-                }
-            }
-        });
+      workbook.worksheets.forEach((ws) => {
+        for (let i = 1; i <= 6; i++) {
+          const row = ws.getRow(i);
+          let found = false;
+          if (row) {
+            row.eachCell((cell) => {
+              if (getSafeText(cell) === "merchant_sku") found = true;
+            });
+          }
+          if (found) {
+            worksheet = ws;
+            sysKeyRowIndex = i;
+            startRow = i + 2;
+          }
+        }
+      });
     }
 
     if (!worksheet) worksheet = workbook.worksheets[0];
-    if (sysKeyRowIndex === -1) throw new Error("Не удалось найти строку с merchant_sku в шаблоне.");
+    if (sysKeyRowIndex === -1)
+      throw new Error("Не удалось найти строку с merchant_sku в шаблоне.");
 
     const sysKeyRow = worksheet.getRow(sysKeyRowIndex);
-    const humanKeyRow = worksheet.getRow(sysKeyRowIndex + 1); 
+    const humanKeyRow = worksheet.getRow(sysKeyRowIndex + 1);
 
     // ПЫТАЕМСЯ ВЗЯТЬ ПАМЯТЬ ИЗ МАППЕРА (если он был открыт) ИЛИ ИЗ БАЗЫ
     let memory = {};
-    if (window.mapper2State && window.mapper2State.colMap && Object.keys(window.mapper2State.colMap).length > 0) {
-        memory = window.mapper2State.colMap;
+    if (
+      window.mapper2State &&
+      window.mapper2State.colMap &&
+      Object.keys(window.mapper2State.colMap).length > 0
+    ) {
+      memory = window.mapper2State.colMap;
     } else {
-        const config = window.kaspiExportConfig || {};
-        try { memory = typeof config.mapper_memory === 'string' ? JSON.parse(config.mapper_memory) : (config.mapper_memory || {}); } catch(e) {}
+      const config = window.kaspiExportConfig || {};
+      try {
+        memory =
+          typeof config.mapper_memory === "string"
+            ? JSON.parse(config.mapper_memory)
+            : config.mapper_memory || {};
+      } catch (e) {}
     }
 
     let insertedCount = 0;
-    
+
     items.forEach((item, itemIdx) => {
       const targetRow = worksheet.getRow(startRow + itemIdx);
       let rowHasData = false;
 
       sysKeyRow.eachCell((cell, colNumber) => {
-          const kaspiKey = getSafeText(cell);
-          const humanKey = getSafeText(humanKeyRow.getCell(colNumber));
-          
-          if (!kaspiKey) return;
+        const kaspiKey = getSafeText(cell);
+        const humanKey = getSafeText(humanKeyRow.getCell(colNumber));
 
-          let sourceDbField = "";
-          
-          if (memory[kaspiKey]) {
-              sourceDbField = memory[kaspiKey];
-          } else if (memory[humanKey]) {
-              sourceDbField = memory[humanKey];
-          } else {
-              for (const [key, val] of Object.entries(memory)) {
-                  if (Array.isArray(val) && (val.includes(kaspiKey) || val.includes(humanKey))) { 
-                      sourceDbField = key; 
-                      break; 
-                  } else if (val === kaspiKey || val === humanKey) { 
-                      sourceDbField = key; 
-                      break; 
-                  }
-              }
-          }
+        if (!kaspiKey) return;
 
-          let value = "";
-          
-          if (sourceDbField === 'barcode') value = item.barcode || item.item_id || "";
-          else if (sourceDbField === 'name') value = String(item.name || item.item_name || "");
-          else if (sourceDbField === 'price') value = Number(item.price || item.cost || item.retail_price) || 0;
-          else if (sourceDbField === 'qty') value = Number(item.qty || item.quantity) || 0;
-          else if (sourceDbField && sourceDbField.startsWith("static_")) {
-              value = sourceDbField.replace("static_", "");
-          } else if (sourceDbField) {
-              let attrs = {};
-              try { attrs = typeof item.attributes === 'string' ? JSON.parse(item.attributes || '{}') : (item.attributes || {}); } catch(e){}
-              
-              if (attrs[sourceDbField] !== undefined && attrs[sourceDbField] !== null) {
-                  value = attrs[sourceDbField];
-              } else if (item[sourceDbField] !== undefined && item[sourceDbField] !== null) {
-                  value = item[sourceDbField];
-              }
-          }
+        let sourceDbField = "";
 
-          // === МАГИЯ АВТО-МЭТЧИНГА ===
-          if ((value === "" || value === null || value === undefined) && !sourceDbField) {
-              if (item[humanKey] !== undefined && item[humanKey] !== null && item[humanKey] !== "") {
-                  value = item[humanKey];
-              } else if (item[kaspiKey] !== undefined && item[kaspiKey] !== null && item[kaspiKey] !== "") {
-                  value = item[kaspiKey];
-              }
+        if (memory[kaspiKey]) {
+          sourceDbField = memory[kaspiKey];
+        } else if (memory[humanKey]) {
+          sourceDbField = memory[humanKey];
+        } else {
+          for (const [key, val] of Object.entries(memory)) {
+            if (
+              Array.isArray(val) &&
+              (val.includes(kaspiKey) || val.includes(humanKey))
+            ) {
+              sourceDbField = key;
+              break;
+            } else if (val === kaspiKey || val === humanKey) {
+              sourceDbField = key;
+              break;
+            }
           }
-          // ============================
+        }
 
-          if (value !== "" && value !== undefined && value !== null) {
-              targetRow.getCell(colNumber).value = value;
-              rowHasData = true;
+        let value = "";
+
+        if (sourceDbField === "barcode")
+          value = item.barcode || item.item_id || "";
+        else if (sourceDbField === "name")
+          value = String(item.name || item.item_name || "");
+        else if (sourceDbField === "price")
+          value = Number(item.price || item.cost || item.retail_price) || 0;
+        else if (sourceDbField === "qty")
+          value = Number(item.qty || item.quantity) || 0;
+        else if (sourceDbField && sourceDbField.startsWith("static_")) {
+          value = sourceDbField.replace("static_", "");
+        } else if (sourceDbField) {
+          let attrs = {};
+          try {
+            attrs =
+              typeof item.attributes === "string"
+                ? JSON.parse(item.attributes || "{}")
+                : item.attributes || {};
+          } catch (e) {}
+
+          if (
+            attrs[sourceDbField] !== undefined &&
+            attrs[sourceDbField] !== null
+          ) {
+            value = attrs[sourceDbField];
+          } else if (
+            item[sourceDbField] !== undefined &&
+            item[sourceDbField] !== null
+          ) {
+            value = item[sourceDbField];
           }
+        }
+
+        // === МАГИЯ АВТО-МЭТЧИНГА ===
+        if (
+          (value === "" || value === null || value === undefined) &&
+          !sourceDbField
+        ) {
+          if (
+            item[humanKey] !== undefined &&
+            item[humanKey] !== null &&
+            item[humanKey] !== ""
+          ) {
+            value = item[humanKey];
+          } else if (
+            item[kaspiKey] !== undefined &&
+            item[kaspiKey] !== null &&
+            item[kaspiKey] !== ""
+          ) {
+            value = item[kaspiKey];
+          }
+        }
+        // ============================
+
+        if (value !== "" && value !== undefined && value !== null) {
+          targetRow.getCell(colNumber).value = value;
+          rowHasData = true;
+        }
       });
 
       if (rowHasData) insertedCount++;
     });
 
     if (insertedCount === 0) {
-        alert("⚠️ Скрипт отработал, но данные пустые. Проверьте сопоставление колонок в настройках шаблона.");
-        throw new Error("Пустые данные");
+      alert(
+        "⚠️ Скрипт отработал, но данные пустые. Проверьте сопоставление колонок в настройках шаблона.",
+      );
+      throw new Error("Пустые данные");
     }
 
     const buffer = await workbook.xlsx.writeBuffer();
@@ -10683,22 +11235,40 @@ window.generateExportFile = async function (target = 'local') {
 
     // ТИХОЕ АВТОСОХРАНЕНИЕ
     if (window.isKaspiExportMode && window.parsedInvoiceData) {
-        const url = typeof APPS_SCRIPT_URL !== "undefined" ? APPS_SCRIPT_URL : window.APPS_SCRIPT_URL;
-        const itemsToUpdate = window.parsedInvoiceData.map(item => ({
-            item_id: item.item_id || item.id,
-            attributes: typeof item.attributes === 'object' ? JSON.stringify(item.attributes) : (item.attributes || "{}")
-        }));
+      const url =
+        typeof APPS_SCRIPT_URL !== "undefined"
+          ? APPS_SCRIPT_URL
+          : window.APPS_SCRIPT_URL;
+      const itemsToUpdate = window.parsedInvoiceData.map((item) => ({
+        item_id: item.item_id || item.id,
+        attributes:
+          typeof item.attributes === "object"
+            ? JSON.stringify(item.attributes)
+            : item.attributes || "{}",
+      }));
 
-        fetch(url, {
-            method: 'POST',
-            body: JSON.stringify({ action: 'silentUpdateAttributesBackend', api_key: CLIENT_API_KEY, items: itemsToUpdate })
-        }).then(res => res.json()).then(data => {
-              if (data.success) console.log("✅ Параметры товаров успешно обновлены в базе!");
-        }).catch(e => console.error("Ошибка сети при сохранении параметров:", e));
+      fetch(url, {
+        method: "POST",
+        body: JSON.stringify({
+          action: "silentUpdateAttributesBackend",
+          api_key: CLIENT_API_KEY,
+          items: itemsToUpdate,
+        }),
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.success)
+            console.log("✅ Параметры товаров успешно обновлены в базе!");
+        })
+        .catch((e) =>
+          console.error("Ошибка сети при сохранении параметров:", e),
+        );
     }
 
-    if (target === 'local') {
-      const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    if (target === "local") {
+      const blob = new Blob([buffer], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
       const link = document.createElement("a");
       link.href = URL.createObjectURL(blob);
       link.download = fileName;
@@ -10707,27 +11277,32 @@ window.generateExportFile = async function (target = 'local') {
       document.body.removeChild(link);
 
       // === ВЕРНУЛ БЛОК ОБНОВЛЕНИЯ СТАТУСА ПАРТИИ (ПЕРЕВОД В ЗЕЛЕНЫЙ ЦВЕТ) ===
-      if (window.kaspiExportRowIndexes && window.kaspiExportRowIndexes.length > 0) {
-          const url = typeof APPS_SCRIPT_URL !== "undefined" ? APPS_SCRIPT_URL : window.APPS_SCRIPT_URL;
-          fetch(url, {
-              method: 'POST',
-              body: JSON.stringify({
-                  action: 'markKaspiExportedBackend',
-                  api_key: CLIENT_API_KEY,
-                  rowIndexes: window.kaspiExportRowIndexes
-              })
-          }).catch(e => console.error("Ошибка при обновлении статусов", e));
+      if (
+        window.kaspiExportRowIndexes &&
+        window.kaspiExportRowIndexes.length > 0
+      ) {
+        const url =
+          typeof APPS_SCRIPT_URL !== "undefined"
+            ? APPS_SCRIPT_URL
+            : window.APPS_SCRIPT_URL;
+        fetch(url, {
+          method: "POST",
+          body: JSON.stringify({
+            action: "markKaspiExportedBackend",
+            api_key: CLIENT_API_KEY,
+            rowIndexes: window.kaspiExportRowIndexes,
+          }),
+        }).catch((e) => console.error("Ошибка при обновлении статусов", e));
       }
       // ======================================================================
     }
-
   } catch (err) {
     console.error("Ошибка при генерации прайса:", err);
     alert("Ошибка: " + err.message);
   } finally {
     if (btn) {
-        btn.innerText = originalText;
-        btn.disabled = false;
+      btn.innerText = originalText;
+      btn.disabled = false;
     }
     if (typeof window.hideLoading === "function") window.hideLoading();
   }
@@ -10831,14 +11406,14 @@ window.selectImportMode = function (mode) {
     if (templateBlock) templateBlock.style.display = "block";
 
     const select = document.getElementById("kaspiTemplateSelect");
-    
+
     // === ИСПРАВЛЕНИЕ 1: Железобетонный замок на загрузку списка шаблонов ===
     // Запрашиваем список с сервера ровно один раз за сессию
     if (
       !window.kaspiTemplatesLoaded &&
       typeof window.loadKaspiTemplatesFromServer === "function"
     ) {
-      window.kaspiTemplatesLoaded = true; 
+      window.kaspiTemplatesLoaded = true;
       window.loadKaspiTemplatesFromServer();
     }
 
@@ -10847,7 +11422,7 @@ window.selectImportMode = function (mode) {
       select.value !== "" &&
       select.value !== "new" &&
       select.value !== "new_template";
-      
+
     if (hasSelectedTemplate) {
       window.setUploadButtonState(
         true,
@@ -10894,20 +11469,32 @@ window.handleTemplateChange = function (event) {
     if (!window.kaspiTemplateCache[val]) {
       const payload = {
         action: "getKaspiTemplate",
-        api_key: typeof CLIENT_API_KEY !== "undefined" ? CLIENT_API_KEY : "", 
+        api_key: typeof CLIENT_API_KEY !== "undefined" ? CLIENT_API_KEY : "",
         category: val,
       };
-      
-      window.smartFetch(typeof GATEWAY_URL !== "undefined" ? GATEWAY_URL : "", payload)
+
+      window
+        .smartFetch(
+          typeof GATEWAY_URL !== "undefined" ? GATEWAY_URL : "",
+          payload,
+        )
         .then((res) => {
           const headersRaw = res.headersJson || res.headers_json || res.headers;
           if (res && res.success && headersRaw) {
-            let templateData = typeof headersRaw === "string" ? JSON.parse(headersRaw) : headersRaw;
+            let templateData =
+              typeof headersRaw === "string"
+                ? JSON.parse(headersRaw)
+                : headersRaw;
             if (res.memoryJson) templateData.memoryJson = res.memoryJson;
             window.kaspiTemplateCache[val] = templateData; // Сохраняем результат
           }
         })
-        .catch((e) => console.log("Фоновая загрузка шаблона не удалась, будет скачан при загрузке файла", e));
+        .catch((e) =>
+          console.log(
+            "Фоновая загрузка шаблона не удалась, будет скачан при загрузке файла",
+            e,
+          ),
+        );
     }
   } else {
     window.setUploadButtonState(
@@ -11085,54 +11672,56 @@ window.loadKaspiTemplatesFromServer = async function (isSilent = false) {
 };
 // === АВТОРАСШИРЕНИЕ ФИЛЬТРОВ ЗАГРУЗКИ ФАЙЛОВ ===
 document.addEventListener("DOMContentLoaded", () => {
-    const fileInputs = ["kaspi-template-file", "templateFileInput"];
-    fileInputs.forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.setAttribute("accept", ".xlsx, .xls, .xlsm, .xml");
-    });
+  const fileInputs = ["kaspi-template-file", "templateFileInput"];
+  fileInputs.forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.setAttribute("accept", ".xlsx, .xls, .xlsm, .xml");
+  });
 });
 
-window.handleMapper2Back = function() {
-    // 1. Прячем текущее окно старого маппера
-    const mapper2Area = document.getElementById("mapper2Area");
-    if (mapper2Area) mapper2Area.style.display = "none";
-    
-    const applyBtn = document.getElementById("applyMapper2Btn");
-    if (applyBtn) applyBtn.style.display = "none";
+window.handleMapper2Back = function () {
+  // 1. Прячем текущее окно старого маппера
+  const mapper2Area = document.getElementById("mapper2Area");
+  if (mapper2Area) mapper2Area.style.display = "none";
 
-    // 2. Умный возврат на основе флага
-    if (window.mapper2State && window.mapper2State.usedSmartMapper) {
-        // СЦЕНАРИЙ А: Возвращаемся в Умное сито
-        const container = document.getElementById('smartMapperContainer');
-        if (container) container.className = 'smart-mapper-overlay';
-        
-        if (window.renderSmartMapperModal) {
-            window.renderSmartMapperModal(window.mapper2State.lastComplexColumns);
-        }
-    } else {
-        // СЦЕНАРИЙ Б: Возвращаемся в самое начало (Окно приемки)
-        // Восстанавливаем блоки, которые скрыла renderMapper2Cards
-        const parseBtn = document.getElementById("parseInvoiceBtn");
-        if (parseBtn) parseBtn.style.display = ""; 
+  const applyBtn = document.getElementById("applyMapper2Btn");
+  if (applyBtn) applyBtn.style.display = "none";
 
-        const importModeContainer = document.getElementById("importModeContainer");
-        if (importModeContainer) importModeContainer.style.display = "";
+  // 2. Умный возврат на основе флага
+  if (window.mapper2State && window.mapper2State.usedSmartMapper) {
+    // СЦЕНАРИЙ А: Возвращаемся в Умное сито
+    const container = document.getElementById("smartMapperContainer");
+    if (container) container.className = "smart-mapper-overlay";
 
-        const invoiceUploadWrapper = document.getElementById("invoiceUploadWrapper");
-        if (invoiceUploadWrapper) invoiceUploadWrapper.style.display = "";
-
-        const tabs = document.getElementById("mapperTabsContainer");
-        if (tabs) tabs.style.display = "";
-
-        const currency = document.getElementById("mapperCurrencyBlock");
-        if (currency) currency.style.display = "";
-
-        // Снимаем блокировку со стартового окна
-        const incomModal = document.getElementById('incom_modal');
-        if (incomModal) {
-            incomModal.style.removeProperty('display');
-            const overlay = incomModal.closest('.modal-overlay');
-            if (overlay) overlay.style.removeProperty('display');
-        }
+    if (window.renderSmartMapperModal) {
+      window.renderSmartMapperModal(window.mapper2State.lastComplexColumns);
     }
+  } else {
+    // СЦЕНАРИЙ Б: Возвращаемся в самое начало (Окно приемки)
+    // Восстанавливаем блоки, которые скрыла renderMapper2Cards
+    const parseBtn = document.getElementById("parseInvoiceBtn");
+    if (parseBtn) parseBtn.style.display = "";
+
+    const importModeContainer = document.getElementById("importModeContainer");
+    if (importModeContainer) importModeContainer.style.display = "";
+
+    const invoiceUploadWrapper = document.getElementById(
+      "invoiceUploadWrapper",
+    );
+    if (invoiceUploadWrapper) invoiceUploadWrapper.style.display = "";
+
+    const tabs = document.getElementById("mapperTabsContainer");
+    if (tabs) tabs.style.display = "";
+
+    const currency = document.getElementById("mapperCurrencyBlock");
+    if (currency) currency.style.display = "";
+
+    // Снимаем блокировку со стартового окна
+    const incomModal = document.getElementById("incom_modal");
+    if (incomModal) {
+      incomModal.style.removeProperty("display");
+      const overlay = incomModal.closest(".modal-overlay");
+      if (overlay) overlay.style.removeProperty("display");
+    }
+  }
 };
