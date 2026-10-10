@@ -6711,7 +6711,11 @@ window.renderPreviewTable = function () {
                 resetBtn.style.background = 'var(--btn-danger-bg, #ef4444)';
                 resetBtn.style.color = 'var(--btn-danger-text, #ffffff)';
                 resetBtn.style.border = '1px solid var(--btn-danger-border, #dc2626)';
-                resetBtn.style.padding = '10px 15px';
+                
+                // ИСПРАВЛЕНИЕ 1: Увеличили padding и задали минимальную высоту
+                resetBtn.style.padding = '12px 15px'; 
+                resetBtn.style.minHeight = '42px';
+                
                 resetBtn.style.borderRadius = '6px';
                 resetBtn.style.fontWeight = 'bold';
                 resetBtn.style.cursor = 'pointer';
@@ -6741,21 +6745,20 @@ window.renderPreviewTable = function () {
                     window.kaspiExportItems = [];
                     if (window.mapper2State) window.mapper2State.colMap = {};
                     
-                    // Б. ЖЕСТКО закрываем поломанное модальное окно!
-                    const modal = document.getElementById("modalContainer");
-                    if (modal) {
-                        modal.style.display = "none";
-                        modal.innerHTML = ""; 
-                    }
-                    
-                    // В. Прячем Шаг 2 и 3, открываем чистый Шаг 1
+                    // Б. Прячем Шаг 2 и Шаг 3
                     if (step3) step3.style.display = "none";
                     const step2 = document.getElementById("mapper2Area");
                     if (step2) step2.style.display = "none";
                     
+                    // В. ИСПРАВЛЕНИЕ 2: Просто показываем Шаг 1 (без удаления HTML)
                     const step1 = document.getElementById("uploadStepArea");
                     if (step1) {
                         step1.style.display = "block";
+                        
+                        // Сбрасываем выбранный файл, если элемент существует
+                        const fileInput = document.getElementById("kaspiExcelFile");
+                        if (fileInput) fileInput.value = "";
+                        
                         if (typeof window.showParents === 'function') {
                             window.showParents("uploadStepArea");
                         }
