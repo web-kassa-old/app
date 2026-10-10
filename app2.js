@@ -10496,11 +10496,11 @@ window.generateExportFile = async function (target = 'local') {
   if (typeof window.showLoading === "function") window.showLoading(null, "kaspi_saving");
 
   try {
+    // БЕРЕМ ДАННЫЕ ЛИБО ИЗ ТАБЛИЦЫ (с учетом ручных правок), ЛИБО СЫРЫЕ
     const items = window.parsedInvoiceData || window.kaspiExportItems;
     if (!items || items.length === 0) throw new Error("Нет товаров для выгрузки.");
     if (!window.rawKaspiTemplateBuffer) throw new Error("Оригинальный шаблон не найден в памяти.");
 
-    // === ДЕШИФРАТОР ДЛЯ СЛОЖНЫХ ШАПОК KASPI (Rich Text) ===
     const getSafeText = (cell) => {
         if (!cell || cell.value === null || cell.value === undefined) return "";
         if (typeof cell.value === 'object') {
@@ -10542,11 +10542,14 @@ window.generateExportFile = async function (target = 'local') {
     const sysKeyRow = worksheet.getRow(sysKeyRowIndex);
     const humanKeyRow = worksheet.getRow(sysKeyRowIndex + 1); 
 
-    const config = window.kaspiExportConfig || {};
+    // ПЫТАЕМСЯ ВЗЯТЬ ПАМЯТЬ ИЗ МАППЕРА (если он был открыт) ИЛИ ИЗ БАЗЫ
     let memory = {};
-    try {
-        memory = typeof config.mapper_memory === 'string' ? JSON.parse(config.mapper_memory) : (config.mapper_memory || {});
-    } catch(e) { console.error("Ошибка чтения mapper_memory", e); }
+    if (window.mapper2State && window.mapper2State.colMap && Object.keys(window.mapper2State.colMap).length > 0) {
+        memory = window.mapper2State.colMap;
+    } else {
+        const config = window.kaspiExportConfig || {};
+        try { memory = typeof config.mapper_memory === 'string' ? JSON.parse(config.mapper_memory) : (config.mapper_memory || {}); } catch(e) {}
+    }
 
     let insertedCount = 0;
     
@@ -10562,68 +10565,50 @@ window.generateExportFile = async function (target = 'local') {
 
           let sourceDbField = "";
           
-          // === НОВАЯ, УМНАЯ ЧИТАЛКА ПАМЯТИ ===
-          if (memory[kaspiKey]) sourceDbField = memory[kaspiKey];
-          else if (memory[humanKey]) sourceDbField = memory[humanKey];
-          else {
-              for (const [key, value] of Object.entries(memory)) {
-                  if (Array.isArray(value) && (value.includes(kaspiKey) || value.includes(humanKey))) {
-                      sourceDbField = key; break;
-                  } else if (value === kaspiKey || value === humanKey) {
-                      sourceDbField = key; break;
+          if (memory[kaspiKey]) {
+              sourceDbField = memory[kaspiKey];
+          } else if (memory[humanKey]) {
+              sourceDbField = memory[humanKey];
+          } else {
+              for (const [key, val] of Object.entries(memory)) {
+                  if (Array.isArray(val) && (val.includes(kaspiKey) || val.includes(humanKey))) { 
+                      sourceDbField = key; 
+                      break; 
+                  } else if (val === kaspiKey || val === humanKey) { 
+                      sourceDbField = key; 
+                      break; 
                   }
               }
-          }
-
-          // Если в памяти вообще ничего нет, применяем базовые правила
-          if (!sourceDbField) {
-              if (kaspiKey === 'merchant_sku' || kaspiKey === 'sku') sourceDbField = 'barcode';
-              else if (kaspiKey === 'name' || kaspiKey === 'title') sourceDbField = 'name';
-              else if (kaspiKey === 'price') sourceDbField = 'price';
-              else if (kaspiKey === 'quantity' || kaspiKey === 'qty') sourceDbField = 'qty';
           }
 
           let value = "";
           
-          // === УМНАЯ ПОДСТАНОВКА ЗНАЧЕНИЙ ===
           if (sourceDbField === 'barcode') value = item.barcode || item.item_id || "";
           else if (sourceDbField === 'name') value = String(item.name || item.item_name || "");
           else if (sourceDbField === 'price') value = Number(item.price || item.cost || item.retail_price) || 0;
           else if (sourceDbField === 'qty') value = Number(item.qty || item.quantity) || 0;
-          
           else if (sourceDbField && sourceDbField.startsWith("static_")) {
               value = sourceDbField.replace("static_", "");
-          }
-          
-          else if (sourceDbField && sourceDbField.startsWith("json_")) {
-              const attrKey = sourceDbField.replace("json_", "");
-              let attrs = {};
-              try { attrs = typeof item.attributes === 'string' ? JSON.parse(item.attributes || '{}') : (item.attributes || {}); } catch(e){}
-              
-              if (attrs[attrKey] !== undefined && attrs[attrKey] !== null && attrs[attrKey] !== "") {
-                  value = attrs[attrKey];
-              } else {
-                  const lowerAttrKey = attrKey.toLowerCase();
-                  for (const [k, v] of Object.entries(attrs)) {
-                      if (k.toLowerCase() === lowerAttrKey) {
-                          value = v;
-                          break;
-                      }
-                  }
-              }
           } else if (sourceDbField) {
               let attrs = {};
               try { attrs = typeof item.attributes === 'string' ? JSON.parse(item.attributes || '{}') : (item.attributes || {}); } catch(e){}
               
-              // Сначала ищем во вложенных атрибутах
               if (attrs[sourceDbField] !== undefined && attrs[sourceDbField] !== null) {
                   value = attrs[sourceDbField];
-              } 
-              // Если там нет, берем прямо из корня (ведь мы сделали виртуальную распаковку!)
-              else if (item[sourceDbField] !== undefined && item[sourceDbField] !== null) {
+              } else if (item[sourceDbField] !== undefined && item[sourceDbField] !== null) {
                   value = item[sourceDbField];
               }
           }
+
+          // === МАГИЯ АВТО-МЭТЧИНГА ===
+          if ((value === "" || value === null || value === undefined) && !sourceDbField) {
+              if (item[humanKey] !== undefined && item[humanKey] !== null && item[humanKey] !== "") {
+                  value = item[humanKey];
+              } else if (item[kaspiKey] !== undefined && item[kaspiKey] !== null && item[kaspiKey] !== "") {
+                  value = item[kaspiKey];
+              }
+          }
+          // ============================
 
           if (value !== "" && value !== undefined && value !== null) {
               targetRow.getCell(colNumber).value = value;
@@ -10643,31 +10628,21 @@ window.generateExportFile = async function (target = 'local') {
     const dateStr = new Date().toISOString().slice(0, 10);
     const fileName = `Kaspi_Export_${dateStr}.xlsx`;
 
-    // === ТИХОЕ АВТОСОХРАНЕНИЕ АТРИБУТОВ (Только в режиме экспорта) ===
+    // ТИХОЕ АВТОСОХРАНЕНИЕ
     if (window.isKaspiExportMode && window.parsedInvoiceData) {
         const url = typeof APPS_SCRIPT_URL !== "undefined" ? APPS_SCRIPT_URL : window.APPS_SCRIPT_URL;
-        
-        // Собираем только ID товара и его финальный JSON-атрибут из обновленной таблицы
         const itemsToUpdate = window.parsedInvoiceData.map(item => ({
             item_id: item.item_id || item.id,
             attributes: typeof item.attributes === 'object' ? JSON.stringify(item.attributes) : (item.attributes || "{}")
         }));
 
-        // Отправляем асинхронно, не блокируя скачивание файла
         fetch(url, {
             method: 'POST',
-            body: JSON.stringify({
-                action: 'silentUpdateAttributesBackend',
-                api_key: CLIENT_API_KEY,
-                items: itemsToUpdate
-            })
-        }).then(res => res.json())
-          .then(data => {
+            body: JSON.stringify({ action: 'silentUpdateAttributesBackend', api_key: CLIENT_API_KEY, items: itemsToUpdate })
+        }).then(res => res.json()).then(data => {
               if (data.success) console.log("✅ Параметры товаров успешно обновлены в базе!");
-              else console.warn("⚠️ Ошибка тихого сохранения:", data.error);
-          }).catch(e => console.error("Ошибка сети при сохранении параметров:", e));
+        }).catch(e => console.error("Ошибка сети при сохранении параметров:", e));
     }
-    // ===================================================================
 
     if (target === 'local') {
       const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
@@ -10678,6 +10653,7 @@ window.generateExportFile = async function (target = 'local') {
       link.click();
       document.body.removeChild(link);
 
+      // === ВЕРНУЛ БЛОК ОБНОВЛЕНИЯ СТАТУСА ПАРТИИ (ПЕРЕВОД В ЗЕЛЕНЫЙ ЦВЕТ) ===
       if (window.kaspiExportRowIndexes && window.kaspiExportRowIndexes.length > 0) {
           const url = typeof APPS_SCRIPT_URL !== "undefined" ? APPS_SCRIPT_URL : window.APPS_SCRIPT_URL;
           fetch(url, {
@@ -10689,6 +10665,7 @@ window.generateExportFile = async function (target = 'local') {
               })
           }).catch(e => console.error("Ошибка при обновлении статусов", e));
       }
+      // ======================================================================
     }
 
   } catch (err) {
