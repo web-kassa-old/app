@@ -6678,83 +6678,97 @@ window.renderPreviewTable = function () {
       .join("");
 
   // === ЛОГИКА ДЛЯ РЕЖИМА ЭКСПОРТА ===
-  if (window.isKaspiExportMode) {
-    // Прячем кнопку "Оприходовать"
-    const sendBtn = document.getElementById("sendInvoiceBtn");
-    if (sendBtn) sendBtn.style.display = "none";
+    if (window.isKaspiExportMode) {
+        // 1. Прячем кнопку "Оприходовать"
+        const sendBtn = document.getElementById("sendInvoiceBtn");
+        if (sendBtn) sendBtn.style.display = "none";
+        
+        // 2. Ищем белую системную кнопку "Назад / Артқа" ВЕЗДЕ и убиваем её
+        const allBtns = document.querySelectorAll('button');
+        allBtns.forEach(b => {
+            const txt = b.innerText.trim().toUpperCase();
+            if (txt === 'НАЗАД' || txt === 'АРТҚА') {
+                b.style.display = 'none';
+            }
+        });
 
-    // Показываем кнопки выгрузки
-    const exportBtns = document.getElementById("exportActionButtons");
-    const step3 = document.getElementById("invoicePreviewArea");
+        const step3 = document.getElementById("invoicePreviewArea");
+        const exportBtns = document.getElementById("exportActionButtons");
+        
+        // 3. Настраиваем контейнер с кнопками экспорта
+        if (exportBtns && step3) {
+            exportBtns.style.display = "flex";
+            exportBtns.style.flexDirection = "column"; 
+            exportBtns.style.gap = "10px"; 
+            step3.appendChild(exportBtns);
+            
+            // --- СОЗДАЕМ КНОПКУ ПОЛНОГО СБРОСА ---
+            let resetBtn = document.getElementById('kaspiResetExportBtn');
+            if (!resetBtn) {
+                resetBtn = document.createElement('button');
+                resetBtn.id = 'kaspiResetExportBtn';
+                
+                resetBtn.style.background = 'var(--btn-danger-bg, #ef4444)';
+                resetBtn.style.color = 'var(--btn-danger-text, #ffffff)';
+                resetBtn.style.border = '1px solid var(--btn-danger-border, #dc2626)';
+                resetBtn.style.padding = '10px 15px';
+                resetBtn.style.borderRadius = '6px';
+                resetBtn.style.fontWeight = 'bold';
+                resetBtn.style.cursor = 'pointer';
+                resetBtn.style.width = '100%'; 
+                resetBtn.style.boxSizing = 'border-box';
+                
+                resetBtn.setAttribute('data-i18n', 'kaspi_reset_invoice');
+                resetBtn.innerText = '🔄 ПЕРЕЗАЛИТЬ НАКЛАДНУЮ (СБРОС)'; 
+                
+                resetBtn.onclick = function(e) {
+                    e.preventDefault();
+                    
+                    let confirmMsg = 'Очистить таблицу и загрузить накладную заново?';
+                    if (typeof window.t === 'function') {
+                        confirmMsg = window.t('kaspi_reset_confirm') || confirmMsg;
+                    } else {
+                        const translatedEl = document.querySelector('[data-i18n="kaspi_reset_confirm"]');
+                        if (translatedEl) confirmMsg = translatedEl.innerText;
+                    }
 
-    if (exportBtns && step3) {
-      exportBtns.style.display = "flex";
-      step3.appendChild(exportBtns);
-
-      // --- СОЗДАЕМ КНОПКУ ПОЛНОГО СБРОСА ---
-      let resetBtn = document.getElementById("kaspiResetExportBtn");
-      if (!resetBtn) {
-        resetBtn = document.createElement("button");
-        resetBtn.id = "kaspiResetExportBtn";
-
-        // Поддержка тем через CSS-переменные
-        resetBtn.style.background = "var(--btn-danger-bg, #ef4444)";
-        resetBtn.style.color = "var(--btn-danger-text, #ffffff)";
-        resetBtn.style.border = "1px solid var(--btn-danger-border, #dc2626)";
-        resetBtn.style.padding = "10px 15px";
-        resetBtn.style.borderRadius = "6px";
-        resetBtn.style.fontWeight = "bold";
-        resetBtn.style.cursor = "pointer";
-        resetBtn.style.marginLeft = "10px";
-
-        // Мультиязычность
-        resetBtn.setAttribute("data-i18n", "kaspi_reset_invoice");
-        resetBtn.innerText = "🔄 Перезалить накладную (Сброс)";
-
-        resetBtn.onclick = function (e) {
-          e.preventDefault();
-
-          // Достаем перевод для алерта
-          let confirmMsg = "Очистить таблицу и загрузить накладную заново?";
-          if (typeof window.t === "function") {
-            confirmMsg = window.t("kaspi_reset_confirm") || confirmMsg;
-          } else {
-            const translatedEl = document.querySelector(
-              '[data-i18n="kaspi_reset_confirm"]',
-            );
-            if (translatedEl) confirmMsg = translatedEl.innerText;
-          }
-
-          if (!confirm(confirmMsg)) return;
-
-          // 1. Очищаем старые связи
-          window.parsedInvoiceData = [];
-          if (window.mapper2State) window.mapper2State.colMap = {};
-
-          // 2. Полностью очищаем и закрываем поломанное модальное окно
-          const modal = document.getElementById("modalContainer");
-          if (modal) {
-            modal.innerHTML = "";
-            modal.style.display = "none";
-          }
-
-          // 3. Открываем стартовое меню заново (как будто клиент только что зашел)
-          if (typeof window.openExportModal === "function") {
-            window.openExportModal();
-          }
-        };
-
-        exportBtns.appendChild(resetBtn);
-
-        // Применяем перевод сразу после создания кнопки
-        if (typeof window.applyTranslations === "function") {
-          window.applyTranslations();
-        } else if (typeof window.updateLanguage === "function") {
-          window.updateLanguage();
+                    if (!confirm(confirmMsg)) return;
+                    
+                    // --- ПУЛЕНЕПРОБИВАЕМЫЙ СБРОС ---
+                    
+                    // А. Очищаем данные из памяти
+                    window.parsedInvoiceData = [];
+                    window.kaspiExportItems = [];
+                    if (window.mapper2State) window.mapper2State.colMap = {};
+                    
+                    // Б. ЖЕСТКО закрываем поломанное модальное окно!
+                    const modal = document.getElementById("modalContainer");
+                    if (modal) {
+                        modal.style.display = "none";
+                        modal.innerHTML = ""; 
+                    }
+                    
+                    // В. Прячем Шаг 2 и 3, открываем чистый Шаг 1
+                    if (step3) step3.style.display = "none";
+                    const step2 = document.getElementById("mapper2Area");
+                    if (step2) step2.style.display = "none";
+                    
+                    const step1 = document.getElementById("uploadStepArea");
+                    if (step1) {
+                        step1.style.display = "block";
+                        if (typeof window.showParents === 'function') {
+                            window.showParents("uploadStepArea");
+                        }
+                    }
+                };
+                
+                exportBtns.appendChild(resetBtn);
+                
+                if (typeof window.applyTranslations === 'function') window.applyTranslations();
+                else if (typeof window.updateLanguage === 'function') window.updateLanguage();
+            }
         }
-      }
     }
-  }
 };
 
 // === 1. ГЛАВНОЕ ОКНО РЕДАКТИРОВАНИЯ ===
