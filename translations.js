@@ -498,6 +498,7 @@ const translations = {
     exp_done: "(выгружено: {count} шт.)",
     exp_btn_start: "Настроить экспорт",
     exp_btn_repeat: "Выгрузить повторно",
+    kaspi_reset_invoice: "🔄 Перезалить накладную (Сброс)",
   },
   kz: {
     btn_sale: "САТУ",
@@ -998,5 +999,6 @@ const translations = {
     exp_done: "(жүктеп шығарылды: {count} дана)",
     exp_btn_start: "Экспортты баптау",
     exp_btn_repeat: "Қайта жүктеп шығару",
+    kaspi_reset_invoice: "🔄 Жүкқұжатты қайта жүктеу (Қалпына келтіру)",
   },
 };

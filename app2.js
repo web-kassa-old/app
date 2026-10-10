@@ -6355,9 +6355,62 @@ window.renderPreviewTable = function () {
         // Показываем кнопки выгрузки
         const exportBtns = document.getElementById("exportActionButtons");
         const step3 = document.getElementById("invoicePreviewArea");
+        
         if (exportBtns && step3) {
             exportBtns.style.display = "flex";
             step3.appendChild(exportBtns);
+            
+            // --- СОЗДАЕМ КНОПКУ ПОЛНОГО СБРОСА ---
+            let resetBtn = document.getElementById('kaspiResetExportBtn');
+            if (!resetBtn) {
+                resetBtn = document.createElement('button');
+                resetBtn.id = 'kaspiResetExportBtn';
+                
+                // Поддержка тем через CSS-переменные
+                resetBtn.style.background = 'var(--btn-danger-bg, #ef4444)';
+                resetBtn.style.color = 'var(--btn-danger-text, #ffffff)';
+                resetBtn.style.border = '1px solid var(--btn-danger-border, #dc2626)';
+                resetBtn.style.padding = '10px 15px';
+                resetBtn.style.borderRadius = '6px';
+                resetBtn.style.fontWeight = 'bold';
+                resetBtn.style.cursor = 'pointer';
+                resetBtn.style.marginLeft = '10px';
+                
+                // Мультиязычность
+                resetBtn.setAttribute('data-i18n', 'kaspi_reset_invoice');
+                resetBtn.innerText = '🔄 Перезалить накладную (Сброс)'; 
+                
+                resetBtn.onclick = function(e) {
+                    e.preventDefault();
+                    
+                    if (!confirm('Очистить таблицу и загрузить накладную заново?')) return;
+                    
+                    // Очищаем текущие данные Маппера
+                    window.parsedInvoiceData = [];
+                    if (window.mapper2State) window.mapper2State.colMap = {};
+                    
+                    // Скрываем Шаг 3, показываем Шаг 1
+                    document.getElementById("invoicePreviewArea").style.display = "none";
+                    
+                    const step1 = document.getElementById("uploadStepArea");
+                    if (step1) {
+                        step1.style.display = "block";
+                        // Если функция showParents доступна глобально, можно использовать её для надежности:
+                        if (typeof window.showParents === 'function') {
+                            window.showParents("uploadStepArea");
+                        }
+                    }
+                };
+                
+                exportBtns.appendChild(resetBtn);
+                
+                // Применяем перевод сразу после создания кнопки
+                if (typeof window.applyTranslations === 'function') {
+                    window.applyTranslations();
+                } else if (typeof window.updateLanguage === 'function') {
+                    window.updateLanguage();
+                }
+            }
         }
     }
 };
