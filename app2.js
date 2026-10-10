@@ -3636,11 +3636,8 @@ window.openExportModal = async function() {
         const res = await response.json();
 
         if (res?.success && res?.pendingGroups?.length > 0) {
-            const pendingTemplate = t.exp_pending || "(ожидает: {count} шт.)";
             
             // Генерируем красивые плашки
-            // Внутри window.openExportModal, там где мы рисуем карточки (container.innerHTML = ...)
-            
             container.innerHTML = res.pendingGroups.map(g => {
                 // Если бэкенд скажет, что партия уже выгружена (или у нее уже сохранен конфиг)
                 const isExported = g.isExported === true || g.hasConfig === true; 
@@ -3654,16 +3651,17 @@ window.openExportModal = async function() {
                 
                 // Цвета и стили
                 const btnColor = isExported ? "var(--accent-green, #2ecc71)" : "var(--accent-blue, #3b82f6)";
-                const cardBg = isExported ? "var(--bg-body, #f1f5f9)" : "var(--bg-panel, #ffffff)"; // Выгруженные чуть серее
-                const opacity = isExported ? "0.8" : "1"; // Слегка приглушаем старые партии
+                const cardBg = isExported ? "var(--bg-body, #f1f5f9)" : "var(--bg-panel, #ffffff)"; 
+                const opacity = isExported ? "0.8" : "1"; 
 
+                // ИСПРАВЛЕНИЕ: Добавляем ${isExported} третьим параметром в onclick!
                 return `
                     <div class="export-card" style="background: ${cardBg}; opacity: ${opacity}; border: 1px solid var(--border-light, #ddd); border-radius: 8px; padding: 15px; display: flex; justify-content: space-between; align-items: center; transition: all 0.2s;">
                         <div style="display: flex; flex-direction: column; gap: 5px;">
                             <b style="font-size: 14px; color: var(--text-main, #000);">${g.name}</b>
                             <span style="font-size: 12px; color: ${isExported ? 'var(--accent-green, #2ecc71)' : 'var(--text-muted, #888)'}; font-weight: ${isExported ? 'bold' : 'normal'};">${statusText}</span>
                         </div>
-                        <button onclick="window.handleCardSelectForExport('${g.hash}', this)" style="background: ${btnColor}; color: #fff; border: none; padding: 10px 15px; border-radius: 6px; font-size: 12px; font-weight: bold; cursor: pointer; white-space: nowrap;">
+                        <button onclick="window.handleCardSelectForExport('${g.hash}', this, ${isExported})" style="background: ${btnColor}; color: #fff; border: none; padding: 10px 15px; border-radius: 6px; font-size: 12px; font-weight: bold; cursor: pointer; white-space: nowrap;">
                             ${btnText}
                         </button>
                     </div>
@@ -3702,7 +3700,8 @@ window.closeExportModal = function() {
 
 // 2. Обработка выбора категории из списка
 // Новая функция принимает хэш и саму кнопку (чтобы подсветить нужную плашку)
-window.handleCardSelectForExport = async function(selectedHash, btnElement) {
+// ДОБАВЛЕН ТРЕТИЙ ПАРАМЕТР: isExported = false
+window.handleCardSelectForExport = async function(selectedHash, btnElement, isExported = false) {
     const btnArea = document.getElementById('exportActionButtons');
 
     if (!selectedHash) {
@@ -3714,17 +3713,27 @@ window.handleCardSelectForExport = async function(selectedHash, btnElement) {
     const allCards = document.querySelectorAll('.export-card');
     allCards.forEach(card => card.style.border = '1px solid var(--border-light, #ddd)');
     
-    // Подсвечиваем активную плашку синей рамкой
-    const selectedCard = btnElement.closest('.export-card');
-    if (selectedCard) {
-        selectedCard.style.border = '2px solid var(--accent-blue, #3b82f6)';
+    // Подсвечиваем активную плашку синей рамкой (добавил проверку на наличие btnElement)
+    if (btnElement) {
+        const selectedCard = btnElement.closest('.export-card');
+        if (selectedCard) {
+            selectedCard.style.border = '2px solid var(--accent-blue, #3b82f6)';
+        }
     }
 
     if (typeof window.showLoading === 'function') window.showLoading(null, 'kaspi_loading');
 
     try {
         const url = typeof APPS_SCRIPT_URL !== "undefined" ? APPS_SCRIPT_URL : window.APPS_SCRIPT_URL;
-        const payload = { action: 'getKaspiExportItemsBackend', api_key: CLIENT_API_KEY, hash: selectedHash };
+        
+        // === ИЗМЕНЕНИЕ ЗДЕСЬ: ПЕРЕДАЕМ СТАТУС НА СЕРВЕР ===
+        const payload = { 
+            action: 'getKaspiExportItemsBackend', 
+            api_key: CLIENT_API_KEY, 
+            hash: selectedHash,
+            status: isExported ? 'exported' : 'pending' // Сервер поймет, какую партию просит фронт
+        };
+        // =================================================
         
         const response = await fetch(url, { method: 'POST', body: JSON.stringify(payload) });
         const text = await response.text(); 
@@ -3794,7 +3803,7 @@ window.handleCardSelectForExport = async function(selectedHash, btnElement) {
                 }
             }
             
-            // ИСПРАВЛЕНИЕ: Умный адаптер данных (сохраняем все ключи и переводим атрибуты в строку)
+            // ИСПРАВЛЕНИЕ: Умный адаптер данных
             window.parsedInvoiceData = res.items.map(dbItem => {
                 let attrs = dbItem.attributes || dbItem.kaspi_attributes || dbItem.params || '{}';
                 if (typeof attrs === 'object') {
@@ -3850,7 +3859,6 @@ window.handleCardSelectForExport = async function(selectedHash, btnElement) {
             }
 
         } else {
-            // Эти блоки мы не трогаем, чтобы скрипт умел обрабатывать ошибки
             const err = res.error || "Не удалось загрузить данные или нет товаров для выгрузки.";
             alert("⚠️ Ошибка сервера: " + err);
             if (btnArea) btnArea.style.display = 'none';
