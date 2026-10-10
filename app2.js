@@ -6605,8 +6605,11 @@ window.saveAllEdits = function () {
     Object.keys(window.tempAttrs).length > 0
       ? JSON.stringify(window.tempAttrs)
       : "";
-  window.invoiceGroups[item.doc_no].items[window.currentEditIndex].attributes =
-    item.attributes;
+
+  // ИСПРАВЛЕНИЕ: Пытаемся обновить invoiceGroups ТОЛЬКО если мы не в режиме экспорта
+  if (!window.isKaspiExportMode && window.invoiceGroups && item.doc_no && window.invoiceGroups[item.doc_no]) {
+      window.invoiceGroups[item.doc_no].items[window.currentEditIndex].attributes = item.attributes;
+  }
 
   if (Object.keys(window.applyToAllMap).length > 0) {
     window.parsedInvoiceData.forEach((row, rIdx) => {
@@ -6619,7 +6622,11 @@ window.saveAllEdits = function () {
         rowAttrs[globalKey] = window.applyToAllMap[globalKey];
       });
       row.attributes = JSON.stringify(rowAttrs);
-      window.invoiceGroups[row.doc_no].items[rIdx].attributes = row.attributes;
+      
+      // ИСПРАВЛЕНИЕ: Массовое обновление для групп тоже защищаем
+      if (!window.isKaspiExportMode && window.invoiceGroups && row.doc_no && window.invoiceGroups[row.doc_no]) {
+          window.invoiceGroups[row.doc_no].items[rIdx].attributes = row.attributes;
+      }
     });
   }
 
@@ -10489,7 +10496,7 @@ window.generateExportFile = async function (target = 'local') {
   if (typeof window.showLoading === "function") window.showLoading(null, "kaspi_saving");
 
   try {
-    const items = window.kaspiExportItems;
+    const items = window.parsedInvoiceData || window.kaspiExportItems;
     if (!items || items.length === 0) throw new Error("Нет товаров для выгрузки.");
     if (!window.rawKaspiTemplateBuffer) throw new Error("Оригинальный шаблон не найден в памяти.");
 
@@ -10607,7 +10614,15 @@ window.generateExportFile = async function (target = 'local') {
           } else if (sourceDbField) {
               let attrs = {};
               try { attrs = typeof item.attributes === 'string' ? JSON.parse(item.attributes || '{}') : (item.attributes || {}); } catch(e){}
-              if (attrs[sourceDbField] !== undefined && attrs[sourceDbField] !== null) value = attrs[sourceDbField];
+              
+              // Сначала ищем во вложенных атрибутах
+              if (attrs[sourceDbField] !== undefined && attrs[sourceDbField] !== null) {
+                  value = attrs[sourceDbField];
+              } 
+              // Если там нет, берем прямо из корня (ведь мы сделали виртуальную распаковку!)
+              else if (item[sourceDbField] !== undefined && item[sourceDbField] !== null) {
+                  value = item[sourceDbField];
+              }
           }
 
           if (value !== "" && value !== undefined && value !== null) {
