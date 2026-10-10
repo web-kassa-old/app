@@ -3713,7 +3713,7 @@ window.handleCardSelectForExport = async function(selectedHash, btnElement, isEx
     const allCards = document.querySelectorAll('.export-card');
     allCards.forEach(card => card.style.border = '1px solid var(--border-light, #ddd)');
     
-    // Подсвечиваем активную плашку синей рамкой (добавил проверку на наличие btnElement)
+    // Подсвечиваем активную плашку синей рамкой
     if (btnElement) {
         const selectedCard = btnElement.closest('.export-card');
         if (selectedCard) {
@@ -3726,14 +3726,13 @@ window.handleCardSelectForExport = async function(selectedHash, btnElement, isEx
     try {
         const url = typeof APPS_SCRIPT_URL !== "undefined" ? APPS_SCRIPT_URL : window.APPS_SCRIPT_URL;
         
-        // === ИЗМЕНЕНИЕ ЗДЕСЬ: ПЕРЕДАЕМ СТАТУС НА СЕРВЕР ===
+        // === ПЕРЕДАЕМ СТАТУС НА СЕРВЕР ===
         const payload = { 
             action: 'getKaspiExportItemsBackend', 
             api_key: CLIENT_API_KEY, 
             hash: selectedHash,
-            status: isExported ? 'exported' : 'pending' // Сервер поймет, какую партию просит фронт
+            status: isExported ? 'exported' : 'pending'
         };
-        // =================================================
         
         const response = await fetch(url, { method: 'POST', body: JSON.stringify(payload) });
         const text = await response.text(); 
@@ -3772,7 +3771,7 @@ window.handleCardSelectForExport = async function(selectedHash, btnElement, isEx
             window.kaspiExportRowIndexes = res.rowIndexes; 
             window.kaspiTargetSheetName = res.templateConfig.targetSheetName || null;
             
-            // ВАЖНО: Включаем флаг экспорта. Он отключит кнопку "Оприходовать" на финальном шаге!
+            // ВАЖНО: Включаем флаг экспорта.
             window.isKaspiExportMode = true; 
 
             const exportModal = document.getElementById('export-modal');
@@ -3788,14 +3787,49 @@ window.handleCardSelectForExport = async function(selectedHash, btnElement, isEx
                 }
             }
 
-            // Подготавливаем стейт для Маппера (чтобы он не выдал ошибку)
-            window.parsedInvoiceData = res.items; 
+            // === ИСПРАВЛЕНИЕ: ВИРТУАЛЬНАЯ РАСПАКОВКА ===
+            window.parsedInvoiceData = res.items.map(dbItem => {
+                let attrs = {};
+                try {
+                    let rawAttr = dbItem.attributes || dbItem.kaspi_attributes || dbItem.params || '{}';
+                    attrs = typeof rawAttr === 'string' ? JSON.parse(rawAttr) : rawAttr;
+                } catch (e) {}
+
+                // Создаем плоский объект с базовыми полями
+                const flatItem = Object.assign({}, dbItem, {
+                    item_name: dbItem.item_name || dbItem.name || dbItem.title || 'Без названия',
+                    item_id: dbItem.item_id || dbItem.id || dbItem.sku || 'AUTO',
+                    qty: Number(dbItem.qty) || Number(dbItem.quantity) || Number(dbItem.available_qty) || 0,
+                    cost: Number(dbItem.cost) || Number(dbItem.price) || Number(dbItem.price_in) || Number(dbItem.buy_price) || 0,
+                    barcode: dbItem.barcode || dbItem.ean || ''
+                });
+
+                // МАГИЯ: Высыпаем все ключи из JSON (кармана) прямо в корень товара!
+                for (const [key, value] of Object.entries(attrs)) {
+                    if (flatItem[key] === undefined) {
+                        flatItem[key] = value;
+                    }
+                }
+                
+                // Возвращаем строку для тех функций, которые ждут строгий JSON
+                flatItem.attributes = JSON.stringify(attrs); 
+                return flatItem;
+            });
+
+            // Теперь, когда данные распакованы, собираем ВСЕ заголовки для Маппера
+            const allHeaders = new Set();
+            window.parsedInvoiceData.forEach(item => {
+                Object.keys(item).forEach(k => allHeaders.add(k));
+            });
+            const extractedHeaders = Array.from(allHeaders);
+
+            // Генерируем стейт для Маппера с полным набором колонок!
             window.mapper2State = Object.assign({
                 colMap: {}, 
                 dictValues: {}, 
                 splitRules: {},
-                invoiceHeaders: Object.keys(res.items[0] || {}),
-                invoiceRows: res.items.map(item => Object.values(item)) 
+                invoiceHeaders: extractedHeaders, // <-- Теперь Маппер увидит ВСЕ колонки!
+                invoiceRows: window.parsedInvoiceData.map(item => extractedHeaders.map(h => item[h])) 
             }, res.templateConfig || {});
             
             // Раскрываем окно на Шаге 2 (Маппер)
@@ -3816,7 +3850,7 @@ window.handleCardSelectForExport = async function(selectedHash, btnElement, isEx
                 const allBtns = step3.querySelectorAll('button');
                 allBtns.forEach(b => {
                     if (b.innerText.trim().toUpperCase() === 'НАЗАД' || b.textContent.includes('НАЗАД')) {
-                        b.style.display = ''; // Сбрасываем скрытие
+                        b.style.display = ''; 
                     }
                 });
             }
@@ -6163,7 +6197,7 @@ window.applyMapper2Logic = function () {
     return alert("Не удалось сформировать товары. Убедитесь, что в колонках «Количество» и «Цена» находятся ТОЛЬКО цифры.");
   }
 
-  // === ПРОВЕРКА КАРАНТИНА И ЗАПУСК ТОКЕНИЗАТОРА ===
+// === ПРОВЕРКА КАРАНТИНА И ЗАПУСК ТОКЕНИЗАТОРА ===
   if (window.mapper2State.quarantine && window.mapper2State.quarantine.length > 0) {
       console.log("Внимание: Найдены сложные нераспознанные форматы. Запуск Токенизатора...", window.mapper2State.quarantine);
       if (typeof window.startTokenizerQueue === 'function') {
@@ -6178,7 +6212,19 @@ window.applyMapper2Logic = function () {
   window.renderPreviewTable();
   document.getElementById("mapper2Area").style.display = "none";
   document.getElementById("invoicePreviewArea").style.display = "flex";
-};
+
+  // === ЖЕСТКИЙ БЛОКИРАТОР ДЛЯ РЕЖИМА ЭКСПОРТА ===
+  // Если мы пришли сюда из режима выгрузки Kaspi, прячем кнопку оприходования!
+  if (window.isKaspiExportMode) {
+      const sendBtn = document.getElementById('sendInvoiceBtn'); // Зеленая кнопка "Оприходовать"
+      if (sendBtn) sendBtn.style.display = 'none';
+      
+      const exportBtns = document.getElementById('exportActionButtons'); // Синие кнопки выгрузки
+      if (exportBtns) exportBtns.style.display = 'flex';
+  }
+  // ==============================================
+
+}; // <-- Конец функции applyMapper2Logic
 
 // === ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ РЕДАКТОРА ===
 window.currentEditIndex = null;
