@@ -5295,7 +5295,11 @@ window.renderMapper2Cards = function (templateData) {
 
     if (foundIndex !== -1) window.mapper2State.colMap[req.sysKey] = foundIndex;
 
-    let mappedIndex = window.mapper2State.colMap[req.sysKey];
+    let mappedIndexRaw = window.mapper2State.colMap[req.sysKey];
+    // Умное распознавание: если это текст ("json_Бренд"), превращаем его обратно в индекс колонки
+    let mappedIndex = typeof mappedIndexRaw === 'string' 
+        ? window.mapper2State.invoiceHeaders.indexOf(mappedIndexRaw) 
+        : mappedIndexRaw;
     let dictValue = window.mapper2State.dictValues && window.mapper2State.dictValues[req.sysKey];
 
     let statusClass = "status-empty";
@@ -5422,11 +5426,10 @@ window.renderMapper2Cards = function (templateData) {
 
   document.getElementById("mapper2Area").style.display = "flex";
   
-  // ФИКС: Мультиязычная кнопка с правильной сменой атрибутов перевода
+  // ФИКС: Мультиязычная кнопка + ПЕРЕХВАТ ХАРДКОДНОЙ КНОПКИ "НАЗАД"
   const applyBtn = document.getElementById("applyMapper2Btn");
   if (applyBtn) {
       applyBtn.style.display = "block";
-      
       const lang = window.currentLang || localStorage.getItem("pos_lang") || "ru";
       const tr = typeof translations !== "undefined" && translations[lang] ? translations[lang] : {};
       
@@ -5437,8 +5440,23 @@ window.renderMapper2Cards = function (templateData) {
           applyBtn.innerHTML = "✅ " + (tr.inc_submit_invoice || "СОБРАТЬ НАКЛАДНУЮ");
           applyBtn.setAttribute("data-i18n", "inc_submit_invoice");
       }
+
+      // Находим кнопку "Назад" рядом и заставляем её использовать нашу умную историю
+      const mapperArea = document.getElementById("mapper2Area");
+      if (mapperArea) {
+          const btns = mapperArea.querySelectorAll('button');
+          btns.forEach(b => {
+              const txt = b.innerText.trim().toUpperCase();
+              if (txt === "НАЗАД" || txt === "АРТҚА") {
+                  b.onclick = function(e) {
+                      e.preventDefault();
+                      window.navigateBack();
+                  };
+              }
+          });
+      }
   }
-};
+}; // <-- Конец функции renderMapper2Cards
 
 // 3. ОТКРЫТИЕ ШТОРКИ И ОТРИСОВКА КОЛОНОК
 window.openColumnSelector = function (sysKey, reqName, isKaspi) {
@@ -6454,13 +6472,28 @@ window.applyMapper2Logic = function () {
   document.getElementById("invoicePreviewArea").style.display = "flex";
 
   // === ЖЕСТКИЙ БЛОКИРАТОР ДЛЯ РЕЖИМА ЭКСПОРТА ===
-  // Если мы пришли сюда из режима выгрузки Kaspi, прячем кнопку оприходования!
   if (window.isKaspiExportMode) {
-    const sendBtn = document.getElementById("sendInvoiceBtn"); // Зеленая кнопка "Оприходовать"
+    const sendBtn = document.getElementById("sendInvoiceBtn");
     if (sendBtn) sendBtn.style.display = "none";
 
-    const exportBtns = document.getElementById("exportActionButtons"); // Синие кнопки выгрузки
+    const exportBtns = document.getElementById("exportActionButtons");
     if (exportBtns) exportBtns.style.display = "flex";
+
+    // 🔴 ГЛАВНЫЙ ФИКС ЭКСПОРТА: 
+    // Экспорт-скрипт ждет названия колонок (строки), а не цифры. Конвертируем их!
+    let exportColMap = {};
+    Object.keys(window.mapper2State.colMap).forEach(k => {
+        let val = window.mapper2State.colMap[k];
+        if (typeof val === 'number') {
+            exportColMap[k] = window.mapper2State.invoiceHeaders[val];
+        } else {
+            exportColMap[k] = val;
+        }
+    });
+    window.mapper2State.colMap = exportColMap; // Теперь тут лежат строки типа "json_Бренд"
+
+    // Синхронизируем массивы, чтобы скрипт экспорта видел наши распарсенные данные
+    window.kaspiExportItems = window.parsedInvoiceData;
   }
   // ==============================================
 }; // <-- Конец функции applyMapper2Logic
@@ -6571,14 +6604,21 @@ window.renderPreviewTable = function () {
         const sendBtn = document.getElementById("sendInvoiceBtn");
         if (sendBtn) sendBtn.style.display = "none";
         
-        // 2. Ищем белую системную кнопку "Назад / Артқа" ВЕЗДЕ и убиваем её
-        const allBtns = document.querySelectorAll('button');
-        allBtns.forEach(b => {
-            const txt = b.innerText.trim().toUpperCase();
-            if (txt === 'НАЗАД' || txt === 'АРТҚА') {
-                b.style.display = 'none';
-            }
-        });
+        // 2. Оживляем системную кнопку "Назад" и подключаем к истории
+        const previewArea = document.getElementById("invoicePreviewArea");
+        if (previewArea) {
+            const btns = previewArea.querySelectorAll('button');
+            btns.forEach(b => {
+                const txt = b.innerText.trim().toUpperCase();
+                if (txt === 'НАЗАД' || txt === 'АРТҚА') {
+                    b.style.display = 'block'; // Делаем её видимой
+                    b.onclick = function(e) {
+                        e.preventDefault();
+                        window.navigateBack(); // Возвращаемся на шаг 2
+                    };
+                }
+            });
+        }
 
         const step3 = document.getElementById("invoicePreviewArea");
         const exportBtns = document.getElementById("exportActionButtons");
@@ -11633,31 +11673,3 @@ window.handleMapper2Back = function () {
     }
   }
 };
-
-// === БРОНЯ ДЛЯ СТАРОГО СКРИПТА ЭКСПОРТА (ПОЛИФИЛЛ) ===
-if (!Number.prototype.startsWith) {
-    Object.defineProperty(Number.prototype, 'startsWith', {
-        value: function(prefix) {
-            // Если экспортный скрипт случайно попытался вызвать startsWith у индекса колонки
-            if (window.mapper2State && window.mapper2State.invoiceHeaders) {
-                const header = window.mapper2State.invoiceHeaders[this];
-                if (header) return header.startsWith(prefix);
-            }
-            return false;
-        },
-        enumerable: false
-    });
-}
-if (!Number.prototype.replace) {
-    Object.defineProperty(Number.prototype, 'replace', {
-        value: function(search, replaceWith) {
-            // Подменяем цифру на реальное название колонки из памяти
-            if (window.mapper2State && window.mapper2State.invoiceHeaders) {
-                const header = window.mapper2State.invoiceHeaders[this];
-                if (header) return header.replace(search, replaceWith);
-            }
-            return this.toString().replace(search, replaceWith);
-        },
-        enumerable: false
-    });
-}
