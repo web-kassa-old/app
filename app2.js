@@ -3842,11 +3842,7 @@ window.handleCardSelectForExport = async function (
       window.parsedInvoiceData = res.items.map((dbItem) => {
         let attrs = {};
         try {
-          let rawAttr =
-            dbItem.attributes ||
-            dbItem.kaspi_attributes ||
-            dbItem.params ||
-            "{}";
+          let rawAttr = dbItem.attributes || dbItem.kaspi_attributes || dbItem.params || "{}";
           attrs = typeof rawAttr === "string" ? JSON.parse(rawAttr) : rawAttr;
         } catch (e) {}
 
@@ -3872,12 +3868,7 @@ window.handleCardSelectForExport = async function (
       const allHeaders = new Set();
       window.parsedInvoiceData.forEach((item) => {
         Object.keys(item).forEach((k) => {
-          if (
-            k !== "attributes" &&
-            k !== "kaspi_attributes" &&
-            k !== "params" && 
-            !k.startsWith("_")
-          ) {
+          if (k !== "attributes" && k !== "kaspi_attributes" && k !== "params" && !k.startsWith("_")) {
             allHeaders.add(k);
           }
         });
@@ -3885,19 +3876,10 @@ window.handleCardSelectForExport = async function (
       const extractedHeaders = Array.from(allHeaders);
 
       window.mapper2State = Object.assign(
-        {
-          colMap: {},
-          dictValues: {},
-          splitRules: {},
-          invoiceHeaders: extractedHeaders,
-          invoiceRows: window.parsedInvoiceData.map((item) =>
-            extractedHeaders.map((h) => item[h]),
-          ),
-        },
-        res.templateConfig || {},
+        { colMap: {}, dictValues: {}, splitRules: {}, invoiceHeaders: extractedHeaders, invoiceRows: window.parsedInvoiceData.map((item) => extractedHeaders.map((h) => item[h])) },
+        res.templateConfig || {}
       );
 
-      // === ВОССТАНОВЛЕНИЕ ЗАГОЛОВКОВ И ПЕРЕВОДА НА РУССКИЙ ===
       window.mapper2State.supplier = "Kaspi (Экспорт)";
       window.mapper2State.docNo = res.templateConfig.templateName || "Партия";
 
@@ -3911,49 +3893,47 @@ window.handleCardSelectForExport = async function (
       }
 
       // === АВТО-ВОССТАНОВЛЕНИЕ РАНЕЕ СДЕЛАННЫХ ПРИВЯЗОК ===
-      if (res.templateConfig && res.templateConfig.humanNames) {
-         res.templateConfig.humanNames.forEach((hName, idx) => {
-             const sysKey = res.templateConfig.systemKeys[idx];
-             const dbColIdx = extractedHeaders.findIndex(h => h.toLowerCase() === `json_${hName.toLowerCase()}`);
-             
-             if (dbColIdx !== -1) {
-                 window.mapper2State.colMap[sysKey] = dbColIdx;
-             }
+      // 1. Системные поля (Название, Количество, Цена)
+      const baseFieldsMap = { "name": "item_name", "price": "cost", "qty": "qty", "barcode": "barcode", "cbm": "cbm", "weight": "weight" };
+      Object.keys(baseFieldsMap).forEach(sysKey => {
+          const dbColIdx = extractedHeaders.indexOf(baseFieldsMap[sysKey]);
+          if (dbColIdx !== -1) window.mapper2State.colMap[sysKey] = dbColIdx;
+      });
+
+      // 2. Специфичные поля Каспи (Бренд, Ширина и т.д.)
+      if (res.templateConfig && res.templateConfig.systemKeys) {
+         res.templateConfig.systemKeys.forEach((sysKey, idx) => {
+             const hName = res.templateConfig.humanNames[idx];
+             const dbColIdx = extractedHeaders.findIndex(h => {
+                 const lowerH = h.toLowerCase();
+                 // Ищем и по системному ключу (напр. json_brand), и по русскому имени (напр. json_бренд)
+                 return lowerH === `json_${sysKey.toLowerCase()}` || lowerH === `json_${String(hName).toLowerCase()}`;
+             });
+             if (dbColIdx !== -1) window.mapper2State.colMap[sysKey] = dbColIdx;
          });
       }
 
-      // Возвращаем переменные шагов!
       const step1 = document.getElementById("uploadStepArea");
       const step2 = document.getElementById("mapper2Area");
       const step3 = document.getElementById("invoicePreviewArea");
+      const incomeModal = document.getElementById("income-modal");
 
       if (step1) step1.style.display = "none";
 
-      // === ВОССТАНОВЛЕНИЕ МАППЕРА: Рендерим его всегда, чтобы кнопка "Назад" не вела в пустоту! ===
       window.renderMapper2Cards(res.templateConfig);
 
-      // Умная навигация
+      // Умная навигация и ФИКС ВЕРСТКИ (Возвращаем центровку окна)
       if (isExported) {
         if (step2) step2.style.display = "none";
         if (step3) step3.style.display = "flex";
         showParents("invoicePreviewArea");
+        if (incomeModal) incomeModal.style.display = "flex"; // <-- ФИКС
         window.renderPreviewTable();
       } else {
         if (step3) step3.style.display = "none";
         if (step2) step2.style.display = "flex";
         showParents("mapper2Area");
-      }
-
-      if (step3) {
-        const allBtns = step3.querySelectorAll("button");
-        allBtns.forEach((b) => {
-          if (
-            b.innerText.trim().toUpperCase() === "НАЗАД" ||
-            b.textContent.includes("НАЗАД")
-          ) {
-            b.style.display = "";
-          }
-        });
+        if (incomeModal) incomeModal.style.display = "flex"; // <-- ФИКС
       }
 
       const btnArea = document.getElementById("exportActionButtons");
