@@ -3838,7 +3838,7 @@ window.handleCardSelectForExport = async function (
         }
       }
 
-      // === ВИРТУАЛЬНАЯ РАСПАКОВКА ===
+      // === ВИРТУАЛЬНАЯ РАСПАКОВКА И ПОДГОТОВКА ДАННЫХ ===
       window.parsedInvoiceData = res.items.map((dbItem) => {
         let attrs = {};
         try {
@@ -3868,7 +3868,13 @@ window.handleCardSelectForExport = async function (
           barcode: dbItem.barcode || dbItem.ean || "",
         });
 
+        // Распаковываем атрибуты в плоский объект для маппинга
         for (const [key, value] of Object.entries(attrs)) {
+          // ИСПОЛЬЗУЕМ ПРЕФИКС json_ ДЛЯ АТРИБУТОВ ИЗ БАЗЫ!
+          if (flatItem[`json_${key}`] === undefined) {
+            flatItem[`json_${key}`] = value;
+          }
+          // Также оставляем обычные ключи для обратной совместимости
           if (flatItem[key] === undefined) {
             flatItem[key] = value;
           }
@@ -3878,14 +3884,15 @@ window.handleCardSelectForExport = async function (
         return flatItem;
       });
 
-      // Удаляем системную колонку attributes для Маппера
+      // Собираем ВСЕ возможные заголовки (включая виртуальные json_)
       const allHeaders = new Set();
       window.parsedInvoiceData.forEach((item) => {
         Object.keys(item).forEach((k) => {
           if (
             k !== "attributes" &&
             k !== "kaspi_attributes" &&
-            k !== "params"
+            k !== "params" && 
+            !k.startsWith("_") // Игнорируем внутренние свойства (типа _hasCollisions)
           ) {
             allHeaders.add(k);
           }
@@ -3906,25 +3913,20 @@ window.handleCardSelectForExport = async function (
         res.templateConfig || {},
       );
 
-      // === ВОССТАНОВЛЕНИЕ ЗАГОЛОВКОВ И ПЕРЕВОДА НА РУССКИЙ ===
-      window.mapper2State.supplier = "Kaspi (Экспорт)";
-      window.mapper2State.docNo = res.templateConfig.templateName || "Партия";
-
-      if (res.templateConfig && res.templateConfig.systemKeys) {
-        window.mapper2State.sysToHumanMap = {};
-        for (let i = 0; i < res.templateConfig.systemKeys.length; i++) {
-          const sKey = res.templateConfig.systemKeys[i];
-          const hName = res.templateConfig.humanNames[i];
-          if (sKey && hName) window.mapper2State.sysToHumanMap[sKey] = hName;
-        }
+      // === АВТО-ВОССТАНОВЛЕНИЕ РАНЕЕ СДЕЛАННЫХ ПРИВЯЗОК ===
+      // Пытаемся восстановить маппинг на основе данных из базы
+      if (res.templateConfig && res.templateConfig.humanNames) {
+         res.templateConfig.humanNames.forEach((hName, idx) => {
+             const sysKey = res.templateConfig.systemKeys[idx];
+             
+             // Ищем в extractedHeaders колонку с префиксом json_ и таким же именем
+             const dbColIdx = extractedHeaders.findIndex(h => h.toLowerCase() === `json_${hName.toLowerCase()}`);
+             
+             if (dbColIdx !== -1) {
+                 window.mapper2State.colMap[sysKey] = dbColIdx;
+             }
+         });
       }
-      // =========================================================
-
-      const step1 = document.getElementById("uploadStepArea");
-      const step2 = document.getElementById("mapper2Area");
-      const step3 = document.getElementById("invoicePreviewArea");
-
-      if (step1) step1.style.display = "none";
 
       // === ВОССТАНОВЛЕНИЕ МАППЕРА: Рендерим его всегда, чтобы кнопка "Назад" не вела в пустоту! ===
       window.renderMapper2Cards(res.templateConfig);
