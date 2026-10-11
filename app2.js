@@ -4726,21 +4726,24 @@ window.navigateBack = function () {
   window.mapper2State = window.mapper2State || {};
   let history = window.mapper2State.history || [];
 
-  // Вычеркиваем текущий шаг (например, 'smart')
   if (history.length > 0) {
-    history.pop();
+    history.pop(); // Удаляем текущий шаг из памяти
   }
 
-  // Смотрим, куда возвращаться
   if (history.length > 0) {
     const previousStep = history[history.length - 1];
     if (typeof window.navigateIncomeStep === "function") {
       window.navigateIncomeStep(previousStep, true);
     }
   } else {
-    // Если история пуста, принудительно возвращаемся на стартовый Шаг 1
-    if (typeof window.navigateIncomeStep === "function") {
-      window.navigateIncomeStep(1, true);
+    // Если история пуста, поведение зависит от режима
+    if (window.isKaspiExportMode) {
+      document.getElementById("income-modal").style.display = "none";
+      if (typeof window.openExportModal === "function") window.openExportModal();
+    } else {
+      if (typeof window.navigateIncomeStep === "function") {
+        window.navigateIncomeStep(1, true);
+      }
     }
   }
 };
@@ -5090,7 +5093,6 @@ window.processInvoiceFile = async function () {
 // 2. ОТРИСОВКА КАРТОЧЕК НА ГЛАВНОМ ЭКРАНЕ
 window.renderMapper2Cards = function (templateData) {
   // === КЭШИРОВАНИЕ ДАННЫХ ===
-  // Запоминаем данные при первом вызове, чтобы перерисовка работала при вызове без аргументов
   if (templateData) {
     window.lastTemplateData = templateData;
   } else {
@@ -5243,12 +5245,9 @@ window.renderMapper2Cards = function (templateData) {
     if (!allReqs.some((r) => r.sysKey === field.sysKey)) allReqs.push(field);
   });
 
-  const globalSynonyms =
-    typeof invoiceSynonyms !== "undefined" ? invoiceSynonyms : {};
+  const globalSynonyms = typeof invoiceSynonyms !== "undefined" ? invoiceSynonyms : {};
   const headersLower = (window.mapper2State.invoiceHeaders || []).map((h) =>
-    String(h || "")
-      .trim()
-      .toLowerCase(),
+    String(h || "").trim().toLowerCase(),
   );
 
   let htmlRequired = "";
@@ -5276,42 +5275,24 @@ window.renderMapper2Cards = function (templateData) {
 
     let learned = learnedSynonyms[req.sysKey] || [];
     let baseRaw = [];
-    if (globalSynonyms[req.sysKey])
-      baseRaw = baseRaw.concat(globalSynonyms[req.sysKey]);
-    if (globalSynonyms[req.name])
-      baseRaw = baseRaw.concat(globalSynonyms[req.name]);
-    if (req.isDict && globalSynonyms["Brand"])
-      baseRaw = baseRaw.concat(globalSynonyms["Brand"]);
+    if (globalSynonyms[req.sysKey]) baseRaw = baseRaw.concat(globalSynonyms[req.sysKey]);
+    if (globalSynonyms[req.name]) baseRaw = baseRaw.concat(globalSynonyms[req.name]);
+    if (req.isDict && globalSynonyms["Brand"]) baseRaw = baseRaw.concat(globalSynonyms["Brand"]);
 
-    let base = baseRaw
-      .map((w) => String(w).trim().toLowerCase())
-      .filter(Boolean);
+    let base = baseRaw.map((w) => String(w).trim().toLowerCase()).filter(Boolean);
     let foundIndex = -1;
 
-    const safeLearned = Array.isArray(learned)
-      ? learned
-      : typeof learned === "string"
-        ? [learned]
-        : [];
+    const safeLearned = Array.isArray(learned) ? learned : typeof learned === "string" ? [learned] : [];
 
     foundIndex = headersLower.findIndex((h) => h && safeLearned.includes(h));
-    if (foundIndex === -1)
-      foundIndex = headersLower.findIndex((h) => h && base.includes(h));
-    if (foundIndex === -1)
-      foundIndex = headersLower.findIndex(
-        (h) => h && safeLearned.some((w) => w.length > 2 && h.includes(w)),
-      );
-    if (foundIndex === -1)
-      foundIndex = headersLower.findIndex(
-        (h) => h && base.some((w) => w.length > 2 && h.includes(w)),
-      );
+    if (foundIndex === -1) foundIndex = headersLower.findIndex((h) => h && base.includes(h));
+    if (foundIndex === -1) foundIndex = headersLower.findIndex((h) => h && safeLearned.some((w) => w.length > 2 && h.includes(w)));
+    if (foundIndex === -1) foundIndex = headersLower.findIndex((h) => h && base.some((w) => w.length > 2 && h.includes(w)));
 
     if (foundIndex !== -1) window.mapper2State.colMap[req.sysKey] = foundIndex;
 
     let mappedIndex = window.mapper2State.colMap[req.sysKey];
-    let dictValue =
-      window.mapper2State.dictValues &&
-      window.mapper2State.dictValues[req.sysKey];
+    let dictValue = window.mapper2State.dictValues && window.mapper2State.dictValues[req.sysKey];
 
     let statusClass = "status-empty";
     let statusText = t.inc_select || "ВЫБРАТЬ";
@@ -5321,76 +5302,60 @@ window.renderMapper2Cards = function (templateData) {
 
     if (dictValue) {
       statusClass = "status-filled";
-      let shortVal =
-        dictValue.length > 15 ? dictValue.substring(0, 15) + "..." : dictValue;
-      // ИСПРАВЛЕНИЕ 1: Добавляем галочку и красим кнопку для словаря
+      let shortVal = dictValue.length > 15 ? dictValue.substring(0, 15) + "..." : dictValue;
       statusText = `✓ ${shortVal}`;
       statusI18n = "";
-      statusStyle =
-        "border: 1px solid var(--accent-green, #2ecc71); color: var(--accent-green, #2ecc71); background: var(--bg-success-dim, rgba(46, 204, 113, 0.15)); font-weight: bold;";
+      statusStyle = "border: 1px solid var(--accent-green, #2ecc71); color: var(--accent-green, #2ecc71); background: var(--bg-success-dim, rgba(46, 204, 113, 0.15)); font-weight: bold;";
     } else if (mappedIndex !== undefined) {
       statusClass = "status-filled";
-      let colName =
-        window.mapper2State.invoiceHeaders[mappedIndex] ||
-        `Колонка ${mappedIndex + 1}`;
+      let colName = window.mapper2State.invoiceHeaders[mappedIndex] || `Колонка ${mappedIndex + 1}`;
 
-      let splitData =
-        window.mapper2State.splitRules &&
-        window.mapper2State.splitRules[req.sysKey];
+      let splitData = window.mapper2State.splitRules && window.mapper2State.splitRules[req.sysKey];
       let ruleIndices = [];
       if (Array.isArray(splitData)) ruleIndices = splitData;
-      else if (splitData && Array.isArray(splitData.rule))
-        ruleIndices = splitData.rule;
-      else if (splitData && Array.isArray(splitData.tokens))
-        ruleIndices = splitData.tokens;
+      else if (splitData && Array.isArray(splitData.rule)) ruleIndices = splitData.rule;
+      else if (splitData && Array.isArray(splitData.tokens)) ruleIndices = splitData.tokens;
+
+      let sampleText = "";
+      for (let i = 0; i < Math.min(10, window.mapper2State.invoiceRows.length); i++) {
+        let val = String(window.mapper2State.invoiceRows[i][mappedIndex] || "").trim();
+        if (val) {
+          sampleText = val;
+          break;
+        }
+      }
 
       if (ruleIndices.length > 0) {
-        // ИСПРАВЛЕНИЕ 2: Меняем текст кнопки для сплиттера
-        statusText = `✂️️ ${colName}`;
+        statusText = `✂ ${colName}`;
         statusI18n = "";
-        statusStyle =
-          "border: 1px solid var(--accent-green, #2ecc71); color: var(--accent-green, #2ecc71); background: var(--bg-success-dim, rgba(46, 204, 113, 0.15)); font-weight: bold;";
+        statusStyle = "border: 1px solid var(--accent-green, #2ecc71); color: var(--accent-green, #2ecc71); background: var(--bg-success-dim, rgba(46, 204, 113, 0.15)); font-weight: bold;";
 
-        let sampleText = "";
-        for (
-          let i = 0;
-          i < Math.min(10, window.mapper2State.invoiceRows.length);
-          i++
-        ) {
-          let val = String(
-            window.mapper2State.invoiceRows[i][mappedIndex] || "",
-          ).trim();
-          if (val) {
-            sampleText = val;
-            break;
-          }
-        }
-
+        let highlighted = "";
         if (sampleText) {
           const regex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,]/g;
           let tokens = sampleText.match(regex) || [];
 
-          let highlighted = tokens
-            .map((tok, i) => {
+          highlighted = tokens.map((tok, i) => {
               if (ruleIndices.map(Number).includes(i)) {
                 return `<b style="color:#000; background:var(--accent-green, #4CAF50); padding:0 3px; border-radius:3px;">${tok}</b>`;
               } else {
                 return `<span style="color:#666; text-decoration:line-through;">${tok}</span>`;
               }
-            })
-            .join("");
+            }).join("");
 
-          extraPreviewHtml = `
-                    <div id="preview-${req.sysKey}" style="margin-top: 6px; font-size: 11px; background: rgba(255,255,255,0.05); padding: 4px 8px; border-radius: 4px; display: inline-block;">
-                        ${highlighted}
-                    </div>`;
+          extraPreviewHtml = `<div id="preview-${req.sysKey}" style="margin-top: 6px; font-size: 11px; background: rgba(255,255,255,0.05); padding: 4px 8px; border-radius: 4px; display: inline-block;">${highlighted}</div>`;
         }
       } else {
-        // ИСПРАВЛЕНИЕ 3: Меняем текст кнопки для обычного маппинга
-        statusText = `✓ ${colName}`;
+        let displayVal = colName;
+        if (window.isKaspiExportMode && sampleText) {
+            displayVal = sampleText.length > 20 ? sampleText.substring(0, 20) + "..." : sampleText;
+        } else if (sampleText) {
+            displayVal = `${colName} (${sampleText.length > 10 ? sampleText.substring(0, 10) + '...' : sampleText})`;
+        }
+        
+        statusText = `✓ ${displayVal}`;
         statusI18n = "";
-        statusStyle =
-          "border: 1px solid var(--accent-green, #2ecc71); color: var(--accent-green, #2ecc71); background: var(--bg-success-dim, rgba(46, 204, 113, 0.15)); font-weight: bold;";
+        statusStyle = "border: 1px solid var(--accent-green, #2ecc71); color: var(--accent-green, #2ecc71); background: var(--bg-success-dim, rgba(46, 204, 113, 0.15)); font-weight: bold;";
       }
     }
 
@@ -5452,7 +5417,23 @@ window.renderMapper2Cards = function (templateData) {
   if (currency) currency.style.display = "none";
 
   document.getElementById("mapper2Area").style.display = "flex";
-  document.getElementById("applyMapper2Btn").style.display = "block";
+  
+  // ФИКС: Мультиязычная кнопка с правильной сменой атрибутов перевода
+  const applyBtn = document.getElementById("applyMapper2Btn");
+  if (applyBtn) {
+      applyBtn.style.display = "block";
+      
+      const lang = window.currentLang || localStorage.getItem("pos_lang") || "ru";
+      const tr = typeof translations !== "undefined" && translations[lang] ? translations[lang] : {};
+      
+      if (window.isKaspiExportMode) {
+          applyBtn.innerHTML = "✅ " + (tr.export_btn_next || "ДАЛЕЕ (ВЫГРУЗКА)");
+          applyBtn.setAttribute("data-i18n", "export_btn_next");
+      } else {
+          applyBtn.innerHTML = "✅ " + (tr.inc_submit_invoice || "СОБРАТЬ НАКЛАДНУЮ");
+          applyBtn.setAttribute("data-i18n", "inc_submit_invoice");
+      }
+  }
 };
 
 // 3. ОТКРЫТИЕ ШТОРКИ И ОТРИСОВКА КОЛОНОК
@@ -6268,9 +6249,13 @@ window.applyMapper2Logic = function () {
       return rawVal;
     };
 
-    let qty = parseFloat(getValue("qty"));
-    let price = parseFloat(String(getValue("price", "cost")).replace(",", "."));
-    if (isNaN(qty) || isNaN(price)) return;
+    let rawQty = getValue("qty");
+    let rawPrice = getValue("price", "cost");
+    
+    // Усиленный парсер: убираем пробелы и безопасно переводим в число. Если пусто - ставим 0.
+    let qty = parseFloat(String(rawQty).replace(/\s/g, "").replace(",", ".")) || 0;
+    let price = parseFloat(String(rawPrice).replace(/\s/g, "").replace(",", ".")) || 0;
+    // Мы убрали 'if (isNaN) return', теперь скрипт не будет выбрасывать товары из-за пустых цен!
 
     let rawId = getValue("barcode", "merchant_sku");
     let barcode = /^\d{8,13}$/.test(rawId) ? rawId : "";

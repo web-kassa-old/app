@@ -500,6 +500,8 @@ const translations = {
     exp_btn_repeat: "ПРОСМОТР И ВЫГРУЗКА",
     kaspi_reset_invoice: "🔄 ПЕРЕЗАЛИТЬ НАКЛАДНУЮ (СБРОС)",
     kaspi_reset_confirm: "Очистить таблицу и загрузить накладную заново?",
+    export_btn_next: "ДАЛЕЕ (ВЫГРУЗКА)",
+    inc_submit_invoice: "СОБРАТЬ НАКЛАДНУЮ",
   },
   kz: {
     btn_sale: "САТУ",
@@ -1002,5 +1004,7 @@ const translations = {
     exp_btn_repeat: "ҚАРАУ ЖӘНЕ ЖҮКТЕП АЛУ",
     kaspi_reset_invoice: "🔄 ЖҮКҚҰЖАТТЫ ҚАЙТА ЖҮКТЕУ (ҚАЛПЫНА КЕЛТІРУ)",
     kaspi_reset_confirm: "Кестені тазартып, жүкқұжатты қайта жүктеу керек пе?",
+    export_btn_next: "КЕЛЕСІ (ЭКСПОРТ)",
+    inc_submit_invoice: "ЖҮКҚҰЖАТТЫ ЖИНАУ",
   },
 };
