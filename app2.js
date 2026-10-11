@@ -6313,11 +6313,12 @@ window.applyMapper2Logic = function () {
     let itemHasCollisions = false;
     let itemCollisionsList = [];
 
-    // === ИДЕАЛЬНЫЙ ПАРСЕР И КАРАНТИН ===
+    // === ИДЕАЛЬНЫЙ ПАРСЕР И КАРАНТИН (Без хардкода и регулярных выражений) ===
     const processAttribute = (key) => {
       let lowerKey = String(key).toLowerCase();
       let rawValue = getValue(key);
 
+      // Игнорируем базовые системные поля (они уже обработаны выше)
       if (
         [
           "qty",
@@ -6334,133 +6335,62 @@ window.applyMapper2Logic = function () {
       if (!rawValue) return;
 
       let humanName = state.sysToHumanMap ? state.sysToHumanMap[key] : key;
-      let lowerHuman = String(humanName).toLowerCase();
       let searchString = rawValue;
-      let extractedDirectly = null;
-
-      let isMetric = searchString.match(
-        /(\d{3})\s*[\/\\]\s*(\d{2,3})\s*[a-zA-Z-]*\s*(\d{2})/,
-      );
-      let isImperial = searchString.match(
-        /(\d{2}(?:\.\d+)?)\s*[xXхХ*]\s*(\d{1,2}(?:\.\d+)?)\s*[a-zA-Z-]*\s*(\d{2})/i,
-      );
-
-      if (isMetric) {
-        if (lowerHuman.includes("ширина")) extractedDirectly = isMetric[1];
-        else if (
-          lowerHuman.includes("высота") ||
-          lowerHuman.includes("профиль")
-        )
-          extractedDirectly = isMetric[2];
-        else if (
-          lowerHuman.includes("диаметр") ||
-          lowerHuman.includes("диск") ||
-          lowerHuman.includes("радиус")
-        )
-          extractedDirectly = isMetric[3];
-      } else if (isImperial) {
-        if (lowerHuman.includes("ширина")) extractedDirectly = isImperial[1];
-        else if (
-          lowerHuman.includes("высота") ||
-          lowerHuman.includes("профиль")
-        )
-          extractedDirectly = isImperial[2];
-        else if (
-          lowerHuman.includes("диаметр") ||
-          lowerHuman.includes("диск") ||
-          lowerHuman.includes("радиус")
-        )
-          extractedDirectly = isImperial[3];
-      }
-
       let dict = window.kaspiDicts && window.kaspiDicts[humanName];
       let hasDictionary = dict && Array.isArray(dict) && dict.length > 0;
       let foundMatch = false;
       let matchedDictValue = searchString;
 
-      if (extractedDirectly !== null) {
-        matchedDictValue = extractedDirectly;
-        if (hasDictionary) {
-          for (let dv of dict) {
-            let strDv = String(dv).trim();
-            if (!strDv) continue;
-            let baseDv = strDv.split("(")[0].trim();
-            if (
+      // 1. Проверяем точное совпадение со словарем (если он есть)
+      if (hasDictionary) {
+        for (let dv of dict) {
+          let strDv = String(dv).trim();
+          let baseDv = strDv.split("(")[0].trim(); // Отрезаем скобки, если есть, напр. "67 (307 кг)" -> "67"
+
+          // Строгая проверка, чтобы не отрезать куски от дробей типа 115/110
+          let isStrictNumber = /^[\d\.]+$/.test(String(searchString).trim());
+
+          if (
+            strDv.toLowerCase() === String(searchString).trim().toLowerCase() ||
+            baseDv.toLowerCase() === String(searchString).trim().toLowerCase() ||
+            (isStrictNumber &&
               !isNaN(parseFloat(baseDv)) &&
-              parseFloat(baseDv) === parseFloat(extractedDirectly)
-            ) {
-              matchedDictValue = strDv;
-              foundMatch = true;
-              break;
-            }
-          }
-        }
-      } else {
-        if (hasDictionary) {
-          for (let dv of dict) {
-            let strDv = String(dv).trim();
-            let baseDv = strDv.split("(")[0].trim();
-
-            // ФИКС: Строгая проверка. Если в строке есть слэш (115/110), мы запрещаем отрезать от нее куски
-            let isStrictNumber = /^[\d\.]+$/.test(String(searchString).trim());
-
-            if (
-              strDv.toLowerCase() ===
-                String(searchString).trim().toLowerCase() ||
-              baseDv.toLowerCase() ===
-                String(searchString).trim().toLowerCase() ||
-              (isStrictNumber &&
-                !isNaN(parseFloat(baseDv)) &&
-                parseFloat(baseDv) === parseFloat(searchString))
-            ) {
-              matchedDictValue = strDv;
-              foundMatch = true;
-              break;
-            }
+              parseFloat(baseDv) === parseFloat(searchString))
+          ) {
+            matchedDictValue = strDv;
+            foundMatch = true;
+            break;
           }
         }
       }
 
-      // 🔴 ФИНАЛЬНЫЙ КАПКАН (Без хардкода!)
+      // 2. 🔴 КАРАНТИН ДЛЯ ТОКЕНИЗАТОРА
+      // Если параметр имеет словарь, но точного совпадения нет - это составная строка или ошибка.
+      // Никакой самодеятельности! Отправляем ее целиком в Токенизатор.
       if (
         window.currentImportMode === "kaspi" &&
         hasDictionary &&
         !foundMatch
       ) {
-        
-        // Токенизатор пилит только те поля, где Каспи ждет цифры или индексы (Ширина, Высота).
-        let needsTokenization = false;
-        if (dict && Array.isArray(dict)) {
-           needsTokenization = dict.some((ex) => {
-              const str = String(ex).trim();
-              return /\d/.test(str) || (/^[a-zA-Z]+$/.test(str) && str.length <= 3);
-          });
-        }
+        itemHasCollisions = true;
 
-        if (needsTokenization) {
-            console.log("🔴 ТОКЕНИЗАТОР ПОЙМАЛ СЛОЖНЫЙ ПАРАМЕТР:", humanName, "=>", rawValue);
-            itemHasCollisions = true;
+        let colIdx = state.colMap[key];
+        let excelHeader =
+          colIdx !== undefined && state.invoiceHeaders
+            ? state.invoiceHeaders[colIdx]
+            : "ДАННЫЕ ИЗ НАКЛАДНОЙ";
 
-            let colIdx = state.colMap[key];
-            let excelHeader = colIdx !== undefined && state.invoiceHeaders
-                ? state.invoiceHeaders[colIdx]
-                : "ДАННЫЕ ИЗ НАКЛАДНОЙ";
+        itemCollisionsList.push({
+          sysKey: key,
+          humanName: humanName,
+          rawString: rawValue, // Передаем строку ЦЕЛИКОМ (например "11.00R20")
+          excelColumnName: excelHeader,
+        });
 
-            itemCollisionsList.push({
-              sysKey: key,
-              humanName: humanName,
-              rawString: rawValue,
-              excelColumnName: excelHeader,
-            });
-        } else {
-            // Если это текстовое поле со словарем (Бренд, Сезонность), но значение не совпало - 
-            // сохраняем как есть. Клиент поправит руками на 4-м экране.
-            attributesObj[key] = rawValue;
-        }
-
-        return;
+        return; // Важно: прерываем функцию, чтобы не записать "сырое" значение в атрибуты
       }
 
+      // 3. Если всё совпало (или словаря нет) - просто сохраняем
       attributesObj[key] = matchedDictValue;
     };
 
