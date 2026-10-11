@@ -3854,10 +3854,10 @@ window.handleCardSelectForExport = async function (
           barcode: dbItem.barcode || dbItem.ean || "",
         });
 
-        // 🔴 ФИКС ПУСТЫХ КОЛОНОК: Используем префикс attr_ вместо json_, 
-        // чтобы старый скрипт выгрузки не сломался об свои устаревшие триггеры
+        // 1. ВОЗВРАЩАЕМ ТРИГГЕР json_ 
+        // Без него старый скрипт выгрузки не понимает, что нужно искать данные в характеристиках!
         for (const [key, value] of Object.entries(attrs)) {
-          if (flatItem[`attr_${key}`] === undefined) flatItem[`attr_${key}`] = value;
+          if (flatItem[`json_${key}`] === undefined) flatItem[`json_${key}`] = value;
           if (flatItem[key] === undefined) flatItem[key] = value;
         }
 
@@ -3892,10 +3892,12 @@ window.handleCardSelectForExport = async function (
         }
       }
 
+      // === АВТО-ВОССТАНОВЛЕНИЕ РАНЕЕ СДЕЛАННЫХ ПРИВЯЗОК ===
       const baseFieldsMap = { "name": "item_name", "price": "cost", "qty": "qty", "barcode": "barcode", "cbm": "cbm", "weight": "weight" };
       Object.keys(baseFieldsMap).forEach(sysKey => {
           const dbColIdx = extractedHeaders.indexOf(baseFieldsMap[sysKey]);
-          if (dbColIdx !== -1) window.mapper2State.colMap[sysKey] = dbColIdx;
+          // 2. ГЛАВНЫЙ ФИКС: Сохраняем в память СТРОКУ (например "item_name"), а не цифру-индекс!
+          if (dbColIdx !== -1) window.mapper2State.colMap[sysKey] = extractedHeaders[dbColIdx];
       });
 
       if (res.templateConfig && res.templateConfig.systemKeys) {
@@ -3903,10 +3905,10 @@ window.handleCardSelectForExport = async function (
              const hName = res.templateConfig.humanNames[idx];
              const dbColIdx = extractedHeaders.findIndex(h => {
                  const lowerH = h.toLowerCase();
-                 // Ищем по безопасному префиксу attr_
-                 return lowerH === `attr_${sysKey.toLowerCase()}` || lowerH === `attr_${String(hName).toLowerCase()}`;
+                 return lowerH === `json_${sysKey.toLowerCase()}` || lowerH === `json_${String(hName).toLowerCase()}`;
              });
-             if (dbColIdx !== -1) window.mapper2State.colMap[sysKey] = dbColIdx;
+             // 3. ГЛАВНЫЙ ФИКС: Сохраняем в память СТРОКУ (например "json_brand"), а не цифру!
+             if (dbColIdx !== -1) window.mapper2State.colMap[sysKey] = extractedHeaders[dbColIdx];
          });
       }
 
@@ -11677,31 +11679,3 @@ window.handleMapper2Back = function () {
     }
   }
 };
-
-// === БРОНЯ ДЛЯ СТАРОГО СКРИПТА ЭКСПОРТА (ПОЛИФИЛЛ) ===
-if (!Number.prototype.startsWith) {
-    Object.defineProperty(Number.prototype, 'startsWith', {
-        value: function(prefix) {
-            // Если скрипт попытался применить startsWith к индексу колонки
-            if (window.mapper2State && window.mapper2State.invoiceHeaders) {
-                const header = window.mapper2State.invoiceHeaders[this];
-                if (header) return String(header).startsWith(prefix);
-            }
-            return String(this).startsWith(prefix);
-        },
-        enumerable: false
-    });
-}
-if (!Number.prototype.replace) {
-    Object.defineProperty(Number.prototype, 'replace', {
-        value: function(search, replaceWith) {
-            // Подменяем цифру на реальное название колонки из памяти
-            if (window.mapper2State && window.mapper2State.invoiceHeaders) {
-                const header = window.mapper2State.invoiceHeaders[this];
-                if (header) return String(header).replace(search, replaceWith);
-            }
-            return String(this).replace(search, replaceWith);
-        },
-        enumerable: false
-    });
-}
