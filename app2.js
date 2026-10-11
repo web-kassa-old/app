@@ -11679,3 +11679,30 @@ window.handleMapper2Back = function () {
     }
   }
 };
+
+// === БРОНЯ ДЛЯ СТАРОГО СКРИПТА ЭКСПОРТА (ПОЛИФИЛЛ) ===
+if (!Number.prototype.startsWith) {
+    Object.defineProperty(Number.prototype, 'startsWith', {
+        value: function(prefix) {
+            // Если экспортный скрипт споткнулся о цифру (индекс), отдаем ему текст
+            if (window.mapper2State && window.mapper2State.invoiceHeaders) {
+                const header = window.mapper2State.invoiceHeaders[this];
+                if (header) return String(header).startsWith(prefix);
+            }
+            return String(this).startsWith(prefix);
+        },
+        enumerable: false
+    });
+}
+if (!Number.prototype.replace) {
+    Object.defineProperty(Number.prototype, 'replace', {
+        value: function(search, replaceWith) {
+            if (window.mapper2State && window.mapper2State.invoiceHeaders) {
+                const header = window.mapper2State.invoiceHeaders[this];
+                if (header) return String(header).replace(search, replaceWith);
+            }
+            return String(this).replace(search, replaceWith);
+        },
+        enumerable: false
+    });
+}
