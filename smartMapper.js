@@ -7,69 +7,52 @@
 window.detectComplexColumns = function (headers, rows) {
   if (!headers || !rows || headers.length === 0 || rows.length === 0) return [];
 
-  const dict =
-    window.mapper2State?.dictValues ||
-    (typeof invoiceSynonyms !== "undefined" ? invoiceSynonyms : {});
+  const tData = window.currentTemplateData;
+  let allowedHeadersLower = [];
 
-  // П1: Добавили Модель и Рисунок в список игнора
-  const excludeKeys = [
-    "Артикул",
-    "Штрихкод",
-    "Код",
-    "Бренд",
-    "Цена",
-    "Остаток",
-    "Количество",
-    "Сумма",
-    "Модель",
-    "Рисунок",
-  ];
-  let dynamicBlacklist = [];
-
-  excludeKeys.forEach((key) => {
-    if (dict[key] && Array.isArray(dict[key])) {
-      const synonyms = dict[key].map((s) => String(s).toLowerCase().trim());
-      dynamicBlacklist = dynamicBlacklist.concat(synonyms);
+  // 1. Смотрим в структуру шаблона Каспи: разрешаем сканировать только те поля, 
+  // где в словаре встречаются цифры или короткие буквенные коды (например, размеры)
+  if (tData && tData.humanNames && tData.dictionary) {
+    for (let i = 0; i < tData.humanNames.length; i++) {
+      const paramName = tData.humanNames[i];
+      const dictData = tData.dictionary[paramName];
+      
+      if (Array.isArray(dictData)) {
+          const isCodeOrNumber = dictData.some((ex) => {
+              const str = String(ex).trim();
+              return /\d/.test(str) || (/^[a-zA-Z]+$/.test(str) && str.length <= 3);
+          });
+          
+          if (isCodeOrNumber) {
+              allowedHeadersLower.push(String(paramName).toLowerCase().trim());
+          }
+      }
     }
-  });
+  }
 
-  const fallbackBlacklist = [
-    "артикул",
-    "код",
-    "code",
-    "barcode",
-    "штрихкод",
-    "brand",
-    "бренд",
-    "цена",
-    "price",
-    "usd",
-    "eur",
-    "kzt",
-    "руб",
-    "кол-во",
-    "qty",
-    "pcs",
-    "amount",
-    "сумма",
-    "total",
-    "pattern",
-    "модель", // П1: Жесткое исключение для Pattern
-  ];
+  // 2. Достаем синонимы из базы (на случай, если колонка называется "Specs" или "Размер")
+  const dict = window.mapper2State?.dictValues || (typeof invoiceSynonyms !== "undefined" ? invoiceSynonyms : {});
+  const compositeMarkers = dict["composite_column"] || dict["составная_колонка"] || ["размер", "specs", "параметры", "характеристики"];
+  const compositeLower = compositeMarkers.map(s => String(s).toLowerCase().trim());
 
-  const blacklist = [...new Set([...dynamicBlacklist, ...fallbackBlacklist])];
   const complexCols = [];
 
   headers.forEach((colName, colIndex) => {
     if (!colName) return;
 
     const cleanColName = String(colName).toLowerCase().trim();
-    if (blacklist.includes(cleanColName)) return;
-
+    
+    // ПРОПУСКАЕМ колонку, если она не похожа на сложный параметр Каспи 
+    // И не числится в синонимах как составная
+    const isAllowed = allowedHeadersLower.some(h => cleanColName.includes(h)) || 
+                      compositeLower.some(h => cleanColName.includes(h));
+                      
+    if (!isAllowed) return; // <-- Теперь скрипт игнорирует Артикулы, Бренды, Цены и другой мусор
+    
     let exampleVal = "";
     let validTokens = [];
 
-    // П2: Сканируем всю колонку (до 1000 строк), чтобы не пропустить "115/110" где-то внизу
+    // Сканируем всю колонку (до 1000 строк), чтобы не пропустить сложный параметр где-то внизу
     const maxRows = Math.min(1000, rows.length);
     for (let i = 0; i < maxRows; i++) {
       const row = rows[i];
