@@ -51,46 +51,35 @@ window.detectComplexColumns = function (headers, rows) {
     
     let exampleVal = "";
     let validTokens = [];
+    let maxTokensCount = 0; // ДОБАВЛЕНО: Хранилище рекорда
 
-    // Сканируем всю колонку (до 1000 строк), чтобы не пропустить сложный параметр где-то внизу
     const maxRows = Math.min(1000, rows.length);
     for (let i = 0; i < maxRows; i++) {
       const row = rows[i];
       if (!row) continue;
 
       const cellVal = row[colIndex];
-      if (
-        cellVal !== undefined &&
-        cellVal !== null &&
-        String(cellVal).trim() !== ""
-      ) {
+      if (cellVal !== undefined && cellVal !== null && String(cellVal).trim() !== "") {
         const strVal = String(cellVal).trim();
-
-        // Если ячейка - просто число (например 82), идем к следующей СТРОКЕ, но не бросаем колонку
         const isJustNumber = !isNaN(Number(strVal.replace(/,/g, "")));
         if (isJustNumber) continue;
 
-        const tokens = strVal.split(/[\s/\-_*xX]+/).filter((t) => t.length > 0);
-
-        // Как только нашли сложную структуру - фиксируем и останавливаем поиск по этой колонке
-        if (tokens.length >= 2) {
+        // Идеальная регулярка для токенов
+        const tokens = strVal.match(/\d+(?:\.\d+)?|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,]/g) || [];
+        
+        // СРАВНИВАЕМ С РЕКОРДОМ: если токенов больше, чем было найдено ранее, обновляем победителя
+        if (tokens.length > maxTokensCount) {
+          maxTokensCount = tokens.length;
           exampleVal = strVal;
           validTokens = tokens;
-          break;
         }
       }
-    }
+    } // Конец цикла (break удален, теперь он честно проверяет все 1000 строк)
 
+    // Если победитель имеет хотя бы 2 токена
     if (exampleVal && validTokens.length >= 2) {
-      const hasNumbers = /\d/.test(exampleVal);
-      const isNotTooLong = exampleVal.length < 40;
-
-      if (hasNumbers && isNotTooLong) {
-        complexCols.push({
-          colName: colName,
-          example: exampleVal,
-          tokenCount: validTokens.length,
-        });
+      if (/\d/.test(exampleVal) && exampleVal.length < 40) {
+        complexCols.push({ colName: colName, example: exampleVal, tokenCount: validTokens.length });
       }
     }
   });
