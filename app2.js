@@ -3854,9 +3854,10 @@ window.handleCardSelectForExport = async function (
           barcode: dbItem.barcode || dbItem.ean || "",
         });
 
-        // Распаковываем атрибуты в плоский объект для маппинга
+        // 🔴 ФИКС ПУСТЫХ КОЛОНОК: Используем префикс attr_ вместо json_, 
+        // чтобы старый скрипт выгрузки не сломался об свои устаревшие триггеры
         for (const [key, value] of Object.entries(attrs)) {
-          if (flatItem[`json_${key}`] === undefined) flatItem[`json_${key}`] = value;
+          if (flatItem[`attr_${key}`] === undefined) flatItem[`attr_${key}`] = value;
           if (flatItem[key] === undefined) flatItem[key] = value;
         }
 
@@ -3864,7 +3865,6 @@ window.handleCardSelectForExport = async function (
         return flatItem;
       });
 
-      // Собираем ВСЕ возможные заголовки
       const allHeaders = new Set();
       window.parsedInvoiceData.forEach((item) => {
         Object.keys(item).forEach((k) => {
@@ -3892,22 +3892,19 @@ window.handleCardSelectForExport = async function (
         }
       }
 
-      // === АВТО-ВОССТАНОВЛЕНИЕ РАНЕЕ СДЕЛАННЫХ ПРИВЯЗОК ===
-      // 1. Системные поля (Название, Количество, Цена)
       const baseFieldsMap = { "name": "item_name", "price": "cost", "qty": "qty", "barcode": "barcode", "cbm": "cbm", "weight": "weight" };
       Object.keys(baseFieldsMap).forEach(sysKey => {
           const dbColIdx = extractedHeaders.indexOf(baseFieldsMap[sysKey]);
           if (dbColIdx !== -1) window.mapper2State.colMap[sysKey] = dbColIdx;
       });
 
-      // 2. Специфичные поля Каспи (Бренд, Ширина и т.д.)
       if (res.templateConfig && res.templateConfig.systemKeys) {
          res.templateConfig.systemKeys.forEach((sysKey, idx) => {
              const hName = res.templateConfig.humanNames[idx];
              const dbColIdx = extractedHeaders.findIndex(h => {
                  const lowerH = h.toLowerCase();
-                 // Ищем и по системному ключу (напр. json_brand), и по русскому имени (напр. json_бренд)
-                 return lowerH === `json_${sysKey.toLowerCase()}` || lowerH === `json_${String(hName).toLowerCase()}`;
+                 // Ищем по безопасному префиксу attr_
+                 return lowerH === `attr_${sysKey.toLowerCase()}` || lowerH === `attr_${String(hName).toLowerCase()}`;
              });
              if (dbColIdx !== -1) window.mapper2State.colMap[sysKey] = dbColIdx;
          });
@@ -6479,24 +6476,25 @@ window.applyMapper2Logic = function () {
     const exportBtns = document.getElementById("exportActionButtons");
     if (exportBtns) exportBtns.style.display = "flex";
 
-    // 🔴 ГЛАВНЫЙ ФИКС ЭКСПОРТА: 
-    // Экспорт-скрипт ждет названия колонок (строки), а не цифры. Конвертируем их!
+    // 🔴 БРОНЯ ОТ ОШИБКИ startsWith is not a function:
+    // Экспорт ждет строковые ключи, а не цифры-индексы. Принудительно конвертируем.
     let exportColMap = {};
     Object.keys(window.mapper2State.colMap).forEach(k => {
         let val = window.mapper2State.colMap[k];
         if (typeof val === 'number') {
-            exportColMap[k] = window.mapper2State.invoiceHeaders[val];
+            exportColMap[k] = String(window.mapper2State.invoiceHeaders[val] || "");
+        } else if (val !== undefined && val !== null) {
+            exportColMap[k] = String(val);
         } else {
-            exportColMap[k] = val;
+            exportColMap[k] = ""; // Важно: пустая строка, чтобы startsWith не падал на undefined
         }
     });
-    window.mapper2State.colMap = exportColMap; // Теперь тут лежат строки типа "json_Бренд"
+    window.mapper2State.colMap = exportColMap;
 
-    // Синхронизируем массивы, чтобы скрипт экспорта видел наши распарсенные данные
     window.kaspiExportItems = window.parsedInvoiceData;
   }
   // ==============================================
-}; // <-- Конец функции applyMapper2Logic
+}; // Конец функции applyMapper2Logic
 
 // === ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ РЕДАКТОРА ===
 window.currentEditIndex = null;
@@ -6604,17 +6602,23 @@ window.renderPreviewTable = function () {
         const sendBtn = document.getElementById("sendInvoiceBtn");
         if (sendBtn) sendBtn.style.display = "none";
         
-        // 2. Оживляем системную кнопку "Назад" и подключаем к истории
+        // 2. Оживляем системную кнопку "Назад"
         const previewArea = document.getElementById("invoicePreviewArea");
         if (previewArea) {
             const btns = previewArea.querySelectorAll('button');
             btns.forEach(b => {
                 const txt = b.innerText.trim().toUpperCase();
                 if (txt === 'НАЗАД' || txt === 'АРТҚА') {
-                    b.style.display = 'block'; // Делаем её видимой
+                    b.style.display = 'block'; 
                     b.onclick = function(e) {
                         e.preventDefault();
-                        window.navigateBack(); // Возвращаемся на шаг 2
+                        if (window.isKaspiExportMode) {
+                            // Жесткий фикс: переключаем экраны вручную, игнорируя баги истории
+                            document.getElementById("invoicePreviewArea").style.display = "none";
+                            document.getElementById("mapper2Area").style.display = "flex";
+                        } else {
+                            window.navigateBack();
+                        }
                     };
                 }
             });
