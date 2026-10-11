@@ -3851,40 +3851,24 @@ window.handleCardSelectForExport = async function (
         } catch (e) {}
 
         const flatItem = Object.assign({}, dbItem, {
-          item_name:
-            dbItem.item_name || dbItem.name || dbItem.title || "Без названия",
+          item_name: dbItem.item_name || dbItem.name || dbItem.title || "Без названия",
           item_id: dbItem.item_id || dbItem.id || dbItem.sku || "AUTO",
-          qty:
-            Number(dbItem.qty) ||
-            Number(dbItem.quantity) ||
-            Number(dbItem.available_qty) ||
-            0,
-          cost:
-            Number(dbItem.cost) ||
-            Number(dbItem.price) ||
-            Number(dbItem.price_in) ||
-            Number(dbItem.buy_price) ||
-            0,
+          qty: Number(dbItem.qty) || Number(dbItem.quantity) || Number(dbItem.available_qty) || 0,
+          cost: Number(dbItem.cost) || Number(dbItem.price) || Number(dbItem.price_in) || Number(dbItem.buy_price) || 0,
           barcode: dbItem.barcode || dbItem.ean || "",
         });
 
         // Распаковываем атрибуты в плоский объект для маппинга
         for (const [key, value] of Object.entries(attrs)) {
-          // ИСПОЛЬЗУЕМ ПРЕФИКС json_ ДЛЯ АТРИБУТОВ ИЗ БАЗЫ!
-          if (flatItem[`json_${key}`] === undefined) {
-            flatItem[`json_${key}`] = value;
-          }
-          // Также оставляем обычные ключи для обратной совместимости
-          if (flatItem[key] === undefined) {
-            flatItem[key] = value;
-          }
+          if (flatItem[`json_${key}`] === undefined) flatItem[`json_${key}`] = value;
+          if (flatItem[key] === undefined) flatItem[key] = value;
         }
 
         flatItem.attributes = JSON.stringify(attrs);
         return flatItem;
       });
 
-      // Собираем ВСЕ возможные заголовки (включая виртуальные json_)
+      // Собираем ВСЕ возможные заголовки
       const allHeaders = new Set();
       window.parsedInvoiceData.forEach((item) => {
         Object.keys(item).forEach((k) => {
@@ -3892,7 +3876,7 @@ window.handleCardSelectForExport = async function (
             k !== "attributes" &&
             k !== "kaspi_attributes" &&
             k !== "params" && 
-            !k.startsWith("_") // Игнорируем внутренние свойства (типа _hasCollisions)
+            !k.startsWith("_")
           ) {
             allHeaders.add(k);
           }
@@ -3913,13 +3897,23 @@ window.handleCardSelectForExport = async function (
         res.templateConfig || {},
       );
 
+      // === ВОССТАНОВЛЕНИЕ ЗАГОЛОВКОВ И ПЕРЕВОДА НА РУССКИЙ ===
+      window.mapper2State.supplier = "Kaspi (Экспорт)";
+      window.mapper2State.docNo = res.templateConfig.templateName || "Партия";
+
+      if (res.templateConfig && res.templateConfig.systemKeys) {
+        window.mapper2State.sysToHumanMap = {};
+        for (let i = 0; i < res.templateConfig.systemKeys.length; i++) {
+          const sKey = res.templateConfig.systemKeys[i];
+          const hName = res.templateConfig.humanNames[i];
+          if (sKey && hName) window.mapper2State.sysToHumanMap[sKey] = hName;
+        }
+      }
+
       // === АВТО-ВОССТАНОВЛЕНИЕ РАНЕЕ СДЕЛАННЫХ ПРИВЯЗОК ===
-      // Пытаемся восстановить маппинг на основе данных из базы
       if (res.templateConfig && res.templateConfig.humanNames) {
          res.templateConfig.humanNames.forEach((hName, idx) => {
              const sysKey = res.templateConfig.systemKeys[idx];
-             
-             // Ищем в extractedHeaders колонку с префиксом json_ и таким же именем
              const dbColIdx = extractedHeaders.findIndex(h => h.toLowerCase() === `json_${hName.toLowerCase()}`);
              
              if (dbColIdx !== -1) {
@@ -3927,6 +3921,13 @@ window.handleCardSelectForExport = async function (
              }
          });
       }
+
+      // Возвращаем переменные шагов!
+      const step1 = document.getElementById("uploadStepArea");
+      const step2 = document.getElementById("mapper2Area");
+      const step3 = document.getElementById("invoicePreviewArea");
+
+      if (step1) step1.style.display = "none";
 
       // === ВОССТАНОВЛЕНИЕ МАППЕРА: Рендерим его всегда, чтобы кнопка "Назад" не вела в пустоту! ===
       window.renderMapper2Cards(res.templateConfig);
