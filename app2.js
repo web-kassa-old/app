@@ -3893,22 +3893,38 @@ window.handleCardSelectForExport = async function (
       }
 
       // === АВТО-ВОССТАНОВЛЕНИЕ РАНЕЕ СДЕЛАННЫХ ПРИВЯЗОК ===
-      const baseFieldsMap = { "name": "item_name", "price": "cost", "qty": "qty", "barcode": "barcode", "cbm": "cbm", "weight": "weight" };
+      // 1. Привязываем базовые поля (ФИКС: добавили sku -> item_id)
+      const baseFieldsMap = { 
+          "name": "item_name", 
+          "price": "cost", 
+          "qty": "qty", 
+          "barcode": "barcode", 
+          "sku": "barcode", // Указываем, что системный SKU — это твой barcode
+          "cbm": "cbm", 
+          "weight": "weight" 
+      };
+      
       Object.keys(baseFieldsMap).forEach(sysKey => {
           const dbColIdx = extractedHeaders.indexOf(baseFieldsMap[sysKey]);
-          // 2. ГЛАВНЫЙ ФИКС: Сохраняем в память СТРОКУ (например "item_name"), а не цифру-индекс!
           if (dbColIdx !== -1) window.mapper2State.colMap[sysKey] = extractedHeaders[dbColIdx];
       });
 
+      // 2. Привязываем атрибуты (json_) и железобетонно страхуем Артикул
       if (res.templateConfig && res.templateConfig.systemKeys) {
          res.templateConfig.systemKeys.forEach((sysKey, idx) => {
-             const hName = res.templateConfig.humanNames[idx];
-             const dbColIdx = extractedHeaders.findIndex(h => {
-                 const lowerH = h.toLowerCase();
-                 return lowerH === `json_${sysKey.toLowerCase()}` || lowerH === `json_${String(hName).toLowerCase()}`;
-             });
-             // 3. ГЛАВНЫЙ ФИКС: Сохраняем в память СТРОКУ (например "json_brand"), а не цифру!
-             if (dbColIdx !== -1) window.mapper2State.colMap[sysKey] = extractedHeaders[dbColIdx];
+             const hName = String(res.templateConfig.humanNames[idx]).toLowerCase();
+             const lowerSys = String(sysKey).toLowerCase();
+             
+             // ФИКС: Если Каспи просит Артикул (sku), жестко отдаем ему ID товара (FR...)
+             if (lowerSys.includes("sku") || hName.includes("артикул")) {
+                 window.mapper2State.colMap[sysKey] = "barcode"; 
+             } else {
+                 const dbColIdx = extractedHeaders.findIndex(h => {
+                     const lowerH = h.toLowerCase();
+                     return lowerH === `json_${lowerSys}` || lowerH === `json_${hName}`;
+                 });
+                 if (dbColIdx !== -1) window.mapper2State.colMap[sysKey] = extractedHeaders[dbColIdx];
+             }
          });
       }
 
@@ -6302,26 +6318,23 @@ window.applyMapper2Logic = function () {
     let itemHasCollisions = false;
     let itemCollisionsList = [];
 
-    // === ИДЕАЛЬНЫЙ ПАРСЕР И КАРАНТИН (Без хардкода и регулярных выражений) ===
+    // === ИДЕАЛЬНЫЙ ПАРСЕР И КАРАНТИН (С поддержкой Сплиттера) ===
     const processAttribute = (key) => {
       let lowerKey = String(key).toLowerCase();
       let rawValue = getValue(key);
 
-      // Игнорируем базовые системные поля (они уже обработаны выше)
-      if (
-        [
-          "qty",
-          "price",
-          "cost",
-          "name",
-          "model",
-          "barcode",
-          "cbm",
-          "weight",
-        ].includes(lowerKey)
-      )
-        return;
+      if (["qty", "price", "cost", "name", "model", "barcode", "cbm", "weight"].includes(lowerKey)) return;
       if (!rawValue) return;
+
+      // 1. ВОЗВРАЩАЕМ СПЛИТТЕР: Правильно рубим строку для КАЖДОГО товара
+      let splitRule = window.mapper2State.splitRules && window.mapper2State.splitRules[key];
+      if (splitRule) {
+          let tokens = String(rawValue).match(/\d+(?:\.\d+)?|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,]/g) || [];
+          let indices = Array.isArray(splitRule) ? splitRule : (splitRule.rule || splitRule.tokens || []);
+          if (indices.length > 0) {
+              rawValue = indices.map(idx => tokens[idx] || "").join("");
+          }
+      }
 
       let humanName = state.sysToHumanMap ? state.sysToHumanMap[key] : key;
       let searchString = rawValue;
@@ -6330,21 +6343,16 @@ window.applyMapper2Logic = function () {
       let foundMatch = false;
       let matchedDictValue = searchString;
 
-      // 1. Проверяем точное совпадение со словарем (если он есть)
       if (hasDictionary) {
         for (let dv of dict) {
           let strDv = String(dv).trim();
-          let baseDv = strDv.split("(")[0].trim(); // Отрезаем скобки, если есть, напр. "67 (307 кг)" -> "67"
-
-          // Строгая проверка, чтобы не отрезать куски от дробей типа 115/110
+          let baseDv = strDv.split("(")[0].trim();
           let isStrictNumber = /^[\d\.]+$/.test(String(searchString).trim());
 
           if (
             strDv.toLowerCase() === String(searchString).trim().toLowerCase() ||
             baseDv.toLowerCase() === String(searchString).trim().toLowerCase() ||
-            (isStrictNumber &&
-              !isNaN(parseFloat(baseDv)) &&
-              parseFloat(baseDv) === parseFloat(searchString))
+            (isStrictNumber && !isNaN(parseFloat(baseDv)) && parseFloat(baseDv) === parseFloat(searchString))
           ) {
             matchedDictValue = strDv;
             foundMatch = true;
@@ -6353,33 +6361,28 @@ window.applyMapper2Logic = function () {
         }
       }
 
-      // 2. 🔴 КАРАНТИН ДЛЯ ТОКЕНИЗАТОРА
-      // Если параметр имеет словарь, но точного совпадения нет - это составная строка или ошибка.
-      // Никакой самодеятельности! Отправляем ее целиком в Токенизатор.
-      if (
-        window.currentImportMode === "kaspi" &&
-        hasDictionary &&
-        !foundMatch
-      ) {
-        itemHasCollisions = true;
-
-        let colIdx = state.colMap[key];
-        let excelHeader =
-          colIdx !== undefined && state.invoiceHeaders
-            ? state.invoiceHeaders[colIdx]
-            : "ДАННЫЕ ИЗ НАКЛАДНОЙ";
-
-        itemCollisionsList.push({
-          sysKey: key,
-          humanName: humanName,
-          rawString: rawValue, // Передаем строку ЦЕЛИКОМ (например "11.00R20")
-          excelColumnName: excelHeader,
+      // 2. Блокируем карантин в режиме экспорта
+      if (!window.isKaspiExportMode && window.currentImportMode === "kaspi" && hasDictionary && !foundMatch) {
+        let needsTokenization = dict.some((ex) => {
+            const str = String(ex).trim();
+            return /\d/.test(str) || (/^[a-zA-Z]+$/.test(str) && str.length <= 3);
         });
 
-        return; // Важно: прерываем функцию, чтобы не записать "сырое" значение в атрибуты
+        if (needsTokenization) {
+            itemHasCollisions = true;
+            let colIdx = state.colMap[key];
+            let excelHeader = colIdx !== undefined && state.invoiceHeaders ? state.invoiceHeaders[colIdx] : "ДАННЫЕ ИЗ НАКЛАДНОЙ";
+
+            itemCollisionsList.push({
+              sysKey: key,
+              humanName: humanName,
+              rawString: rawValue,
+              excelColumnName: excelHeader,
+            });
+            return; 
+        }
       }
 
-      // 3. Если всё совпало (или словаря нет) - просто сохраняем
       attributesObj[key] = matchedDictValue;
     };
 
