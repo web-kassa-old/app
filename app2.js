@@ -4726,21 +4726,25 @@ window.navigateBack = function () {
   window.mapper2State = window.mapper2State || {};
   let history = window.mapper2State.history || [];
 
+  // 1. Удаляем текущий шаг из памяти
   if (history.length > 0) {
-    history.pop(); // Удаляем текущий шаг из памяти
+    history.pop(); 
   }
 
+  // 2. Если в истории еще есть шаги — возвращаемся на предыдущий (например, с Шага 3 на Шаг 2)
   if (history.length > 0) {
     const previousStep = history[history.length - 1];
     if (typeof window.navigateIncomeStep === "function") {
       window.navigateIncomeStep(previousStep, true);
     }
   } else {
-    // Если история пуста, поведение зависит от режима
+    // 3. Если история пуста (мы дошли до самого начала)
     if (window.isKaspiExportMode) {
+      // В режиме экспорта: закрываем приемку и открываем список партий
       document.getElementById("income-modal").style.display = "none";
       if (typeof window.openExportModal === "function") window.openExportModal();
     } else {
+      // В режиме приемки: возвращаемся на экран загрузки файла
       if (typeof window.navigateIncomeStep === "function") {
         window.navigateIncomeStep(1, true);
       }
@@ -11629,3 +11633,31 @@ window.handleMapper2Back = function () {
     }
   }
 };
+
+// === БРОНЯ ДЛЯ СТАРОГО СКРИПТА ЭКСПОРТА (ПОЛИФИЛЛ) ===
+if (!Number.prototype.startsWith) {
+    Object.defineProperty(Number.prototype, 'startsWith', {
+        value: function(prefix) {
+            // Если экспортный скрипт случайно попытался вызвать startsWith у индекса колонки
+            if (window.mapper2State && window.mapper2State.invoiceHeaders) {
+                const header = window.mapper2State.invoiceHeaders[this];
+                if (header) return header.startsWith(prefix);
+            }
+            return false;
+        },
+        enumerable: false
+    });
+}
+if (!Number.prototype.replace) {
+    Object.defineProperty(Number.prototype, 'replace', {
+        value: function(search, replaceWith) {
+            // Подменяем цифру на реальное название колонки из памяти
+            if (window.mapper2State && window.mapper2State.invoiceHeaders) {
+                const header = window.mapper2State.invoiceHeaders[this];
+                if (header) return header.replace(search, replaceWith);
+            }
+            return this.toString().replace(search, replaceWith);
+        },
+        enumerable: false
+    });
+}
