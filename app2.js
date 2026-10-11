@@ -3893,37 +3893,48 @@ window.handleCardSelectForExport = async function (
       }
 
       // === АВТО-ВОССТАНОВЛЕНИЕ РАНЕЕ СДЕЛАННЫХ ПРИВЯЗОК ===
-      // 1. Привязываем базовые поля (ФИКС: добавили sku -> item_id)
       const baseFieldsMap = { 
           "name": "item_name", 
+          "title": "item_name", 
           "price": "cost", 
           "qty": "qty", 
           "barcode": "barcode", 
-          "sku": "barcode", // Указываем, что системный SKU — это твой barcode
+          "sku": "barcode", 
           "cbm": "cbm", 
           "weight": "weight" 
       };
       
+      // 1. Базовые поля (передаем ИНДЕКС dbColIdx)
       Object.keys(baseFieldsMap).forEach(sysKey => {
           const dbColIdx = extractedHeaders.indexOf(baseFieldsMap[sysKey]);
-          if (dbColIdx !== -1) window.mapper2State.colMap[sysKey] = extractedHeaders[dbColIdx];
+          if (dbColIdx !== -1) window.mapper2State.colMap[sysKey] = dbColIdx; 
       });
 
-      // 2. Привязываем атрибуты (json_) и железобетонно страхуем Артикул
+      // 2. Атрибуты Kaspi
       if (res.templateConfig && res.templateConfig.systemKeys) {
          res.templateConfig.systemKeys.forEach((sysKey, idx) => {
              const hName = String(res.templateConfig.humanNames[idx]).toLowerCase();
              const lowerSys = String(sysKey).toLowerCase();
              
-             // ФИКС: Если Каспи просит Артикул (sku), жестко отдаем ему ID товара (FR...)
              if (lowerSys.includes("sku") || hName.includes("артикул")) {
-                 window.mapper2State.colMap[sysKey] = "barcode"; 
-             } else {
+                 let bIdx = extractedHeaders.indexOf("barcode");
+                 if (bIdx !== -1) window.mapper2State.colMap[sysKey] = bIdx;
+             } 
+             else if (lowerSys.includes("title") || lowerSys.includes("name") || hName.includes("название")) {
+                 let nIdx = extractedHeaders.indexOf("item_name");
+                 if (nIdx !== -1) window.mapper2State.colMap[sysKey] = nIdx;
+             }
+             else if (lowerSys.includes("desc") || hName.includes("описание")) {
+                 let nIdx = extractedHeaders.indexOf("item_name"); // Страхуем от штрихкода
+                 if (nIdx !== -1) window.mapper2State.colMap[sysKey] = nIdx;
+             }
+             else {
                  const dbColIdx = extractedHeaders.findIndex(h => {
                      const lowerH = h.toLowerCase();
                      return lowerH === `json_${lowerSys}` || lowerH === `json_${hName}`;
                  });
-                 if (dbColIdx !== -1) window.mapper2State.colMap[sysKey] = extractedHeaders[dbColIdx];
+                 // ВОЗВРАЩАЕМ ИНДЕКС: благодаря этому появятся зеленые галочки!
+                 if (dbColIdx !== -1) window.mapper2State.colMap[sysKey] = dbColIdx; 
              }
          });
       }
