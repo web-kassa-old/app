@@ -6213,7 +6213,7 @@ window.applyMapper2Logic = function () {
     return alert(errorMsg);
   }
 
-  // === ФОНОВОЕ ОБУЧЕНИЕ СЛОВАРЯ СИНОНИМОВ ===
+  // === ФОНОВОЕ ОБУЧЕНИЕ СЛОВАРЯ ===
   if (window.currentImportMode === "kaspi") {
     const templateSelect = document.getElementById("kaspiTemplateSelect");
     const templateName = templateSelect ? templateSelect.value : "";
@@ -6224,6 +6224,10 @@ window.applyMapper2Logic = function () {
 
       Object.keys(state.colMap).forEach((sysKey) => {
         let colIndex = state.colMap[sysKey];
+        // Лечим баг памяти: если индекс текст, конвертируем обратно в цифру
+        if (typeof colIndex === 'string' && state.invoiceHeaders) {
+            colIndex = state.invoiceHeaders.findIndex(h => String(h).trim() === String(colIndex).trim());
+        }
         let headerText = state.invoiceHeaders[colIndex];
         if (headerText) {
           let cleanWord = String(headerText).trim().toLowerCase();
@@ -6241,15 +6245,8 @@ window.applyMapper2Logic = function () {
       }
 
       if (memoryUpdated) {
-        const payload = {
-          action: "updateKaspiMemory",
-          api_key: CLIENT_API_KEY,
-          category: templateName,
-          memoryJson: JSON.stringify(currentMemory),
-        };
-        window.smartFetch(GATEWAY_URL, payload)
-          .then(() => console.log("Словарь синонимов дополнен новыми заголовками"))
-          .catch((e) => console.error("Ошибка обновления словаря", e));
+        const payload = { action: "updateKaspiMemory", api_key: CLIENT_API_KEY, category: templateName, memoryJson: JSON.stringify(currentMemory) };
+        window.smartFetch(GATEWAY_URL, payload).catch((e) => console.error("Ошибка обновления словаря", e));
       }
     }
   }
@@ -6263,21 +6260,29 @@ window.applyMapper2Logic = function () {
   };
 
   const regex = /\d+(?:\.\d+)?|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,]/g;
-  let mappedIndices = Object.values(state.colMap).filter((v) => typeof v === 'number');
+  
+  let mappedIndices = Object.values(state.colMap).map(v => {
+      if (typeof v === 'string' && state.invoiceHeaders) return state.invoiceHeaders.findIndex(h => String(h).trim() === String(v).trim());
+      return v;
+  }).filter((v) => typeof v === 'number' && v !== -1);
 
-  // === КАРАНТИН: Подготовка массива для коллизий ===
   window.mapper2State.quarantine = [];
 
   state.invoiceRows.forEach((row, index) => {
     if (!row || row.length === 0) return;
 
-    // ЗОЛОТОЙ ФИКС: Приоритет колонок над словарями + безопасный и четкий сплиттер
+    // === БРОНЕБОЙНЫЙ ИЗВЛЕКАТЕЛЬ ДАННЫХ ===
     const getValue = (primaryKey, kaspiKey) => {
       let colIdx = state.colMap[primaryKey];
       if (colIdx === undefined && kaspiKey) colIdx = state.colMap[kaspiKey];
 
-      // 1. Если колонка привязана, ЖЕСТКО берем данные из неё (игнорируя старые ошибки в словарях)
-      if (colIdx !== undefined && colIdx !== null && colIdx !== "") {
+      // 1. Умная конвертация: если индекс оказался текстом (из-за памяти)
+      if (typeof colIdx === 'string') {
+          colIdx = state.invoiceHeaders ? state.invoiceHeaders.findIndex(h => String(h).trim() === String(colIdx).trim()) : -1;
+      }
+
+      // 2. Если колонка реально привязана к Экселю - берем данные ТОЛЬКО из нее
+      if (colIdx !== undefined && colIdx !== null && colIdx !== "" && colIdx !== -1) {
           let rawVal = String(row[colIdx] || "").trim();
           
           let splitRule = state.splitRules && (state.splitRules[primaryKey] || (kaspiKey ? state.splitRules[kaspiKey] : null));
@@ -6288,10 +6293,10 @@ window.applyMapper2Logic = function () {
                   return indices.map(idx => tokens[idx] || "").join("");
               }
           }
-          return rawVal;
+          return rawVal; // Возвращаем значение (даже пустое), чтобы заблокировать старую память
       }
 
-      // 2. Если колонка НЕ привязана, но есть статичное значение - берем его
+      // 3. Только если колонка ВООБЩЕ не привязана - используем ручной выбор из памяти
       if (state.dictValues && state.dictValues[primaryKey]) return state.dictValues[primaryKey];
       if (kaspiKey && state.dictValues && state.dictValues[kaspiKey]) return state.dictValues[kaspiKey];
 
@@ -6312,9 +6317,7 @@ window.applyMapper2Logic = function () {
     row.forEach((cellVal, idx) => {
       if (mappedIndices.includes(idx)) return;
       let val = String(cellVal || "").trim();
-      if (val && val.length < 30 && !/^\d{8,15}$/.test(val)) {
-        rawLogisticsStr += " " + val;
-      }
+      if (val && val.length < 30 && !/^\d{8,15}$/.test(val)) rawLogisticsStr += " " + val;
     });
 
     let rawCbm = getValue("cbm");
@@ -6326,10 +6329,8 @@ window.applyMapper2Logic = function () {
     let itemHasCollisions = false;
     let itemCollisionsList = [];
 
-    // === ИДЕАЛЬНЫЙ ПАРСЕР И КАРАНТИН ===
     const processAttribute = (key) => {
       let lowerKey = String(key).toLowerCase();
-      // Сплиттер уже применен внутри getValue, получаем готовую чистую строку!
       let rawValue = getValue(key);
 
       if (["qty", "price", "cost", "name", "model", "barcode", "cbm", "weight"].includes(lowerKey)) return;
@@ -6360,7 +6361,6 @@ window.applyMapper2Logic = function () {
         }
       }
 
-      // Блокируем карантин в режиме экспорта
       if (!window.isKaspiExportMode && window.currentImportMode === "kaspi" && hasDictionary && !foundMatch) {
         let needsTokenization = dict.some((ex) => {
             const str = String(ex).trim();
@@ -6372,12 +6372,7 @@ window.applyMapper2Logic = function () {
             let colIdx = state.colMap[key];
             let excelHeader = colIdx !== undefined && state.invoiceHeaders ? state.invoiceHeaders[colIdx] : "ДАННЫЕ ИЗ НАКЛАДНОЙ";
 
-            itemCollisionsList.push({
-              sysKey: key,
-              humanName: humanName,
-              rawString: rawValue,
-              excelColumnName: excelHeader,
-            });
+            itemCollisionsList.push({ sysKey: key, humanName: humanName, rawString: rawValue, excelColumnName: excelHeader });
             return; 
         }
       }
@@ -6411,7 +6406,6 @@ window.applyMapper2Logic = function () {
       description: name,
       barcode: barcode,
       category: "Новые товары",
-
       _hasCollisions: itemHasCollisions,
       _collisionsList: itemCollisionsList,
       _attributesObj: attributesObj,
@@ -6422,12 +6416,8 @@ window.applyMapper2Logic = function () {
 
     if (itemHasCollisions) {
       itemCollisionsList.forEach((collision) => {
-        const exists = window.mapper2State.quarantine.find(
-          (q) => q.rawString === collision.rawString && q.sysKey === collision.sysKey,
-        );
-        if (!exists) {
-          window.mapper2State.quarantine.push(collision);
-        }
+        const exists = window.mapper2State.quarantine.find((q) => q.rawString === collision.rawString && q.sysKey === collision.sysKey);
+        if (!exists) window.mapper2State.quarantine.push(collision);
       });
     }
   });
@@ -6436,23 +6426,16 @@ window.applyMapper2Logic = function () {
     return alert("Не удалось сформировать товары. Убедитесь, что в колонках «Количество» и «Цена» находятся ТОЛЬКО цифры.");
   }
 
-  // === ПРОВЕРКА КАРАНТИНА И ЗАПУСК ТОКЕНИЗАТОРА ===
   if (window.mapper2State.quarantine && window.mapper2State.quarantine.length > 0) {
-    console.log("Внимание: Найдены сложные нераспознанные форматы. Запуск Токенизатора...", window.mapper2State.quarantine);
-    if (typeof window.startTokenizerQueue === "function") {
-      window.startTokenizerQueue();
-    } else {
-      alert("Найдены сложные форматы, но модуль Токенизатора еще не загружен.");
-    }
+    if (typeof window.startTokenizerQueue === "function") window.startTokenizerQueue();
+    else alert("Найдены сложные форматы, но модуль Токенизатора еще не загружен.");
     return;
   }
 
-  // Если всё чисто, пускаем на Экран 4
   window.renderPreviewTable();
   document.getElementById("mapper2Area").style.display = "none";
   document.getElementById("invoicePreviewArea").style.display = "flex";
 
-  // === ЖЕСТКИЙ БЛОКИРАТОР ДЛЯ РЕЖИМА ЭКСПОРТА ===
   if (window.isKaspiExportMode) {
     const sendBtn = document.getElementById("sendInvoiceBtn");
     if (sendBtn) sendBtn.style.display = "none";
@@ -6460,20 +6443,14 @@ window.applyMapper2Logic = function () {
     const exportBtns = document.getElementById("exportActionButtons");
     if (exportBtns) exportBtns.style.display = "flex";
 
-    // 🔴 БРОНЯ ОТ ОШИБКИ startsWith:
     let exportColMap = {};
     Object.keys(window.mapper2State.colMap).forEach(k => {
         let val = window.mapper2State.colMap[k];
-        if (typeof val === 'number') {
-            exportColMap[k] = String(window.mapper2State.invoiceHeaders[val] || "");
-        } else if (val !== undefined && val !== null) {
-            exportColMap[k] = String(val);
-        } else {
-            exportColMap[k] = ""; // Пустая строка, чтобы startsWith не падал
-        }
+        if (typeof val === 'number') exportColMap[k] = String(window.mapper2State.invoiceHeaders[val] || "");
+        else if (val !== undefined && val !== null) exportColMap[k] = String(val);
+        else exportColMap[k] = ""; 
     });
     window.mapper2State.colMap = exportColMap;
-
     window.kaspiExportItems = window.parsedInvoiceData;
   }
 };
