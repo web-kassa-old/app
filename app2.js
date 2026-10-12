@@ -6352,6 +6352,11 @@ window.applyMapper2Logic = function () {
 
       let humanName = state.sysToHumanMap ? state.sysToHumanMap[key] : key;
       let searchString = rawValue;
+      // ХИТРЫЙ ПЕРЕХВАТ: Если сплиттер не сработал, насильно достаем цифры для Ширины и Диаметра
+      if (lowerKey.includes('width') || humanName.toLowerCase().includes('ширина') || lowerKey.includes('diameter') || humanName.toLowerCase().includes('диаметр')) {
+          let nums = searchString.match(/\d+(?:\.\d+)?/g);
+          if (nums && nums.length > 0) searchString = nums[0]; // Берем первое найденное число
+      }
       let dict = window.kaspiDicts && window.kaspiDicts[humanName];
       let hasDictionary = dict && Array.isArray(dict) && dict.length > 0;
       let foundMatch = false;
