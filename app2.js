@@ -6209,11 +6209,10 @@ window.applyMapper2Logic = function () {
   if (qtyIdx === undefined || priceIdx === undefined || nameIdx === undefined) {
     const lang = window.currentLang || localStorage.getItem("pos_lang") || "ru";
     const tr = typeof translations !== "undefined" && translations[lang] ? translations[lang] : {};
-    const errorMsg = tr.mapper_err_missing_cols || "⚠️ Обязательно привяжите колонки:\n1. Наименование (или model)\n2. Количество (qty)\n3. Цена (price)";
-    return alert(errorMsg);
+    return alert(tr.mapper_err_missing_cols || "⚠️ Обязательно привяжите колонки:\n1. Наименование (или model)\n2. Количество (qty)\n3. Цена (price)");
   }
 
-  // === ФОНОВОЕ ОБУЧЕНИЕ СЛОВАРЯ ===
+  // === ОБУЧЕНИЕ СЛОВАРЯ ===
   if (window.currentImportMode === "kaspi") {
     const templateSelect = document.getElementById("kaspiTemplateSelect");
     const templateName = templateSelect ? templateSelect.value : "";
@@ -6224,9 +6223,13 @@ window.applyMapper2Logic = function () {
 
       Object.keys(state.colMap).forEach((sysKey) => {
         let colIndex = state.colMap[sysKey];
-        // Лечим баг памяти: если индекс текст, конвертируем обратно в цифру
-        if (typeof colIndex === 'string' && state.invoiceHeaders) {
-            colIndex = state.invoiceHeaders.findIndex(h => String(h).trim() === String(colIndex).trim());
+        if (typeof colIndex === 'string') {
+            let found = state.invoiceHeaders ? state.invoiceHeaders.findIndex(h => String(h).trim() === String(colIndex).trim()) : -1;
+            if (found === -1) {
+                let match = String(colIndex).match(/колонка\s*(\d+)/i);
+                if (match) found = parseInt(match[1], 10) - 1;
+            }
+            colIndex = found;
         }
         let headerText = state.invoiceHeaders[colIndex];
         if (headerText) {
@@ -6246,23 +6249,26 @@ window.applyMapper2Logic = function () {
 
       if (memoryUpdated) {
         const payload = { action: "updateKaspiMemory", api_key: CLIENT_API_KEY, category: templateName, memoryJson: JSON.stringify(currentMemory) };
-        window.smartFetch(GATEWAY_URL, payload).catch((e) => console.error("Ошибка обновления словаря", e));
+        window.smartFetch(GATEWAY_URL, payload).catch((e) => console.error("Ошибка словаря", e));
       }
     }
   }
 
   window.parsedInvoiceData = [];
   window.invoiceGroups = {};
-  window.invoiceGroups[state.docNo] = {
-    supplier: state.supplier,
-    items: [],
-    originalFiles: [{ fileName: state.fileName, fileBase64: state.originalBase64 }],
-  };
+  window.invoiceGroups[state.docNo] = { supplier: state.supplier, items: [], originalFiles: [{ fileName: state.fileName, fileBase64: state.originalBase64 }] };
 
   const regex = /\d+(?:\.\d+)?|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,]/g;
   
   let mappedIndices = Object.values(state.colMap).map(v => {
-      if (typeof v === 'string' && state.invoiceHeaders) return state.invoiceHeaders.findIndex(h => String(h).trim() === String(v).trim());
+      if (typeof v === 'string') {
+          let found = state.invoiceHeaders ? state.invoiceHeaders.findIndex(h => String(h).trim() === String(v).trim()) : -1;
+          if (found === -1) {
+              let match = String(v).match(/колонка\s*(\d+)/i);
+              if (match) found = parseInt(match[1], 10) - 1;
+          }
+          return found;
+      }
       return v;
   }).filter((v) => typeof v === 'number' && v !== -1);
 
@@ -6271,36 +6277,44 @@ window.applyMapper2Logic = function () {
   state.invoiceRows.forEach((row, index) => {
     if (!row || row.length === 0) return;
 
-    // === БРОНЕБОЙНЫЙ ИЗВЛЕКАТЕЛЬ ДАННЫХ ===
-    const getValue = (primaryKey, kaspiKey) => {
-      let colIdx = state.colMap[primaryKey];
-      if (colIdx === undefined && kaspiKey) colIdx = state.colMap[kaspiKey];
+    // === БРОНЕБОЙНЫЙ ИЗВЛЕКАТЕЛЬ ДАННЫХ (ИГНОРИРУЕТ json_ И ПОНИМАЕТ "КОЛОНКА X") ===
+    const normalizeKey = k => String(k).replace(/^json_/, "");
 
-      // 1. Умная конвертация: если индекс оказался текстом (из-за памяти)
-      if (typeof colIdx === 'string') {
-          colIdx = state.invoiceHeaders ? state.invoiceHeaders.findIndex(h => String(h).trim() === String(colIdx).trim()) : -1;
+    const getValue = (primaryKey, kaspiKey) => {
+      let normPrimary = normalizeKey(primaryKey);
+      let normKaspi = kaspiKey ? normalizeKey(kaspiKey) : null;
+
+      let colIdx = state.colMap[primaryKey] ?? state.colMap[normPrimary] ?? state.colMap[`json_${normPrimary}`];
+      if (colIdx === undefined && kaspiKey) {
+          colIdx = state.colMap[kaspiKey] ?? state.colMap[normKaspi] ?? state.colMap[`json_${normKaspi}`];
       }
 
-      // 2. Если колонка реально привязана к Экселю - берем данные ТОЛЬКО из нее
+      if (typeof colIdx === 'string') {
+          let found = state.invoiceHeaders ? state.invoiceHeaders.findIndex(h => String(h).trim() === String(colIdx).trim()) : -1;
+          if (found === -1) {
+              let match = String(colIdx).match(/колонка\s*(\d+)/i);
+              if (match) found = parseInt(match[1], 10) - 1; // "Колонка 5" превращается в индекс 4
+          }
+          colIdx = found;
+      }
+
       if (colIdx !== undefined && colIdx !== null && colIdx !== "" && colIdx !== -1) {
           let rawVal = String(row[colIdx] || "").trim();
           
-          let splitRule = state.splitRules && (state.splitRules[primaryKey] || (kaspiKey ? state.splitRules[kaspiKey] : null));
+          let splitRule = (state.splitRules && (state.splitRules[primaryKey] || state.splitRules[normPrimary] || state.splitRules[`json_${normPrimary}`])) ||
+                          (normKaspi && state.splitRules && (state.splitRules[kaspiKey] || state.splitRules[normKaspi] || state.splitRules[`json_${normKaspi}`]));
+
           if (splitRule) {
               const tokens = rawVal.match(regex) || [];
               let indices = Array.isArray(splitRule) ? splitRule : (splitRule.rule || splitRule.tokens || []);
-              if (indices.length > 0) {
-                  return indices.map(idx => tokens[idx] || "").join("");
-              }
+              if (indices.length > 0) return indices.map(idx => tokens[idx] || "").join("");
           }
-          return rawVal; // Возвращаем значение (даже пустое), чтобы заблокировать старую память
+          return rawVal;
       }
 
-      // 3. Только если колонка ВООБЩЕ не привязана - используем ручной выбор из памяти
-      if (state.dictValues && state.dictValues[primaryKey]) return state.dictValues[primaryKey];
-      if (kaspiKey && state.dictValues && state.dictValues[kaspiKey]) return state.dictValues[kaspiKey];
-
-      return "";
+      let dictVal = state.dictValues && (state.dictValues[primaryKey] ?? state.dictValues[normPrimary] ?? state.dictValues[`json_${normPrimary}`]);
+      if (!dictVal && normKaspi) dictVal = state.dictValues && (state.dictValues[kaspiKey] ?? state.dictValues[normKaspi] ?? state.dictValues[`json_${normKaspi}`]);
+      return dictVal || "";
     };
 
     let rawQty = getValue("qty");
@@ -6366,12 +6380,10 @@ window.applyMapper2Logic = function () {
             const str = String(ex).trim();
             return /\d/.test(str) || (/^[a-zA-Z]+$/.test(str) && str.length <= 3);
         });
-
         if (needsTokenization) {
             itemHasCollisions = true;
             let colIdx = state.colMap[key];
             let excelHeader = colIdx !== undefined && state.invoiceHeaders ? state.invoiceHeaders[colIdx] : "ДАННЫЕ ИЗ НАКЛАДНОЙ";
-
             itemCollisionsList.push({ sysKey: key, humanName: humanName, rawString: rawValue, excelColumnName: excelHeader });
             return; 
         }
@@ -6422,13 +6434,10 @@ window.applyMapper2Logic = function () {
     }
   });
 
-  if (window.parsedInvoiceData.length === 0) {
-    return alert("Не удалось сформировать товары. Убедитесь, что в колонках «Количество» и «Цена» находятся ТОЛЬКО цифры.");
-  }
+  if (window.parsedInvoiceData.length === 0) return alert("Не удалось сформировать товары.");
 
   if (window.mapper2State.quarantine && window.mapper2State.quarantine.length > 0) {
     if (typeof window.startTokenizerQueue === "function") window.startTokenizerQueue();
-    else alert("Найдены сложные форматы, но модуль Токенизатора еще не загружен.");
     return;
   }
 
@@ -6439,7 +6448,6 @@ window.applyMapper2Logic = function () {
   if (window.isKaspiExportMode) {
     const sendBtn = document.getElementById("sendInvoiceBtn");
     if (sendBtn) sendBtn.style.display = "none";
-
     const exportBtns = document.getElementById("exportActionButtons");
     if (exportBtns) exportBtns.style.display = "flex";
 
