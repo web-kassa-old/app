@@ -1082,7 +1082,7 @@ window.startTokenizerQueue = function () {
 window.startPreTokenizer = function(smartRules, complexColumns) {
     const queue = [];
     
-    // Формируем очередь только из тех колонок, где клиент поставил галочки
+    // Формируем очередь из всех уникальных паттернов колонки
     Object.keys(smartRules).forEach(colName => {
         const colInfo = complexColumns.find(c => c.colName === colName);
         if (colInfo && smartRules[colName].length > 0) {
@@ -1100,7 +1100,6 @@ window.startPreTokenizer = function(smartRules, complexColumns) {
     let currentIndex = 0;
     
     function processNext() {
-        // Если все колонки нарезаны — переходим в Основной Маппинг (Этап 3)!
         if (currentIndex >= queue.length) {
             const overlay = document.getElementById("tokenizer-overlay");
             if (overlay) { 
@@ -1115,16 +1114,13 @@ window.startPreTokenizer = function(smartRules, complexColumns) {
         const item = queue[currentIndex];
         const currentTokens = item.example.match(/\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g) || [item.example];
         
-        // Показываем в списке ТОЛЬКО те параметры, которые клиент выбрал в Сите
         const paramsList = item.humanNames.map(name => {
             return { name: name };
         });
 
-        // Открываем модалку Токенизатора
         window.showTokenizer(item.colName, currentTokens, paramsList);
         const overlay = document.getElementById("tokenizer-overlay");
         
-        // Меняем тексты специально для режима обучения
         const titleEl = overlay.querySelector(".modal-title");
         if (titleEl) titleEl.textContent = `Обучение: Шаг ${currentIndex + 1} из ${queue.length}`;
         
@@ -1137,6 +1133,31 @@ window.startPreTokenizer = function(smartRules, complexColumns) {
         const btnDone = overlay.querySelector(".btn-done");
         const btnBack = overlay.querySelector(".btn-back");
 
+        // ⚡ ПРЕДОХРАНИТЕЛЬ: Проверяет, все ли параметры подтверждены
+        const checkAllConfirmed = () => {
+            let allDone = true;
+            paramRows.forEach(r => {
+                // Если хоть одна строка не заблокирована (нет класса disabled) -> не всё готово
+                if (!r.classList.contains("disabled")) {
+                    allDone = false;
+                }
+            });
+            
+            // Активируем кнопку "Далее" ТОЛЬКО если все галочки нажаты
+            if (allDone && paramRows.length > 0) {
+                btnDone.style.opacity = "1";
+                btnDone.style.pointerEvents = "auto";
+                btnDone.style.cursor = "pointer";
+            } else {
+                btnDone.style.opacity = "0.5";
+                btnDone.style.pointerEvents = "none";
+                btnDone.style.cursor = "default";
+            }
+        };
+
+        // Блокируем кнопку "Далее" при старте шага
+        checkAllConfirmed();
+
         if (btnBack) {
             btnBack.style.opacity = "1"; 
             btnBack.style.pointerEvents = "auto"; 
@@ -1145,7 +1166,6 @@ window.startPreTokenizer = function(smartRules, complexColumns) {
                     currentIndex--; 
                     processNext(); 
                 } else {
-                    // Возвращаемся в окно Сита
                     const overlay = document.getElementById("tokenizer-overlay");
                     if (overlay) { overlay.style.display = "none"; overlay.innerHTML = ""; }
                     window.renderSmartMapperModal(complexColumns);
@@ -1170,7 +1190,6 @@ window.startPreTokenizer = function(smartRules, complexColumns) {
         });
 
         paramRows.forEach(row => {
-            // Клик по самой строке параметра (активация радиокнопки)
             row.addEventListener("click", () => {
                 if (row.classList.contains("disabled")) return;
                 paramRows.forEach(r => { 
@@ -1183,7 +1202,6 @@ window.startPreTokenizer = function(smartRules, complexColumns) {
                 updatePreview();
             });
 
-            // Клик по галочке подтверждения внутри строки
             const confirmBtn = row.querySelector(".btn-confirm-inline");
             confirmBtn.addEventListener("click", (e) => {
                 e.stopPropagation();
@@ -1191,7 +1209,7 @@ window.startPreTokenizer = function(smartRules, complexColumns) {
                 const gluedText = row.querySelector(".param-preview").textContent;
                 if (!gluedText) return;
 
-                // ⚡ ВАЛИДАЦИЯ ПО СПРАВОЧНИКУ КАСПИ
+                // Валидация
                 let isValid = true;
                 const dictArray = window.kaspiDicts ? window.kaspiDicts[paramName] : null;
                 
@@ -1207,13 +1225,12 @@ window.startPreTokenizer = function(smartRules, complexColumns) {
                 if (!isValid) {
                     const lang = window.currentLang || localStorage.getItem("pos_lang") || "ru";
                     const tr = typeof translations !== "undefined" && translations[lang] ? translations[lang] : {};
-                    let errorMsg = tr.tok_not_found ? tr.tok_not_found.replace("{val}", gluedText) : `Внимание! Значения "${gluedText}" нет в справочнике Kaspi для параметра "${paramName}".\n\nПроверьте выделенные токены (возможно, вы забыли нажать ОК на предыдущем шаге).`;
-                    errorMsg = errorMsg.replace(/<[^>]*>?/gm, ''); // удаляем HTML-теги для alert
+                    let errorMsg = tr.tok_not_found ? tr.tok_not_found.replace("{val}", gluedText) : `Внимание! Значения "${gluedText}" нет в справочнике Kaspi для параметра "${paramName}".\n\nПроверьте выделенные токены.`;
+                    errorMsg = errorMsg.replace(/<[^>]*>?/gm, ''); 
                     alert(errorMsg);
-                    return; // ⛔ Блокируем сохранение мусора
+                    return; // Блокируем сохранение!
                 }
 
-                // Превращаем красивое имя в системный ключ
                 let sysKey = paramName;
                 if (window.currentTemplateData && window.currentTemplateData.humanNames) {
                     const idx = window.currentTemplateData.humanNames.indexOf(paramName);
@@ -1223,19 +1240,15 @@ window.startPreTokenizer = function(smartRules, complexColumns) {
                 const selectedTokens = Array.from(overlay.querySelectorAll(".token.selected"));
                 const tokenIndexes = selectedTokens.map(t => parseInt(t.dataset.index));
 
-                // Узнаем маску текущего примера
                 const tks = item.example.match(/\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g) || [item.example];
                 const mask = tks.map(t => /^\d+$/.test(t) ? "N" : /^[a-zA-Zа-яА-ЯёЁ]+$/.test(t) ? "A" : "S").join("-");
 
-                // Сохраняем в МАССИВ ПАТТЕРНОВ
                 window.mapper2State.splitRules = window.mapper2State.splitRules || {};
                 
-                // Проверяем, массив ли там, и если нет — создаем
                 if (!Array.isArray(window.mapper2State.splitRules[sysKey]) || (window.mapper2State.splitRules[sysKey].length > 0 && typeof window.mapper2State.splitRules[sysKey][0] === 'number')) {
                     window.mapper2State.splitRules[sysKey] = [];
                 }
                 
-                // Если такая маска уже есть — обновляем её индексы, если нет — пушим новую
                 const existingIdx = window.mapper2State.splitRules[sysKey].findIndex(r => r.mask === mask);
                 if (existingIdx !== -1) {
                     window.mapper2State.splitRules[sysKey][existingIdx].rule = tokenIndexes;
@@ -1246,7 +1259,6 @@ window.startPreTokenizer = function(smartRules, complexColumns) {
                     });
                 }
 
-                // Блокируем строку и показываем галочку
                 row.classList.remove("active-target");
                 row.classList.add("disabled");
                 row.querySelector(".param-preview").style.display = "none";
@@ -1255,21 +1267,17 @@ window.startPreTokenizer = function(smartRules, complexColumns) {
                 const badgeHtml = `<span class="param-badge" style="background: var(--accent-green, #2ecc71); color: #000; padding: 4px 12px; border-radius: 6px; font-size: 13px; font-weight: bold; margin-left: auto;">✓ ${gluedText}</span>`;
                 row.insertAdjacentHTML("beforeend", badgeHtml);
 
-                // Делаем выбранные токены серыми
                 overlay.querySelectorAll(".token.selected").forEach(t => {
                     t.classList.remove("selected");
                     t.classList.add("disabled");
                 });
 
-                // Активируем кнопку ДАЛЕЕ
-                btnDone.style.opacity = "1";
-                btnDone.style.pointerEvents = "auto";
-                btnDone.style.cursor = "pointer";
+                // ⚡ ПРЕДОХРАНИТЕЛЬ: Проверяем, можно ли теперь разблокировать кнопку "Далее"
+                checkAllConfirmed();
             });
         });
 
         btnClear.addEventListener("click", () => {
-            // Очищаем память, если клиент ошибся и нажал "Сбросить"
             item.humanNames.forEach(paramName => {
                 let sysKey = paramName;
                 if (window.currentTemplateData && window.currentTemplateData.humanNames) {
@@ -1277,7 +1285,6 @@ window.startPreTokenizer = function(smartRules, complexColumns) {
                     if (idx !== -1) sysKey = window.currentTemplateData.systemKeys[idx];
                 }
                 
-                // При сбросе удаляем только текущую маску
                 const tks = item.example.match(/\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g) || [item.example];
                 const mask = tks.map(t => /^\d+$/.test(t) ? "N" : /^[a-zA-Zа-яА-ЯёЁ]+$/.test(t) ? "A" : "S").join("-");
                 
@@ -1285,11 +1292,12 @@ window.startPreTokenizer = function(smartRules, complexColumns) {
                     window.mapper2State.splitRules[sysKey] = window.mapper2State.splitRules[sysKey].filter(r => r.mask !== mask);
                 }
             });
-            processNext(); // Перезагружаем интерфейс для этой же колонки
+            processNext(); 
         });
 
         btnDone.addEventListener("click", () => {
-            if (btnDone.disabled) return;
+            // Двойная защита от клика, если кнопка заблокирована
+            if (btnDone.style.pointerEvents === "none" || btnDone.disabled) return;
             currentIndex++;
             processNext();
         });
