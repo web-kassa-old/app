@@ -1082,14 +1082,18 @@ window.startTokenizerQueue = function () {
 window.startPreTokenizer = function(smartRules, complexColumns) {
     const queue = [];
     
-    // Формируем очередь только из тех колонок, где клиент поставил галочки
+    // ⚡ Формируем очередь из ВСЕХ уникальных паттернов колонки
     Object.keys(smartRules).forEach(colName => {
         const colInfo = complexColumns.find(c => c.colName === colName);
         if (colInfo && smartRules[colName].length > 0) {
-            queue.push({
-                colName: colName,
-                example: colInfo.example,
-                humanNames: smartRules[colName]
+            // Берем массив примеров (если он есть), иначе берем старый одиночный пример
+            const examplesList = colInfo.examples || [colInfo.example];
+            examplesList.forEach(ex => {
+                queue.push({
+                    colName: colName,
+                    example: ex,
+                    humanNames: smartRules[colName]
+                });
             });
         }
     });
@@ -1202,12 +1206,24 @@ window.startPreTokenizer = function(smartRules, complexColumns) {
                 const tks = item.example.match(/\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g) || [item.example];
                 const mask = tks.map(t => /^\d+$/.test(t) ? "N" : /^[a-zA-Zа-яА-ЯёЁ]+$/.test(t) ? "A" : "S").join("-");
 
-                // ⚡ САМОЕ ВАЖНОЕ: Сохраняем и индексы, и МАСКУ ПАТТЕРНА!
+                // ⚡ САМОЕ ВАЖНОЕ: Сохраняем в МАССИВ ПАТТЕРНОВ!
                 window.mapper2State.splitRules = window.mapper2State.splitRules || {};
-                window.mapper2State.splitRules[sysKey] = {
-                    mask: mask,
-                    rule: tokenIndexes
-                };
+                
+                // Проверяем, массив ли там, и если нет — создаем
+                if (!Array.isArray(window.mapper2State.splitRules[sysKey]) || (window.mapper2State.splitRules[sysKey].length > 0 && typeof window.mapper2State.splitRules[sysKey][0] === 'number')) {
+                    window.mapper2State.splitRules[sysKey] = [];
+                }
+                
+                // Если такая маска уже есть — обновляем её индексы, если нет — пушим новую
+                const existingIdx = window.mapper2State.splitRules[sysKey].findIndex(r => r.mask === mask);
+                if (existingIdx !== -1) {
+                    window.mapper2State.splitRules[sysKey][existingIdx].rule = tokenIndexes;
+                } else {
+                    window.mapper2State.splitRules[sysKey].push({
+                        mask: mask,
+                        rule: tokenIndexes
+                    });
+                }
 
                 // Блокируем строку и показываем галочку
                 row.classList.remove("active-target");
@@ -1239,7 +1255,14 @@ window.startPreTokenizer = function(smartRules, complexColumns) {
                     const idx = window.currentTemplateData.humanNames.indexOf(paramName);
                     if (idx !== -1) sysKey = window.currentTemplateData.systemKeys[idx];
                 }
-                delete window.mapper2State.splitRules[sysKey];
+                
+                // ⚡ При сбросе удаляем только текущую маску (чтобы не убить остальные сохраненные паттерны)
+                const tks = item.example.match(/\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g) || [item.example];
+                const mask = tks.map(t => /^\d+$/.test(t) ? "N" : /^[a-zA-Zа-яА-ЯёЁ]+$/.test(t) ? "A" : "S").join("-");
+                
+                if (Array.isArray(window.mapper2State.splitRules[sysKey])) {
+                    window.mapper2State.splitRules[sysKey] = window.mapper2State.splitRules[sysKey].filter(r => r.mask !== mask);
+                }
             });
             processNext(); // Перезагружаем интерфейс для этой же колонки
         });
