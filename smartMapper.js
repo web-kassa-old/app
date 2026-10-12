@@ -1082,11 +1082,10 @@ window.startTokenizerQueue = function () {
 window.startPreTokenizer = function(smartRules, complexColumns) {
     const queue = [];
     
-    // ⚡ Формируем очередь из ВСЕХ уникальных паттернов колонки
+    // Формируем очередь только из тех колонок, где клиент поставил галочки
     Object.keys(smartRules).forEach(colName => {
         const colInfo = complexColumns.find(c => c.colName === colName);
         if (colInfo && smartRules[colName].length > 0) {
-            // Берем массив примеров (если он есть), иначе берем старый одиночный пример
             const examplesList = colInfo.examples || [colInfo.example];
             examplesList.forEach(ex => {
                 queue.push({
@@ -1121,7 +1120,7 @@ window.startPreTokenizer = function(smartRules, complexColumns) {
             return { name: name };
         });
 
-        // Открываем модалку Токенизатора (используем уже готовую функцию отрисовки)
+        // Открываем модалку Токенизатора
         window.showTokenizer(item.colName, currentTokens, paramsList);
         const overlay = document.getElementById("tokenizer-overlay");
         
@@ -1171,6 +1170,7 @@ window.startPreTokenizer = function(smartRules, complexColumns) {
         });
 
         paramRows.forEach(row => {
+            // Клик по самой строке параметра (активация радиокнопки)
             row.addEventListener("click", () => {
                 if (row.classList.contains("disabled")) return;
                 paramRows.forEach(r => { 
@@ -1182,9 +1182,8 @@ window.startPreTokenizer = function(smartRules, complexColumns) {
                 row.querySelector(".btn-confirm-inline").style.display = "block";
                 updatePreview();
             });
-        });
 
-        paramRows.forEach(row => {
+            // Клик по галочке подтверждения внутри строки
             const confirmBtn = row.querySelector(".btn-confirm-inline");
             confirmBtn.addEventListener("click", (e) => {
                 e.stopPropagation();
@@ -1192,7 +1191,29 @@ window.startPreTokenizer = function(smartRules, complexColumns) {
                 const gluedText = row.querySelector(".param-preview").textContent;
                 if (!gluedText) return;
 
-                // Превращаем красивое имя (Ширина профиля) в системный ключ (kaspi_width)
+                // ⚡ ВАЛИДАЦИЯ ПО СПРАВОЧНИКУ КАСПИ
+                let isValid = true;
+                const dictArray = window.kaspiDicts ? window.kaspiDicts[paramName] : null;
+                
+                if (dictArray && dictArray.length > 0) {
+                    isValid = dictArray.some(dv => {
+                        let strDv = String(dv).trim();
+                        let baseDv = strDv.split('(')[0].trim();
+                        return baseDv.toLowerCase() === gluedText.toLowerCase() || 
+                               (!isNaN(parseFloat(baseDv)) && parseFloat(baseDv) === parseFloat(gluedText));
+                    });
+                }
+
+                if (!isValid) {
+                    const lang = window.currentLang || localStorage.getItem("pos_lang") || "ru";
+                    const tr = typeof translations !== "undefined" && translations[lang] ? translations[lang] : {};
+                    let errorMsg = tr.tok_not_found ? tr.tok_not_found.replace("{val}", gluedText) : `Внимание! Значения "${gluedText}" нет в справочнике Kaspi для параметра "${paramName}".\n\nПроверьте выделенные токены (возможно, вы забыли нажать ОК на предыдущем шаге).`;
+                    errorMsg = errorMsg.replace(/<[^>]*>?/gm, ''); // удаляем HTML-теги для alert
+                    alert(errorMsg);
+                    return; // ⛔ Блокируем сохранение мусора
+                }
+
+                // Превращаем красивое имя в системный ключ
                 let sysKey = paramName;
                 if (window.currentTemplateData && window.currentTemplateData.humanNames) {
                     const idx = window.currentTemplateData.humanNames.indexOf(paramName);
@@ -1202,11 +1223,11 @@ window.startPreTokenizer = function(smartRules, complexColumns) {
                 const selectedTokens = Array.from(overlay.querySelectorAll(".token.selected"));
                 const tokenIndexes = selectedTokens.map(t => parseInt(t.dataset.index));
 
-                // ⚡ Узнаем маску текущего примера (item.example доступен в этой области видимости)
+                // Узнаем маску текущего примера
                 const tks = item.example.match(/\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g) || [item.example];
                 const mask = tks.map(t => /^\d+$/.test(t) ? "N" : /^[a-zA-Zа-яА-ЯёЁ]+$/.test(t) ? "A" : "S").join("-");
 
-                // ⚡ САМОЕ ВАЖНОЕ: Сохраняем в МАССИВ ПАТТЕРНОВ!
+                // Сохраняем в МАССИВ ПАТТЕРНОВ
                 window.mapper2State.splitRules = window.mapper2State.splitRules || {};
                 
                 // Проверяем, массив ли там, и если нет — создаем
@@ -1256,7 +1277,7 @@ window.startPreTokenizer = function(smartRules, complexColumns) {
                     if (idx !== -1) sysKey = window.currentTemplateData.systemKeys[idx];
                 }
                 
-                // ⚡ При сбросе удаляем только текущую маску (чтобы не убить остальные сохраненные паттерны)
+                // При сбросе удаляем только текущую маску
                 const tks = item.example.match(/\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g) || [item.example];
                 const mask = tks.map(t => /^\d+$/.test(t) ? "N" : /^[a-zA-Zа-яА-ЯёЁ]+$/.test(t) ? "A" : "S").join("-");
                 

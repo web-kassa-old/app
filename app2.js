@@ -5374,12 +5374,7 @@ window.renderMapper2Cards = function (templateData) {
       statusClass = "status-filled";
       let colName = window.mapper2State.invoiceHeaders[mappedIndex] || `Колонка ${mappedIndex + 1}`;
 
-      let splitData = window.mapper2State.splitRules && window.mapper2State.splitRules[req.sysKey];
-      let ruleIndices = [];
-      if (Array.isArray(splitData)) ruleIndices = splitData;
-      else if (splitData && Array.isArray(splitData.rule)) ruleIndices = splitData.rule;
-      else if (splitData && Array.isArray(splitData.tokens)) ruleIndices = splitData.tokens;
-
+      // 1. СНАЧАЛА находим строку-пример из таблицы
       let sampleText = "";
       for (let i = 0; i < Math.min(10, window.mapper2State.invoiceRows.length); i++) {
         let val = String(window.mapper2State.invoiceRows[i][mappedIndex] || "").trim();
@@ -5389,6 +5384,32 @@ window.renderMapper2Cards = function (templateData) {
         }
       }
 
+      // 2. ДОСТАЕМ ИНДЕКСЫ, учитывая новый формат массива масок
+      let splitData = window.mapper2State.splitRules && window.mapper2State.splitRules[req.sysKey];
+      let ruleIndices = [];
+      
+      if (Array.isArray(splitData)) {
+          if (typeof splitData[0] === 'number') {
+              ruleIndices = splitData; // Старый формат
+          } else if (splitData[0] && splitData[0].rule) {
+              // Новый формат (массив паттернов): ищем индексы именно под маску нашего sampleText
+              if (sampleText) {
+                  const regex = /\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g;
+                  const tokens = sampleText.match(regex) || [];
+                  const currentMask = tokens.map(t => /^\d+$/.test(t) ? "N" : /^[a-zA-Zа-яА-ЯёЁ]+$/.test(t) ? "A" : "S").join("-");
+                  const matchedRule = splitData.find(r => r.mask === currentMask);
+                  ruleIndices = matchedRule ? matchedRule.rule : splitData[0].rule;
+              } else {
+                  ruleIndices = splitData[0].rule;
+              }
+          }
+      } else if (splitData && Array.isArray(splitData.rule)) {
+          ruleIndices = splitData.rule;
+      } else if (splitData && Array.isArray(splitData.tokens)) {
+          ruleIndices = splitData.tokens;
+      }
+
+      // 3. ОТРИСОВКА
       if (ruleIndices.length > 0) {
         statusText = `✂ ${colName}`;
         statusI18n = "";
@@ -5396,7 +5417,6 @@ window.renderMapper2Cards = function (templateData) {
 
         let highlighted = "";
         if (sampleText) {
-          // ИСПРАВЛЕННАЯ РЕГУЛЯРКА: точка отделяется
           const regex = /\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g;
           let tokens = sampleText.match(regex) || [];
 
@@ -6332,17 +6352,21 @@ window.applyMapper2Logic = function () {
                               (normKaspi && state.splitRules && (state.splitRules[kaspiKey] || state.splitRules[normKaspi] || state.splitRules[`json_${normKaspi}`]));
 
               if (splitRule) {
+                  // Используем ту же регулярку для честного отделения точки
                   const tokens = rawVal.match(/\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g) || [];
                   const currentMask = tokens.map(t => /^\d+$/.test(t) ? "N" : /^[a-zA-Zа-яА-ЯёЁ]+$/.test(t) ? "A" : "S").join("-");
                   
                   let indices = [];
                   if (Array.isArray(splitRule)) {
-                      indices = splitRule; // Старый формат
-                  } else if (splitRule.mask) {
-                      // ⚡ РЕШАЮЩАЯ ПРОВЕРКА: Режем только если маска совпадает с той, что мы обучали!
-                      if (splitRule.mask === currentMask) {
-                          indices = splitRule.rule || [];
+                      if (typeof splitRule[0] === 'number') {
+                          indices = splitRule; // Поддержка старого плоского формата
+                      } else {
+                          // Новый формат: ищем правило, маска которого точно совпадает с текущей строкой
+                          const matchedRule = splitRule.find(r => r.mask === currentMask);
+                          if (matchedRule) indices = matchedRule.rule || [];
                       }
+                  } else if (splitRule.mask) {
+                      if (splitRule.mask === currentMask) indices = splitRule.rule || [];
                   } else {
                       indices = splitRule.rule || splitRule.tokens || [];
                   }
