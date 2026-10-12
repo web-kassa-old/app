@@ -1112,7 +1112,7 @@ window.startPreTokenizer = function(smartRules, complexColumns) {
         }
 
         const item = queue[currentIndex];
-        const currentTokens = item.example.match(/\d+[\.,]\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g) || [item.example];
+        const currentTokens = item.example.match(/\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g) || [item.example];
         
         // Показываем в списке ТОЛЬКО те параметры, которые клиент выбрал в Сите
         const paramsList = item.humanNames.map(name => {
@@ -1137,12 +1137,18 @@ window.startPreTokenizer = function(smartRules, complexColumns) {
         const btnBack = overlay.querySelector(".btn-back");
 
         if (btnBack) {
-            if (currentIndex === 0) { 
-                btnBack.style.opacity = "0.5"; 
-                btnBack.style.pointerEvents = "none"; 
-            }
+            btnBack.style.opacity = "1"; 
+            btnBack.style.pointerEvents = "auto"; 
             btnBack.addEventListener("click", () => {
-                if (currentIndex > 0) { currentIndex--; processNext(); }
+                if (currentIndex > 0) { 
+                    currentIndex--; 
+                    processNext(); 
+                } else {
+                    // Возвращаемся в окно Сита
+                    const overlay = document.getElementById("tokenizer-overlay");
+                    if (overlay) { overlay.style.display = "none"; overlay.innerHTML = ""; }
+                    window.renderSmartMapperModal(complexColumns);
+                }
             });
         }
 

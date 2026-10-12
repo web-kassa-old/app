@@ -5324,13 +5324,11 @@ window.renderMapper2Cards = function (templateData) {
 
     if (foundIndex !== -1) window.mapper2State.colMap[req.sysKey] = foundIndex;
 
-    // Умный фикс: используем rawIdx, чтобы убрать красное подчеркивание в VS Code
     let rawIdx = window.mapper2State.colMap[req.sysKey];
     let mappedIndex = typeof rawIdx === 'string' && window.mapper2State.invoiceHeaders 
         ? window.mapper2State.invoiceHeaders.indexOf(rawIdx) 
         : rawIdx;
 
-    // === АВТО-ТОКЕНИЗАТОР (УМНОЕ РАСПРЕДЕЛЕНИЕ ДО ОТРИСОВКИ) ===
     if (mappedIndex !== undefined && mappedIndex !== -1 && !window.mapper2State.splitRules[req.sysKey]) {
         let sampleText = "";
         for (let i = 0; i < Math.min(5, window.mapper2State.invoiceRows.length); i++) {
@@ -5340,7 +5338,7 @@ window.renderMapper2Cards = function (templateData) {
         
         let dict = window.kaspiDicts && window.kaspiDicts[req.name];
         if (sampleText && dict && dict.length > 0) {
-            let tokens = sampleText.match(/\d+(?:\.\d+)?|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,]/g) || [];
+            let tokens = sampleText.match(/\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g) || [];
             if (tokens.length > 1) {
                 for (let i = 0; i < tokens.length; i++) {
                     let tok = tokens[i];
@@ -5350,14 +5348,13 @@ window.renderMapper2Cards = function (templateData) {
                         return baseDv.toLowerCase() === tok.toLowerCase() || (isNum && parseFloat(baseDv) === parseFloat(tok));
                     });
                     if (isMatch) {
-                        window.mapper2State.splitRules[req.sysKey] = [i]; // Автоматом назначаем кусок!
+                        window.mapper2State.splitRules[req.sysKey] = [i];
                         break;
                     }
                 }
             }
         }
     }
-    // ============================================================
         
     let dictValue = window.mapper2State.dictValues && window.mapper2State.dictValues[req.sysKey];
 
@@ -5399,7 +5396,8 @@ window.renderMapper2Cards = function (templateData) {
 
         let highlighted = "";
         if (sampleText) {
-          const regex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,]/g;
+          // ИСПРАВЛЕННАЯ РЕГУЛЯРКА: точка отделяется
+          const regex = /\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g;
           let tokens = sampleText.match(regex) || [];
 
           highlighted = tokens.map((tok, i) => {
@@ -6287,7 +6285,7 @@ window.applyMapper2Logic = function () {
   window.invoiceGroups = {};
   window.invoiceGroups[state.docNo] = { supplier: state.supplier, items: [], originalFiles: [{ fileName: state.fileName, fileBase64: state.originalBase64 }] };
 
-  const regex = /\d+(?:\.\d+)?|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,]/g;
+  const regex = /\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g;
   
   let mappedIndices = Object.values(state.colMap).map(v => {
       if (typeof v === 'string') {
