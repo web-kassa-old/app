@@ -1088,7 +1088,7 @@ window.startTokenizerQueue = function () {
 window.startPreTokenizer = function(smartRules, complexColumns) {
     const queue = [];
     
-    // Формируем очередь из всех уникальных паттернов
+    // Формируем очередь из ВСЕХ уникальных паттернов колонки
     Object.keys(smartRules).forEach(colName => {
         const colInfo = complexColumns.find(c => c.colName === colName);
         if (colInfo && smartRules[colName].length > 0) {
@@ -1142,11 +1142,13 @@ window.startPreTokenizer = function(smartRules, complexColumns) {
         const btnDone = overlay.querySelector(".btn-done");
         const btnBack = overlay.querySelector(".btn-back");
 
-        // Предохранитель кнопки "Далее"
+        // ⚡ ПРЕДОХРАНИТЕЛЬ: Проверяет, все ли параметры подтверждены
         const checkAllConfirmed = () => {
             let allDone = true;
             paramRows.forEach(r => {
-                if (!r.classList.contains("disabled")) allDone = false;
+                if (!r.classList.contains("disabled")) {
+                    allDone = false;
+                }
             });
             
             if (allDone && paramRows.length > 0) {
@@ -1181,6 +1183,19 @@ window.startPreTokenizer = function(smartRules, complexColumns) {
             overlay.querySelectorAll(".param-row:not(.disabled) .param-preview").forEach(el => el.innerHTML = "");
             const activeRow = overlay.querySelector(".param-row.active-target");
             if (!activeRow) return;
+
+            // Если клиент передумал и кликнул токены, убираем выпадающий список и возвращаем кнопку ОК
+            const sel = activeRow.querySelector(".dict-select-inline");
+            if (sel) sel.remove();
+            const hint = activeRow.querySelector(".select-hint");
+            if (hint) hint.remove();
+            
+            const btn = activeRow.querySelector(".btn-confirm-inline");
+            if (btn) btn.style.display = "block";
+            
+            const pr = activeRow.querySelector(".param-preview");
+            if (pr) pr.style.display = "inline-block";
+            
             const selectedText = Array.from(overlay.querySelectorAll(".token.selected")).map(b => b.textContent).join("");
             activeRow.querySelector(".param-preview").textContent = selectedText;
         };
@@ -1206,6 +1221,7 @@ window.startPreTokenizer = function(smartRules, complexColumns) {
                 updatePreview();
             });
 
+            // ⚡ ОБРАБОТЧИК КНОПКИ ОК
             const confirmBtn = row.querySelector(".btn-confirm-inline");
             confirmBtn.addEventListener("click", (e) => {
                 e.stopPropagation();
@@ -1214,79 +1230,97 @@ window.startPreTokenizer = function(smartRules, complexColumns) {
                 if (!gluedText) return;
 
                 const isTrash = paramName === "Лишние фрагменты 🗑️";
+                const tData = window.currentTemplateData;
+                const dictArray = (tData && tData.dictionary) ? tData.dictionary[paramName] : null;
 
-                // ⚡ ИСПРАВЛЕННАЯ ВАЛИДАЦИЯ (Достаем словарь напрямую)
-                if (!isTrash) {
-                    let isValid = true;
-                    const tData = window.currentTemplateData;
-                    const dictArray = (tData && tData.dictionary) ? tData.dictionary[paramName] : null;
-                    
-                    if (dictArray && dictArray.length > 0) {
-                        isValid = dictArray.some(dv => {
-                            let strDv = String(dv).trim();
-                            let baseDv = strDv.split('(')[0].trim();
-                            return baseDv.toLowerCase() === gluedText.toLowerCase() || 
-                                   (!isNaN(parseFloat(baseDv)) && parseFloat(baseDv) === parseFloat(gluedText));
-                        });
+                // Функция финального сохранения
+                const finalizeSave = (rawText, finalVal) => {
+                    if (!isTrash) {
+                        let sysKey = paramName;
+                        if (tData && tData.humanNames) {
+                            const idx = tData.humanNames.indexOf(paramName);
+                            if (idx !== -1) sysKey = tData.systemKeys[idx];
+                        }
+
+                        const selectedTokens = Array.from(overlay.querySelectorAll(".token.selected"));
+                        const tokenIndexes = selectedTokens.map(t => parseInt(t.dataset.index));
+
+                        const tks = item.example.match(/\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g) || [item.example];
+                        const mask = tks.map(t => /^\d+$/.test(t) ? "N" : /^[a-zA-Zа-яА-ЯёЁ]+$/.test(t) ? "A" : "S").join("-");
+
+                        window.mapper2State.splitRules = window.mapper2State.splitRules || {};
+                        if (!Array.isArray(window.mapper2State.splitRules[sysKey]) || (window.mapper2State.splitRules[sysKey].length > 0 && typeof window.mapper2State.splitRules[sysKey][0] === 'number')) {
+                            window.mapper2State.splitRules[sysKey] = [];
+                        }
+                        
+                        const existingIdx = window.mapper2State.splitRules[sysKey].findIndex(r => r.mask === mask);
+                        if (existingIdx !== -1) {
+                            window.mapper2State.splitRules[sysKey][existingIdx].rule = tokenIndexes;
+                        } else {
+                            window.mapper2State.splitRules[sysKey].push({ mask: mask, rule: tokenIndexes });
+                        }
+
+                        // Сохраняем пользовательскую связку (алиас), если значение менялось
+                        if (rawText !== finalVal) {
+                            window.mapper2State.tokenAliases = window.mapper2State.tokenAliases || {};
+                            window.mapper2State.tokenAliases[sysKey] = window.mapper2State.tokenAliases[sysKey] || {};
+                            window.mapper2State.tokenAliases[sysKey][rawText] = finalVal;
+                        }
                     }
 
-                    if (!isValid) {
-                        const lang = window.currentLang || localStorage.getItem("pos_lang") || "ru";
-                        const tr = typeof translations !== "undefined" && translations[lang] ? translations[lang] : {};
-                        let errorMsg = tr.tok_not_found ? tr.tok_not_found.replace("{val}", gluedText) : `Внимание! Значения "${gluedText}" нет в справочнике Kaspi для параметра "${paramName}".\n\nПроверьте выделенные токены.`;
-                        errorMsg = errorMsg.replace(/<[^>]*>?/gm, ''); 
-                        alert(errorMsg);
-                        return; // Блокируем
+                    row.classList.remove("active-target");
+                    row.classList.add("disabled");
+                    row.querySelector(".param-preview").style.display = "none";
+                    row.querySelector(".btn-confirm-inline").style.display = "none";
+                    
+                    const existingSelect = row.querySelector(".dict-select-inline");
+                    if (existingSelect) existingSelect.remove();
+                    const existingHint = row.querySelector(".select-hint");
+                    if (existingHint) existingHint.remove();
+
+                    const badgeColor = isTrash ? "#95a5a6" : "var(--accent-green, #2ecc71)";
+                    const badgeHtml = `<span class="param-badge" style="background: ${badgeColor}; color: #000; padding: 4px 12px; border-radius: 6px; font-size: 13px; font-weight: bold; margin-left: auto;">✓ ${finalVal}</span>`;
+                    row.insertAdjacentHTML("beforeend", badgeHtml);
+
+                    overlay.querySelectorAll(".token.selected").forEach(t => {
+                        t.classList.remove("selected");
+                        t.classList.add("disabled");
+                    });
+
+                    checkAllConfirmed();
+                };
+
+                // ПРОВЕРКА НА СТРОГОЕ СОВПАДЕНИЕ
+                if (!isTrash && dictArray && dictArray.length > 0) {
+                    let isExactMatch = dictArray.some(dv => String(dv).split('(')[0].trim().toLowerCase() === gluedText.toLowerCase());
+
+                    if (!isExactMatch) {
+                        row.querySelector(".btn-confirm-inline").style.display = "none";
+                        
+                        let optionsHtml = `<option value="">Нет совпадения. Выберите...</option>`;
+                        dictArray.forEach(dv => {
+                            const cleanVal = String(dv).split('(')[0].trim();
+                            optionsHtml += `<option value="${cleanVal}">${String(dv).trim()}</option>`;
+                        });
+                        
+                        const selectHtml = `<select class="dict-select-inline" style="margin-left: 8px; background: var(--bg-body); color: var(--text-main); border: 1px solid var(--accent-orange); padding: 4px; border-radius: 4px; font-size: 12px; max-width: 150px; cursor: pointer;">${optionsHtml}</select>`;
+                        row.querySelector(".param-preview").insertAdjacentHTML("afterend", selectHtml);
+                        
+                        const hintHtml = `<div class="select-hint" style="font-size: 10.5px; color: var(--accent-orange); margin-top: 4px;">Уберите лишние токены наверху ИЛИ укажите соответствие ⬆️</div>`;
+                        row.insertAdjacentHTML("beforeend", hintHtml);
+
+                        const selectEl = row.querySelector(".dict-select-inline");
+                        selectEl.addEventListener("change", (ev) => {
+                            if (ev.target.value) {
+                                finalizeSave(gluedText, ev.target.value);
+                            }
+                        });
+                        return; // Ждем действий клиента
                     }
                 }
 
-                // ⚡ ЕСЛИ ЭТО НЕ МУСОР — СОХРАНЯЕМ ПРАВИЛО
-                if (!isTrash) {
-                    let sysKey = paramName;
-                    if (window.currentTemplateData && window.currentTemplateData.humanNames) {
-                        const idx = window.currentTemplateData.humanNames.indexOf(paramName);
-                        if (idx !== -1) sysKey = window.currentTemplateData.systemKeys[idx];
-                    }
-
-                    const selectedTokens = Array.from(overlay.querySelectorAll(".token.selected"));
-                    const tokenIndexes = selectedTokens.map(t => parseInt(t.dataset.index));
-
-                    const tks = item.example.match(/\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g) || [item.example];
-                    const mask = tks.map(t => /^\d+$/.test(t) ? "N" : /^[a-zA-Zа-яА-ЯёЁ]+$/.test(t) ? "A" : "S").join("-");
-
-                    window.mapper2State.splitRules = window.mapper2State.splitRules || {};
-                    
-                    if (!Array.isArray(window.mapper2State.splitRules[sysKey]) || (window.mapper2State.splitRules[sysKey].length > 0 && typeof window.mapper2State.splitRules[sysKey][0] === 'number')) {
-                        window.mapper2State.splitRules[sysKey] = [];
-                    }
-                    
-                    const existingIdx = window.mapper2State.splitRules[sysKey].findIndex(r => r.mask === mask);
-                    if (existingIdx !== -1) {
-                        window.mapper2State.splitRules[sysKey][existingIdx].rule = tokenIndexes;
-                    } else {
-                        window.mapper2State.splitRules[sysKey].push({
-                            mask: mask,
-                            rule: tokenIndexes
-                        });
-                    }
-                }
-
-                // В ЛЮБОМ СЛУЧАЕ помечаем строку выполненной
-                row.classList.remove("active-target");
-                row.classList.add("disabled");
-                row.querySelector(".param-preview").style.display = "none";
-                row.querySelector(".btn-confirm-inline").style.display = "none";
-                
-                const badgeColor = isTrash ? "#95a5a6" : "var(--accent-green, #2ecc71)";
-                const badgeHtml = `<span class="param-badge" style="background: ${badgeColor}; color: #000; padding: 4px 12px; border-radius: 6px; font-size: 13px; font-weight: bold; margin-left: auto;">✓ ${gluedText}</span>`;
-                row.insertAdjacentHTML("beforeend", badgeHtml);
-
-                overlay.querySelectorAll(".token.selected").forEach(t => {
-                    t.classList.remove("selected");
-                    t.classList.add("disabled");
-                });
-
-                checkAllConfirmed();
+                // Если всё совпало точно или это мусор
+                finalizeSave(gluedText, gluedText);
             });
         });
 
