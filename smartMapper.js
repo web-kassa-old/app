@@ -606,7 +606,7 @@ window.startTokenizerQueue = function () {
   const filteredQueue = rawQueue.filter((pattern) => {
     if (!pattern || !pattern.rawString) return false;
     const tokens = pattern.rawString.match(
-      /\d+(?:\.\d+)?|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g,
+      /\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g,
     ) || [pattern.rawString];
     const validTokens = tokens.filter(
       (t) => t.trim().length > 0 && !/^[\s\-_]+$/.test(t),
@@ -620,12 +620,10 @@ window.startTokenizerQueue = function () {
   );
 
   function getPatternMask(str) {
-    const tokens = str.match(
-      /\d+(?:\.\d+)?|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g,
-    ) || [str];
+    const tokens = str.match(/\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g) || [str];
     return tokens
       .map((t) => {
-        if (/^\d+(\.\d+)?$/.test(t)) return "N";
+        if (/^\d+$/.test(t)) return "N";
         if (/^[a-zA-Zа-яА-ЯёЁ]+$/.test(t)) return "A";
         return "S";
       })
@@ -1016,7 +1014,7 @@ window.startTokenizerQueue = function () {
 
           if (resolvedPattern && resolvedPattern.resolvedAttributes) {
             const colTokens = col.rawString.match(
-              /\d+(?:\.\d+)?|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g,
+              /\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g,
             ) || [col.rawString];
 
             Object.keys(resolvedPattern.resolvedAttributes).forEach(
@@ -1200,9 +1198,16 @@ window.startPreTokenizer = function(smartRules, complexColumns) {
                 const selectedTokens = Array.from(overlay.querySelectorAll(".token.selected"));
                 const tokenIndexes = selectedTokens.map(t => parseInt(t.dataset.index));
 
-                // ⚡ САМОЕ ВАЖНОЕ: Сохраняем индексы в память Сплиттера!
+                // ⚡ Узнаем маску текущего примера (item.example доступен в этой области видимости)
+                const tks = item.example.match(/\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g) || [item.example];
+                const mask = tks.map(t => /^\d+$/.test(t) ? "N" : /^[a-zA-Zа-яА-ЯёЁ]+$/.test(t) ? "A" : "S").join("-");
+
+                // ⚡ САМОЕ ВАЖНОЕ: Сохраняем и индексы, и МАСКУ ПАТТЕРНА!
                 window.mapper2State.splitRules = window.mapper2State.splitRules || {};
-                window.mapper2State.splitRules[sysKey] = tokenIndexes;
+                window.mapper2State.splitRules[sysKey] = {
+                    mask: mask,
+                    rule: tokenIndexes
+                };
 
                 // Блокируем строку и показываем галочку
                 row.classList.remove("active-target");

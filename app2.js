@@ -6326,18 +6326,31 @@ window.applyMapper2Logic = function () {
       }
 
       if (colIdx !== undefined && colIdx !== null && colIdx !== "" && colIdx !== -1) {
-          let rawVal = String(row[colIdx] || "").trim();
-          
-          let splitRule = (state.splitRules && (state.splitRules[primaryKey] || state.splitRules[normPrimary] || state.splitRules[`json_${normPrimary}`])) ||
-                          (normKaspi && state.splitRules && (state.splitRules[kaspiKey] || state.splitRules[normKaspi] || state.splitRules[`json_${normKaspi}`]));
+              let rawVal = String(row[colIdx] || "").trim();
+              
+              let splitRule = (state.splitRules && (state.splitRules[primaryKey] || state.splitRules[normPrimary] || state.splitRules[`json_${normPrimary}`])) ||
+                              (normKaspi && state.splitRules && (state.splitRules[kaspiKey] || state.splitRules[normKaspi] || state.splitRules[`json_${normKaspi}`]));
 
-          if (splitRule) {
-              const tokens = rawVal.match(regex) || [];
-              let indices = Array.isArray(splitRule) ? splitRule : (splitRule.rule || splitRule.tokens || []);
-              if (indices.length > 0) return indices.map(idx => tokens[idx] || "").join("");
+              if (splitRule) {
+                  const tokens = rawVal.match(/\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g) || [];
+                  const currentMask = tokens.map(t => /^\d+$/.test(t) ? "N" : /^[a-zA-Zа-яА-ЯёЁ]+$/.test(t) ? "A" : "S").join("-");
+                  
+                  let indices = [];
+                  if (Array.isArray(splitRule)) {
+                      indices = splitRule; // Старый формат
+                  } else if (splitRule.mask) {
+                      // ⚡ РЕШАЮЩАЯ ПРОВЕРКА: Режем только если маска совпадает с той, что мы обучали!
+                      if (splitRule.mask === currentMask) {
+                          indices = splitRule.rule || [];
+                      }
+                  } else {
+                      indices = splitRule.rule || splitRule.tokens || [];
+                  }
+
+                  if (indices.length > 0) return indices.map(idx => tokens[idx] || "").join("");
+              }
+              return rawVal;
           }
-          return rawVal;
-      }
 
       let dictVal = state.dictValues && (state.dictValues[primaryKey] ?? state.dictValues[normPrimary] ?? state.dictValues[`json_${normPrimary}`]);
       if (!dictVal && normKaspi) dictVal = state.dictValues && (state.dictValues[kaspiKey] ?? state.dictValues[normKaspi] ?? state.dictValues[`json_${normKaspi}`]);
