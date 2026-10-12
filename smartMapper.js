@@ -30,7 +30,7 @@ window.detectComplexColumns = function (headers, rows) {
     }
   }
 
-  // 2. Достаем синонимы из базы (на случай, если колонка называется "Specs" или "Размер")
+  // 2. Достаем синонимы из базы
   const dict = window.mapper2State?.dictValues || (typeof invoiceSynonyms !== "undefined" ? invoiceSynonyms : {});
   const compositeMarkers = dict["composite_column"] || dict["составная_колонка"] || ["размер", "specs", "параметры", "характеристики"];
   const compositeLower = compositeMarkers.map(s => String(s).toLowerCase().trim());
@@ -43,17 +43,15 @@ window.detectComplexColumns = function (headers, rows) {
     const cleanColName = String(colName).toLowerCase().trim();
     
     // ПРОПУСКАЕМ колонку, если она не похожа на сложный параметр Каспи 
-    // И не числится в синонимах как составная
     const isAllowed = allowedHeadersLower.some(h => cleanColName.includes(h)) || 
                       compositeLower.some(h => cleanColName.includes(h));
                       
-    if (!isAllowed) return; // <-- Теперь скрипт игнорирует Артикулы, Бренды, Цены и другой мусор
+    if (!isAllowed) return; // Игнорируем Артикулы, Бренды, Цены и другой мусор
     
-    let exampleVal = "";
-    let validTokens = [];
-    let maxTokensCount = 0; // ДОБАВЛЕНО: Хранилище рекорда
-
+    // ⚡ ХРАНИЛИЩЕ ДЛЯ ВСЕХ УНИКАЛЬНЫХ МАСОК (вместо одного рекорда)
+    const uniqueMasks = new Map();
     const maxRows = Math.min(1000, rows.length);
+
     for (let i = 0; i < maxRows; i++) {
       const row = rows[i];
       if (!row) continue;
@@ -64,23 +62,31 @@ window.detectComplexColumns = function (headers, rows) {
         const isJustNumber = !isNaN(Number(strVal.replace(/,/g, "")));
         if (isJustNumber) continue;
 
-        // Идеальная регулярка для токенов
-        const tokens = strVal.match(/\d+(?:\.\d+)?|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,]/g) || [];
+        // ⚡ НОВАЯ РЕГУЛЯРКА (с честным отделением точки)
+        const tokens = strVal.match(/\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g) || [];
         
-        // СРАВНИВАЕМ С РЕКОРДОМ: если токенов больше, чем было найдено ранее, обновляем победителя
-        if (tokens.length > maxTokensCount) {
-          maxTokensCount = tokens.length;
-          exampleVal = strVal;
-          validTokens = tokens;
+        // Если есть хотя бы 2 токена и строка содержит цифры
+        if (tokens.length >= 2 && /\d/.test(strVal) && strVal.length < 40) {
+          // Вычисляем структуру: N-A-N-S-N (Цифра-Буква-Цифра-Знак-Цифра)
+          const mask = tokens.map(t => /^\d+$/.test(t) ? "N" : /^[a-zA-Zа-яА-ЯёЁ]+$/.test(t) ? "A" : "S").join("-");
+          
+          // Если такой маски еще не было ИЛИ текущая строка длиннее предыдущей с такой же маской
+          if (!uniqueMasks.has(mask) || uniqueMasks.get(mask).length < strVal.length) {
+            uniqueMasks.set(mask, strVal);
+          }
         }
       }
-    } // Конец цикла (break удален, теперь он честно проверяет все 1000 строк)
+    }
 
-    // Если победитель имеет хотя бы 2 токена
-    if (exampleVal && validTokens.length >= 2) {
-      if (/\d/.test(exampleVal) && exampleVal.length < 40) {
-        complexCols.push({ colName: colName, example: exampleVal, tokenCount: validTokens.length });
-      }
+    // Превращаем карту масок в массив примеров (от длинных к коротким)
+    const examples = Array.from(uniqueMasks.values()).sort((a, b) => b.length - a.length);
+
+    if (examples.length > 0) {
+      complexCols.push({ 
+          colName: colName, 
+          example: examples[0], // Первый элемент оставляем для совместимости со старым кодом
+          examples: examples    // ⚡ ВЕСЬ массив уникальных паттернов для Токенизатора!
+      });
     }
   });
 
@@ -1082,7 +1088,7 @@ window.startTokenizerQueue = function () {
 window.startPreTokenizer = function(smartRules, complexColumns) {
     const queue = [];
     
-    // Формируем очередь из всех уникальных паттернов колонки
+    // Формируем очередь из всех уникальных паттернов
     Object.keys(smartRules).forEach(colName => {
         const colInfo = complexColumns.find(c => c.colName === colName);
         if (colInfo && smartRules[colName].length > 0) {
@@ -1118,6 +1124,9 @@ window.startPreTokenizer = function(smartRules, complexColumns) {
             return { name: name };
         });
 
+        // ⚡ ДОБАВЛЯЕМ СПАСИТЕЛЬНУЮ СТРОКУ ДЛЯ МУСОРА
+        paramsList.push({ name: "Лишние фрагменты 🗑️" });
+
         window.showTokenizer(item.colName, currentTokens, paramsList);
         const overlay = document.getElementById("tokenizer-overlay");
         
@@ -1133,17 +1142,13 @@ window.startPreTokenizer = function(smartRules, complexColumns) {
         const btnDone = overlay.querySelector(".btn-done");
         const btnBack = overlay.querySelector(".btn-back");
 
-        // ⚡ ПРЕДОХРАНИТЕЛЬ: Проверяет, все ли параметры подтверждены
+        // Предохранитель кнопки "Далее"
         const checkAllConfirmed = () => {
             let allDone = true;
             paramRows.forEach(r => {
-                // Если хоть одна строка не заблокирована (нет класса disabled) -> не всё готово
-                if (!r.classList.contains("disabled")) {
-                    allDone = false;
-                }
+                if (!r.classList.contains("disabled")) allDone = false;
             });
             
-            // Активируем кнопку "Далее" ТОЛЬКО если все галочки нажаты
             if (allDone && paramRows.length > 0) {
                 btnDone.style.opacity = "1";
                 btnDone.style.pointerEvents = "auto";
@@ -1155,7 +1160,6 @@ window.startPreTokenizer = function(smartRules, complexColumns) {
             }
         };
 
-        // Блокируем кнопку "Далее" при старте шага
         checkAllConfirmed();
 
         if (btnBack) {
@@ -1209,62 +1213,72 @@ window.startPreTokenizer = function(smartRules, complexColumns) {
                 const gluedText = row.querySelector(".param-preview").textContent;
                 if (!gluedText) return;
 
-                // Валидация
-                let isValid = true;
-                const dictArray = window.kaspiDicts ? window.kaspiDicts[paramName] : null;
-                
-                if (dictArray && dictArray.length > 0) {
-                    isValid = dictArray.some(dv => {
-                        let strDv = String(dv).trim();
-                        let baseDv = strDv.split('(')[0].trim();
-                        return baseDv.toLowerCase() === gluedText.toLowerCase() || 
-                               (!isNaN(parseFloat(baseDv)) && parseFloat(baseDv) === parseFloat(gluedText));
-                    });
+                const isTrash = paramName === "Лишние фрагменты 🗑️";
+
+                // ⚡ ИСПРАВЛЕННАЯ ВАЛИДАЦИЯ (Достаем словарь напрямую)
+                if (!isTrash) {
+                    let isValid = true;
+                    const tData = window.currentTemplateData;
+                    const dictArray = (tData && tData.dictionary) ? tData.dictionary[paramName] : null;
+                    
+                    if (dictArray && dictArray.length > 0) {
+                        isValid = dictArray.some(dv => {
+                            let strDv = String(dv).trim();
+                            let baseDv = strDv.split('(')[0].trim();
+                            return baseDv.toLowerCase() === gluedText.toLowerCase() || 
+                                   (!isNaN(parseFloat(baseDv)) && parseFloat(baseDv) === parseFloat(gluedText));
+                        });
+                    }
+
+                    if (!isValid) {
+                        const lang = window.currentLang || localStorage.getItem("pos_lang") || "ru";
+                        const tr = typeof translations !== "undefined" && translations[lang] ? translations[lang] : {};
+                        let errorMsg = tr.tok_not_found ? tr.tok_not_found.replace("{val}", gluedText) : `Внимание! Значения "${gluedText}" нет в справочнике Kaspi для параметра "${paramName}".\n\nПроверьте выделенные токены.`;
+                        errorMsg = errorMsg.replace(/<[^>]*>?/gm, ''); 
+                        alert(errorMsg);
+                        return; // Блокируем
+                    }
                 }
 
-                if (!isValid) {
-                    const lang = window.currentLang || localStorage.getItem("pos_lang") || "ru";
-                    const tr = typeof translations !== "undefined" && translations[lang] ? translations[lang] : {};
-                    let errorMsg = tr.tok_not_found ? tr.tok_not_found.replace("{val}", gluedText) : `Внимание! Значения "${gluedText}" нет в справочнике Kaspi для параметра "${paramName}".\n\nПроверьте выделенные токены.`;
-                    errorMsg = errorMsg.replace(/<[^>]*>?/gm, ''); 
-                    alert(errorMsg);
-                    return; // Блокируем сохранение!
+                // ⚡ ЕСЛИ ЭТО НЕ МУСОР — СОХРАНЯЕМ ПРАВИЛО
+                if (!isTrash) {
+                    let sysKey = paramName;
+                    if (window.currentTemplateData && window.currentTemplateData.humanNames) {
+                        const idx = window.currentTemplateData.humanNames.indexOf(paramName);
+                        if (idx !== -1) sysKey = window.currentTemplateData.systemKeys[idx];
+                    }
+
+                    const selectedTokens = Array.from(overlay.querySelectorAll(".token.selected"));
+                    const tokenIndexes = selectedTokens.map(t => parseInt(t.dataset.index));
+
+                    const tks = item.example.match(/\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g) || [item.example];
+                    const mask = tks.map(t => /^\d+$/.test(t) ? "N" : /^[a-zA-Zа-яА-ЯёЁ]+$/.test(t) ? "A" : "S").join("-");
+
+                    window.mapper2State.splitRules = window.mapper2State.splitRules || {};
+                    
+                    if (!Array.isArray(window.mapper2State.splitRules[sysKey]) || (window.mapper2State.splitRules[sysKey].length > 0 && typeof window.mapper2State.splitRules[sysKey][0] === 'number')) {
+                        window.mapper2State.splitRules[sysKey] = [];
+                    }
+                    
+                    const existingIdx = window.mapper2State.splitRules[sysKey].findIndex(r => r.mask === mask);
+                    if (existingIdx !== -1) {
+                        window.mapper2State.splitRules[sysKey][existingIdx].rule = tokenIndexes;
+                    } else {
+                        window.mapper2State.splitRules[sysKey].push({
+                            mask: mask,
+                            rule: tokenIndexes
+                        });
+                    }
                 }
 
-                let sysKey = paramName;
-                if (window.currentTemplateData && window.currentTemplateData.humanNames) {
-                    const idx = window.currentTemplateData.humanNames.indexOf(paramName);
-                    if (idx !== -1) sysKey = window.currentTemplateData.systemKeys[idx];
-                }
-
-                const selectedTokens = Array.from(overlay.querySelectorAll(".token.selected"));
-                const tokenIndexes = selectedTokens.map(t => parseInt(t.dataset.index));
-
-                const tks = item.example.match(/\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g) || [item.example];
-                const mask = tks.map(t => /^\d+$/.test(t) ? "N" : /^[a-zA-Zа-яА-ЯёЁ]+$/.test(t) ? "A" : "S").join("-");
-
-                window.mapper2State.splitRules = window.mapper2State.splitRules || {};
-                
-                if (!Array.isArray(window.mapper2State.splitRules[sysKey]) || (window.mapper2State.splitRules[sysKey].length > 0 && typeof window.mapper2State.splitRules[sysKey][0] === 'number')) {
-                    window.mapper2State.splitRules[sysKey] = [];
-                }
-                
-                const existingIdx = window.mapper2State.splitRules[sysKey].findIndex(r => r.mask === mask);
-                if (existingIdx !== -1) {
-                    window.mapper2State.splitRules[sysKey][existingIdx].rule = tokenIndexes;
-                } else {
-                    window.mapper2State.splitRules[sysKey].push({
-                        mask: mask,
-                        rule: tokenIndexes
-                    });
-                }
-
+                // В ЛЮБОМ СЛУЧАЕ помечаем строку выполненной
                 row.classList.remove("active-target");
                 row.classList.add("disabled");
                 row.querySelector(".param-preview").style.display = "none";
                 row.querySelector(".btn-confirm-inline").style.display = "none";
                 
-                const badgeHtml = `<span class="param-badge" style="background: var(--accent-green, #2ecc71); color: #000; padding: 4px 12px; border-radius: 6px; font-size: 13px; font-weight: bold; margin-left: auto;">✓ ${gluedText}</span>`;
+                const badgeColor = isTrash ? "#95a5a6" : "var(--accent-green, #2ecc71)";
+                const badgeHtml = `<span class="param-badge" style="background: ${badgeColor}; color: #000; padding: 4px 12px; border-radius: 6px; font-size: 13px; font-weight: bold; margin-left: auto;">✓ ${gluedText}</span>`;
                 row.insertAdjacentHTML("beforeend", badgeHtml);
 
                 overlay.querySelectorAll(".token.selected").forEach(t => {
@@ -1272,7 +1286,6 @@ window.startPreTokenizer = function(smartRules, complexColumns) {
                     t.classList.add("disabled");
                 });
 
-                // ⚡ ПРЕДОХРАНИТЕЛЬ: Проверяем, можно ли теперь разблокировать кнопку "Далее"
                 checkAllConfirmed();
             });
         });
@@ -1296,7 +1309,6 @@ window.startPreTokenizer = function(smartRules, complexColumns) {
         });
 
         btnDone.addEventListener("click", () => {
-            // Двойная защита от клика, если кнопка заблокирована
             if (btnDone.style.pointerEvents === "none" || btnDone.disabled) return;
             currentIndex++;
             processNext();
