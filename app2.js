@@ -3948,18 +3948,29 @@ window.handleCardSelectForExport = async function (
 
       window.renderMapper2Cards(res.templateConfig);
 
-      // Умная навигация и ФИКС ВЕРСТКИ (Возвращаем центровку окна)
+      // Умная навигация и ФИКС ВЕРСТКИ
       if (isExported) {
-        if (step2) step2.style.display = "none";
-        if (step3) step3.style.display = "flex";
+        // 🔴 КРИТИЧЕСКИЙ ФИКС: Т.к. мы перепрыгиваем шаг 2, мы обязаны передать данные скрипту напрямую!
+        window.kaspiExportItems = window.parsedInvoiceData;
+        
+        // Сразу конвертируем цифры в текст, чтобы старый скрипт выгрузки не упал
+        let exportColMap = {};
+        Object.keys(window.mapper2State.colMap).forEach(k => {
+            let val = window.mapper2State.colMap[k];
+            exportColMap[k] = (typeof val === 'number') ? String(window.mapper2State.invoiceHeaders[val] || "") : String(val);
+        });
+        window.mapper2State.colMap = exportColMap;
+
+        window.mapper2State.history = [2, 3]; 
+        if (typeof window.navigateIncomeStep === "function") window.navigateIncomeStep(3, true);
         showParents("invoicePreviewArea");
-        if (incomeModal) incomeModal.style.display = "flex"; // <-- ФИКС
+        if (document.getElementById("income-modal")) document.getElementById("income-modal").style.display = "flex";
         window.renderPreviewTable();
       } else {
-        if (step3) step3.style.display = "none";
-        if (step2) step2.style.display = "flex";
+        window.mapper2State.history = [2]; 
+        if (typeof window.navigateIncomeStep === "function") window.navigateIncomeStep(2, true);
         showParents("mapper2Area");
-        if (incomeModal) incomeModal.style.display = "flex"; // <-- ФИКС
+        if (document.getElementById("income-modal")) document.getElementById("income-modal").style.display = "flex";
       }
 
       const btnArea = document.getElementById("exportActionButtons");
@@ -5321,11 +5332,12 @@ window.renderMapper2Cards = function (templateData) {
 
     if (foundIndex !== -1) window.mapper2State.colMap[req.sysKey] = foundIndex;
 
-    let mappedIndexRaw = window.mapper2State.colMap[req.sysKey];
-    // Умное распознавание: если это текст ("json_Бренд"), превращаем его обратно в индекс колонки
-    let mappedIndex = typeof mappedIndexRaw === 'string' 
-        ? window.mapper2State.invoiceHeaders.indexOf(mappedIndexRaw) 
-        : mappedIndexRaw;
+    // Умный фикс: используем rawIdx, чтобы убрать красное подчеркивание в VS Code
+    let rawIdx = window.mapper2State.colMap[req.sysKey];
+    let mappedIndex = typeof rawIdx === 'string' && window.mapper2State.invoiceHeaders 
+        ? window.mapper2State.invoiceHeaders.indexOf(rawIdx) 
+        : rawIdx;
+        
     let dictValue = window.mapper2State.dictValues && window.mapper2State.dictValues[req.sysKey];
 
     let statusClass = "status-empty";
