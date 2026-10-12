@@ -6203,24 +6203,13 @@ window.applyMapper2Logic = function () {
   const state = window.mapper2State;
 
   const qtyIdx = state.colMap["qty"];
-  const priceIdx =
-    state.colMap["price"] !== undefined
-      ? state.colMap["price"]
-      : state.colMap["cost"];
-  const nameIdx =
-    state.colMap["name"] !== undefined
-      ? state.colMap["name"]
-      : state.colMap["model"];
+  const priceIdx = state.colMap["price"] !== undefined ? state.colMap["price"] : state.colMap["cost"];
+  const nameIdx = state.colMap["name"] !== undefined ? state.colMap["name"] : state.colMap["model"];
 
   if (qtyIdx === undefined || priceIdx === undefined || nameIdx === undefined) {
     const lang = window.currentLang || localStorage.getItem("pos_lang") || "ru";
-    const tr =
-      typeof translations !== "undefined" && translations[lang]
-        ? translations[lang]
-        : {};
-    const errorMsg =
-      tr.mapper_err_missing_cols ||
-      "⚠️ Обязательно привяжите колонки:\n1. Наименование (или model)\n2. Количество (qty)\n3. Цена (price)";
+    const tr = typeof translations !== "undefined" && translations[lang] ? translations[lang] : {};
+    const errorMsg = tr.mapper_err_missing_cols || "⚠️ Обязательно привяжите колонки:\n1. Наименование (или model)\n2. Количество (qty)\n3. Цена (price)";
     return alert(errorMsg);
   }
 
@@ -6230,9 +6219,7 @@ window.applyMapper2Logic = function () {
     const templateName = templateSelect ? templateSelect.value : "";
     if (templateName) {
       let currentMemory = {};
-      try {
-        currentMemory = JSON.parse(window.mapper2State.rawMemoryJson || "{}");
-      } catch (e) {}
+      try { currentMemory = JSON.parse(window.mapper2State.rawMemoryJson || "{}"); } catch (e) {}
       let memoryUpdated = false;
 
       Object.keys(state.colMap).forEach((sysKey) => {
@@ -6240,9 +6227,7 @@ window.applyMapper2Logic = function () {
         let headerText = state.invoiceHeaders[colIndex];
         if (headerText) {
           let cleanWord = String(headerText).trim().toLowerCase();
-          if (!Array.isArray(currentMemory[sysKey])) {
-            currentMemory[sysKey] = [];
-          }
+          if (!Array.isArray(currentMemory[sysKey])) currentMemory[sysKey] = [];
           if (!currentMemory[sysKey].includes(cleanWord)) {
             currentMemory[sysKey].push(cleanWord);
             memoryUpdated = true;
@@ -6262,11 +6247,8 @@ window.applyMapper2Logic = function () {
           category: templateName,
           memoryJson: JSON.stringify(currentMemory),
         };
-        window
-          .smartFetch(GATEWAY_URL, payload)
-          .then(() =>
-            console.log("Словарь синонимов дополнен новыми заголовками"),
-          )
+        window.smartFetch(GATEWAY_URL, payload)
+          .then(() => console.log("Словарь синонимов дополнен новыми заголовками"))
           .catch((e) => console.error("Ошибка обновления словаря", e));
       }
     }
@@ -6277,15 +6259,11 @@ window.applyMapper2Logic = function () {
   window.invoiceGroups[state.docNo] = {
     supplier: state.supplier,
     items: [],
-    originalFiles: [
-      { fileName: state.fileName, fileBase64: state.originalBase64 },
-    ],
+    originalFiles: [{ fileName: state.fileName, fileBase64: state.originalBase64 }],
   };
 
-  const regex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,]/g;
-  let mappedIndices = Object.values(state.colMap).filter(
-    (v) => v !== undefined,
-  );
+  const regex = /\d+(?:\.\d+)?|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,]/g;
+  let mappedIndices = Object.values(state.colMap).filter((v) => typeof v === 'number');
 
   // === КАРАНТИН: Подготовка массива для коллизий ===
   window.mapper2State.quarantine = [];
@@ -6293,35 +6271,38 @@ window.applyMapper2Logic = function () {
   state.invoiceRows.forEach((row, index) => {
     if (!row || row.length === 0) return;
 
+    // ЗОЛОТОЙ ФИКС: Приоритет колонок над словарями + безопасный и четкий сплиттер
     const getValue = (primaryKey, kaspiKey) => {
-      if (state.dictValues && state.dictValues[primaryKey])
-        return state.dictValues[primaryKey];
-      if (kaspiKey && state.dictValues && state.dictValues[kaspiKey])
-        return state.dictValues[kaspiKey];
-
       let colIdx = state.colMap[primaryKey];
       if (colIdx === undefined && kaspiKey) colIdx = state.colMap[kaspiKey];
-      if (colIdx === undefined) return "";
 
-      let rawVal = String(row[colIdx] || "").trim();
-      if (state.splitRules && state.splitRules[primaryKey]) {
-        const tokens = rawVal.match(regex) || [];
-        let result = [];
-        state.splitRules[primaryKey].forEach((idx) => {
-          if (tokens[idx] !== undefined) result.push(tokens[idx]);
-        });
-        return result.join("");
+      // 1. Если колонка привязана, ЖЕСТКО берем данные из неё (игнорируя старые ошибки в словарях)
+      if (colIdx !== undefined && colIdx !== null && colIdx !== "") {
+          let rawVal = String(row[colIdx] || "").trim();
+          
+          let splitRule = state.splitRules && (state.splitRules[primaryKey] || (kaspiKey ? state.splitRules[kaspiKey] : null));
+          if (splitRule) {
+              const tokens = rawVal.match(regex) || [];
+              let indices = Array.isArray(splitRule) ? splitRule : (splitRule.rule || splitRule.tokens || []);
+              if (indices.length > 0) {
+                  return indices.map(idx => tokens[idx] || "").join("");
+              }
+          }
+          return rawVal;
       }
-      return rawVal;
+
+      // 2. Если колонка НЕ привязана, но есть статичное значение - берем его
+      if (state.dictValues && state.dictValues[primaryKey]) return state.dictValues[primaryKey];
+      if (kaspiKey && state.dictValues && state.dictValues[kaspiKey]) return state.dictValues[kaspiKey];
+
+      return "";
     };
 
     let rawQty = getValue("qty");
     let rawPrice = getValue("price", "cost");
     
-    // Усиленный парсер: убираем пробелы и безопасно переводим в число. Если пусто - ставим 0.
     let qty = parseFloat(String(rawQty).replace(/\s/g, "").replace(",", ".")) || 0;
     let price = parseFloat(String(rawPrice).replace(/\s/g, "").replace(",", ".")) || 0;
-    // Мы убрали 'if (isNaN) return', теперь скрипт не будет выбрасывать товары из-за пустых цен!
 
     let rawId = getValue("barcode", "merchant_sku");
     let barcode = /^\d{8,13}$/.test(rawId) ? rawId : "";
@@ -6339,31 +6320,20 @@ window.applyMapper2Logic = function () {
     let rawCbm = getValue("cbm");
     let cbm = rawCbm ? parseFloat(String(rawCbm).replace(",", ".")) : "";
     let rawWeight = getValue("weight");
-    let weight = rawWeight
-      ? parseFloat(String(rawWeight).replace(",", "."))
-      : "";
+    let weight = rawWeight ? parseFloat(String(rawWeight).replace(",", ".")) : "";
 
     let attributesObj = {};
     let itemHasCollisions = false;
     let itemCollisionsList = [];
 
-    // === ИДЕАЛЬНЫЙ ПАРСЕР И КАРАНТИН (С поддержкой Сплиттера) ===
+    // === ИДЕАЛЬНЫЙ ПАРСЕР И КАРАНТИН ===
     const processAttribute = (key) => {
       let lowerKey = String(key).toLowerCase();
+      // Сплиттер уже применен внутри getValue, получаем готовую чистую строку!
       let rawValue = getValue(key);
 
       if (["qty", "price", "cost", "name", "model", "barcode", "cbm", "weight"].includes(lowerKey)) return;
       if (!rawValue) return;
-
-      // 1. ВОЗВРАЩАЕМ СПЛИТТЕР: Правильно рубим строку для КАЖДОГО товара
-      let splitRule = window.mapper2State.splitRules && window.mapper2State.splitRules[key];
-      if (splitRule) {
-          let tokens = String(rawValue).match(/\d+(?:\.\d+)?|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,]/g) || [];
-          let indices = Array.isArray(splitRule) ? splitRule : (splitRule.rule || splitRule.tokens || []);
-          if (indices.length > 0) {
-              rawValue = indices.map(idx => tokens[idx] || "").join("");
-          }
-      }
 
       let humanName = state.sysToHumanMap ? state.sysToHumanMap[key] : key;
       let searchString = rawValue;
@@ -6390,7 +6360,7 @@ window.applyMapper2Logic = function () {
         }
       }
 
-      // 2. Блокируем карантин в режиме экспорта
+      // Блокируем карантин в режиме экспорта
       if (!window.isKaspiExportMode && window.currentImportMode === "kaspi" && hasDictionary && !foundMatch) {
         let needsTokenization = dict.some((ex) => {
             const str = String(ex).trim();
@@ -6415,20 +6385,13 @@ window.applyMapper2Logic = function () {
       attributesObj[key] = matchedDictValue;
     };
 
-    // Собираем ВСЕ ключи: обычные привязки, статику и результаты Сита
     let allKeys = new Set(Object.keys(state.colMap));
-    if (state.dictValues)
-      Object.keys(state.dictValues).forEach((k) => allKeys.add(k));
-    if (state.splitRules)
-      Object.keys(state.splitRules).forEach((k) => allKeys.add(k));
+    if (state.dictValues) Object.keys(state.dictValues).forEach((k) => allKeys.add(k));
+    if (state.splitRules) Object.keys(state.splitRules).forEach((k) => allKeys.add(k));
 
-    // Прогоняем их все через наш умный сканер
     allKeys.forEach((key) => processAttribute(key));
 
-    let finalAttributes =
-      Object.keys(attributesObj).length > 0
-        ? JSON.stringify(attributesObj)
-        : "";
+    let finalAttributes = Object.keys(attributesObj).length > 0 ? JSON.stringify(attributesObj) : "";
 
     const itemData = {
       doc_no: state.docNo,
@@ -6441,10 +6404,7 @@ window.applyMapper2Logic = function () {
       weight: weight,
       attributes: finalAttributes,
       raw_logistics: rawLogisticsStr.trim(),
-      staff_id:
-        typeof currentUser !== "undefined" && currentUser
-          ? currentUser.uid
-          : "Auto-Import",
+      staff_id: typeof currentUser !== "undefined" && currentUser ? currentUser.uid : "Auto-Import",
       id: rawId,
       name: name,
       desc: name,
@@ -6463,9 +6423,7 @@ window.applyMapper2Logic = function () {
     if (itemHasCollisions) {
       itemCollisionsList.forEach((collision) => {
         const exists = window.mapper2State.quarantine.find(
-          (q) =>
-            q.rawString === collision.rawString &&
-            q.sysKey === collision.sysKey,
+          (q) => q.rawString === collision.rawString && q.sysKey === collision.sysKey,
         );
         if (!exists) {
           window.mapper2State.quarantine.push(collision);
@@ -6475,20 +6433,12 @@ window.applyMapper2Logic = function () {
   });
 
   if (window.parsedInvoiceData.length === 0) {
-    return alert(
-      "Не удалось сформировать товары. Убедитесь, что в колонках «Количество» и «Цена» находятся ТОЛЬКО цифры.",
-    );
+    return alert("Не удалось сформировать товары. Убедитесь, что в колонках «Количество» и «Цена» находятся ТОЛЬКО цифры.");
   }
 
   // === ПРОВЕРКА КАРАНТИНА И ЗАПУСК ТОКЕНИЗАТОРА ===
-  if (
-    window.mapper2State.quarantine &&
-    window.mapper2State.quarantine.length > 0
-  ) {
-    console.log(
-      "Внимание: Найдены сложные нераспознанные форматы. Запуск Токенизатора...",
-      window.mapper2State.quarantine,
-    );
+  if (window.mapper2State.quarantine && window.mapper2State.quarantine.length > 0) {
+    console.log("Внимание: Найдены сложные нераспознанные форматы. Запуск Токенизатора...", window.mapper2State.quarantine);
     if (typeof window.startTokenizerQueue === "function") {
       window.startTokenizerQueue();
     } else {
@@ -6510,8 +6460,7 @@ window.applyMapper2Logic = function () {
     const exportBtns = document.getElementById("exportActionButtons");
     if (exportBtns) exportBtns.style.display = "flex";
 
-    // 🔴 БРОНЯ ОТ ОШИБКИ startsWith is not a function:
-    // Экспорт ждет строковые ключи, а не цифры-индексы. Принудительно конвертируем.
+    // 🔴 БРОНЯ ОТ ОШИБКИ startsWith:
     let exportColMap = {};
     Object.keys(window.mapper2State.colMap).forEach(k => {
         let val = window.mapper2State.colMap[k];
@@ -6520,15 +6469,14 @@ window.applyMapper2Logic = function () {
         } else if (val !== undefined && val !== null) {
             exportColMap[k] = String(val);
         } else {
-            exportColMap[k] = ""; // Важно: пустая строка, чтобы startsWith не падал на undefined
+            exportColMap[k] = ""; // Пустая строка, чтобы startsWith не падал
         }
     });
     window.mapper2State.colMap = exportColMap;
 
     window.kaspiExportItems = window.parsedInvoiceData;
   }
-  // ==============================================
-}; // Конец функции applyMapper2Logic
+};
 
 // === ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ РЕДАКТОРА ===
 window.currentEditIndex = null;
