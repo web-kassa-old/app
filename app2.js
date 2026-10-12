@@ -6352,26 +6352,37 @@ window.applyMapper2Logic = function () {
                               (normKaspi && state.splitRules && (state.splitRules[kaspiKey] || state.splitRules[normKaspi] || state.splitRules[`json_${normKaspi}`]));
 
               if (splitRule) {
-                  // Используем ту же регулярку для честного отделения точки
                   const tokens = rawVal.match(/\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g) || [];
                   const currentMask = tokens.map(t => /^\d+$/.test(t) ? "N" : /^[a-zA-Zа-яА-ЯёЁ]+$/.test(t) ? "A" : "S").join("-");
-                  
+
                   let indices = [];
                   if (Array.isArray(splitRule)) {
                       if (typeof splitRule[0] === 'number') {
-                          indices = splitRule; // Поддержка старого плоского формата
+                          indices = splitRule; // Старый формат
                       } else {
-                          // Новый формат: ищем правило, маска которого точно совпадает с текущей строкой
                           const matchedRule = splitRule.find(r => r.mask === currentMask);
-                          if (matchedRule) indices = matchedRule.rule || [];
+                          // ⚡ ФОЛЛБЭК: Если точной маски нет (из-за мусора в конце строки), 
+                          // применяем самое первое сохраненное правило!
+                          indices = matchedRule ? matchedRule.rule : (splitRule[0] ? splitRule[0].rule : []);
                       }
                   } else if (splitRule.mask) {
-                      if (splitRule.mask === currentMask) indices = splitRule.rule || [];
+                      indices = (splitRule.mask === currentMask) ? splitRule.rule : splitRule.rule;
                   } else {
                       indices = splitRule.rule || splitRule.tokens || [];
                   }
 
-                  if (indices.length > 0) return indices.map(idx => tokens[idx] || "").join("");
+                  if (indices.length > 0) {
+                      let extracted = indices.map(idx => tokens[idx] || "").join("");
+
+                      // ⚡ Применяем память Алиасов (если клиент научил скрипт менять 11 на 11.00)
+                      if (window.mapper2State.tokenAliases && 
+                          window.mapper2State.tokenAliases[kaspiKey] && 
+                          window.mapper2State.tokenAliases[kaspiKey][extracted]) {
+                          return window.mapper2State.tokenAliases[kaspiKey][extracted];
+                      }
+
+                      return extracted;
+                  }
               }
               return rawVal;
           }
