@@ -3854,8 +3854,6 @@ window.handleCardSelectForExport = async function (
           barcode: dbItem.barcode || dbItem.ean || "",
         });
 
-        // 1. ВОЗВРАЩАЕМ ТРИГГЕР json_ 
-        // Без него старый скрипт выгрузки не понимает, что нужно искать данные в характеристиках!
         for (const [key, value] of Object.entries(attrs)) {
           if (flatItem[`json_${key}`] === undefined) flatItem[`json_${key}`] = value;
           if (flatItem[key] === undefined) flatItem[key] = value;
@@ -3904,13 +3902,11 @@ window.handleCardSelectForExport = async function (
           "weight": "weight" 
       };
       
-      // 1. Базовые поля (передаем ИНДЕКС dbColIdx)
       Object.keys(baseFieldsMap).forEach(sysKey => {
           const dbColIdx = extractedHeaders.indexOf(baseFieldsMap[sysKey]);
           if (dbColIdx !== -1) window.mapper2State.colMap[sysKey] = dbColIdx; 
       });
 
-      // 2. Атрибуты Kaspi
       if (res.templateConfig && res.templateConfig.systemKeys) {
          res.templateConfig.systemKeys.forEach((sysKey, idx) => {
              const hName = String(res.templateConfig.humanNames[idx]).toLowerCase();
@@ -3925,7 +3921,7 @@ window.handleCardSelectForExport = async function (
                  if (nIdx !== -1) window.mapper2State.colMap[sysKey] = nIdx;
              }
              else if (lowerSys.includes("desc") || hName.includes("описание")) {
-                 let nIdx = extractedHeaders.indexOf("item_name"); // Страхуем от штрихкода
+                 let nIdx = extractedHeaders.indexOf("item_name");
                  if (nIdx !== -1) window.mapper2State.colMap[sysKey] = nIdx;
              }
              else {
@@ -3933,7 +3929,6 @@ window.handleCardSelectForExport = async function (
                      const lowerH = h.toLowerCase();
                      return lowerH === `json_${lowerSys}` || lowerH === `json_${hName}`;
                  });
-                 // ВОЗВРАЩАЕМ ИНДЕКС: благодаря этому появятся зеленые галочки!
                  if (dbColIdx !== -1) window.mapper2State.colMap[sysKey] = dbColIdx; 
              }
          });
@@ -3942,18 +3937,15 @@ window.handleCardSelectForExport = async function (
       const step1 = document.getElementById("uploadStepArea");
       const step2 = document.getElementById("mapper2Area");
       const step3 = document.getElementById("invoicePreviewArea");
-      const incomeModal = document.getElementById("income-modal");
 
       if (step1) step1.style.display = "none";
 
       window.renderMapper2Cards(res.templateConfig);
 
-      // Умная навигация и ФИКС ВЕРСТКИ
+      // === УМНАЯ НАВИГАЦИЯ И ФИКС ПУСТЫХ ДАННЫХ ===
       if (isExported) {
-        // 🔴 КРИТИЧЕСКИЙ ФИКС: Т.к. мы перепрыгиваем шаг 2, мы обязаны передать данные скрипту напрямую!
         window.kaspiExportItems = window.parsedInvoiceData;
         
-        // Сразу конвертируем цифры в текст, чтобы старый скрипт выгрузки не упал
         let exportColMap = {};
         Object.keys(window.mapper2State.colMap).forEach(k => {
             let val = window.mapper2State.colMap[k];
@@ -3973,7 +3965,7 @@ window.handleCardSelectForExport = async function (
         if (document.getElementById("income-modal")) document.getElementById("income-modal").style.display = "flex";
       }
 
-      const btnArea = document.getElementById("exportActionButtons");
+      // Возвращаем видимость кнопок в самом конце
       if (btnArea) {
         btnArea.style.display = "flex";
         if (step3) step3.appendChild(btnArea);
@@ -5463,8 +5455,18 @@ window.renderMapper2Cards = function (templateData) {
   if (currency) currency.style.display = "none";
 
   document.getElementById("mapper2Area").style.display = "flex";
-  
-  // ФИКС: Мультиязычная кнопка + ПЕРЕХВАТ ХАРДКОДНОЙ КНОПКИ "НАЗАД"
+
+  // === ИЗОЛЯЦИЯ ИНТЕРФЕЙСА ===
+  const sendBtn = document.getElementById("sendInvoiceBtn");
+  const exportBtns = document.getElementById("exportActionButtons");
+  if (window.isKaspiExportMode) {
+      if (sendBtn) sendBtn.style.display = "none";
+      if (exportBtns) exportBtns.style.display = "flex";
+  } else {
+      if (sendBtn) sendBtn.style.display = "block";
+      if (exportBtns) exportBtns.style.display = "none";
+  }
+
   const applyBtn = document.getElementById("applyMapper2Btn");
   if (applyBtn) {
       applyBtn.style.display = "block";
@@ -5479,7 +5481,7 @@ window.renderMapper2Cards = function (templateData) {
           applyBtn.setAttribute("data-i18n", "inc_submit_invoice");
       }
 
-      // Находим кнопку "Назад" рядом и заставляем её использовать нашу умную историю
+      // Жесткая кнопка "Назад"
       const mapperArea = document.getElementById("mapper2Area");
       if (mapperArea) {
           const btns = mapperArea.querySelectorAll('button');
@@ -5488,13 +5490,17 @@ window.renderMapper2Cards = function (templateData) {
               if (txt === "НАЗАД" || txt === "АРТҚА") {
                   b.onclick = function(e) {
                       e.preventDefault();
-                      window.navigateBack();
+                      if (window.isKaspiExportMode) {
+                          if (document.getElementById("income-modal")) document.getElementById("income-modal").style.display = "none";
+                      } else {
+                          if (typeof window.navigateIncomeStep === "function") window.navigateIncomeStep(1, true);
+                      }
                   };
               }
           });
       }
   }
-}; // <-- Конец функции renderMapper2Cards
+};
 
 // 3. ОТКРЫТИЕ ШТОРКИ И ОТРИСОВКА КОЛОНОК
 window.openColumnSelector = function (sysKey, reqName, isKaspi) {
@@ -6596,7 +6602,7 @@ window.renderPreviewTable = function () {
           } catch (e) {}
         }
 
-        // ИСПРАВЛЕНИЕ: Разбиваем товар на две строки.
+        // Разбиваем товар на две строки.
         // Первая строка: Название, Код, Количество, Цена.
         // Вторая строка (colspan="2"): Параметры и кнопка, растянутые на всю ширину.
         return `
@@ -6617,7 +6623,7 @@ window.renderPreviewTable = function () {
             <td colspan="2" style="padding: 0 8px 12px 8px; border-top: none;">
                 ${attrsHtml}
                 <button onclick="window.openEditorMain(${index})" style="width: 100%; background: rgba(128,128,128,0.05); border: 1px dashed var(--border-light); color: var(--text-muted); cursor: pointer; border-radius: 4px; font-size: 11px; margin-top: 10px; padding: 10px;">
-                    ✏️️ <span data-i18n="inc_edit_params">${t.inc_edit_params || "Изменить параметры"}</span>
+                    ✏ <span data-i18n="inc_edit_params">${t.inc_edit_params || "Изменить параметры"}</span>
                 </button>
             </td>
         </tr>`;
@@ -6630,7 +6636,7 @@ window.renderPreviewTable = function () {
         const sendBtn = document.getElementById("sendInvoiceBtn");
         if (sendBtn) sendBtn.style.display = "none";
         
-        // 2. Оживляем системную кнопку "Назад"
+        // 2. Оживляем системную кнопку "Назад" (Без запутанной истории)
         const previewArea = document.getElementById("invoicePreviewArea");
         if (previewArea) {
             const btns = previewArea.querySelectorAll('button');
@@ -6640,13 +6646,9 @@ window.renderPreviewTable = function () {
                     b.style.display = 'block'; 
                     b.onclick = function(e) {
                         e.preventDefault();
-                        if (window.isKaspiExportMode) {
-                            // Жесткий фикс: переключаем экраны вручную, игнорируя баги истории
-                            document.getElementById("invoicePreviewArea").style.display = "none";
-                            document.getElementById("mapper2Area").style.display = "flex";
-                        } else {
-                            window.navigateBack();
-                        }
+                        // Просто прячем 3-й экран и показываем 2-й (никаких двойных прыжков!)
+                        document.getElementById("invoicePreviewArea").style.display = "none";
+                        document.getElementById("mapper2Area").style.display = "flex";
                     };
                 }
             });
@@ -6672,7 +6674,6 @@ window.renderPreviewTable = function () {
                 resetBtn.style.color = 'var(--btn-danger-text, #ffffff)';
                 resetBtn.style.border = '1px solid var(--btn-danger-border, #dc2626)';
                 
-                // ИСПРАВЛЕНИЕ 1: Увеличили padding и задали минимальную высоту
                 resetBtn.style.padding = '12px 15px'; 
                 resetBtn.style.minHeight = '42px';
                 
