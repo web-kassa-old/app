@@ -5329,6 +5329,35 @@ window.renderMapper2Cards = function (templateData) {
     let mappedIndex = typeof rawIdx === 'string' && window.mapper2State.invoiceHeaders 
         ? window.mapper2State.invoiceHeaders.indexOf(rawIdx) 
         : rawIdx;
+
+    // === АВТО-ТОКЕНИЗАТОР (УМНОЕ РАСПРЕДЕЛЕНИЕ ДО ОТРИСОВКИ) ===
+    if (mappedIndex !== undefined && mappedIndex !== -1 && !window.mapper2State.splitRules[req.sysKey]) {
+        let sampleText = "";
+        for (let i = 0; i < Math.min(5, window.mapper2State.invoiceRows.length); i++) {
+            let val = String(window.mapper2State.invoiceRows[i][mappedIndex] || "").trim();
+            if (val && /\d/.test(val)) { sampleText = val; break; }
+        }
+        
+        let dict = window.kaspiDicts && window.kaspiDicts[req.name];
+        if (sampleText && dict && dict.length > 0) {
+            let tokens = sampleText.match(/\d+(?:\.\d+)?|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,]/g) || [];
+            if (tokens.length > 1) {
+                for (let i = 0; i < tokens.length; i++) {
+                    let tok = tokens[i];
+                    let isNum = /^[\d\.]+$/.test(tok);
+                    let isMatch = dict.some(d => {
+                        let baseDv = String(d).split('(')[0].trim();
+                        return baseDv.toLowerCase() === tok.toLowerCase() || (isNum && parseFloat(baseDv) === parseFloat(tok));
+                    });
+                    if (isMatch) {
+                        window.mapper2State.splitRules[req.sysKey] = [i]; // Автоматом назначаем кусок!
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    // ============================================================
         
     let dictValue = window.mapper2State.dictValues && window.mapper2State.dictValues[req.sysKey];
 
@@ -6352,11 +6381,6 @@ window.applyMapper2Logic = function () {
 
       let humanName = state.sysToHumanMap ? state.sysToHumanMap[key] : key;
       let searchString = rawValue;
-      // ХИТРЫЙ ПЕРЕХВАТ: Если сплиттер не сработал, насильно достаем цифры для Ширины и Диаметра
-      if (lowerKey.includes('width') || humanName.toLowerCase().includes('ширина') || lowerKey.includes('diameter') || humanName.toLowerCase().includes('диаметр')) {
-          let nums = searchString.match(/\d+(?:\.\d+)?/g);
-          if (nums && nums.length > 0) searchString = nums[0]; // Берем первое найденное число
-      }
       let dict = window.kaspiDicts && window.kaspiDicts[humanName];
       let hasDictionary = dict && Array.isArray(dict) && dict.length > 0;
       let foundMatch = false;
