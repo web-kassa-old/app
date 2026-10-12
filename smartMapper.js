@@ -90,7 +90,7 @@ window.detectComplexColumns = function (headers, rows) {
 
 /**
  * Рендер модалки "Умное сито"
- * @param {Array} detectedColumns - Результат работы detectComplexColumns()
+ * @param {Array} complexColumns - Результат работы detectComplexColumns()
  */
 window.renderSmartMapperModal = function (complexColumns) {
   const container = document.getElementById("smartMapperContainer");
@@ -102,7 +102,6 @@ window.renderSmartMapperModal = function (complexColumns) {
 
   const header = document.createElement("div");
   header.className = "smart-modal-header";
-  // Подключаем архитектуру перевода для шапки
   header.setAttribute("data-i18n", "smart_mapper_title");
   modal.appendChild(header);
 
@@ -112,46 +111,27 @@ window.renderSmartMapperModal = function (complexColumns) {
   let kaspiParams = [];
   const tData = window.currentTemplateData;
 
-  if (tData && tData.humanNames) {
-    const excludeFromSmart = [
-      "Артикул",
-      "Название товара",
-      "Бренд",
-      "Цена",
-      "Название модели",
-      "Модель",
-      "Рубрика",
-      "category",
-      "Сезонность",
-      "Назначение",
-      "Тип шины",
-      "Комплектация",
-      "Тип рисунка протектора",
-      "Шипы",
-      "Код изображений",
-      "Ссылка на YouTube",
-      "Ссылка на картинку",
-      "Описание (мин. 100 символов, макс. 7 000 символов)",
-      "Описание",
-      "Вес для расчета логистики",
-      "Объединить в одну карточку",
-      "В наличии",
-    ];
+  if (tData && tData.humanNames && tData.systemKeys) {
+    // УНИВЕРСАЛЬНЫЙ ФИЛЬТР: Исключаем только железобетонные базовые параметры, 
+    // которые никогда не бывают зашиты в сложные составные строки.
+    const baseWords = ["sku", "brand", "price", "cost", "qty", "name", "model", "barcode", "артикул", "бренд", "цена", "количество", "название", "описание", "ссылка", "youtube", "вес"];
 
     for (let i = 0; i < tData.humanNames.length; i++) {
       const paramName = tData.humanNames[i];
+      const sysKey = String(tData.systemKeys[i] || "").toLowerCase();
       const dictData = tData.dictionary ? tData.dictionary[paramName] : null;
 
-      if (Array.isArray(dictData)) {
-        const validExamples = dictData.filter(
-          (val) => val && String(val).trim() !== "",
-        );
-        if (validExamples.length > 0 && !excludeFromSmart.includes(paramName)) {
+      // Динамическая проверка: если системный ключ или имя содержат базовое слово - пропускаем
+      const isBaseField = baseWords.some(w => sysKey.includes(w) || String(paramName).toLowerCase().includes(w));
+
+      if (Array.isArray(dictData) && !isBaseField) {
+        const validExamples = dictData.filter((val) => val && String(val).trim() !== "");
+        
+        if (validExamples.length > 0) {
+          // Умный фильтр отсеет всё, где нет цифр или коротких кодов (оставит только размеры, индексы и т.д.)
           const isCodeOrNumber = validExamples.some((ex) => {
             const str = String(ex).trim();
-            return (
-              /\d/.test(str) || (/^[a-zA-Z]+$/.test(str) && str.length <= 3)
-            );
+            return (/\d/.test(str) || (/^[a-zA-Z]+$/.test(str) && str.length <= 3));
           });
 
           if (isCodeOrNumber) {
@@ -175,28 +155,19 @@ window.renderSmartMapperModal = function (complexColumns) {
     card.className = "smart-mapper-card";
     card.dataset.colname = col.colName;
 
-    // Динамический перевод английской шапки колонки из глобального словаря (если есть)
     const rawColName = String(col.colName).toLowerCase().trim();
     let translatedName = col.colName;
-    if (
-      typeof translations !== "undefined" &&
-      typeof currentLang !== "undefined"
-    ) {
+    if (typeof translations !== "undefined" && typeof currentLang !== "undefined") {
       if (translations[currentLang] && translations[currentLang][rawColName]) {
         translatedName = `${translations[currentLang][rawColName]} (${col.colName})`;
       }
     }
 
-    // Достаем массив уже отмеченных параметров для конкретной колонки
     const currentSavedParams = savedRules[col.colName] || [];
 
     let checkboxesHtml = kaspiParams
       .map((param) => {
-        let exampleSpans = param.examples
-          .map((ex) => `<span>${ex}</span>`)
-          .join("");
-
-        // Восстанавливаем состояние чекбокса
+        let exampleSpans = param.examples.map((ex) => `<span>${ex}</span>`).join("");
         let isChecked = currentSavedParams.includes(param.id) ? "checked" : "";
         let activeClass = isChecked ? "active" : "";
 
@@ -209,23 +180,16 @@ window.renderSmartMapperModal = function (complexColumns) {
                     </div>
                 </label>
             `;
-      })
-      .join("");
+      }).join("");
 
-    // Восстанавливаем отрисовку зеленых чипсов
     let initialChips = "";
     if (currentSavedParams.length > 0) {
-      let selectedNames = kaspiParams
-        .filter((p) => currentSavedParams.includes(p.id))
-        .map((p) => p.name);
-      initialChips = selectedNames
-        .map((name) => `<span class="chip">${name}</span>`)
-        .join("");
+      let selectedNames = kaspiParams.filter((p) => currentSavedParams.includes(p.id)).map((p) => p.name);
+      initialChips = selectedNames.map((name) => `<span class="chip">${name}</span>`).join("");
     } else {
       initialChips = `<span class="empty-chips" data-i18n="smart_mapper_empty"></span>`;
     }
 
-    // Вся статика размечена атрибутами data-i18n
     card.innerHTML = `
             <div class="smart-col-info">
                 <span data-i18n="smart_mapper_col_prefix"></span> <span>${translatedName.toUpperCase()}</span>
@@ -256,11 +220,8 @@ window.renderSmartMapperModal = function (complexColumns) {
           .map((box) => box.dataset.name);
 
         if (selected.length > 0) {
-          chipsContainer.innerHTML = selected
-            .map((name) => `<span class="chip">${name}</span>`)
-            .join("");
+          chipsContainer.innerHTML = selected.map((name) => `<span class="chip">${name}</span>`).join("");
         } else {
-          // Возвращаем пустую надпись и переводим её на лету
           chipsContainer.innerHTML = `<span class="empty-chips" data-i18n="smart_mapper_empty"></span>`;
           if (typeof applyLanguage === "function") applyLanguage(currentLang);
         }
@@ -277,20 +238,11 @@ window.renderSmartMapperModal = function (complexColumns) {
   let backBtnText = "НАЗАД";
   let confirmBtnText = "ПОДТВЕРДИТЬ";
 
-  if (
-    typeof translations !== "undefined" &&
-    typeof currentLang !== "undefined" &&
-    translations[currentLang]
-  ) {
-    if (translations[currentLang]["smart_mapper_back"]) {
-      backBtnText = translations[currentLang]["smart_mapper_back"];
-    } else if (translations[currentLang]["cancel"]) {
-      backBtnText = translations[currentLang]["cancel"]; // Резервное слово, если нет ключа
-    }
+  if (typeof translations !== "undefined" && typeof currentLang !== "undefined" && translations[currentLang]) {
+    if (translations[currentLang]["smart_mapper_back"]) backBtnText = translations[currentLang]["smart_mapper_back"];
+    else if (translations[currentLang]["cancel"]) backBtnText = translations[currentLang]["cancel"];
 
-    if (translations[currentLang]["smart_mapper_btn"]) {
-      confirmBtnText = translations[currentLang]["smart_mapper_btn"];
-    }
+    if (translations[currentLang]["smart_mapper_btn"]) confirmBtnText = translations[currentLang]["smart_mapper_btn"];
   }
 
   // === СОБИРАЕМ ПОДВАЛ С ДВУМЯ КНОПКАМИ ===
@@ -305,13 +257,7 @@ window.renderSmartMapperModal = function (complexColumns) {
   modal.appendChild(footer);
   container.appendChild(modal);
 
-  // Запускаем глобальный переводчик (на всякий случай для других статических текстов)
-  if (
-    typeof applyLanguage === "function" &&
-    typeof currentLang !== "undefined"
-  ) {
-    applyLanguage(currentLang);
-  }
+  if (typeof applyLanguage === "function" && typeof currentLang !== "undefined") applyLanguage(currentLang);
 
   // === БЕЗОПАСНАЯ ПРИВЯЗКА КНОПОК ===
   const backBtn = document.getElementById("smartBackBtn");
@@ -319,9 +265,7 @@ window.renderSmartMapperModal = function (complexColumns) {
 
   if (backBtn) {
     backBtn.addEventListener("click", () => {
-      if (typeof window.navigateIncomeStep === "function") {
-        window.navigateIncomeStep(1);
-      }
+      if (typeof window.navigateIncomeStep === "function") window.navigateIncomeStep(1);
     });
   }
 
@@ -332,9 +276,7 @@ window.renderSmartMapperModal = function (complexColumns) {
       const cards = body.querySelectorAll(".smart-mapper-card");
       cards.forEach((card) => {
         const colName = card.dataset.colname;
-        const checkedBoxes = Array.from(
-          card.querySelectorAll('input[type="checkbox"]:checked'),
-        );
+        const checkedBoxes = Array.from(card.querySelectorAll('input[type="checkbox"]:checked'));
         const selectedParams = checkedBoxes.map((cb) => cb.value);
 
         if (selectedParams.length > 0) {
@@ -342,12 +284,17 @@ window.renderSmartMapperModal = function (complexColumns) {
         }
       });
 
-      // Просим роутер открыть Шаг 2 и рендерим карточки
-      if (typeof window.navigateIncomeStep === "function") {
-        window.navigateIncomeStep(2);
-      }
-      if (typeof window.renderMapper2Cards === "function") {
-        window.renderMapper2Cards(window.currentTemplateData);
+      // 1. Прячем окно Сита
+      const smartContainer = document.getElementById("smartMapperContainer");
+      if (smartContainer) smartContainer.innerHTML = "";
+
+      // 2. ЗАПУСКАЕМ ТОКЕНИЗАТОР (ОБУЧЕНИЕ) ВМЕСТО МАППИНГА!
+      if (typeof window.startPreTokenizer === "function") {
+        window.startPreTokenizer(window.mapper2State.smartRules, window.mapper2State.lastComplexColumns);
+      } else {
+        // Запасной вариант
+        if (typeof window.navigateIncomeStep === "function") window.navigateIncomeStep(2);
+        if (typeof window.renderMapper2Cards === "function") window.renderMapper2Cards(window.currentTemplateData);
       }
     });
   }
@@ -1132,4 +1079,166 @@ window.startTokenizerQueue = function () {
   }
 
   processNext();
+};
+
+window.startPreTokenizer = function(smartRules, complexColumns) {
+    const queue = [];
+    
+    // Формируем очередь только из тех колонок, где клиент поставил галочки
+    Object.keys(smartRules).forEach(colName => {
+        const colInfo = complexColumns.find(c => c.colName === colName);
+        if (colInfo && smartRules[colName].length > 0) {
+            queue.push({
+                colName: colName,
+                example: colInfo.example,
+                humanNames: smartRules[colName]
+            });
+        }
+    });
+
+    let currentIndex = 0;
+    
+    function processNext() {
+        // Если все колонки нарезаны — переходим в Основной Маппинг (Этап 3)!
+        if (currentIndex >= queue.length) {
+            const overlay = document.getElementById("tokenizer-overlay");
+            if (overlay) { 
+                overlay.style.display = "none"; 
+                overlay.innerHTML = ""; 
+            }
+            if (typeof window.navigateIncomeStep === "function") window.navigateIncomeStep(2);
+            if (typeof window.renderMapper2Cards === "function") window.renderMapper2Cards(window.currentTemplateData);
+            return;
+        }
+
+        const item = queue[currentIndex];
+        const currentTokens = item.example.match(/\d+[\.,]\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g) || [item.example];
+        
+        // Показываем в списке ТОЛЬКО те параметры, которые клиент выбрал в Сите
+        const paramsList = item.humanNames.map(name => {
+            return { name: name };
+        });
+
+        // Открываем модалку Токенизатора (используем уже готовую функцию отрисовки)
+        window.showTokenizer(item.colName, currentTokens, paramsList);
+        const overlay = document.getElementById("tokenizer-overlay");
+        
+        // Меняем тексты специально для режима обучения
+        const titleEl = overlay.querySelector(".modal-title");
+        if (titleEl) titleEl.textContent = `Обучение: Шаг ${currentIndex + 1} из ${queue.length}`;
+        
+        const descEl = overlay.querySelector(".modal-subtitle");
+        if (descEl) descEl.textContent = "Свяжите фрагменты текста с параметрами. Скрипт запомнит это правило для всей колонки.";
+
+        const tokensBtns = overlay.querySelectorAll(".token");
+        const paramRows = overlay.querySelectorAll(".param-row");
+        const btnClear = overlay.querySelector(".btn-clear");
+        const btnDone = overlay.querySelector(".btn-done");
+        const btnBack = overlay.querySelector(".btn-back");
+
+        if (btnBack) {
+            if (currentIndex === 0) { 
+                btnBack.style.opacity = "0.5"; 
+                btnBack.style.pointerEvents = "none"; 
+            }
+            btnBack.addEventListener("click", () => {
+                if (currentIndex > 0) { currentIndex--; processNext(); }
+            });
+        }
+
+        const updatePreview = () => {
+            overlay.querySelectorAll(".param-row:not(.disabled) .param-preview").forEach(el => el.innerHTML = "");
+            const activeRow = overlay.querySelector(".param-row.active-target");
+            if (!activeRow) return;
+            const selectedText = Array.from(overlay.querySelectorAll(".token.selected")).map(b => b.textContent).join("");
+            activeRow.querySelector(".param-preview").textContent = selectedText;
+        };
+
+        tokensBtns.forEach(btn => {
+            btn.addEventListener("click", () => {
+                if (btn.classList.contains("disabled")) return;
+                btn.classList.toggle("selected");
+                updatePreview();
+            });
+        });
+
+        paramRows.forEach(row => {
+            row.addEventListener("click", () => {
+                if (row.classList.contains("disabled")) return;
+                paramRows.forEach(r => { 
+                    r.classList.remove("active-target"); 
+                    r.querySelector(".btn-confirm-inline").style.display = "none"; 
+                });
+                row.classList.add("active-target");
+                row.querySelector('input[type="radio"]').checked = true;
+                row.querySelector(".btn-confirm-inline").style.display = "block";
+                updatePreview();
+            });
+        });
+
+        paramRows.forEach(row => {
+            const confirmBtn = row.querySelector(".btn-confirm-inline");
+            confirmBtn.addEventListener("click", (e) => {
+                e.stopPropagation();
+                const paramName = row.querySelector('input[type="radio"]').value;
+                const gluedText = row.querySelector(".param-preview").textContent;
+                if (!gluedText) return;
+
+                // Превращаем красивое имя (Ширина профиля) в системный ключ (kaspi_width)
+                let sysKey = paramName;
+                if (window.currentTemplateData && window.currentTemplateData.humanNames) {
+                    const idx = window.currentTemplateData.humanNames.indexOf(paramName);
+                    if (idx !== -1) sysKey = window.currentTemplateData.systemKeys[idx];
+                }
+
+                const selectedTokens = Array.from(overlay.querySelectorAll(".token.selected"));
+                const tokenIndexes = selectedTokens.map(t => parseInt(t.dataset.index));
+
+                // ⚡ САМОЕ ВАЖНОЕ: Сохраняем индексы в память Сплиттера!
+                window.mapper2State.splitRules = window.mapper2State.splitRules || {};
+                window.mapper2State.splitRules[sysKey] = tokenIndexes;
+
+                // Блокируем строку и показываем галочку
+                row.classList.remove("active-target");
+                row.classList.add("disabled");
+                row.querySelector(".param-preview").style.display = "none";
+                row.querySelector(".btn-confirm-inline").style.display = "none";
+                
+                const badgeHtml = `<span class="param-badge" style="background: var(--accent-green, #2ecc71); color: #000; padding: 4px 12px; border-radius: 6px; font-size: 13px; font-weight: bold; margin-left: auto;">✓ ${gluedText}</span>`;
+                row.insertAdjacentHTML("beforeend", badgeHtml);
+
+                // Делаем выбранные токены серыми
+                overlay.querySelectorAll(".token.selected").forEach(t => {
+                    t.classList.remove("selected");
+                    t.classList.add("disabled");
+                });
+
+                // Активируем кнопку ДАЛЕЕ
+                btnDone.style.opacity = "1";
+                btnDone.style.pointerEvents = "auto";
+                btnDone.style.cursor = "pointer";
+            });
+        });
+
+        btnClear.addEventListener("click", () => {
+            // Очищаем память, если клиент ошибся и нажал "Сбросить"
+            item.humanNames.forEach(paramName => {
+                let sysKey = paramName;
+                if (window.currentTemplateData && window.currentTemplateData.humanNames) {
+                    const idx = window.currentTemplateData.humanNames.indexOf(paramName);
+                    if (idx !== -1) sysKey = window.currentTemplateData.systemKeys[idx];
+                }
+                delete window.mapper2State.splitRules[sysKey];
+            });
+            processNext(); // Перезагружаем интерфейс для этой же колонки
+        });
+
+        btnDone.addEventListener("click", () => {
+            if (btnDone.disabled) return;
+            currentIndex++;
+            processNext();
+        });
+    }
+    
+    processNext();
 };
