@@ -6324,7 +6324,7 @@ window.applyMapper2Logic = function () {
   state.invoiceRows.forEach((row, index) => {
     if (!row || row.length === 0) return;
 
-    // === БРОНЕБОЙНЫЙ ИЗВЛЕКАТЕЛЬ ДАННЫХ (ИГНОРИРУЕТ json_ И ПОНИМАЕТ "КОЛОНКА X") ===
+    // === БРОНЕБОЙНЫЙ ИЗВЛЕКАТЕЛЬ ДАННЫХ ===
     const normalizeKey = k => String(k).replace(/^json_/, "");
 
     const getValue = (primaryKey, kaspiKey) => {
@@ -6340,7 +6340,7 @@ window.applyMapper2Logic = function () {
           let found = state.invoiceHeaders ? state.invoiceHeaders.findIndex(h => String(h).trim() === String(colIdx).trim()) : -1;
           if (found === -1) {
               let match = String(colIdx).match(/колонка\s*(\d+)/i);
-              if (match) found = parseInt(match[1], 10) - 1; // "Колонка 5" превращается в индекс 4
+              if (match) found = parseInt(match[1], 10) - 1;
           }
           colIdx = found;
       }
@@ -6358,11 +6358,9 @@ window.applyMapper2Logic = function () {
                   let indices = [];
                   if (Array.isArray(splitRule)) {
                       if (typeof splitRule[0] === 'number') {
-                          indices = splitRule; // Старый формат
+                          indices = splitRule;
                       } else {
                           const matchedRule = splitRule.find(r => r.mask === currentMask);
-                          // ⚡ ФОЛЛБЭК: Если точной маски нет (из-за мусора в конце строки), 
-                          // применяем самое первое сохраненное правило!
                           indices = matchedRule ? matchedRule.rule : (splitRule[0] ? splitRule[0].rule : []);
                       }
                   } else if (splitRule.mask) {
@@ -6374,7 +6372,6 @@ window.applyMapper2Logic = function () {
                   if (indices.length > 0) {
                       let extracted = indices.map(idx => tokens[idx] || "").join("");
 
-                      // ⚡ Применяем память Алиасов (если клиент научил скрипт менять 11 на 11.00)
                       if (window.mapper2State.tokenAliases && 
                           window.mapper2State.tokenAliases[kaspiKey] && 
                           window.mapper2State.tokenAliases[kaspiKey][extracted]) {
@@ -6395,12 +6392,16 @@ window.applyMapper2Logic = function () {
     let rawQty = getValue("qty");
     let rawPrice = getValue("price", "cost");
     
-    let qty = parseFloat(String(rawQty).replace(/\s/g, "").replace(",", ".")) || 0;
+    // ⚡ Исправление 1: Дефолтное qty = 1, чтобы товары без остатка не блокировали сохранение
+    let qty = parseFloat(String(rawQty).replace(/\s/g, "").replace(",", ".")) || 1;
     let price = parseFloat(String(rawPrice).replace(/\s/g, "").replace(",", ".")) || 0;
 
-    let rawId = getValue("barcode", "merchant_sku");
+    // ⚡ Исправление 2: Правильный поиск артикулов Каспи и генератор ID-заглушки
+    let rawId = getValue("barcode", "merchant_sku") || getValue("sku", "Артикул") || `ID-${Math.random().toString(36).substring(7).toUpperCase()}`;
     let barcode = /^\d{8,13}$/.test(rawId) ? rawId : "";
-    let name = getValue("name", "model") || rawId || "Без названия";
+    
+    // ⚡ Исправление 3: Правильный поиск Названия Каспи
+    let name = getValue("name", "model") || getValue("title", "Название модели") || rawId || "Без названия";
 
     let rawLogisticsStr = "";
     row.forEach((cellVal, idx) => {
@@ -6422,7 +6423,8 @@ window.applyMapper2Logic = function () {
       let lowerKey = String(key).toLowerCase();
       let rawValue = getValue(key);
 
-      if (["qty", "price", "cost", "name", "model", "barcode", "cbm", "weight"].includes(lowerKey)) return;
+      // ⚡ Исправление 4: Игнорируем Каспи-дубликаты (чтобы они не попали в attributesObj и UI)
+      if (["qty", "price", "cost", "name", "model", "barcode", "cbm", "weight", "sku", "title", "артикул", "название модели"].includes(lowerKey)) return;
       if (!rawValue) return;
 
       let humanName = state.sysToHumanMap ? state.sysToHumanMap[key] : key;
@@ -6475,13 +6477,17 @@ window.applyMapper2Logic = function () {
 
     let finalAttributes = Object.keys(attributesObj).length > 0 ? JSON.stringify(attributesObj) : "";
 
+    // ⚡ Исправление 5: Надежно прокидываем все ключи для POS и Kaspi в итоговый объект
     const itemData = {
       doc_no: state.docNo,
       supplier: state.supplier,
       item_id: rawId,
       item_name: name,
+      sku: rawId,
+      title: name,
       qty: qty,
       cost: price,
+      price: price, // Жизненно важно для базы данных
       cbm: cbm,
       weight: weight,
       attributes: finalAttributes,
