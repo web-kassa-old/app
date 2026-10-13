@@ -254,13 +254,6 @@ window.processInvoiceFile = async function () {
         smartRows,
       );
 
-      console.log("Детектор получил шапки Excel:", smartHeaders);
-      console.log(
-        "Детектор получил строки Excel (первые 2):",
-        smartRows.slice(0, 2),
-      );
-      console.log("Детектор нашел сложные колонки:", complexColumns);
-
       window.mapper2State = window.mapper2State || {};
 
       if (complexColumns && complexColumns.length > 0) {
@@ -656,18 +649,25 @@ window.renderMapper2Cards = function (templateData) {
         if (sampleText) {
           const regex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,]/g;
           let tokens = sampleText.match(regex) || [];
+          let validIndices = [];
 
-          // Абсолютно всеядный парсер индексов (числа, объекты, массивы)
-          let validIndices = ruleIndices.map(idx => {
-            if (typeof idx === 'object' && idx !== null) {
-              let val = idx.index !== undefined ? idx.index : (idx.i !== undefined ? idx.i : Object.values(idx)[0]);
-              return parseInt(val);
+          // ⚡ АБСОЛЮТНО ВСЕЯДНЫЙ ПАРСЕР (читает индексы, объекты и сами куски текста)
+          ruleIndices.forEach(item => {
+            if (item === null || item === undefined) return;
+            if (typeof item === 'object') {
+              if (item.index !== undefined) validIndices.push(parseInt(item.index));
+              else if (item.i !== undefined) validIndices.push(parseInt(item.i));
+            } else if (typeof item === 'number') {
+              validIndices.push(item);
+            } else if (typeof item === 'string') {
+              let idx = tokens.indexOf(item);
+              if (idx !== -1) validIndices.push(idx); // Нашли по тексту (например, "10")
+              else if (!isNaN(parseInt(item))) validIndices.push(parseInt(item)); // Нашли по индексу в виде строки
             }
-            return parseInt(idx);
-          }).filter(n => !isNaN(n));
+          });
 
-          // Чистим от дубликатов и сортируем строго по порядку (слева направо)
-          validIndices = [...new Set(validIndices)].sort((a, b) => a - b);
+          // Чистим от дубликатов, защищаем от несуществующих индексов и сортируем по порядку
+          validIndices = [...new Set(validIndices)].filter(n => !isNaN(n) && n >= 0 && n < tokens.length).sort((a, b) => a - b);
 
           validIndices.forEach(i => {
             if (tokens[i] !== undefined) gluedText += tokens[i];
