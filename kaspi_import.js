@@ -379,7 +379,6 @@ window.navigateBack = function () {
 // 2. ОТРИСОВКА КАРТОЧЕК НА ГЛАВНОМ ЭКРАНЕ
 window.renderMapper2Cards = function (templateData) {
   // === КЭШИРОВАНИЕ ДАННЫХ ===
-  // Запоминаем данные при первом вызове, чтобы перерисовка работала при вызове без аргументов
   if (templateData) {
     window.lastTemplateData = templateData;
   } else {
@@ -612,7 +611,6 @@ window.renderMapper2Cards = function (templateData) {
       statusClass = "status-filled";
       let shortVal =
         dictValue.length > 15 ? dictValue.substring(0, 15) + "..." : dictValue;
-      // ИСПРАВЛЕНИЕ 1: Добавляем галочку и красим кнопку для словаря
       statusText = `✓ ${shortVal}`;
       statusI18n = "";
       statusStyle =
@@ -633,16 +631,19 @@ window.renderMapper2Cards = function (templateData) {
       else if (splitData && Array.isArray(splitData.tokens))
         ruleIndices = splitData.tokens;
 
-      // ⚡ ДОБАВЬ ЭТУ СТРОКУ СЮДА:
-      console.log("=== ДАННЫЕ ОТ ТОКЕНИЗАТОРА ===", {sysKey: req.sysKey, splitData, ruleIndices});
-
       if (ruleIndices.length > 0) {
         let sampleText = "";
         let gluedText = "";
         let highlighted = "";
 
-        for (let i = 0; i < Math.min(10, window.mapper2State.invoiceRows.length); i++) {
-          let val = String(window.mapper2State.invoiceRows[i][mappedIndex] || "").trim();
+        for (
+          let i = 0;
+          i < Math.min(10, window.mapper2State.invoiceRows.length);
+          i++
+        ) {
+          let val = String(
+            window.mapper2State.invoiceRows[i][mappedIndex] || "",
+          ).trim();
           if (val) {
             sampleText = val;
             break;
@@ -688,16 +689,16 @@ window.renderMapper2Cards = function (templateData) {
 
         statusText = `✂ ${gluedText || colName}`;
         statusI18n = "";
-        statusStyle = "border: 1px solid var(--accent-green, #2ecc71); color: var(--accent-green, #2ecc71); background: var(--bg-success-dim, rgba(46, 204, 113, 0.15)); font-weight: bold;";
+        statusStyle =
+          "border: 1px solid var(--accent-green, #2ecc71); color: var(--accent-green, #2ecc71); background: var(--bg-success-dim, rgba(46, 204, 113, 0.15)); font-weight: bold;";
 
         if (highlighted) {
           extraPreviewHtml = `
-            <div id="preview-${req.sysKey}" style="margin-top: 6px; font-size: 11px; background: rgba(255,255,255,0.05); padding: 4px 8px; border-radius: 4px; display: inline-block;">
-                ${highlighted}
-            </div>`;
+                    <div id="preview-${req.sysKey}" style="margin-top: 6px; font-size: 11px; background: rgba(255,255,255,0.05); padding: 4px 8px; border-radius: 4px; display: inline-block;">
+                        ${highlighted}
+                    </div>`;
         }
       } else {
-        // ИСПРАВЛЕНИЕ 3: Меняем текст кнопки для обычного маппинга
         statusText = `✓ ${colName}`;
         statusI18n = "";
         statusStyle =
