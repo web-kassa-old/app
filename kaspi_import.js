@@ -641,13 +641,10 @@ window.renderMapper2Cards = function (templateData) {
         ruleIndices = splitData.tokens;
 
       if (ruleIndices.length > 0) {
-        // ИСПРАВЛЕНИЕ 2: Меняем текст кнопки для сплиттера
-        statusText = `✂️️ ${colName}`;
-        statusI18n = "";
-        statusStyle =
-          "border: 1px solid var(--accent-green, #2ecc71); color: var(--accent-green, #2ecc71); background: var(--bg-success-dim, rgba(46, 204, 113, 0.15)); font-weight: bold;";
-
         let sampleText = "";
+        let gluedText = "";
+        let highlighted = "";
+
         for (
           let i = 0;
           i < Math.min(10, window.mapper2State.invoiceRows.length);
@@ -666,7 +663,13 @@ window.renderMapper2Cards = function (templateData) {
           const regex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,]/g;
           let tokens = sampleText.match(regex) || [];
 
-          let highlighted = tokens
+          // === СЧИТАЕМ РЕЗУЛЬТАТ РЕЗКИ ДЛЯ КНОПКИ ===
+          ruleIndices.forEach(idx => {
+            let i = parseInt(idx);
+            if (!isNaN(i) && tokens[i] !== undefined) gluedText += tokens[i];
+          });
+
+          highlighted = tokens
             .map((tok, i) => {
               if (ruleIndices.map(Number).includes(i)) {
                 return `<b style="color:#000; background:var(--accent-green, #4CAF50); padding:0 3px; border-radius:3px;">${tok}</b>`;
@@ -675,7 +678,15 @@ window.renderMapper2Cards = function (templateData) {
               }
             })
             .join("");
+        }
 
+        // ВЫВОДИМ СКЛЕЕННЫЙ ТЕКСТ (ИЛИ ИМЯ КОЛОНКИ, ЕСЛИ ПУСТО)
+        statusText = `✂ ${gluedText || colName}`;
+        statusI18n = "";
+        statusStyle =
+          "border: 1px solid var(--accent-green, #2ecc71); color: var(--accent-green, #2ecc71); background: var(--bg-success-dim, rgba(46, 204, 113, 0.15)); font-weight: bold;";
+
+        if (highlighted) {
           extraPreviewHtml = `
                     <div id="preview-${req.sysKey}" style="margin-top: 6px; font-size: 11px; background: rgba(255,255,255,0.05); padding: 4px 8px; border-radius: 4px; display: inline-block;">
                         ${highlighted}
@@ -1062,23 +1073,21 @@ window.applySplitRule = function (colIndex, colName) {
     }
   }
 
+  // Склеиваем текст для кнопки
+  let gluedText = "";
+  if (rawVal) {
+    const regex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,]/g;
+    const tokens = rawVal.match(regex) || [];
+    tokenIndices.forEach((idx) => {
+      if (tokens[idx] !== undefined) gluedText += tokens[idx];
+    });
+  }
+
   // 1. КРАСИМ КНОПКУ
   const statusEl = document.getElementById("status-" + sysKey);
   if (statusEl) {
-    // Склеиваем токены для отображения
-    let gluedText = "";
-    if (rawVal) {
-      const regex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,]/g;
-      const tokens = rawVal.match(regex) || [];
-      tokenIndices.forEach((idx) => {
-        if (tokens[idx] !== undefined) gluedText += tokens[idx];
-      });
-    }
-
     statusEl.className = "req-status status-filled";
     statusEl.innerText = `✂️ ${gluedText || colName}`;
-    statusEl.style.cssText =
-      "border: 1px solid #4CAF50; color: #4CAF50; background: rgba(76, 175, 80, 0.1); font-weight: bold;";
   }
 
   // 2. ДОБАВЛЯЕМ ВИЗУАЛЬНЫЙ ТОКЕНИЗАТОР
