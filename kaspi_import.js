@@ -3986,3 +3986,11 @@ function selectCurrency(value) {
 
 // Глобальный объект для хранения словарей Каспи
 window.kaspiDicts = {};
+
+window.handleTemplateChange = function(selectElem) {
+    if (selectElem.value === "new") {
+        const modal = document.getElementById("newTemplateModal");
+        if (modal) modal.style.display = "flex";
+        selectElem.value = ""; // Сбрасываем выбор
+    }
+};
