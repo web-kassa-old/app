@@ -633,6 +633,9 @@ window.renderMapper2Cards = function (templateData) {
       else if (splitData && Array.isArray(splitData.tokens))
         ruleIndices = splitData.tokens;
 
+      // ⚡ ДОБАВЬ ЭТУ СТРОКУ СЮДА:
+      console.log("=== ДАННЫЕ ОТ ТОКЕНИЗАТОРА ===", {sysKey: req.sysKey, splitData, ruleIndices});
+
       if (ruleIndices.length > 0) {
         let sampleText = "";
         let gluedText = "";
