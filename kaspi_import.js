@@ -1065,8 +1065,18 @@ window.applySplitRule = function (colIndex, colName) {
   // 1. КРАСИМ КНОПКУ
   const statusEl = document.getElementById("status-" + sysKey);
   if (statusEl) {
+    // Склеиваем токены для отображения
+    let gluedText = "";
+    if (rawVal) {
+      const regex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,]/g;
+      const tokens = rawVal.match(regex) || [];
+      tokenIndices.forEach((idx) => {
+        if (tokens[idx] !== undefined) gluedText += tokens[idx];
+      });
+    }
+
     statusEl.className = "req-status status-filled";
-    statusEl.innerText = `✂️ ${colName}`;
+    statusEl.innerText = `✂️ ${gluedText || colName}`;
     statusEl.style.cssText =
       "border: 1px solid #4CAF50; color: #4CAF50; background: rgba(76, 175, 80, 0.1); font-weight: bold;";
   }
