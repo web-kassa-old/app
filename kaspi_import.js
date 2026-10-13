@@ -386,6 +386,7 @@ window.navigateBack = function () {
 // 2. ОТРИСОВКА КАРТОЧЕК НА ГЛАВНОМ ЭКРАНЕ
 window.renderMapper2Cards = function (templateData) {
   // === КЭШИРОВАНИЕ ДАННЫХ ===
+  // Запоминаем данные при первом вызове, чтобы перерисовка работала при вызове без аргументов
   if (templateData) {
     window.lastTemplateData = templateData;
   } else {
@@ -618,6 +619,7 @@ window.renderMapper2Cards = function (templateData) {
       statusClass = "status-filled";
       let shortVal =
         dictValue.length > 15 ? dictValue.substring(0, 15) + "..." : dictValue;
+      // ИСПРАВЛЕНИЕ 1: Добавляем галочку и красим кнопку для словаря
       statusText = `✓ ${shortVal}`;
       statusI18n = "";
       statusStyle =
@@ -639,6 +641,12 @@ window.renderMapper2Cards = function (templateData) {
         ruleIndices = splitData.tokens;
 
       if (ruleIndices.length > 0) {
+        // ИСПРАВЛЕНИЕ 2: Меняем текст кнопки для сплиттера
+        statusText = `✂️️ ${colName}`;
+        statusI18n = "";
+        statusStyle =
+          "border: 1px solid var(--accent-green, #2ecc71); color: var(--accent-green, #2ecc71); background: var(--bg-success-dim, rgba(46, 204, 113, 0.15)); font-weight: bold;";
+
         let sampleText = "";
         for (
           let i = 0;
@@ -654,19 +662,11 @@ window.renderMapper2Cards = function (templateData) {
           }
         }
 
-        let gluedText = "";
-        let highlighted = "";
-
         if (sampleText) {
           const regex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,]/g;
           let tokens = sampleText.match(regex) || [];
 
-          // === СЧИТАЕМ РЕЗУЛЬТАТ РЕЗКИ ДЛЯ КНОПКИ ===
-          ruleIndices.forEach(idx => {
-             if (tokens[idx] !== undefined) gluedText += tokens[idx];
-          });
-
-          highlighted = tokens
+          let highlighted = tokens
             .map((tok, i) => {
               if (ruleIndices.map(Number).includes(i)) {
                 return `<b style="color:#000; background:var(--accent-green, #4CAF50); padding:0 3px; border-radius:3px;">${tok}</b>`;
@@ -675,21 +675,14 @@ window.renderMapper2Cards = function (templateData) {
               }
             })
             .join("");
-        }
 
-        // ВЫВОДИМ СКЛЕЕННЫЙ ТЕКСТ (ИЛИ ИМЯ КОЛОНКИ, ЕСЛИ ПУСТО)
-        statusText = `✂ ${gluedText || colName}`;
-        statusI18n = "";
-        statusStyle =
-          "border: 1px solid var(--accent-green, #2ecc71); color: var(--accent-green, #2ecc71); background: var(--bg-success-dim, rgba(46, 204, 113, 0.15)); font-weight: bold;";
-
-        if (highlighted) {
           extraPreviewHtml = `
                     <div id="preview-${req.sysKey}" style="margin-top: 6px; font-size: 11px; background: rgba(255,255,255,0.05); padding: 4px 8px; border-radius: 4px; display: inline-block;">
                         ${highlighted}
                     </div>`;
         }
       } else {
+        // ИСПРАВЛЕНИЕ 3: Меняем текст кнопки для обычного маппинга
         statusText = `✓ ${colName}`;
         statusI18n = "";
         statusStyle =
@@ -1069,24 +1062,11 @@ window.applySplitRule = function (colIndex, colName) {
     }
   }
 
-  // === СЧИТАЕМ РЕЗУЛЬТАТ РЕЗКИ ===
-  let gluedText = "";
-  if (rawVal) {
-    const regex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,]/g;
-    const tokens = rawVal.match(regex) || [];
-    tokenIndices.forEach((idx) => {
-      if (tokens[idx] !== undefined) gluedText += tokens[idx];
-    });
-  }
-
-  console.log("=== DEBUG БАГ 1 ===", {sysKey, rawVal, tokenIndices, gluedText});
-
   // 1. КРАСИМ КНОПКУ
   const statusEl = document.getElementById("status-" + sysKey);
   if (statusEl) {
     statusEl.className = "req-status status-filled";
-    // ВЫВОДИМ СКЛЕЕННЫЙ ТЕКСТ ВМЕСТО ИМЕНИ КОЛОНКИ
-    statusEl.innerText = `✂️ ${gluedText || colName}`;
+    statusEl.innerText = `✂️ ${colName}`;
     statusEl.style.cssText =
       "border: 1px solid #4CAF50; color: #4CAF50; background: rgba(76, 175, 80, 0.1); font-weight: bold;";
   }
@@ -1126,6 +1106,13 @@ window.applySplitRule = function (colIndex, colName) {
       reqInfo.insertAdjacentHTML("beforeend", extraPreviewHtml);
     }
   }
+
+  console.log("=== ЛОГ СПЛИТТЕРА ===", {
+      sysKey: sysKey,
+      rawVal: rawVal,
+      tokenIndices: tokenIndices,
+      splitRules: window.mapper2State.splitRules
+  });
 
   closeSheet();
 };
