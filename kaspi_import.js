@@ -1047,12 +1047,10 @@ window.applySplitRule = function (colIndex, colName) {
 
   if (tokenIndices.length === 0) return alert("Выберите фрагменты!");
 
-  // Сохраняем новые данные
   delete window.mapper2State.dictValues[sysKey];
   window.mapper2State.colMap[sysKey] = colIndex;
   window.mapper2State.splitRules[sysKey] = tokenIndices;
 
-  // Генерируем пример склейки
   let rawVal = "";
   for (let i = 0; i < window.mapper2State.invoiceRows.length; i++) {
     let val = String(window.mapper2State.invoiceRows[i][colIndex] || "").trim();
@@ -1071,9 +1069,9 @@ window.applySplitRule = function (colIndex, colName) {
     });
   }
 
+  // ⚡ ФИКС 1: Выводим результат склейки прямо на кнопку!
   let displayResult = gluedText ? gluedText : colName;
   
-  // Обновляем карточку (перенос в зеленый блок и вывод результата)
   if (typeof window.updateReqCardStatus === "function") {
       window.updateReqCardStatus(sysKey, `✂️ ${displayResult}`, "status-filled", gluedText);
   }
@@ -1418,7 +1416,6 @@ window.updateReqCardStatus = function (sysKey, text, className, previewText) {
   }
 };
 
-// 6. ФИНАЛЬНАЯ СБОРКА JSON ДЛЯ СЕРВЕРА
 window.applyMapper2Logic = function () {
   const state = window.mapper2State;
 
@@ -1446,9 +1443,7 @@ window.applyMapper2Logic = function () {
         let headerText = state.invoiceHeaders[colIndex];
         if (headerText) {
           let cleanWord = String(headerText).trim().toLowerCase();
-          if (!Array.isArray(currentMemory[sysKey])) {
-            currentMemory[sysKey] = [];
-          }
+          if (!Array.isArray(currentMemory[sysKey])) currentMemory[sysKey] = [];
           if (!currentMemory[sysKey].includes(cleanWord)) {
             currentMemory[sysKey].push(cleanWord);
             memoryUpdated = true;
@@ -1462,13 +1457,8 @@ window.applyMapper2Logic = function () {
       }
 
       if (memoryUpdated) {
-        const payload = {
-          action: "updateKaspiMemory",
-          api_key: CLIENT_API_KEY,
-          category: templateName,
-          memoryJson: JSON.stringify(currentMemory),
-        };
-        window.smartFetch(GATEWAY_URL, payload).catch((e) => console.error("Ошибка обновления словаря", e));
+        const payload = { action: "updateKaspiMemory", api_key: CLIENT_API_KEY, category: templateName, memoryJson: JSON.stringify(currentMemory) };
+        window.smartFetch(GATEWAY_URL, payload).catch((e) => console.error("Ошибка словаря", e));
       }
     }
   }
@@ -1483,7 +1473,6 @@ window.applyMapper2Logic = function () {
 
   const regex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,]/g;
   let mappedIndices = Object.values(state.colMap).filter((v) => v !== undefined);
-
   window.mapper2State.quarantine = [];
 
   state.invoiceRows.forEach((row, index) => {
@@ -1521,9 +1510,7 @@ window.applyMapper2Logic = function () {
     row.forEach((cellVal, idx) => {
       if (mappedIndices.includes(idx)) return;
       let val = String(cellVal || "").trim();
-      if (val && val.length < 30 && !/^\d{8,15}$/.test(val)) {
-        rawLogisticsStr += " " + val;
-      }
+      if (val && val.length < 30 && !/^\d{8,15}$/.test(val)) rawLogisticsStr += " " + val;
     });
 
     let rawCbm = getValue("cbm");
@@ -1543,10 +1530,17 @@ window.applyMapper2Logic = function () {
       if (!rawValue) return;
 
       let humanName = state.sysToHumanMap ? state.sysToHumanMap[key] : key;
-      let lowerHuman = String(humanName).toLowerCase();
+
+      // ⚡ ФИКС 2: ЖЕСТКОЕ СОХРАНЕНИЕ СПЛИТТЕРА ⚡
+      // Если значение вырезано ножницами, мы заставляем базу запомнить его "как есть",
+      // игнорируя строгие проверки словарей Каспи.
+      if (state.splitRules && state.splitRules[key]) {
+          attributesObj[key] = rawValue;
+          return;
+      }
+
       let searchString = rawValue;
       let extractedDirectly = null;
-
       let isMetric = searchString.match(/(\d{3})\s*[\/\\]\s*(\d{2,3})\s*[a-zA-Z-]*\s*(\d{2})/);
       let isImperial = searchString.match(/(\d{2}(?:\.\d+)?)\s*[xXхХ*]\s*(\d{1,2}(?:\.\d+)?)\s*[a-zA-Z-]*\s*(\d{2})/i);
 
@@ -1586,11 +1580,9 @@ window.applyMapper2Logic = function () {
             let baseDv = strDv.split("(")[0].trim();
             let isStrictNumber = /^[\d\.]+$/.test(String(searchString).trim());
 
-            if (
-              strDv.toLowerCase() === String(searchString).trim().toLowerCase() ||
+            if (strDv.toLowerCase() === String(searchString).trim().toLowerCase() ||
               baseDv.toLowerCase() === String(searchString).trim().toLowerCase() ||
-              (isStrictNumber && !isNaN(parseFloat(baseDv)) && parseFloat(baseDv) === parseFloat(searchString))
-            ) {
+              (isStrictNumber && !isNaN(parseFloat(baseDv)) && parseFloat(baseDv) === parseFloat(searchString))) {
               matchedDictValue = strDv;
               foundMatch = true;
               break;
@@ -1604,26 +1596,15 @@ window.applyMapper2Logic = function () {
         let colIdx = state.colMap[key];
         let excelHeader = colIdx !== undefined && state.invoiceHeaders ? state.invoiceHeaders[colIdx] : "ДАННЫЕ ИЗ НАКЛАДНОЙ";
 
-        itemCollisionsList.push({
-          sysKey: key,
-          humanName: humanName,
-          rawString: rawValue,
-          excelColumnName: excelHeader,
-        });
+        itemCollisionsList.push({ sysKey: key, humanName: humanName, rawString: rawValue, excelColumnName: excelHeader });
 
-        const excludeFromSmart = [
-          "Артикул", "Название товара", "Бренд", "Цена", "Название модели", "Модель", "Рубрика", "category",
-          "Сезонность", "Назначение", "Тип шины", "Комплектация", "Тип рисунка протектора", "Шипы",
-          "Код изображений", "Ссылка на YouTube", "Ссылка на картинку", "Описание (мин. 100 символов, макс. 7 000 символов)",
-          "Описание", "Вес для расчета логистики", "Объединить в одну карточку", "В наличии"
-        ];
+        const excludeFromSmart = ["Артикул", "Название товара", "Бренд", "Цена", "Название модели", "Модель", "Рубрика", "category", "Сезонность", "Назначение", "Тип шины", "Комплектация", "Тип рисунка протектора", "Шипы", "Код изображений", "Ссылка на YouTube", "Ссылка на картинку", "Описание (мин. 100 символов, макс. 7 000 символов)", "Описание", "Вес для расчета логистики", "Объединить в одну карточку", "В наличии"];
 
         if (excludeFromSmart.includes(humanName)) {
           attributesObj[key] = rawValue;
         }
         return;
       }
-
       attributesObj[key] = matchedDictValue;
     };
 
@@ -1633,7 +1614,6 @@ window.applyMapper2Logic = function () {
 
     allKeys.forEach((key) => processAttribute(key));
 
-    // ⚡ 1. ИЗОЛИРУЕМ ДУБЛИ ДЛЯ ИНТЕРФЕЙСА (но сохраняем оригинальный маппинг)
     let cleanAttributesObj = Object.assign({}, attributesObj);
     delete cleanAttributesObj['Артикул'];
     delete cleanAttributesObj['Название модели'];
@@ -1643,18 +1623,15 @@ window.applyMapper2Logic = function () {
     let finalAttributes = Object.keys(cleanAttributesObj).length > 0 ? JSON.stringify(cleanAttributesObj) : "";
 
     const templateDropdown = document.getElementById("kaspiTemplateSelect");
-    const activeCategoryText = templateDropdown && templateDropdown.selectedIndex !== -1 
-      ? templateDropdown.options[templateDropdown.selectedIndex].text.trim() 
-      : "Новые товары";
+    const activeCategoryText = templateDropdown && templateDropdown.selectedIndex !== -1 ? templateDropdown.options[templateDropdown.selectedIndex].text.trim() : "Новые товары";
 
-    // ⚡ 2. ГИБРИДНАЯ СБОРКА ТОВАРА (База + Каспи)
     const itemData = {
       doc_no: state.docNo,
       supplier: state.supplier,
       item_id: rawId,
       item_name: name,
       qty: qty,
-      cost: price, // База ждет закупочную цену именно тут
+      cost: price,
       cbm: cbm,
       weight: weight,
       raw_logistics: rawLogisticsStr.trim(),
@@ -1663,10 +1640,10 @@ window.applyMapper2Logic = function () {
       name: name,
       desc: name,
       description: name,
-      barcode: barcode || rawId, // Жесткая синхронизация (если штрихкода нет, пишем артикул)
-      category: activeCategoryText, // Динамическая категория (Текст)
-      sku: rawId, // Поле для выгрузки в Каспи
-      title: name, // Поле для выгрузки в Каспи
+      barcode: barcode || rawId,
+      category: activeCategoryText,
+      sku: rawId,
+      title: name,
       attributes: finalAttributes,
       _hasCollisions: itemHasCollisions,
       _collisionsList: itemCollisionsList,
@@ -1678,26 +1655,19 @@ window.applyMapper2Logic = function () {
 
     if (itemHasCollisions) {
       itemCollisionsList.forEach((collision) => {
-        const exists = window.mapper2State.quarantine.find(
-          (q) => q.rawString === collision.rawString && q.sysKey === collision.sysKey
-        );
-        if (!exists) {
-          window.mapper2State.quarantine.push(collision);
-        }
+        const exists = window.mapper2State.quarantine.find((q) => q.rawString === collision.rawString && q.sysKey === collision.sysKey);
+        if (!exists) window.mapper2State.quarantine.push(collision);
       });
     }
   });
 
   if (window.parsedInvoiceData.length === 0) {
-    return alert("Не удалось сформировать товары. Убедитесь, что в колонках «Количество» и «Цена» находятся ТОЛЬКО цифры.");
+    return alert("Не удалось сформировать товары. Проверьте данные.");
   }
 
   if (window.mapper2State.quarantine && window.mapper2State.quarantine.length > 0) {
-    if (typeof window.startTokenizerQueue === "function") {
-      window.startTokenizerQueue();
-    } else {
-      alert("Найдены сложные форматы, но модуль Токенизатора еще не загружен.");
-    }
+    if (typeof window.startTokenizerQueue === "function") window.startTokenizerQueue();
+    else alert("Найдены сложные форматы, но модуль Токенизатора еще не загружен.");
     return;
   }
 
@@ -1708,7 +1678,6 @@ window.applyMapper2Logic = function () {
   if (window.isKaspiExportMode) {
     const sendBtn = document.getElementById("sendInvoiceBtn");
     if (sendBtn) sendBtn.style.display = "none";
-
     const exportBtns = document.getElementById("exportActionButtons");
     if (exportBtns) exportBtns.style.display = "flex";
   }
