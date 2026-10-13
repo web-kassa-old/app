@@ -641,32 +641,28 @@ window.renderMapper2Cards = function (templateData) {
         ruleIndices = splitData.tokens;
 
       if (ruleIndices.length > 0) {
-        // ИСПРАВЛЕНИЕ 2: Меняем текст кнопки для сплиттера
-        statusText = `✂️️ ${colName}`;
-        statusI18n = "";
-        statusStyle =
-          "border: 1px solid var(--accent-green, #2ecc71); color: var(--accent-green, #2ecc71); background: var(--bg-success-dim, rgba(46, 204, 113, 0.15)); font-weight: bold;";
-
         let sampleText = "";
-        for (
-          let i = 0;
-          i < Math.min(10, window.mapper2State.invoiceRows.length);
-          i++
-        ) {
-          let val = String(
-            window.mapper2State.invoiceRows[i][mappedIndex] || "",
-          ).trim();
+        for (let i = 0; i < Math.min(10, window.mapper2State.invoiceRows.length); i++) {
+          let val = String(window.mapper2State.invoiceRows[i][mappedIndex] || "").trim();
           if (val) {
             sampleText = val;
             break;
           }
         }
 
+        let gluedText = "";
+        let highlighted = "";
+
         if (sampleText) {
           const regex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,]/g;
           let tokens = sampleText.match(regex) || [];
 
-          let highlighted = tokens
+          // ⚡ ДОБАВЛЕНО: Склеиваем реальный результат резки для кнопки
+          ruleIndices.forEach(idx => {
+             if (tokens[idx] !== undefined) gluedText += tokens[idx];
+          });
+
+          highlighted = tokens
             .map((tok, i) => {
               if (ruleIndices.map(Number).includes(i)) {
                 return `<b style="color:#000; background:var(--accent-green, #4CAF50); padding:0 3px; border-radius:3px;">${tok}</b>`;
@@ -675,7 +671,14 @@ window.renderMapper2Cards = function (templateData) {
               }
             })
             .join("");
+        }
 
+        // ⚡ ИСПРАВЛЕНИЕ: Выводим на кнопку вырезанный текст (gluedText), а не имя колонки
+        statusText = `✂ ${gluedText || colName}`;
+        statusI18n = "";
+        statusStyle = "border: 1px solid var(--accent-green, #2ecc71); color: var(--accent-green, #2ecc71); background: var(--bg-success-dim, rgba(46, 204, 113, 0.15)); font-weight: bold;";
+
+        if (highlighted) {
           extraPreviewHtml = `
                     <div id="preview-${req.sysKey}" style="margin-top: 6px; font-size: 11px; background: rgba(255,255,255,0.05); padding: 4px 8px; border-radius: 4px; display: inline-block;">
                         ${highlighted}
