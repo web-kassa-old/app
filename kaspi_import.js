@@ -1,15 +1,14 @@
 // --- МОДУЛЬ УМНОЙ ПРИЕМКИ (ИНВОЙСЫ) ---selectImportMode
 window.parsedInvoiceData = [];
 window.invoiceGroups = {};
-window.currentImportMode = 'standard'; // Режим по умолчанию
+window.currentImportMode = 'standard';
 
-// Обработчик переключения режимов импорта (Обычный / Kaspi)
+// 1. ПОЛНОЦЕННОЕ ПЕРЕКЛЮЧЕНИЕ РЕЖИМА
 window.selectImportMode = function(mode) {
     window.currentImportMode = mode;
     
     // Переключаем визуальное состояние кнопок
     if (window.event && window.event.currentTarget) {
-        // Убираем подсветку со всех соседних кнопок выбора режима
         const parent = window.event.currentTarget.parentElement;
         if (parent) {
             parent.querySelectorAll('div').forEach(el => {
@@ -19,19 +18,78 @@ window.selectImportMode = function(mode) {
             });
         }
         
-        // Подсвечиваем нажатую карточку синим цветом
         const activeElem = window.event.currentTarget;
         activeElem.classList.add('active');
         activeElem.style.border = "2px solid var(--accent-blue)";
         activeElem.style.background = "rgba(59, 130, 246, 0.1)";
     }
 
-    // Показываем или скрываем блок выбора шаблона Каспи
+    // Показываем/скрываем блок Каспи
     const kaspiBlock = document.getElementById("kaspiTemplateContainer") || document.getElementById("kaspiTemplateBlock");
     if (kaspiBlock) {
         kaspiBlock.style.display = mode === "kaspi" ? "block" : "none";
+        
+        // Если выбрали Каспи, сразу пытаемся подгрузить шаблоны
+        if (mode === "kaspi" && typeof window.loadKaspiTemplatesFromServer === "function") {
+            window.loadKaspiTemplatesFromServer(true);
+        }
+    }
+    
+    // === СНИМАЕМ ЖЕЛТЫЙ ЗАМОК ===
+    const uploadWrapper = document.getElementById("invoiceUploadWrapper");
+    const lockMessage = document.getElementById("modeLockMessage");
+    
+    if (uploadWrapper) {
+        uploadWrapper.style.opacity = "1";
+        uploadWrapper.style.pointerEvents = "auto";
+    }
+    if (lockMessage) {
+        lockMessage.style.display = "none";
     }
 };
+
+// 2. ФУНКЦИЯ СКАЧИВАНИЯ ШАБЛОНОВ С СЕРВЕРА
+window.loadKaspiTemplatesFromServer = async function(isSilent = false) {
+    if (!navigator.onLine) return;
+    const selectEl = document.getElementById("kaspiTemplateSelect");
+    if (!selectEl) return;
+
+    try {
+        const payload = { action: "getKaspiTemplatesList", api_key: CLIENT_API_KEY };
+        const res = await window.smartFetch(GATEWAY_URL, payload);
+        
+        if (res && res.success && res.templates) {
+            // Очищаем старые, оставляем только дефолтные
+            selectEl.innerHTML = '<option value="" disabled selected>-- Выберите --</option>';
+            res.templates.forEach(t => {
+                const opt = document.createElement("option");
+                opt.value = t.hash || t.name;
+                opt.text = t.name;
+                opt.setAttribute("data-hash", t.hash || "");
+                selectEl.appendChild(opt);
+            });
+            const newOpt = document.createElement("option");
+            newOpt.value = "new";
+            newOpt.text = "➕ Новый шаблон Kaspi...";
+            newOpt.style.fontWeight = "bold";
+            newOpt.style.color = "var(--accent-blue)";
+            selectEl.appendChild(newOpt);
+        }
+    } catch (e) {
+        console.error("Ошибка загрузки списка шаблонов", e);
+    }
+};
+
+// Обработчик загрузки нового шаблона Kaspi при выборе "Новый шаблон"
+document.addEventListener("change", function(e) {
+    if (e.target && e.target.id === "kaspiTemplateSelect") {
+        if (e.target.value === "new") {
+            const modal = document.getElementById("newTemplateModal");
+            if (modal) modal.style.display = "flex";
+            e.target.value = ""; // Сбрасываем, чтобы можно было выбрать снова
+        }
+    }
+});
 
 function toggleIncomeModule() {
   const modal = document.getElementById("income-modal");
