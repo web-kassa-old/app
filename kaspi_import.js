@@ -3,7 +3,7 @@ window.parsedInvoiceData = [];
 window.invoiceGroups = {};
 window.currentImportMode = 'standard';
 
-// 1. ПОЛНОЦЕННОЕ ПЕРЕКЛЮЧЕНИЕ РЕЖИМА
+// 1. ПОЛНОЦЕННОЕ ПЕРЕКЛЮЧЕНИЕ РЕЖИМА (БРОНИРОВАННОЕ)
 window.selectImportMode = function(mode) {
     window.currentImportMode = mode;
     
@@ -11,7 +11,8 @@ window.selectImportMode = function(mode) {
     if (window.event && window.event.currentTarget) {
         const parent = window.event.currentTarget.parentElement;
         if (parent) {
-            parent.querySelectorAll('div').forEach(el => {
+            // Ищем все карточки режимов
+            parent.querySelectorAll('div.mode-card, div[onclick^="selectImportMode"]').forEach(el => {
                 el.classList.remove('active');
                 el.style.border = "1px solid var(--border-light)";
                 el.style.background = "var(--bg-panel)";
@@ -29,38 +30,51 @@ window.selectImportMode = function(mode) {
     if (kaspiBlock) {
         kaspiBlock.style.display = mode === "kaspi" ? "block" : "none";
         
-        // Если выбрали Каспи, сразу пытаемся подгрузить шаблоны
         if (mode === "kaspi" && typeof window.loadKaspiTemplatesFromServer === "function") {
             window.loadKaspiTemplatesFromServer(true);
         }
     }
     
-    // === СНИМАЕМ ЖЕЛТЫЙ ЗАМОК ===
+    // === ЖЕСТКОЕ СНЯТИЕ ЖЕЛТОГО ЗАМКА ===
     const uploadWrapper = document.getElementById("invoiceUploadWrapper");
-    const lockMessage = document.getElementById("modeLockMessage");
-    
     if (uploadWrapper) {
         uploadWrapper.style.opacity = "1";
         uploadWrapper.style.pointerEvents = "auto";
+        
+        // Ищем любой элемент внутри, где написано про режим, и убиваем его
+        const allElements = uploadWrapper.querySelectorAll('*');
+        allElements.forEach(el => {
+            if (el.innerText && el.innerText.includes('Сначала выберите режим')) {
+                el.style.display = 'none';
+            }
+        });
     }
-    if (lockMessage) {
-        lockMessage.style.display = "none";
-    }
+    
+    const lockMessage = document.getElementById("modeLockMessage");
+    if (lockMessage) lockMessage.style.display = "none";
 };
 
-// 2. ФУНКЦИЯ СКАЧИВАНИЯ ШАБЛОНОВ С СЕРВЕРА
+// 2. ФУНКЦИЯ СКАЧИВАНИЯ ШАБЛОНОВ (С ИНДИКАТОРОМ ЗАГРУЗКИ)
 window.loadKaspiTemplatesFromServer = async function(isSilent = false) {
     if (!navigator.onLine) return;
     const selectEl = document.getElementById("kaspiTemplateSelect");
-    if (!selectEl) return;
+    if (!selectEl) {
+        console.error("Элемент kaspiTemplateSelect не найден в HTML!");
+        return;
+    }
+
+    // Показываем пользователю, что процесс пошел
+    selectEl.innerHTML = '<option value="" disabled selected>⏳ Загрузка базы...</option>';
 
     try {
-        const payload = { action: "getKaspiTemplatesList", api_key: CLIENT_API_KEY };
-        const res = await window.smartFetch(GATEWAY_URL, payload);
+        const apiKey = typeof CLIENT_API_KEY !== 'undefined' ? CLIENT_API_KEY : localStorage.getItem("CLIENT_API_KEY");
+        const url = typeof GATEWAY_URL !== 'undefined' ? GATEWAY_URL : (typeof APPS_SCRIPT_URL !== 'undefined' ? APPS_SCRIPT_URL : "");
+        
+        const payload = { action: "getKaspiTemplatesList", api_key: apiKey };
+        const res = await window.smartFetch(url, payload);
         
         if (res && res.success && res.templates) {
-            // Очищаем старые, оставляем только дефолтные
-            selectEl.innerHTML = '<option value="" disabled selected>-- Выберите --</option>';
+            selectEl.innerHTML = '<option value="" disabled selected>-- Выберите шаблон --</option>';
             res.templates.forEach(t => {
                 const opt = document.createElement("option");
                 opt.value = t.hash || t.name;
@@ -68,15 +82,21 @@ window.loadKaspiTemplatesFromServer = async function(isSilent = false) {
                 opt.setAttribute("data-hash", t.hash || "");
                 selectEl.appendChild(opt);
             });
-            const newOpt = document.createElement("option");
-            newOpt.value = "new";
-            newOpt.text = "➕ Новый шаблон Kaspi...";
-            newOpt.style.fontWeight = "bold";
-            newOpt.style.color = "var(--accent-blue)";
-            selectEl.appendChild(newOpt);
+        } else {
+            selectEl.innerHTML = '<option value="" disabled selected>-- Нет шаблонов --</option>';
         }
+        
+        // Всегда добавляем кнопку "Новый шаблон"
+        const newOpt = document.createElement("option");
+        newOpt.value = "new";
+        newOpt.text = "➕ Новый шаблон Kaspi...";
+        newOpt.style.fontWeight = "bold";
+        newOpt.style.color = "var(--accent-blue)";
+        selectEl.appendChild(newOpt);
+
     } catch (e) {
         console.error("Ошибка загрузки списка шаблонов", e);
+        selectEl.innerHTML = '<option value="" disabled selected>❌ Ошибка связи с сервером</option>';
     }
 };
 
