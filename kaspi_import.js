@@ -657,22 +657,18 @@ window.renderMapper2Cards = function (templateData) {
           const regex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,]/g;
           let tokens = sampleText.match(regex) || [];
 
-          // ⚡ ФИКС: Очищаем от дубликатов и сортируем строго слева направо (по возрастанию)
-          let rawIndices = [];
-          ruleIndices.forEach(idx => {
-            if (idx === null || idx === undefined) return;
-            if (typeof idx === 'object') {
-              if ('index' in idx) rawIndices.push(parseInt(idx.index));
-              else if ('i' in idx) rawIndices.push(parseInt(idx.i));
-            } else {
-              rawIndices.push(parseInt(idx));
+          // Абсолютно всеядный парсер индексов (числа, объекты, массивы)
+          let validIndices = ruleIndices.map(idx => {
+            if (typeof idx === 'object' && idx !== null) {
+              let val = idx.index !== undefined ? idx.index : (idx.i !== undefined ? idx.i : Object.values(idx)[0]);
+              return parseInt(val);
             }
-          });
+            return parseInt(idx);
+          }).filter(n => !isNaN(n));
 
-          // Магия здесь: Set удалит дубликаты (уберет 1010), а sort выстроит по порядку
-          let validIndices = [...new Set(rawIndices)].filter(n => !isNaN(n)).sort((a, b) => a - b);
+          // Чистим от дубликатов и сортируем строго по порядку (слева направо)
+          validIndices = [...new Set(validIndices)].sort((a, b) => a - b);
 
-          // Считаем склеенный текст для кнопки
           validIndices.forEach(i => {
             if (tokens[i] !== undefined) gluedText += tokens[i];
           });
@@ -686,7 +682,6 @@ window.renderMapper2Cards = function (templateData) {
           }).join("");
         }
 
-        // Выводим результат
         statusText = `✂ ${gluedText || colName}`;
         statusI18n = "";
         statusStyle = "border: 1px solid var(--accent-green, #2ecc71); color: var(--accent-green, #2ecc71); background: var(--bg-success-dim, rgba(46, 204, 113, 0.15)); font-weight: bold;";
@@ -1130,13 +1125,6 @@ window.applySplitRule = function (colIndex, colName) {
       reqInfo.insertAdjacentHTML("beforeend", extraPreviewHtml);
     }
   }
-
-  console.log("=== ЛОГ СПЛИТТЕРА ===", {
-      sysKey: sysKey,
-      rawVal: rawVal,
-      tokenIndices: tokenIndices,
-      splitRules: window.mapper2State.splitRules
-  });
 
   closeSheet();
 };
