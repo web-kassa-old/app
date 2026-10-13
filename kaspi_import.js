@@ -657,18 +657,20 @@ window.renderMapper2Cards = function (templateData) {
           const regex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,]/g;
           let tokens = sampleText.match(regex) || [];
 
-          // ⚡ ФИКС: Делаем парсинг индексов всеядным (для массивов чисел и массивов объектов)
-          let validIndices = ruleIndices.map(idx => {
-            if (typeof idx === 'object' && idx !== null) {
-              if (idx.index !== undefined) return parseInt(idx.index);
-              if (idx.i !== undefined) return parseInt(idx.i);
-              // Запасной вариант: ищем число внутри объекта
-              for (let k in idx) {
-                if (typeof idx[k] === 'number' || !isNaN(parseInt(idx[k]))) return parseInt(idx[k]);
-              }
+          // ⚡ ФИКС: Очищаем от дубликатов и сортируем строго слева направо (по возрастанию)
+          let rawIndices = [];
+          ruleIndices.forEach(idx => {
+            if (idx === null || idx === undefined) return;
+            if (typeof idx === 'object') {
+              if ('index' in idx) rawIndices.push(parseInt(idx.index));
+              else if ('i' in idx) rawIndices.push(parseInt(idx.i));
+            } else {
+              rawIndices.push(parseInt(idx));
             }
-            return parseInt(idx);
-          }).filter(n => !isNaN(n));
+          });
+
+          // Магия здесь: Set удалит дубликаты (уберет 1010), а sort выстроит по порядку
+          let validIndices = [...new Set(rawIndices)].filter(n => !isNaN(n)).sort((a, b) => a - b);
 
           // Считаем склеенный текст для кнопки
           validIndices.forEach(i => {
@@ -684,6 +686,7 @@ window.renderMapper2Cards = function (templateData) {
           }).join("");
         }
 
+        // Выводим результат
         statusText = `✂ ${gluedText || colName}`;
         statusI18n = "";
         statusStyle = "border: 1px solid var(--accent-green, #2ecc71); color: var(--accent-green, #2ecc71); background: var(--bg-success-dim, rgba(46, 204, 113, 0.15)); font-weight: bold;";
