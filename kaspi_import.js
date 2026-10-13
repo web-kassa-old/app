@@ -633,9 +633,6 @@ window.renderMapper2Cards = function (templateData) {
       else if (splitData && Array.isArray(splitData.tokens))
         ruleIndices = splitData.tokens;
 
-      // ⚡ ДОБАВЬ ЭТУ СТРОКУ СЮДА:
-      console.log("=== ДАННЫЕ ОТ ТОКЕНИЗАТОРА ===", {sysKey: req.sysKey, splitData, ruleIndices});
-
       if (ruleIndices.length > 0) {
         let sampleText = "";
         let gluedText = "";
@@ -652,25 +649,26 @@ window.renderMapper2Cards = function (templateData) {
         if (sampleText) {
           const regex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,]/g;
           let tokens = sampleText.match(regex) || [];
-          let validIndices = [];
+          
+          // ⚡ ДОСТАЕМ ИНДЕКСЫ ИЗ ЛЮБОГО ФОРМАТА
+          let rawIndices = [];
+          if (Array.isArray(ruleIndices) && ruleIndices.length > 0 && ruleIndices[0].rule !== undefined) {
+            // Формат Авто-Токенизатора: [{mask: "N-S...", rule: [0, 1, 2]}]
+            rawIndices = ruleIndices[0].rule; 
+          } else if (Array.isArray(ruleIndices)) {
+            // Формат ручного сплиттера: [0, 1, 2]
+            rawIndices = ruleIndices;
+          }
 
-          // ⚡ АБСОЛЮТНО ВСЕЯДНЫЙ ПАРСЕР (читает индексы, объекты и сами куски текста)
-          ruleIndices.forEach(item => {
-            if (item === null || item === undefined) return;
-            if (typeof item === 'object') {
-              if (item.index !== undefined) validIndices.push(parseInt(item.index));
-              else if (item.i !== undefined) validIndices.push(parseInt(item.i));
-            } else if (typeof item === 'number') {
-              validIndices.push(item);
-            } else if (typeof item === 'string') {
-              let idx = tokens.indexOf(item);
-              if (idx !== -1) validIndices.push(idx); // Нашли по тексту (например, "10")
-              else if (!isNaN(parseInt(item))) validIndices.push(parseInt(item)); // Нашли по индексу в виде строки
+          let validIndices = rawIndices.map(idx => {
+            if (typeof idx === 'object' && idx !== null) {
+              return idx.index !== undefined ? parseInt(idx.index) : parseInt(idx.i);
             }
-          });
+            return parseInt(idx);
+          }).filter(n => !isNaN(n));
 
-          // Чистим от дубликатов, защищаем от несуществующих индексов и сортируем по порядку
-          validIndices = [...new Set(validIndices)].filter(n => !isNaN(n) && n >= 0 && n < tokens.length).sort((a, b) => a - b);
+          // Убираем дубликаты и сортируем по порядку
+          validIndices = [...new Set(validIndices)].filter(n => n >= 0 && n < tokens.length).sort((a, b) => a - b);
 
           validIndices.forEach(i => {
             if (tokens[i] !== undefined) gluedText += tokens[i];
