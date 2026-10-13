@@ -1,6 +1,37 @@
-// --- МОДУЛЬ УМНОЙ ПРИЕМКИ (ИНВОЙСЫ) ---
+// --- МОДУЛЬ УМНОЙ ПРИЕМКИ (ИНВОЙСЫ) ---selectImportMode
 window.parsedInvoiceData = [];
 window.invoiceGroups = {};
+window.currentImportMode = 'standard'; // Режим по умолчанию
+
+// Обработчик переключения режимов импорта (Обычный / Kaspi)
+window.selectImportMode = function(mode) {
+    window.currentImportMode = mode;
+    
+    // Переключаем визуальное состояние кнопок
+    if (window.event && window.event.currentTarget) {
+        // Убираем подсветку со всех соседних кнопок выбора режима
+        const parent = window.event.currentTarget.parentElement;
+        if (parent) {
+            parent.querySelectorAll('div').forEach(el => {
+                el.classList.remove('active');
+                el.style.border = "1px solid var(--border-light)";
+                el.style.background = "var(--bg-panel)";
+            });
+        }
+        
+        // Подсвечиваем нажатую карточку синим цветом
+        const activeElem = window.event.currentTarget;
+        activeElem.classList.add('active');
+        activeElem.style.border = "2px solid var(--accent-blue)";
+        activeElem.style.background = "rgba(59, 130, 246, 0.1)";
+    }
+
+    // Показываем или скрываем блок выбора шаблона Каспи
+    const kaspiBlock = document.getElementById("kaspiTemplateContainer") || document.getElementById("kaspiTemplateBlock");
+    if (kaspiBlock) {
+        kaspiBlock.style.display = mode === "kaspi" ? "block" : "none";
+    }
+};
 
 function toggleIncomeModule() {
   const modal = document.getElementById("income-modal");
