@@ -1052,7 +1052,7 @@ window.applySplitRule = function (colIndex, colName) {
   window.mapper2State.colMap[sysKey] = colIndex;
   window.mapper2State.splitRules[sysKey] = tokenIndices;
 
-  // Генерируем пример склейки из первой попавшейся непустой строки
+  // Генерируем пример склейки
   let rawVal = "";
   for (let i = 0; i < window.mapper2State.invoiceRows.length; i++) {
     let val = String(window.mapper2State.invoiceRows[i][colIndex] || "").trim();
@@ -1062,49 +1062,20 @@ window.applySplitRule = function (colIndex, colName) {
     }
   }
 
-  // 1. КРАСИМ КНОПКУ
-  const statusEl = document.getElementById("status-" + sysKey);
-  if (statusEl) {
-    statusEl.className = "req-status status-filled";
-    statusEl.innerText = `✂️ ${colName}`;
-    statusEl.style.cssText =
-      "border: 1px solid #4CAF50; color: #4CAF50; background: rgba(76, 175, 80, 0.1); font-weight: bold;";
+  let gluedText = "";
+  if (rawVal) {
+    const regex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,]/g;
+    const tokens = rawVal.match(regex) || [];
+    tokenIndices.forEach((idx) => {
+      if (tokens[idx] !== undefined) gluedText += tokens[idx];
+    });
   }
 
-  // 2. ДОБАВЛЯЕМ ВИЗУАЛЬНЫЙ ТОКЕНИЗАТОР
-  let subtitleEl = document.getElementById("subtitle-" + sysKey);
-  if (subtitleEl && subtitleEl.parentElement) {
-    let reqInfo = subtitleEl.parentElement;
-
-    // Удаляем старое превью, если оно там уже было
-    let oldPreview = document.getElementById("preview-" + sysKey);
-    if (oldPreview) oldPreview.remove();
-
-    // Удаляем старый "желтый" результат от старых скриптов, если он есть
-    let oldResult = reqInfo.querySelector(".req-result");
-    if (oldResult) oldResult.remove();
-
-    if (rawVal) {
-      const regex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,]/g;
-      const tokens = rawVal.match(regex) || [];
-
-      let highlighted = tokens
-        .map((tok, i) => {
-          if (tokenIndices.includes(i)) {
-            return `<b style="color:#000; background:var(--accent-green, #4CAF50); padding:0 3px; border-radius:3px;">${tok}</b>`;
-          } else {
-            return `<span style="color:#666; text-decoration:line-through;">${tok}</span>`;
-          }
-        })
-        .join("");
-
-      let extraPreviewHtml = `
-            <div id="preview-${sysKey}" style="margin-top: 6px; font-size: 11px; background: rgba(255,255,255,0.05); padding: 4px 8px; border-radius: 4px; display: inline-block;">
-                ${highlighted}
-            </div>`;
-
-      reqInfo.insertAdjacentHTML("beforeend", extraPreviewHtml);
-    }
+  let displayResult = gluedText ? gluedText : colName;
+  
+  // Обновляем карточку (перенос в зеленый блок и вывод результата)
+  if (typeof window.updateReqCardStatus === "function") {
+      window.updateReqCardStatus(sysKey, `✂️ ${displayResult}`, "status-filled", gluedText);
   }
 
   closeSheet();
@@ -2681,7 +2652,9 @@ async function sendInvoiceToBackend() {
 
     try {
       let uniqueFileId = window.mapper2State && window.mapper2State.fileHash ? window.mapper2State.fileHash : String(docNo).replace(/\s/g, "_");
-      let fp = "FP_" + uniqueFileId + "_" + group.items.length + "шт_" + group.items.reduce((sum, i) => sum + (Number(i.qty) || 0), 0) + "кол";
+      
+      // Добавляем Date.now() чтобы уникализировать каждую попытку отправки и обойти жесткий блок дубликатов
+      let fp = "FP_" + uniqueFileId + "_" + group.items.length + "шт_" + Date.now();
       group.items.forEach((item) => (item.file_code = fp));
 
       // ⚡ СОБИРАЕМ ИСТОРИЮ ЭКСПОРТА И КОЛОНОК ДЛЯ БАЗЫ
