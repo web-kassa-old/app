@@ -6715,7 +6715,7 @@ window.startSmartMerge = function (fileId, fileDate) {
 // ===================================================================
 
 // Добавляем переменную для хранения таймера
-let backgroundPulseTimer = null;
+var backgroundPulseTimer = null;
 
 function startBackgroundPulse() {
   // На всякий случай очищаем старый таймер, чтобы не плодить двойников
