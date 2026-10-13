@@ -39,6 +39,24 @@ window.hideLoading = function () {
   if (loader) loader.style.display = "none";
 };
 
+// 1. Детектор встроенных браузеров
+function isBadInAppBrowser() {
+  const ua = navigator.userAgent || navigator.vendor || window.opera;
+  return (
+    ua.indexOf("Telegram") > -1 ||
+    ua.indexOf("Instagram") > -1 ||
+    ua.indexOf("FBAN") > -1 ||
+    ua.indexOf("FBAV") > -1
+  );
+}
+// Детектор видимости страницы
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") {
+    console.log("Приложение развернуто из фона. Сброс блокировок.");
+    isAuthPending = false;
+  }
+});
+
 function initGoogleAuth() {
   try {
     if (isBadInAppBrowser()) {
@@ -5461,7 +5479,7 @@ window.startNtScanner = function () {
 
   Quagga.onDetected(window.handleNtQuaggaDetection);
 };
-handleTemplateUpload;
+
 // 3. Обработка штрихкода
 window.handleNtQuaggaDetection = function (result) {
   if (!result || !result.codeResult || !result.codeResult.code) return;

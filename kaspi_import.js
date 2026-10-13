@@ -3379,7 +3379,7 @@ async function saveKaspiTemplateBackend(categoryName, buffer, headersObj) {
 }
 
 // Обработка загрузки файла шаблона Kaspi
-async function handleTemplateUpload(event) {
+window.handleTemplateUpload = async function(event) {
   const file = event.target.files[0];
   if (!file) return;
 
@@ -3994,3 +3994,14 @@ window.handleTemplateChange = function(selectElem) {
         selectElem.value = ""; // Сбрасываем выбор
     }
 };
+
+document.addEventListener("DOMContentLoaded", () => {
+    const templateInput = document.getElementById("templateFileInput");
+    if (templateInput) {
+        templateInput.addEventListener("change", (e) => {
+            if (typeof window.handleTemplateUpload === "function") {
+                window.handleTemplateUpload(e);
+            }
+        });
+    }
+});
