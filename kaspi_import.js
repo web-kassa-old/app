@@ -386,7 +386,6 @@ window.navigateBack = function () {
 // 2. ОТРИСОВКА КАРТОЧЕК НА ГЛАВНОМ ЭКРАНЕ
 window.renderMapper2Cards = function (templateData) {
   // === КЭШИРОВАНИЕ ДАННЫХ ===
-  // Запоминаем данные при первом вызове, чтобы перерисовка работала при вызове без аргументов
   if (templateData) {
     window.lastTemplateData = templateData;
   } else {
@@ -619,7 +618,6 @@ window.renderMapper2Cards = function (templateData) {
       statusClass = "status-filled";
       let shortVal =
         dictValue.length > 15 ? dictValue.substring(0, 15) + "..." : dictValue;
-      // ИСПРАВЛЕНИЕ 1: Добавляем галочку и красим кнопку для словаря
       statusText = `✓ ${shortVal}`;
       statusI18n = "";
       statusStyle =
@@ -642,8 +640,14 @@ window.renderMapper2Cards = function (templateData) {
 
       if (ruleIndices.length > 0) {
         let sampleText = "";
-        for (let i = 0; i < Math.min(10, window.mapper2State.invoiceRows.length); i++) {
-          let val = String(window.mapper2State.invoiceRows[i][mappedIndex] || "").trim();
+        for (
+          let i = 0;
+          i < Math.min(10, window.mapper2State.invoiceRows.length);
+          i++
+        ) {
+          let val = String(
+            window.mapper2State.invoiceRows[i][mappedIndex] || "",
+          ).trim();
           if (val) {
             sampleText = val;
             break;
@@ -657,7 +661,7 @@ window.renderMapper2Cards = function (templateData) {
           const regex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,]/g;
           let tokens = sampleText.match(regex) || [];
 
-          // ⚡ ДОБАВЛЕНО: Склеиваем реальный результат резки для кнопки
+          // === СЧИТАЕМ РЕЗУЛЬТАТ РЕЗКИ ДЛЯ КНОПКИ ===
           ruleIndices.forEach(idx => {
              if (tokens[idx] !== undefined) gluedText += tokens[idx];
           });
@@ -673,10 +677,11 @@ window.renderMapper2Cards = function (templateData) {
             .join("");
         }
 
-        // ⚡ ИСПРАВЛЕНИЕ: Выводим на кнопку вырезанный текст (gluedText), а не имя колонки
+        // ВЫВОДИМ СКЛЕЕННЫЙ ТЕКСТ (ИЛИ ИМЯ КОЛОНКИ, ЕСЛИ ПУСТО)
         statusText = `✂ ${gluedText || colName}`;
         statusI18n = "";
-        statusStyle = "border: 1px solid var(--accent-green, #2ecc71); color: var(--accent-green, #2ecc71); background: var(--bg-success-dim, rgba(46, 204, 113, 0.15)); font-weight: bold;";
+        statusStyle =
+          "border: 1px solid var(--accent-green, #2ecc71); color: var(--accent-green, #2ecc71); background: var(--bg-success-dim, rgba(46, 204, 113, 0.15)); font-weight: bold;";
 
         if (highlighted) {
           extraPreviewHtml = `
@@ -685,7 +690,6 @@ window.renderMapper2Cards = function (templateData) {
                     </div>`;
         }
       } else {
-        // ИСПРАВЛЕНИЕ 3: Меняем текст кнопки для обычного маппинга
         statusText = `✓ ${colName}`;
         statusI18n = "";
         statusStyle =
@@ -1055,7 +1059,7 @@ window.applySplitRule = function (colIndex, colName) {
   window.mapper2State.colMap[sysKey] = colIndex;
   window.mapper2State.splitRules[sysKey] = tokenIndices;
 
-  // Берем первую попавшуюся непустую строку для примера
+  // Генерируем пример склейки из первой попавшейся непустой строки
   let rawVal = "";
   for (let i = 0; i < window.mapper2State.invoiceRows.length; i++) {
     let val = String(window.mapper2State.invoiceRows[i][colIndex] || "").trim();
@@ -1065,7 +1069,7 @@ window.applySplitRule = function (colIndex, colName) {
     }
   }
 
-  // Склеиваем токены
+  // === СЧИТАЕМ РЕЗУЛЬТАТ РЕЗКИ ===
   let gluedText = "";
   if (rawVal) {
     const regex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,]/g;
@@ -1075,28 +1079,52 @@ window.applySplitRule = function (colIndex, colName) {
     });
   }
 
-  // === ЛОГИРОВАНИЕ ДЛЯ БАГА 1 ===
-  console.log("=== DEBUG БАГ 1 (СПЛИТТЕР) ===");
-  console.log("Ключ (sysKey):", sysKey);
-  console.log("Исходная строка (rawVal):", rawVal);
-  console.log("Выбранные индексы:", tokenIndices);
-  console.log("Результат склейки (gluedText):", gluedText);
-  console.log("Оригинальное имя колонки (colName):", colName);
+  console.log("=== DEBUG БАГ 1 ===", {sysKey, rawVal, tokenIndices, gluedText});
 
-  // 1. КРАСИМ КНОПКУ И ВСТАВЛЯЕМ ТЕКСТ
+  // 1. КРАСИМ КНОПКУ
   const statusEl = document.getElementById("status-" + sysKey);
   if (statusEl) {
     statusEl.className = "req-status status-filled";
-    // Если склейка успешна - пишем ее, если нет - пишем имя колонки
-    let finalText = gluedText ? gluedText : colName;
-    statusEl.innerText = `✂️ ${finalText}`;
-    statusEl.style.cssText = "border: 1px solid #4CAF50; color: #4CAF50; background: rgba(76, 175, 80, 0.1); font-weight: bold;";
+    // ВЫВОДИМ СКЛЕЕННЫЙ ТЕКСТ ВМЕСТО ИМЕНИ КОЛОНКИ
+    statusEl.innerText = `✂️ ${gluedText || colName}`;
+    statusEl.style.cssText =
+      "border: 1px solid #4CAF50; color: #4CAF50; background: rgba(76, 175, 80, 0.1); font-weight: bold;";
   }
 
-  // 2. ДОБАВЛЯЕМ ПОДСКАЗКУ ПОД НАЗВАНИЕМ (Желтый текст)
+  // 2. ДОБАВЛЯЕМ ВИЗУАЛЬНЫЙ ТОКЕНИЗАТОР
   let subtitleEl = document.getElementById("subtitle-" + sysKey);
-  if (subtitleEl && gluedText) {
-      subtitleEl.innerHTML = `<span style="color: var(--accent-yellow); font-weight: bold;">Результат: ${gluedText}</span>`;
+  if (subtitleEl && subtitleEl.parentElement) {
+    let reqInfo = subtitleEl.parentElement;
+
+    // Удаляем старое превью, если оно там уже было
+    let oldPreview = document.getElementById("preview-" + sysKey);
+    if (oldPreview) oldPreview.remove();
+
+    // Удаляем старый "желтый" результат от старых скриптов, если он есть
+    let oldResult = reqInfo.querySelector(".req-result");
+    if (oldResult) oldResult.remove();
+
+    if (rawVal) {
+      const regex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,]/g;
+      const tokens = rawVal.match(regex) || [];
+
+      let highlighted = tokens
+        .map((tok, i) => {
+          if (tokenIndices.includes(i)) {
+            return `<b style="color:#000; background:var(--accent-green, #4CAF50); padding:0 3px; border-radius:3px;">${tok}</b>`;
+          } else {
+            return `<span style="color:#666; text-decoration:line-through;">${tok}</span>`;
+          }
+        })
+        .join("");
+
+      let extraPreviewHtml = `
+            <div id="preview-${sysKey}" style="margin-top: 6px; font-size: 11px; background: rgba(255,255,255,0.05); padding: 4px 8px; border-radius: 4px; display: inline-block;">
+                ${highlighted}
+            </div>`;
+
+      reqInfo.insertAdjacentHTML("beforeend", extraPreviewHtml);
+    }
   }
 
   closeSheet();
