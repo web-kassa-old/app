@@ -645,14 +645,8 @@ window.renderMapper2Cards = function (templateData) {
         let gluedText = "";
         let highlighted = "";
 
-        for (
-          let i = 0;
-          i < Math.min(10, window.mapper2State.invoiceRows.length);
-          i++
-        ) {
-          let val = String(
-            window.mapper2State.invoiceRows[i][mappedIndex] || "",
-          ).trim();
+        for (let i = 0; i < Math.min(10, window.mapper2State.invoiceRows.length); i++) {
+          let val = String(window.mapper2State.invoiceRows[i][mappedIndex] || "").trim();
           if (val) {
             sampleText = val;
             break;
@@ -663,34 +657,42 @@ window.renderMapper2Cards = function (templateData) {
           const regex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,]/g;
           let tokens = sampleText.match(regex) || [];
 
-          // === СЧИТАЕМ РЕЗУЛЬТАТ РЕЗКИ ДЛЯ КНОПКИ ===
-          ruleIndices.forEach(idx => {
-            let i = parseInt(idx);
-            if (!isNaN(i) && tokens[i] !== undefined) gluedText += tokens[i];
+          // ⚡ ФИКС: Делаем парсинг индексов всеядным (для массивов чисел и массивов объектов)
+          let validIndices = ruleIndices.map(idx => {
+            if (typeof idx === 'object' && idx !== null) {
+              if (idx.index !== undefined) return parseInt(idx.index);
+              if (idx.i !== undefined) return parseInt(idx.i);
+              // Запасной вариант: ищем число внутри объекта
+              for (let k in idx) {
+                if (typeof idx[k] === 'number' || !isNaN(parseInt(idx[k]))) return parseInt(idx[k]);
+              }
+            }
+            return parseInt(idx);
+          }).filter(n => !isNaN(n));
+
+          // Считаем склеенный текст для кнопки
+          validIndices.forEach(i => {
+            if (tokens[i] !== undefined) gluedText += tokens[i];
           });
 
-          highlighted = tokens
-            .map((tok, i) => {
-              if (ruleIndices.map(Number).includes(i)) {
-                return `<b style="color:#000; background:var(--accent-green, #4CAF50); padding:0 3px; border-radius:3px;">${tok}</b>`;
-              } else {
-                return `<span style="color:#666; text-decoration:line-through;">${tok}</span>`;
-              }
-            })
-            .join("");
+          highlighted = tokens.map((tok, i) => {
+            if (validIndices.includes(i)) {
+              return `<b style="color:#000; background:var(--accent-green, #4CAF50); padding:0 3px; border-radius:3px;">${tok}</b>`;
+            } else {
+              return `<span style="color:#666; text-decoration:line-through;">${tok}</span>`;
+            }
+          }).join("");
         }
 
-        // ВЫВОДИМ СКЛЕЕННЫЙ ТЕКСТ (ИЛИ ИМЯ КОЛОНКИ, ЕСЛИ ПУСТО)
         statusText = `✂ ${gluedText || colName}`;
         statusI18n = "";
-        statusStyle =
-          "border: 1px solid var(--accent-green, #2ecc71); color: var(--accent-green, #2ecc71); background: var(--bg-success-dim, rgba(46, 204, 113, 0.15)); font-weight: bold;";
+        statusStyle = "border: 1px solid var(--accent-green, #2ecc71); color: var(--accent-green, #2ecc71); background: var(--bg-success-dim, rgba(46, 204, 113, 0.15)); font-weight: bold;";
 
         if (highlighted) {
           extraPreviewHtml = `
-                    <div id="preview-${req.sysKey}" style="margin-top: 6px; font-size: 11px; background: rgba(255,255,255,0.05); padding: 4px 8px; border-radius: 4px; display: inline-block;">
-                        ${highlighted}
-                    </div>`;
+            <div id="preview-${req.sysKey}" style="margin-top: 6px; font-size: 11px; background: rgba(255,255,255,0.05); padding: 4px 8px; border-radius: 4px; display: inline-block;">
+                ${highlighted}
+            </div>`;
         }
       } else {
         // ИСПРАВЛЕНИЕ 3: Меняем текст кнопки для обычного маппинга
