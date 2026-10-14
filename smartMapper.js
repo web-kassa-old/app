@@ -87,7 +87,8 @@ window.detectComplexColumns = function (headers, rows) {
         const isJustNumber = !isNaN(Number(strVal.replace(/,/g, "")));
         if (isJustNumber) continue;
 
-        const tokens = strVal.split(/[\s/\-_*xX]+/).filter((t) => t.length > 0);
+        // Режем строку по ЛЮБЫМ нечисловым символам (включая буквы и точки)
+        const tokens = strVal.split(/[^\d]+/).filter((t) => t.length > 0);
 
         // Как только нашли сложную структуру - фиксируем и останавливаем поиск по этой колонке
         if (tokens.length >= 2) {
@@ -370,12 +371,30 @@ window.renderSmartMapperModal = function (complexColumns) {
         }
       });
 
-      // Просим роутер открыть Шаг 2 и рендерим карточки
-      if (typeof window.navigateIncomeStep === "function") {
-        window.navigateIncomeStep(2);
-      }
+      // Скрываем Сито и Маппер, чтобы они не моргали на фоне
+      const smartContainer = document.getElementById("smartMapperContainer");
+      if (smartContainer) smartContainer.style.display = "none";
+      
+      const mapperArea = document.getElementById("mapper2Area");
+      if (mapperArea) mapperArea.style.display = "none";
+
+      // Просим Маппер в фоне собрать конфликты (наполнить quarantine)
       if (typeof window.renderMapper2Cards === "function") {
         window.renderMapper2Cards(window.currentTemplateData);
+      }
+      
+      // Глушим Маппер еще раз, так как рендер мог его принудительно открыть
+      if (mapperArea) mapperArea.style.display = "none";
+
+      // Направляем поток в правильное русло
+      if (window.mapper2State.quarantine && window.mapper2State.quarantine.length > 0) {
+        if (typeof window.startTokenizerQueue === "function") {
+          window.startTokenizerQueue();
+        }
+      } else {
+        if (typeof window.navigateIncomeStep === "function") {
+          window.navigateIncomeStep(2);
+        }
       }
     });
   }
@@ -750,55 +769,22 @@ window.startTokenizerQueue = function () {
     const dicts = window.kaspiDicts || {};
     let paramsList = [];
 
-    // ИСПРАВЛЕНИЕ 1: Убрали фильтр isCodeOrNumber.
-    const excludeFromSmart = [
-      "Артикул",
-      "Название товара",
-      "Бренд",
-      "Цена",
-      "Название модели",
-      "Модель",
-      "Рубрика",
-      "category",
-      "Сезонность",
-      "Назначение",
-      "Тип шины",
-      "Комплектация",
-      "Тип рисунка протектора",
-      "Шипы",
-      "Код изображений",
-      "Ссылка на YouTube",
-      "Ссылка на картинку",
-      "Описание (мин. 100 символов, макс. 7 000 символов)",
-      "Описание",
-      "Вес для расчета логистики",
-      "Объединить в одну карточку",
-      "В наличии",
-    ];
+   // Берем только те параметры, которые пользователь отметил галочками в Сите
+    const colName = pattern.excelColumnName;
+    const savedParams = (window.mapper2State.smartRules && window.mapper2State.smartRules[colName]) 
+      ? window.mapper2State.smartRules[colName] 
+      : [];
 
-    Object.keys(dicts).forEach((paramName) => {
-      if (
-        !excludeFromSmart.includes(paramName) &&
-        Array.isArray(dicts[paramName])
-      ) {
-        const validExamples = dicts[paramName].filter(
-          (val) => val && String(val).trim() !== "",
-        );
-        if (validExamples.length > 0) {
-          // ВОЗВРАЩАЕМ УДАЛЕННЫЙ ФИЛЬТР: оставляем только параметры с цифрами или короткими кодами (индексы, размеры)
-          const isCodeOrNumber = validExamples.some((ex) => {
-            const str = String(ex).trim();
-            return (
-              /\d/.test(str) || (/^[a-zA-Z]+$/.test(str) && str.length <= 3)
-            );
-          });
-          if (isCodeOrNumber) paramsList.push({ name: paramName });
-        }
-      }
-    });
-
-    if (paramsList.length === 0)
+    if (savedParams.length > 0) {
+      savedParams.forEach((paramName) => {
+        paramsList.push({ name: paramName });
+      });
+    } else {
       paramsList = [{ name: "Неизвестный параметр" }];
+    }
+
+    // Добавляем Мусорную корзину в конец
+    paramsList.push({ name: "Лишние символы" });
 
     // ИСПРАВЛЕНИЕ: Приоритет отдается реальному названию колонки из Excel
     const displayColName = pattern.excelColumnName || "Многосоставные данные";
@@ -823,6 +809,10 @@ window.startTokenizerQueue = function () {
     if (btnDone) {
       const isLastStep = currentQueueIndex === queue.length - 1;
       btnDone.textContent = isLastStep ? (tr.tok_finish || "ЗАВЕРШИТЬ") : (tr.tok_next || "ДАЛЕЕ");
+      
+      // Глушим кнопку при открытии нового паттерна
+      btnDone.style.opacity = "0.5";
+      btnDone.style.pointerEvents = "none";
     }
 
     const backBtn = overlay.querySelector(".btn-back");
@@ -946,6 +936,12 @@ window.startTokenizerQueue = function () {
         const gluedText = row.querySelector(".param-preview").textContent;
         if (!gluedText) return;
 
+        // Если это корзина - просто фиксируем и выходим, не ищем в словаре
+        if (paramName === "Лишние символы") {
+          lockParameter(row, paramName, gluedText, gluedText);
+          return;
+        }
+
         let dictArray = dicts[paramName] || [];
         let matchedValue = null;
 
@@ -1034,11 +1030,17 @@ window.startTokenizerQueue = function () {
         t.classList.add("disabled");
       });
 
-      btnDone.style.opacity = "1";
-      setTimeout(() => {
-        btnDone.style.pointerEvents = "auto";
-        btnDone.style.cursor = "pointer";
-      }, 300);
+      // Проверяем: если ВСЕ токены стали серыми (disabled), разблокируем кнопку
+      const allTokensCount = overlay.querySelectorAll(".token").length;
+      const disabledTokensCount = overlay.querySelectorAll(".token.disabled").length;
+      
+      if (disabledTokensCount >= allTokensCount) {
+        btnDone.style.opacity = "1";
+        setTimeout(() => {
+          btnDone.style.pointerEvents = "auto";
+          btnDone.style.cursor = "pointer";
+        }, 300);
+      }
     };
 
     btnClear.addEventListener("click", () => {
@@ -1131,7 +1133,10 @@ window.startTokenizerQueue = function () {
                     }
                   }
 
-                  attrsObj[sysKey] = finalVal;
+                  // Игнорируем мусорные символы при записи в накладную
+                  if (sysKey !== "Лишние символы") {
+                    attrsObj[sysKey] = finalVal;
+                  }
                 }
               },
             );
@@ -1154,9 +1159,19 @@ window.startTokenizerQueue = function () {
       overlay.style.display = "none";
       overlay.innerHTML = "";
     }
-    window.renderPreviewTable();
-    document.getElementById("mapper2Area").style.display = "none";
-    document.getElementById("invoicePreviewArea").style.display = "flex";
+    
+    // Включаем видимость Маппера и направляем туда
+    const mapperArea = document.getElementById("mapper2Area");
+    if (mapperArea) mapperArea.style.display = "flex";
+
+    if (typeof window.navigateIncomeStep === "function") {
+      window.navigateIncomeStep(2);
+    }
+    
+    // Рендерим карточки уже с учетом примененных результатов Токенизатора
+    if (typeof window.renderMapper2Cards === "function") {
+      window.renderMapper2Cards(window.currentTemplateData);
+    }
   }
 
   processNext();
