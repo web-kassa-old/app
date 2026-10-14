@@ -999,27 +999,8 @@ window.startTokenizerQueue = function () {
         if (matchedValue) {
           lockParameter(row, paramName, matchedValue, gluedText);
         } else {
-          const lang = window.currentLang || localStorage.getItem("pos_lang") || "ru";
-          const tr = typeof translations !== "undefined" && translations[lang] ? translations[lang] : {};
-          
-          let notFoundMsg = tr.tok_not_found || `Значение <b>"{val}"</b> не найдено. Выберите вручную:`;
-          
-          // ⚡ Безопасная проверка: если текстового блока нет, выводим стандартный alert
-          let msgEl = overlay.querySelector(".fallback-msg");
-          if (msgEl) {
-            msgEl.innerHTML = notFoundMsg.replace("{val}", gluedText);
-          } else {
-            // Просто выводим сообщение. НЕ ломаем интерфейс и НЕ очищаем токены!
-            alert(`Внимание: Значение "${gluedText}" не найдено в справочнике.\nОтожмите лишний токен вверху экрана (например, букву R) и попробуйте снова.`);
-          }
-          
-          // ⚡ Безопасная загрузка выпадающего списка
-          if (fallbackSelect) {
-            fallbackSelect.innerHTML =
-              `<option value="" disabled selected>${tr.tok_dict_name || "Справочник:"} ${paramName}...</option>` +
-              dictArray.map((val) => `<option value="${val}">${val}</option>`).join("");
-          }
-          if (fallbackZone) fallbackZone.style.display = "block";
+          // ⚡ Никаких манипуляций с DOM и выпадающими списками. Только предупреждение. Токены остаются активными, чтобы их можно было отжать.
+          alert(`Внимание: Значение "${gluedText}" не найдено в справочнике Kaspi.\n\nКликните по лишнему фрагменту в верхней панели (например, букве), чтобы убрать его, и нажмите ОК снова.`);
         }
       });
     });
@@ -1126,13 +1107,18 @@ window.startTokenizerQueue = function () {
   function applyResultsToData() {
     window.mapper2State.splitRules = window.mapper2State.splitRules || {};
 
-    // Сохраняем индексы разрезанных токенов, чтобы Маппер нарисовал их зеленым
     queue.forEach((pattern) => {
       if (pattern.resolvedAttributes) {
-        Object.keys(pattern.resolvedAttributes).forEach((sysKey) => {
-          if (sysKey !== "Лишние символы") {
-            const rule = pattern.resolvedAttributes[sysKey];
-            if (rule && rule.indexes && rule.indexes.length > 0) {
+        Object.keys(pattern.resolvedAttributes).forEach((paramName) => {
+          if (paramName !== "Лишние символы") {
+            const rule = pattern.resolvedAttributes[paramName];
+            
+            // ⚡ ПЕРЕВОДИМ ЧЕЛОВЕЧЕСКОЕ ИМЯ В СИСТЕМНЫЙ КЛЮЧ
+            const sysKey = Object.keys(window.mapper2State.sysToHumanMap).find(
+              (k) => window.mapper2State.sysToHumanMap[k] === paramName
+            );
+
+            if (sysKey && rule && rule.indexes && rule.indexes.length > 0) {
               window.mapper2State.splitRules[sysKey] = rule.indexes;
             }
           }
@@ -1140,10 +1126,8 @@ window.startTokenizerQueue = function () {
       }
     });
 
-    // Очищаем очередь и переходим в Маппер
     window.mapper2State.quarantine = [];
-    // ⚡ Вызываем функцию по её настоящему старому имени
-    finishAndGoToPreview(); 
+    finishAndGoToPreview();
   }
 
   function finishAndGoToPreview() {
