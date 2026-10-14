@@ -254,6 +254,13 @@ window.processInvoiceFile = async function () {
         smartRows,
       );
 
+      console.log("Детектор получил шапки Excel:", smartHeaders);
+      console.log(
+        "Детектор получил строки Excel (первые 2):",
+        smartRows.slice(0, 2),
+      );
+      console.log("Детектор нашел сложные колонки:", complexColumns);
+
       window.mapper2State = window.mapper2State || {};
 
       if (complexColumns && complexColumns.length > 0) {
@@ -333,7 +340,6 @@ window.navigateIncomeStep = function (stepNumber, isBack = false) {
     if (currency) currency.style.display = "none";
 
     if (smartContainer) {
-      smartContainer.style.display = "flex"; // ⚡ ПРИНУДИТЕЛЬНО ПОКАЗАТЬ
       smartContainer.className = "smart-mapper-overlay";
       if (
         window.renderSmartMapperModal &&
@@ -380,6 +386,7 @@ window.navigateBack = function () {
 // 2. ОТРИСОВКА КАРТОЧЕК НА ГЛАВНОМ ЭКРАНЕ
 window.renderMapper2Cards = function (templateData) {
   // === КЭШИРОВАНИЕ ДАННЫХ ===
+  // Запоминаем данные при первом вызове, чтобы перерисовка работала при вызове без аргументов
   if (templateData) {
     window.lastTemplateData = templateData;
   } else {
@@ -612,6 +619,7 @@ window.renderMapper2Cards = function (templateData) {
       statusClass = "status-filled";
       let shortVal =
         dictValue.length > 15 ? dictValue.substring(0, 15) + "..." : dictValue;
+      // ИСПРАВЛЕНИЕ 1: Добавляем галочку и красим кнопку для словаря
       statusText = `✓ ${shortVal}`;
       statusI18n = "";
       statusStyle =
@@ -679,13 +687,15 @@ window.renderMapper2Cards = function (templateData) {
             if (tokens[i] !== undefined) gluedText += tokens[i];
           });
 
-          highlighted = tokens.map((tok, i) => {
-            if (validIndices.includes(i)) {
-              return `<b style="color:#000; background:var(--accent-green, #4CAF50); padding:0 3px; border-radius:3px;">${tok}</b>`;
-            } else {
-              return `<span style="color:#666; text-decoration:line-through;">${tok}</span>`;
-            }
-          }).join("");
+          highlighted = tokens
+            .map((tok, i) => {
+              if (validIndices.includes(i)) {
+                return `<b style="color:#000; background:var(--accent-green, #4CAF50); padding:0 3px; border-radius:3px;">${tok}</b>`;
+              } else {
+                return `<span style="color:#666; text-decoration:line-through;">${tok}</span>`;
+              }
+            })
+            .join("");
         }
 
         statusText = `✂ ${gluedText || colName}`;
@@ -700,6 +710,7 @@ window.renderMapper2Cards = function (templateData) {
                     </div>`;
         }
       } else {
+        // ИСПРАВЛЕНИЕ 3: Меняем текст кнопки для обычного маппинга
         statusText = `✓ ${colName}`;
         statusI18n = "";
         statusStyle =
@@ -1079,21 +1090,13 @@ window.applySplitRule = function (colIndex, colName) {
     }
   }
 
-  // Склеиваем текст для кнопки
-  let gluedText = "";
-  if (rawVal) {
-    const regex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,]/g;
-    const tokens = rawVal.match(regex) || [];
-    tokenIndices.forEach((idx) => {
-      if (tokens[idx] !== undefined) gluedText += tokens[idx];
-    });
-  }
-
   // 1. КРАСИМ КНОПКУ
   const statusEl = document.getElementById("status-" + sysKey);
   if (statusEl) {
     statusEl.className = "req-status status-filled";
-    statusEl.innerText = `✂️ ${gluedText || colName}`;
+    statusEl.innerText = `✂️ ${colName}`;
+    statusEl.style.cssText =
+      "border: 1px solid #4CAF50; color: #4CAF50; background: rgba(76, 175, 80, 0.1); font-weight: bold;";
   }
 
   // 2. ДОБАВЛЯЕМ ВИЗУАЛЬНЫЙ ТОКЕНИЗАТОР
