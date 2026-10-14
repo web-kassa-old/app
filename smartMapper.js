@@ -684,6 +684,8 @@ window.startTokenizerQueue = function () {
     });
 
     if (paramsList.length === 0) paramsList = [{ name: "Неизвестный параметр" }];
+    // Добавляем мусорную корзину для лишних токенов (R, слеши, точки и т.д.)
+    paramsList.push({ name: "Лишние символы (пропустить)" });
 
     const displayColName = pattern.excelColumnName || "Многосоставные данные";
 
@@ -855,10 +857,10 @@ window.startTokenizerQueue = function () {
       });
 
       // ИСПРАВЛЕНИЕ 3: Проверяем, все ли параметры (строки) заблокированы
-      const allRowsCount = paramRows.length;
-      const disabledRowsCount = overlay.querySelectorAll(".param-row.disabled").length;
+      const allTokensCount = overlay.querySelectorAll(".token").length;
+      const disabledTokensCount = overlay.querySelectorAll(".token.disabled").length;
       
-      if (disabledRowsCount >= allRowsCount) {
+      if (disabledTokensCount >= allTokensCount) {
         btnDone.style.opacity = "1";
         setTimeout(() => {
           btnDone.style.pointerEvents = "auto";
@@ -968,6 +970,11 @@ window.startTokenizerQueue = function () {
       overlay.style.display = "none";
       overlay.innerHTML = "";
     }
+    
+    // Включаем видимость Маппера обратно
+    const mapperArea = document.getElementById("mapper2Area");
+    if (mapperArea) mapperArea.style.display = "flex";
+
     if (typeof window.navigateIncomeStep === "function") {
       window.navigateIncomeStep(2);
     }
