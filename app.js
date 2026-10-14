@@ -39,6 +39,139 @@ window.hideLoading = function () {
   if (loader) loader.style.display = "none";
 };
 
+// 1. Детектор встроенных браузеров
+function isBadInAppBrowser() {
+  const ua = navigator.userAgent || navigator.vendor || window.opera;
+  return (
+    ua.indexOf("Telegram") > -1 ||
+    ua.indexOf("Instagram") > -1 ||
+    ua.indexOf("FBAN") > -1 ||
+    ua.indexOf("FBAV") > -1
+  );
+}
+// Детектор видимости страницы
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") {
+    console.log("Приложение развернуто из фона. Сброс блокировок.");
+    isAuthPending = false;
+  }
+});
+
+function initGoogleAuth() {
+  try {
+    if (isBadInAppBrowser()) {
+      // Твоя заглушка для встроенных браузеров
+      document.getElementById("google-screen").innerHTML = `...`;
+      return;
+    }
+
+    tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: GOOGLE_CLIENT_ID,
+      scope:
+        "https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/drive",
+
+      callback: (tokenResponse) => {
+        isAuthPending = false;
+
+        if (tokenResponse && tokenResponse.access_token) {
+          clientAccessToken = tokenResponse.access_token;
+
+          const googleScreen = document.getElementById("google-screen");
+
+          // Отрисовка с подстановкой текста из словаря и сохранением data-i18n для смены языка на лету
+          googleScreen.innerHTML = `
+                        <h2 data-i18n="auth_checking" style="color: var(--accent-yellow); margin-bottom: 15px;">${translations[currentLang].auth_checking}</h2>
+                        <p data-i18n="auth_connecting" style="color: var(--text-main);">${translations[currentLang].auth_connecting}</p>
+                    `;
+
+          let currentEmail = "";
+
+          fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+            headers: { Authorization: "Bearer " + clientAccessToken },
+          })
+            .then(async (res) => {
+              const text = await res.text();
+              if (!res.ok)
+                throw new Error(`Ошибка Google Auth ${res.status}: ${text}`);
+              try {
+                return JSON.parse(text);
+              } catch {
+                throw new Error(`Google вернул не JSON:\n${text}`);
+              }
+            })
+            .then((userInfo) => {
+              currentEmail = userInfo.email;
+              return fetch(GATEWAY_URL, {
+                method: "POST",
+                headers: { "Content-Type": "text/plain;charset=utf-8" },
+                body: JSON.stringify({
+                  action: "check_status",
+                  email: currentEmail,
+                }),
+              });
+            })
+            .then(async (res) => {
+              const text = await res.text();
+              try {
+                return JSON.parse(text);
+              } catch {
+                throw new Error("Сервер GAS вернул не JSON:\n" + text);
+              }
+            })
+            .then((serverResult) => {
+              if (serverResult.success === false && serverResult.error) {
+                throw new Error(serverResult.error);
+              }
+
+              if (
+                serverResult.status === "NEW_USER" ||
+                serverResult.status === "NEW_CLIENT"
+              ) {
+                if (typeof showInstallerForm === "function") {
+                  showInstallerForm(currentEmail);
+                } else {
+                  throw new Error(
+                    "Функция установки showInstallerForm не найдена в коде!",
+                  );
+                }
+              } else if (serverResult.status === "EXISTING_CLIENT") {
+                if (serverResult.api_key) {
+                  localStorage.setItem("CLIENT_API_KEY", serverResult.api_key);
+                  CLIENT_API_KEY = serverResult.api_key;
+                }
+                googleScreen.style.display = "none";
+                document.getElementById("pin-screen").style.display = "flex";
+              } else if (serverResult.status === "BLOCKED") {
+                throw new Error(translations[currentLang].auth_blocked);
+              } else {
+                throw new Error(
+                  "Неизвестный статус от сервера: " +
+                    JSON.stringify(serverResult),
+                );
+              }
+            })
+            .catch((err) => {
+              console.error("КРИТИЧЕСКАЯ ОШИБКА:", err);
+
+              // Отрисовка ошибки с учетом словаря
+              googleScreen.innerHTML = `
+                            <div style="color: #ff6b6b; padding: 20px; text-align: left; background: #1a1a1a; border-radius: 8px; border: 1px solid #333;">
+                                <h2 data-i18n="auth_error_title" style="margin-top: 0;">${translations[currentLang].auth_error_title}</h2>
+                                <pre style="white-space: pre-wrap; font-size: 13px; background: #000; padding: 10px; border-radius: 4px; color: #ffb3b3;">${err.message}</pre>
+                                <button onclick="window.location.reload(true)" data-i18n="auth_retry" style="margin-top: 15px; padding: 10px 20px; background: #ff6b6b; color: #fff; border: none; border-radius: 4px; cursor: pointer;">
+                                    ${translations[currentLang].auth_retry}
+                                </button>
+                            </div>
+                        `;
+            });
+        }
+      },
+    });
+  } catch (e) {
+    console.error("Ошибка инициализации:", e);
+  }
+}
+
 // Флаг, который усыпляет шпиона во время ручного переключения
 window.isAutoTranslating = false;
 
@@ -5346,7 +5479,7 @@ window.startNtScanner = function () {
 
   Quagga.onDetected(window.handleNtQuaggaDetection);
 };
-handleTemplateUpload;
+
 // 3. Обработка штрихкода
 window.handleNtQuaggaDetection = function (result) {
   if (!result || !result.codeResult || !result.codeResult.code) return;
@@ -6715,7 +6848,7 @@ window.startSmartMerge = function (fileId, fileDate) {
 // ===================================================================
 
 // Добавляем переменную для хранения таймера
-let backgroundPulseTimer = null;
+var backgroundPulseTimer = null;
 
 function startBackgroundPulse() {
   // На всякий случай очищаем старый таймер, чтобы не плодить двойников
