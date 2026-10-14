@@ -796,6 +796,16 @@ window.startTokenizerQueue = function () {
     window.showTokenizer(displayColName, currentTokens, paramsList);
 
     const overlay = document.getElementById("tokenizer-overlay");
+    if (overlay) {
+      overlay.style.zIndex = "999999"; 
+      overlay.style.position = "fixed";
+      overlay.style.top = "0";
+      overlay.style.left = "0";
+      overlay.style.width = "100vw";
+      overlay.style.height = "100vh";
+      overlay.style.backgroundColor = "#121212"; 
+      overlay.style.display = "flex";
+    }
     const lang = window.currentLang || localStorage.getItem("pos_lang") || "ru";
     const tr = typeof translations !== "undefined" && translations[lang] ? translations[lang] : {};
 
