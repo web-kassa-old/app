@@ -262,7 +262,7 @@ window.renderSmartMapperModal = function (complexColumns) {
   // === ИСПРАВЛЕННАЯ ЛОГИКА ПЕРЕХОДОВ ===
   if (confirmBtn) {
     confirmBtn.addEventListener("click", () => {
-      // 1. Собираем и сохраняем галочки
+      // 1. Собираем галочки
       window.mapper2State.smartRules = {};
       const cards = body.querySelectorAll(".smart-mapper-card");
       cards.forEach((card) => {
@@ -274,21 +274,30 @@ window.renderSmartMapperModal = function (complexColumns) {
         }
       });
 
-      // 2. Рисуем карточки в фоне (чтобы заполнить очередь quarantine)
+      // ⚡ 2. Скрываем само Сито
+      const smartContainer = document.getElementById("smartMapperContainer");
+      if (smartContainer) smartContainer.style.display = "none";
+
+      // ⚡ 3. Глушим контейнер Маппера ДО фонового рендера
+      const mapperArea = document.getElementById("mapper2Area");
+      if (mapperArea) mapperArea.style.display = "none";
+
+      // 4. Запускаем фоновый просчет (он наполнит quarantine)
       if (typeof window.renderMapper2Cards === "function") {
         window.renderMapper2Cards(window.currentTemplateData);
       }
 
-      // Скрываем окно Маппера, пока идет работа с Токенизатором
-      const mapperArea = document.getElementById("mapper2Area");
-      if (mapperArea) mapperArea.style.display = "none"; // ⚡ Добавить вот это!
+      // ⚡ 5. Глушим Маппер ЕЩЕ РАЗ (на случай, если рендер принудительно его открыл)
+      if (mapperArea) mapperArea.style.display = "none";
 
-      // 3. Запускаем Токенизатор, либо Маппер
+      // 6. Запускаем правильный следующий экран
       if (window.mapper2State.quarantine && window.mapper2State.quarantine.length > 0) {
+        // Идем в Токенизатор
         if (typeof window.startTokenizerQueue === "function") {
           window.startTokenizerQueue();
         }
       } else {
+        // Если резать нечего — официально открываем Маппер
         if (typeof window.navigateIncomeStep === "function") {
           window.navigateIncomeStep(2);
         }
@@ -980,15 +989,14 @@ window.startTokenizerQueue = function () {
       overlay.innerHTML = "";
     }
     
-    // Включаем видимость Маппера обратно
-    const mapperArea = document.getElementById("mapper2Area");
-    if (mapperArea) mapperArea.style.display = "flex";
-
-    if (typeof window.navigateIncomeStep === "function") {
-      window.navigateIncomeStep(2);
-    }
+    // ⚡ 1. Заново рендерим карточки, чтобы они "съели" результаты Токенизатора
     if (typeof window.renderMapper2Cards === "function") {
       window.renderMapper2Cards(window.currentTemplateData);
+    }
+    
+    // ⚡ 2. И только теперь торжественно переключаем экран на Маппер
+    if (typeof window.navigateIncomeStep === "function") {
+      window.navigateIncomeStep(2);
     }
   }
 
