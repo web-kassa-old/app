@@ -368,30 +368,42 @@ window.renderSmartMapperModal = function (complexColumns) {
         }
       });
 
-      // 1. Скрываем Сито
+      // ⚡ 1. СОБИРАЕМ ДАННЫЕ ДЛЯ ТОКЕНИЗАТОРА ПРЯМО ЗДЕСЬ (до Маппера)
+      window.mapper2State.quarantine = [];
+      const headers = window.mapper2State.invoiceHeaders || [];
+      const rows = window.mapper2State.invoiceRows || [];
+
+      Object.keys(window.mapper2State.smartRules).forEach((colName) => {
+        const colIndex = headers.findIndex((h) => String(h).trim() === colName);
+        if (colIndex !== -1) {
+          const uniquePatterns = new Set();
+          for (let i = 0; i < Math.min(1000, rows.length); i++) {
+            if (rows[i] && rows[i][colIndex]) {
+              const strVal = String(rows[i][colIndex]).trim();
+              if (strVal && isNaN(Number(strVal.replace(/,/g, "")))) {
+                uniquePatterns.add(strVal);
+              }
+            }
+          }
+          uniquePatterns.forEach((str) => {
+            window.mapper2State.quarantine.push({
+              rawString: str,
+              excelColumnName: colName
+            });
+          });
+        }
+      });
+
+      // 2. Скрываем Сито
       const smartContainer = document.getElementById("smartMapperContainer");
       if (smartContainer) smartContainer.style.display = "none";
 
-      // ⚡ 2. ГЕНИАЛЬНЫЙ ХАК: Временно сохраняем и отключаем роутер
-      const originalNavigate = window.navigateIncomeStep;
-      window.navigateIncomeStep = function() {}; // Пустышка (Маппер не откроется)
-
-      // 3. Запускаем рендер. Он соберет данные, попытается открыть Маппер, но не сможет!
-      if (typeof window.renderMapper2Cards === "function") {
-        window.renderMapper2Cards(window.currentTemplateData);
-      }
-
-      // ⚡ 4. Возвращаем оригинальный роутер на место
-      window.navigateIncomeStep = originalNavigate;
-
-      // 5. Теперь спокойно направляем поток в правильное русло
-      if (window.mapper2State.quarantine && window.mapper2State.quarantine.length > 0) {
-        // Идем в Токенизатор
+      // 3. Открываем Токенизатор НАПРЯМУЮ, минуя Маппер!
+      if (window.mapper2State.quarantine.length > 0) {
         if (typeof window.startTokenizerQueue === "function") {
           window.startTokenizerQueue();
         }
       } else {
-        // Если резать нечего — официально открываем Маппер
         if (typeof window.navigateIncomeStep === "function") {
           window.navigateIncomeStep(2);
         }
@@ -1091,80 +1103,25 @@ window.startTokenizerQueue = function () {
   }
 
   function applyResultsToData() {
-    const dicts = window.kaspiDicts || {};
+    window.mapper2State.splitRules = window.mapper2State.splitRules || {};
 
-    window.parsedInvoiceData.forEach((item) => {
-      if (item._hasCollisions) {
-        let attrsObj = {};
-
-        if (item._attributesObj) {
-          Object.assign(attrsObj, item._attributesObj);
-        }
-        if (item.attributes) {
-          try {
-            let parsed = JSON.parse(item.attributes);
-            Object.assign(attrsObj, parsed);
-          } catch (e) {}
-        }
-
-        item._collisionsList.forEach((col) => {
-          const mask = getPatternMask(col.rawString);
-          const resolvedPattern = queue.find((q) => q.mask === mask);
-
-          if (resolvedPattern && resolvedPattern.resolvedAttributes) {
-            const colTokens = col.rawString.match(
-              /\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g,
-            ) || [col.rawString];
-
-            Object.keys(resolvedPattern.resolvedAttributes).forEach(
-              (sysKey) => {
-                const rule = resolvedPattern.resolvedAttributes[sysKey];
-                if (rule && rule.indexes && rule.indexes.length > 0) {
-                  const gluedText = rule.indexes
-                    .map((idx) => colTokens[idx])
-                    .join("");
-
-                  let finalVal = rule.value || gluedText;
-
-                  if (!rule.value) {
-                    let humanName = window.mapper2State.sysToHumanMap
-                      ? window.mapper2State.sysToHumanMap[sysKey]
-                      : sysKey;
-                    let dictArray = dicts[humanName] || dicts[sysKey] || [];
-                    if (dictArray.length > 0) {
-                      for (let dv of dictArray) {
-                        let strDv = String(dv).trim();
-                        let baseDv = strDv.split("(")[0].trim();
-                        if (
-                          baseDv.toLowerCase() === gluedText.toLowerCase() ||
-                          (!isNaN(parseFloat(baseDv)) &&
-                            parseFloat(baseDv) === parseFloat(gluedText))
-                        ) {
-                          finalVal = strDv;
-                          break;
-                        }
-                      }
-                    }
-                  }
-
-                  // Игнорируем мусорные символы при записи в накладную
-                  if (sysKey !== "Лишние символы") {
-                    attrsObj[sysKey] = finalVal;
-                  }
-                }
-              },
-            );
+    // Сохраняем индексы разрезанных токенов, чтобы Маппер нарисовал их зеленым
+    queue.forEach((pattern) => {
+      if (pattern.resolvedAttributes) {
+        Object.keys(pattern.resolvedAttributes).forEach((sysKey) => {
+          if (sysKey !== "Лишние символы") {
+            const rule = pattern.resolvedAttributes[sysKey];
+            if (rule && rule.indexes && rule.indexes.length > 0) {
+              window.mapper2State.splitRules[sysKey] = rule.indexes;
+            }
           }
         });
-
-        item.attributes =
-          Object.keys(attrsObj).length > 0 ? JSON.stringify(attrsObj) : "";
-        item._attributesObj = attrsObj;
       }
     });
 
+    // Очищаем очередь и переходим в Маппер
     window.mapper2State.quarantine = [];
-    finishAndGoToPreview();
+    finishAndGoToMapper();
   }
 
   function finishAndGoToPreview() {
