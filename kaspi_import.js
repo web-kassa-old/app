@@ -660,7 +660,8 @@ window.renderMapper2Cards = function (templateData) {
         }
 
         if (sampleText) {
-          const regex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,]/g;
+          // ⚡ Строго та же регулярка, что и в Токенизаторе
+          const regex = /\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g;
           let tokens = sampleText.match(regex) || [];
           
           // ⚡ ДОСТАЕМ ИНДЕКСЫ ИЗ ЛЮБОГО ФОРМАТА

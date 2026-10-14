@@ -1009,7 +1009,12 @@ window.startTokenizerQueue = function () {
           if (msgEl) {
             msgEl.innerHTML = notFoundMsg.replace("{val}", gluedText);
           } else {
-            alert(`Внимание: Значение "${gluedText}" не найдено в справочнике Kaspi. Выберите подходящее из списка.`);
+            alert(`Внимание: Значение "${gluedText}" не найдено в справочнике Kaspi.\nСбросьте лишние токены кликом по ним вверху экрана.`);
+            
+            // ⚡ Снимаем выделение со строки параметра, чтобы пользователь мог перевыбрать токены
+            row.classList.remove("active-target");
+            row.querySelector(".btn-confirm-inline").style.display = "none";
+            overlay.querySelectorAll(".param-row:not(.disabled) .param-preview").forEach((el) => (el.innerHTML = ""));
           }
           
           // ⚡ Безопасная загрузка выпадающего списка
