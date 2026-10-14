@@ -256,6 +256,9 @@ window.processInvoiceFile = async function () {
 
       window.mapper2State = window.mapper2State || {};
 
+      // ⚡ ДОБАВЬ ВОТ ЭТУ СТРОЧКУ (АЛЕРТ):
+      alert("Найдено сложных колонок: " + (complexColumns ? complexColumns.length : "ОШИБКА"));
+
       if (complexColumns && complexColumns.length > 0) {
         window.mapper2State.lastComplexColumns = complexColumns;
         window.navigateIncomeStep("smart");
@@ -333,6 +336,7 @@ window.navigateIncomeStep = function (stepNumber, isBack = false) {
     if (currency) currency.style.display = "none";
 
     if (smartContainer) {
+      smartContainer.style.display = "flex"; // ⚡ ПРИНУДИТЕЛЬНО ПОКАЗАТЬ
       smartContainer.className = "smart-mapper-overlay";
       if (
         window.renderSmartMapperModal &&
