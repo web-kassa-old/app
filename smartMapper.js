@@ -100,7 +100,6 @@ window.renderSmartMapperModal = function (complexColumns) {
 
   const header = document.createElement("div");
   header.className = "smart-modal-header";
-  // Подключаем архитектуру перевода для шапки
   header.setAttribute("data-i18n", "smart_mapper_title");
   modal.appendChild(header);
 
@@ -112,28 +111,12 @@ window.renderSmartMapperModal = function (complexColumns) {
 
   if (tData && tData.humanNames) {
     const excludeFromSmart = [
-      "Артикул",
-      "Название товара",
-      "Бренд",
-      "Цена",
-      "Название модели",
-      "Модель",
-      "Рубрика",
-      "category",
-      "Сезонность",
-      "Назначение",
-      "Тип шины",
-      "Комплектация",
-      "Тип рисунка протектора",
-      "Шипы",
-      "Код изображений",
-      "Ссылка на YouTube",
-      "Ссылка на картинку",
-      "Описание (мин. 100 символов, макс. 7 000 символов)",
-      "Описание",
-      "Вес для расчета логистики",
-      "Объединить в одну карточку",
-      "В наличии",
+      "Артикул", "Название товара", "Бренд", "Цена", "Название модели",
+      "Модель", "Рубрика", "category", "Сезонность", "Назначение",
+      "Тип шины", "Комплектация", "Тип рисунка протектора", "Шипы",
+      "Код изображений", "Ссылка на YouTube", "Ссылка на картинку",
+      "Описание (мин. 100 символов, макс. 7 000 символов)", "Описание",
+      "Вес для расчета логистики", "Объединить в одну карточку", "В наличии",
     ];
 
     for (let i = 0; i < tData.humanNames.length; i++) {
@@ -141,15 +124,11 @@ window.renderSmartMapperModal = function (complexColumns) {
       const dictData = tData.dictionary ? tData.dictionary[paramName] : null;
 
       if (Array.isArray(dictData)) {
-        const validExamples = dictData.filter(
-          (val) => val && String(val).trim() !== "",
-        );
+        const validExamples = dictData.filter((val) => val && String(val).trim() !== "");
         if (validExamples.length > 0 && !excludeFromSmart.includes(paramName)) {
           const isCodeOrNumber = validExamples.some((ex) => {
             const str = String(ex).trim();
-            return (
-              /\d/.test(str) || (/^[a-zA-Z]+$/.test(str) && str.length <= 3)
-            );
+            return /\d/.test(str) || (/^[a-zA-Z]+$/.test(str) && str.length <= 3);
           });
 
           if (isCodeOrNumber) {
@@ -164,7 +143,6 @@ window.renderSmartMapperModal = function (complexColumns) {
     }
   }
 
-  // === ЧТЕНИЕ СОХРАНЕННЫХ ПРАВИЛ ДЛЯ ВОССТАНОВЛЕНИЯ ГАЛОЧЕК ===
   window.mapper2State = window.mapper2State || {};
   const savedRules = window.mapper2State.smartRules || {};
 
@@ -173,71 +151,54 @@ window.renderSmartMapperModal = function (complexColumns) {
     card.className = "smart-mapper-card";
     card.dataset.colname = col.colName;
 
-    // Динамический перевод английской шапки колонки из глобального словаря (если есть)
     const rawColName = String(col.colName).toLowerCase().trim();
     let translatedName = col.colName;
-    if (
-      typeof translations !== "undefined" &&
-      typeof currentLang !== "undefined"
-    ) {
+    if (typeof translations !== "undefined" && typeof currentLang !== "undefined") {
       if (translations[currentLang] && translations[currentLang][rawColName]) {
         translatedName = `${translations[currentLang][rawColName]} (${col.colName})`;
       }
     }
 
-    // Достаем массив уже отмеченных параметров для конкретной колонки
     const currentSavedParams = savedRules[col.colName] || [];
 
-    let checkboxesHtml = kaspiParams
-      .map((param) => {
-        let exampleSpans = param.examples
-          .map((ex) => `<span>${ex}</span>`)
-          .join("");
+    let checkboxesHtml = kaspiParams.map((param) => {
+      let exampleSpans = param.examples.map((ex) => `<span>${ex}</span>`).join("");
+      let isChecked = currentSavedParams.includes(param.id) ? "checked" : "";
+      let activeClass = isChecked ? "active" : "";
 
-        // Восстанавливаем состояние чекбокса
-        let isChecked = currentSavedParams.includes(param.id) ? "checked" : "";
-        let activeClass = isChecked ? "active" : "";
+      return `
+        <label class="checkbox-item ${activeClass}">
+            <input type="checkbox" value="${param.id}" data-name="${param.name}" ${isChecked}>
+            <div class="checkbox-details">
+                <div class="checkbox-title">${param.name}</div>
+                <div class="checkbox-examples">${exampleSpans}</div>
+            </div>
+        </label>
+      `;
+    }).join("");
 
-        return `
-                <label class="checkbox-item ${activeClass}">
-                    <input type="checkbox" value="${param.id}" data-name="${param.name}" ${isChecked}>
-                    <div class="checkbox-details">
-                        <div class="checkbox-title">${param.name}</div>
-                        <div class="checkbox-examples">${exampleSpans}</div>
-                    </div>
-                </label>
-            `;
-      })
-      .join("");
-
-    // Восстанавливаем отрисовку зеленых чипсов
     let initialChips = "";
     if (currentSavedParams.length > 0) {
-      let selectedNames = kaspiParams
-        .filter((p) => currentSavedParams.includes(p.id))
-        .map((p) => p.name);
-      initialChips = selectedNames
-        .map((name) => `<span class="chip">${name}</span>`)
-        .join("");
+      let selectedNames = kaspiParams.filter((p) => currentSavedParams.includes(p.id)).map((p) => p.name);
+      initialChips = selectedNames.map((name) => `<span class="chip">${name}</span>`).join("");
     } else {
       initialChips = `<span class="empty-chips" data-i18n="smart_mapper_empty"></span>`;
     }
 
-    // Вся статика размечена атрибутами data-i18n
     card.innerHTML = `
-            <div class="smart-col-info">
-                <span data-i18n="smart_mapper_col_prefix"></span> <span>${translatedName.toUpperCase()}</span>
-                <strong>${col.example || ""}</strong>
-            </div>
-            <div class="smart-chips-area">
-                <div class="chips-title" data-i18n="smart_mapper_you_selected"></div>
-                <div class="chips-container">${initialChips}</div>
-            </div>
-            <div class="smart-question" data-i18n="smart_mapper_question"></div>
-            <div class="checkbox-grid">
-                ${checkboxesHtml}
-            </div>
-        `;
+      <div class="smart-col-info">
+          <span data-i18n="smart_mapper_col_prefix"></span> <span>${translatedName.toUpperCase()}</span>
+          <strong style="margin-top: 5px; display: block; color: #3498db; font-size: 14px;">${col.example || ""}</strong>
+      </div>
+      <div class="smart-chips-area">
+          <div class="chips-title" data-i18n="smart_mapper_you_selected"></div>
+          <div class="chips-container">${initialChips}</div>
+      </div>
+      <div class="smart-question" data-i18n="smart_mapper_question"></div>
+      <div class="checkbox-grid">
+          ${checkboxesHtml}
+      </div>
+    `;
     body.appendChild(card);
 
     const checkboxes = card.querySelectorAll('input[type="checkbox"]');
@@ -249,16 +210,10 @@ window.renderSmartMapperModal = function (complexColumns) {
         if (this.checked) label.classList.add("active");
         else label.classList.remove("active");
 
-        const selected = Array.from(checkboxes)
-          .filter((box) => box.checked)
-          .map((box) => box.dataset.name);
-
+        const selected = Array.from(checkboxes).filter((box) => box.checked).map((box) => box.dataset.name);
         if (selected.length > 0) {
-          chipsContainer.innerHTML = selected
-            .map((name) => `<span class="chip">${name}</span>`)
-            .join("");
+          chipsContainer.innerHTML = selected.map((name) => `<span class="chip">${name}</span>`).join("");
         } else {
-          // Возвращаем пустую надпись и переводим её на лету
           chipsContainer.innerHTML = `<span class="empty-chips" data-i18n="smart_mapper_empty"></span>`;
           if (typeof applyLanguage === "function") applyLanguage(currentLang);
         }
@@ -267,51 +222,32 @@ window.renderSmartMapperModal = function (complexColumns) {
   });
 
   modal.appendChild(body);
-
-  // === СОХРАНЯЕМ ДАННЫЕ ДЛЯ МАТРЕШКИ ===
   window.mapper2State.lastComplexColumns = complexColumns;
 
-  // === ДОСТАЕМ ПЕРЕВОД НА ЛЕТУ ===
   let backBtnText = "НАЗАД";
   let confirmBtnText = "ПОДТВЕРДИТЬ";
 
-  if (
-    typeof translations !== "undefined" &&
-    typeof currentLang !== "undefined" &&
-    translations[currentLang]
-  ) {
-    if (translations[currentLang]["smart_mapper_back"]) {
-      backBtnText = translations[currentLang]["smart_mapper_back"];
-    } else if (translations[currentLang]["cancel"]) {
-      backBtnText = translations[currentLang]["cancel"]; // Резервное слово, если нет ключа
-    }
-
-    if (translations[currentLang]["smart_mapper_btn"]) {
-      confirmBtnText = translations[currentLang]["smart_mapper_btn"];
-    }
+  if (typeof translations !== "undefined" && typeof currentLang !== "undefined" && translations[currentLang]) {
+    if (translations[currentLang]["smart_mapper_back"]) backBtnText = translations[currentLang]["smart_mapper_back"];
+    else if (translations[currentLang]["cancel"]) backBtnText = translations[currentLang]["cancel"];
+    if (translations[currentLang]["smart_mapper_btn"]) confirmBtnText = translations[currentLang]["smart_mapper_btn"];
   }
 
-  // === СОБИРАЕМ ПОДВАЛ С ДВУМЯ КНОПКАМИ ===
   const footer = document.createElement("div");
   footer.className = "smart-modal-footer";
   footer.innerHTML = `
-        <div style="display: flex; gap: 10px;">
-            <button class="cancel-btn" id="smartBackBtn" data-i18n="inc_back" style="flex: 1; font-weight: bold; font-size: 14px; text-transform: uppercase;">${backBtnText}</button>
-            <button class="confirm-btn btn-primary green" id="smartConfirmBtn" data-i18n="smart_mapper_btn" style="flex: 2; margin: 0; font-weight: bold; font-size: 14px; text-transform: uppercase;">${confirmBtnText}</button>
-        </div>
-    `;
+      <div style="display: flex; gap: 10px;">
+          <button class="cancel-btn" id="smartBackBtn" data-i18n="inc_back" style="flex: 1; font-weight: bold; font-size: 14px; text-transform: uppercase;">${backBtnText}</button>
+          <button class="confirm-btn btn-primary green" id="smartConfirmBtn" data-i18n="smart_mapper_btn" style="flex: 2; margin: 0; font-weight: bold; font-size: 14px; text-transform: uppercase;">${confirmBtnText}</button>
+      </div>
+  `;
   modal.appendChild(footer);
   container.appendChild(modal);
 
-  // Запускаем глобальный переводчик (на всякий случай для других статических текстов)
-  if (
-    typeof applyLanguage === "function" &&
-    typeof currentLang !== "undefined"
-  ) {
+  if (typeof applyLanguage === "function" && typeof currentLang !== "undefined") {
     applyLanguage(currentLang);
   }
 
-  // === БЕЗОПАСНАЯ ПРИВЯЗКА КНОПОК ===
   const backBtn = document.getElementById("smartBackBtn");
   const confirmBtn = document.getElementById("smartConfirmBtn");
 
@@ -323,38 +259,35 @@ window.renderSmartMapperModal = function (complexColumns) {
     });
   }
 
+  // === ИСПРАВЛЕННАЯ ЛОГИКА ПЕРЕХОДОВ ===
   if (confirmBtn) {
     confirmBtn.addEventListener("click", () => {
+      // 1. Собираем и сохраняем галочки
       window.mapper2State.smartRules = {};
-
       const cards = body.querySelectorAll(".smart-mapper-card");
       cards.forEach((card) => {
         const colName = card.dataset.colname;
-        const checkedBoxes = Array.from(
-          card.querySelectorAll('input[type="checkbox"]:checked'),
-        );
+        const checkedBoxes = Array.from(card.querySelectorAll('input[type="checkbox"]:checked'));
         const selectedParams = checkedBoxes.map((cb) => cb.value);
-
         if (selectedParams.length > 0) {
           window.mapper2State.smartRules[colName] = selectedParams;
         }
       });
 
-      // 1. Рисуем карточки в фоне (это заполнит очередь quarantine)
+      // 2. Рисуем карточки в фоне (чтобы заполнить очередь quarantine)
       if (typeof window.renderMapper2Cards === "function") {
-          window.renderMapper2Cards(window.currentTemplateData);
+        window.renderMapper2Cards(window.currentTemplateData);
       }
-      
-      // 2. Если очередь на токенизацию не пуста — запускаем Токенизатор
+
+      // 3. Запускаем Токенизатор, либо Маппер
       if (window.mapper2State.quarantine && window.mapper2State.quarantine.length > 0) {
-          if (typeof window.startTokenizerQueue === "function") {
-              window.startTokenizerQueue();
-          }
+        if (typeof window.startTokenizerQueue === "function") {
+          window.startTokenizerQueue();
+        }
       } else {
-          // Если сложных данных не найдено, переходим сразу к Мапперу
-          if (typeof window.navigateIncomeStep === "function") {
-              window.navigateIncomeStep(2);
-          }
+        if (typeof window.navigateIncomeStep === "function") {
+          window.navigateIncomeStep(2);
+        }
       }
     });
   }
