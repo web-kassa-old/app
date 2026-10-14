@@ -443,9 +443,9 @@ window.renderMapper2Cards = function (templateData) {
           : templateData.memoryJson;
       window.mapper2State.rawMemoryJson = JSON.stringify(learnedSynonyms);
       if (learnedSynonyms._splitRules) {
-        window.mapper2State.splitRules = JSON.parse(
-          JSON.stringify(learnedSynonyms._splitRules),
-        );
+        // ⚡ НЕ стираем свежие правила из Токенизатора! Только дополняем их старыми из памяти.
+        const memorySplits = JSON.parse(JSON.stringify(learnedSynonyms._splitRules));
+        window.mapper2State.splitRules = { ...memorySplits, ...window.mapper2State.splitRules };
       }
     } catch (e) {
       console.error("Ошибка парсинга памяти", e);

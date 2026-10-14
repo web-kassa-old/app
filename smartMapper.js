@@ -1113,10 +1113,13 @@ window.startTokenizerQueue = function () {
           if (paramName !== "Лишние символы") {
             const rule = pattern.resolvedAttributes[paramName];
             
-            // ⚡ ПЕРЕВОДИМ ЧЕЛОВЕЧЕСКОЕ ИМЯ В СИСТЕМНЫЙ КЛЮЧ
-            const sysKey = Object.keys(window.mapper2State.sysToHumanMap).find(
-              (k) => window.mapper2State.sysToHumanMap[k] === paramName
-            );
+            // ⚡ ЖЕЛЕЗОБЕТОННЫЙ ПЕРЕВОД ЧЕЛОВЕЧЕСКОГО ИМЕНИ В СИСТЕМНЫЙ КЛЮЧ
+            let sysKey = null;
+            const tData = window.currentTemplateData || {};
+            if (tData.humanNames && tData.systemKeys) {
+              const idx = tData.humanNames.indexOf(paramName);
+              if (idx !== -1) sysKey = tData.systemKeys[idx];
+            }
 
             if (sysKey && rule && rule.indexes && rule.indexes.length > 0) {
               window.mapper2State.splitRules[sysKey] = rule.indexes;
