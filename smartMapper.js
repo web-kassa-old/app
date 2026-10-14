@@ -361,37 +361,37 @@ window.renderSmartMapperModal = function (complexColumns) {
       const cards = body.querySelectorAll(".smart-mapper-card");
       cards.forEach((card) => {
         const colName = card.dataset.colname;
-        const checkedBoxes = Array.from(
-          card.querySelectorAll('input[type="checkbox"]:checked'),
-        );
+        const checkedBoxes = Array.from(card.querySelectorAll('input[type="checkbox"]:checked'));
         const selectedParams = checkedBoxes.map((cb) => cb.value);
-
         if (selectedParams.length > 0) {
           window.mapper2State.smartRules[colName] = selectedParams;
         }
       });
 
-      // Скрываем Сито и Маппер, чтобы они не моргали на фоне
+      // 1. Скрываем Сито
       const smartContainer = document.getElementById("smartMapperContainer");
       if (smartContainer) smartContainer.style.display = "none";
-      
-      const mapperArea = document.getElementById("mapper2Area");
-      if (mapperArea) mapperArea.style.display = "none";
 
-      // Просим Маппер в фоне собрать конфликты (наполнить quarantine)
+      // ⚡ 2. ГЕНИАЛЬНЫЙ ХАК: Временно сохраняем и отключаем роутер
+      const originalNavigate = window.navigateIncomeStep;
+      window.navigateIncomeStep = function() {}; // Пустышка (Маппер не откроется)
+
+      // 3. Запускаем рендер. Он соберет данные, попытается открыть Маппер, но не сможет!
       if (typeof window.renderMapper2Cards === "function") {
         window.renderMapper2Cards(window.currentTemplateData);
       }
-      
-      // Глушим Маппер еще раз, так как рендер мог его принудительно открыть
-      if (mapperArea) mapperArea.style.display = "none";
 
-      // Направляем поток в правильное русло
+      // ⚡ 4. Возвращаем оригинальный роутер на место
+      window.navigateIncomeStep = originalNavigate;
+
+      // 5. Теперь спокойно направляем поток в правильное русло
       if (window.mapper2State.quarantine && window.mapper2State.quarantine.length > 0) {
+        // Идем в Токенизатор
         if (typeof window.startTokenizerQueue === "function") {
           window.startTokenizerQueue();
         }
       } else {
+        // Если резать нечего — официально открываем Маппер
         if (typeof window.navigateIncomeStep === "function") {
           window.navigateIncomeStep(2);
         }
