@@ -701,12 +701,16 @@ window.selectTokenizerDictValue = function(val, liElement) {
 };
 
 window.startTokenizerQueue = function () {
+  // ⚡ Жестко прячем Маппер на время работы Токенизатора, чтобы он не светился на фоне
+  const mapperArea = document.getElementById("mapper2Area");
+  if (mapperArea) mapperArea.style.display = "none";
+
   const rawQueue = window.mapper2State.quarantine || [];
 
   const filteredQueue = rawQueue.filter((pattern) => {
     if (!pattern || !pattern.rawString) return false;
     const tokens = pattern.rawString.match(
-      /\d+(?:\.\d+)?|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g,
+      /\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g,
     ) || [pattern.rawString];
     const validTokens = tokens.filter(
       (t) => t.trim().length > 0 && !/^[\s\-_]+$/.test(t),
@@ -721,7 +725,7 @@ window.startTokenizerQueue = function () {
 
   function getPatternMask(str) {
     const tokens = str.match(
-      /\d+(?:\.\d+)?|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g,
+      /\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g,
     ) || [str];
     return tokens
       .map((t) => {
@@ -1099,7 +1103,7 @@ window.startTokenizerQueue = function () {
 
           if (resolvedPattern && resolvedPattern.resolvedAttributes) {
             const colTokens = col.rawString.match(
-              /\d+(?:\.\d+)?|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g,
+              /\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g,
             ) || [col.rawString];
 
             Object.keys(resolvedPattern.resolvedAttributes).forEach(
