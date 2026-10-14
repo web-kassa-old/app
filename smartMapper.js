@@ -340,12 +340,21 @@ window.renderSmartMapperModal = function (complexColumns) {
         }
       });
 
-      // Просим роутер открыть Шаг 2 и рендерим карточки
-      if (typeof window.navigateIncomeStep === "function") {
-        window.navigateIncomeStep(2);
-      }
+      // 1. Рисуем карточки в фоне (это заполнит очередь quarantine)
       if (typeof window.renderMapper2Cards === "function") {
-        window.renderMapper2Cards(window.currentTemplateData);
+          window.renderMapper2Cards(window.currentTemplateData);
+      }
+      
+      // 2. Если очередь на токенизацию не пуста — запускаем Токенизатор
+      if (window.mapper2State.quarantine && window.mapper2State.quarantine.length > 0) {
+          if (typeof window.startTokenizerQueue === "function") {
+              window.startTokenizerQueue();
+          }
+      } else {
+          // Если сложных данных не найдено, переходим сразу к Мапперу
+          if (typeof window.navigateIncomeStep === "function") {
+              window.navigateIncomeStep(2);
+          }
       }
     });
   }
@@ -1039,8 +1048,14 @@ window.startTokenizerQueue = function () {
         btnDone.disabled = false;
         return;
       }
-      currentQueueIndex++;
-      processNext();
+      
+      // ИСПРАВЛЕНИЕ: Если это был последний шаг, применяем результаты и уходим.
+      if (currentQueueIndex === queue.length - 1) {
+          applyResultsToData();
+      } else {
+          currentQueueIndex++;
+          processNext();
+      }
     });
   }
 
