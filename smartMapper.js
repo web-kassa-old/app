@@ -5,24 +5,18 @@
  * @returns {Array} - Массив объектов с найденными сложными колонками и их максимальными примерами
  */
 window.detectComplexColumns = function (headers, rows) {
-  if (!headers || !rows || headers.length === 0 || rows.length === 0) return [];
+  console.log("=== ДИАГНОСТИКА ДЕТЕКТОРА ===");
+  console.log("Всего колонок в файле:", headers.length);
 
-  const dict =
-    window.mapper2State?.dictValues ||
-    (typeof invoiceSynonyms !== "undefined" ? invoiceSynonyms : {});
+  if (!headers || !rows || headers.length === 0 || rows.length === 0) {
+      console.log("❌ Ошибка: пустые шапки или строки");
+      return [];
+  }
 
-  // П1: Добавили Модель и Рисунок в список игнора
+  const dict = window.mapper2State?.dictValues || (typeof invoiceSynonyms !== "undefined" ? invoiceSynonyms : {});
   const excludeKeys = [
-    "Артикул",
-    "Штрихкод",
-    "Код",
-    "Бренд",
-    "Цена",
-    "Остаток",
-    "Количество",
-    "Сумма",
-    "Модель",
-    "Рисунок",
+    "Артикул", "Штрихкод", "Код", "Бренд", "Цена", "Остаток", 
+    "Количество", "Сумма", "Модель", "Рисунок"
   ];
   let dynamicBlacklist = [];
 
@@ -34,84 +28,75 @@ window.detectComplexColumns = function (headers, rows) {
   });
 
   const fallbackBlacklist = [
-    "артикул",
-    "код",
-    "code",
-    "barcode",
-    "штрихкод",
-    "brand",
-    "бренд",
-    "цена",
-    "price",
-    "usd",
-    "eur",
-    "kzt",
-    "руб",
-    "кол-во",
-    "qty",
-    "pcs",
-    "amount",
-    "сумма",
-    "total",
-    "pattern",
-    "модель", // П1: Жесткое исключение для Pattern
+    "артикул", "код", "code", "barcode", "штрихкод", "brand", "бренд", 
+    "цена", "price", "usd", "eur", "kzt", "руб", "кол-во", "qty", "pcs", 
+    "amount", "сумма", "total", "pattern", "модель"
   ];
 
   const blacklist = [...new Set([...dynamicBlacklist, ...fallbackBlacklist])];
+  console.log("Текущий блэклист:", blacklist);
+
   const complexCols = [];
 
   headers.forEach((colName, colIndex) => {
     if (!colName) return;
-
     const cleanColName = String(colName).toLowerCase().trim();
-    if (blacklist.includes(cleanColName)) return;
+
+    // 1. Проверка на блэклист
+    if (blacklist.includes(cleanColName)) {
+        console.log(`❌ [${colName}] -> ПРОПУСК (Найдена в блэклисте)`);
+        return;
+    }
 
     let exampleVal = "";
     let validTokens = [];
+    const maxRows = Math.min(100, rows.length);
+    let justNumbersCount = 0;
 
-    // П2: Сканируем всю колонку (до 1000 строк), чтобы не пропустить "115/110" где-то внизу
-    const maxRows = Math.min(1000, rows.length);
     for (let i = 0; i < maxRows; i++) {
       const row = rows[i];
       if (!row) continue;
-
+      
       const cellVal = row[colIndex];
-      if (
-        cellVal !== undefined &&
-        cellVal !== null &&
-        String(cellVal).trim() !== ""
-      ) {
+      if (cellVal !== undefined && cellVal !== null && String(cellVal).trim() !== "") {
         const strVal = String(cellVal).trim();
-
-        // Если ячейка - просто число (например 82), идем к следующей СТРОКЕ, но не бросаем колонку
+        
+        // Проверка на чистое число
         const isJustNumber = !isNaN(Number(strVal.replace(/,/g, "")));
-        if (isJustNumber) continue;
+        if (isJustNumber) {
+            justNumbersCount++;
+            continue; // Идем к следующей строке
+        }
 
+        // Попытка разрезать строку
         const tokens = strVal.split(/[\s/\-_*xX]+/).filter((t) => t.length > 0);
-
-        // Как только нашли сложную структуру - фиксируем и останавливаем поиск по этой колонке
         if (tokens.length >= 2) {
           exampleVal = strVal;
           validTokens = tokens;
-          break;
+          break; // Нашли сложную структуру — останавливаем поиск по колонке
         }
       }
     }
 
+    // 2. Итоги по колонке
     if (exampleVal && validTokens.length >= 2) {
       const hasNumbers = /\d/.test(exampleVal);
       const isNotTooLong = exampleVal.length < 40;
-
+      
       if (hasNumbers && isNotTooLong) {
-        complexCols.push({
-          colName: colName,
-          example: exampleVal,
-          tokenCount: validTokens.length,
-        });
+          console.log(`✅ [${colName}] -> СЛОЖНАЯ (Пример: "${exampleVal}", токенов: ${validTokens.length})`);
+          complexCols.push({ colName: colName, example: exampleVal, tokenCount: validTokens.length });
+      } else {
+          console.log(`❌ [${colName}] -> ПРОПУСК (Слишком длинная или без цифр. Пример: "${exampleVal}")`);
       }
+    } else {
+      console.log(`❌ [${colName}] -> ПРОПУСК (Слишком простая, только числа: ${justNumbersCount} шт, либо нет сложных строк)`);
     }
   });
 
+  console.log("Итого сложных колонок:", complexCols.length);
+  console.log("===============================");
+  
   return complexCols;
 };
 
