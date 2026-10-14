@@ -777,6 +777,12 @@ window.startTokenizerQueue = function () {
         const gluedText = row.querySelector(".param-preview").textContent;
         if (!gluedText) return;
 
+        // ⚡ ИСПРАВЛЕНИЕ: Мусорная корзина принимает всё без проверки в словаре
+        if (paramName === "Лишние символы (пропустить)") {
+          lockParameter(row, paramName, gluedText, gluedText);
+          return;
+        }
+
         let dictArray = dicts[paramName] || [];
         let matchedValue = null;
 
@@ -949,7 +955,10 @@ window.startTokenizerQueue = function () {
                     }
                   }
                 }
-                attrsObj[sysKey] = finalVal;
+                // ⚡ ИСПРАВЛЕНИЕ: Не сохраняем мусорные символы в итоговую таблицу
+                if (sysKey !== "Лишние символы (пропустить)") {
+                  attrsObj[sysKey] = finalVal;
+                }
               }
             });
           }
