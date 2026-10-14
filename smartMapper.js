@@ -1009,12 +1009,8 @@ window.startTokenizerQueue = function () {
           if (msgEl) {
             msgEl.innerHTML = notFoundMsg.replace("{val}", gluedText);
           } else {
-            alert(`Внимание: Значение "${gluedText}" не найдено в справочнике Kaspi.\nСбросьте лишние токены кликом по ним вверху экрана.`);
-            
-            // ⚡ Снимаем выделение со строки параметра, чтобы пользователь мог перевыбрать токены
-            row.classList.remove("active-target");
-            row.querySelector(".btn-confirm-inline").style.display = "none";
-            overlay.querySelectorAll(".param-row:not(.disabled) .param-preview").forEach((el) => (el.innerHTML = ""));
+            // Просто выводим сообщение. НЕ ломаем интерфейс и НЕ очищаем токены!
+            alert(`Внимание: Значение "${gluedText}" не найдено в справочнике.\nОтожмите лишний токен вверху экрана (например, букву R) и попробуйте снова.`);
           }
           
           // ⚡ Безопасная загрузка выпадающего списка
