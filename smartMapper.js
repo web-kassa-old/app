@@ -279,6 +279,10 @@ window.renderSmartMapperModal = function (complexColumns) {
         window.renderMapper2Cards(window.currentTemplateData);
       }
 
+      // Скрываем окно Маппера, пока идет работа с Токенизатором
+      const mapperArea = document.getElementById("mapper2Area");
+      if (mapperArea) mapperArea.style.display = "none"; // ⚡ Добавить вот это!
+
       // 3. Запускаем Токенизатор, либо Маппер
       if (window.mapper2State.quarantine && window.mapper2State.quarantine.length > 0) {
         if (typeof window.startTokenizerQueue === "function") {
@@ -596,29 +600,27 @@ window.selectTokenizerDictValue = function(val, liElement) {
 window.startTokenizerQueue = function () {
   const rawQueue = window.mapper2State.quarantine || [];
 
+  // ИСПРАВЛЕНИЕ 1: Теперь точка работает как жесткий разделитель для всех токенов!
+  const regexTokens = /\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g;
+
   const filteredQueue = rawQueue.filter((pattern) => {
     if (!pattern || !pattern.rawString) return false;
-    const tokens = pattern.rawString.match(
-      /\d+(?:\.\d+)?|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g,
-    ) || [pattern.rawString];
+    const tokens = pattern.rawString.match(regexTokens) || [pattern.rawString];
     const validTokens = tokens.filter(
       (t) => t.trim().length > 0 && !/^[\s\-_]+$/.test(t),
     );
     return validTokens.length > 1;
   });
 
-  // ИСПРАВЛЕНИЕ 2: Сортируем очередь так, чтобы самая длинная строка всегда была первой
   filteredQueue.sort(
     (a, b) => (b.rawString || "").length - (a.rawString || "").length,
   );
 
   function getPatternMask(str) {
-    const tokens = str.match(
-      /\d+(?:\.\d+)?|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g,
-    ) || [str];
+    const tokens = str.match(regexTokens) || [str];
     return tokens
       .map((t) => {
-        if (/^\d+(\.\d+)?$/.test(t)) return "N";
+        if (/^\d+$/.test(t)) return "N";
         if (/^[a-zA-Zа-яА-ЯёЁ]+$/.test(t)) return "A";
         return "S";
       })
@@ -628,7 +630,6 @@ window.startTokenizerQueue = function () {
   const uniquePatternsMap = new Map();
   filteredQueue.forEach((item) => {
     const mask = getPatternMask(item.rawString);
-    // Берем только первый паттерн (благодаря сортировке выше, он гарантированно самый длинный)
     if (!uniquePatternsMap.has(mask)) {
       item.mask = mask;
       uniquePatternsMap.set(mask, item);
@@ -638,7 +639,7 @@ window.startTokenizerQueue = function () {
   const queue = Array.from(uniquePatternsMap.values());
 
   if (queue.length === 0) {
-    finishAndGoToPreview();
+    finishAndGoToMapper();
     return;
   }
 
@@ -656,65 +657,37 @@ window.startTokenizerQueue = function () {
       ? JSON.parse(JSON.stringify(pattern.resolvedAttributes))
       : {};
 
-    const currentTokens = pattern.rawString.match(
-      /\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g,
-    ) || [pattern.rawString];
+    const currentTokens = pattern.rawString.match(regexTokens) || [pattern.rawString];
     const dicts = window.kaspiDicts || {};
     let paramsList = [];
 
-    // ИСПРАВЛЕНИЕ 1: Убрали фильтр isCodeOrNumber.
     const excludeFromSmart = [
-      "Артикул",
-      "Название товара",
-      "Бренд",
-      "Цена",
-      "Название модели",
-      "Модель",
-      "Рубрика",
-      "category",
-      "Сезонность",
-      "Назначение",
-      "Тип шины",
-      "Комплектация",
-      "Тип рисунка протектора",
-      "Шипы",
-      "Код изображений",
-      "Ссылка на YouTube",
-      "Ссылка на картинку",
-      "Описание (мин. 100 символов, макс. 7 000 символов)",
-      "Описание",
-      "Вес для расчета логистики",
-      "Объединить в одну карточку",
-      "В наличии",
+      "Артикул", "Название товара", "Бренд", "Цена", "Название модели",
+      "Модель", "Рубрика", "category", "Сезонность", "Назначение",
+      "Тип шины", "Комплектация", "Тип рисунка протектора", "Шипы",
+      "Код изображений", "Ссылка на YouTube", "Ссылка на картинку",
+      "Описание (мин. 100 символов, макс. 7 000 символов)", "Описание",
+      "Вес для расчета логистики", "Объединить в одну карточку", "В наличии",
     ];
 
     Object.keys(dicts).forEach((paramName) => {
-      if (
-        !excludeFromSmart.includes(paramName) &&
-        Array.isArray(dicts[paramName])
-      ) {
-        const validExamples = dicts[paramName].filter(
-          (val) => val && String(val).trim() !== "",
-        );
+      if (!excludeFromSmart.includes(paramName) && Array.isArray(dicts[paramName])) {
+        const validExamples = dicts[paramName].filter((val) => val && String(val).trim() !== "");
         if (validExamples.length > 0) {
-          // ВОЗВРАЩАЕМ УДАЛЕННЫЙ ФИЛЬТР: оставляем только параметры с цифрами или короткими кодами (индексы, размеры)
           const isCodeOrNumber = validExamples.some((ex) => {
             const str = String(ex).trim();
-            return (
-              /\d/.test(str) || (/^[a-zA-Z]+$/.test(str) && str.length <= 3)
-            );
+            return /\d/.test(str) || (/^[a-zA-Z]+$/.test(str) && str.length <= 3);
           });
           if (isCodeOrNumber) paramsList.push({ name: paramName });
         }
       }
     });
 
-    if (paramsList.length === 0)
-      paramsList = [{ name: "Неизвестный параметр" }];
+    if (paramsList.length === 0) paramsList = [{ name: "Неизвестный параметр" }];
 
-    // ИСПРАВЛЕНИЕ: Приоритет отдается реальному названию колонки из Excel
     const displayColName = pattern.excelColumnName || "Многосоставные данные";
 
+    // Открываем оверлей
     window.showTokenizer(displayColName, currentTokens, paramsList);
 
     const overlay = document.getElementById("tokenizer-overlay");
@@ -723,9 +696,7 @@ window.startTokenizerQueue = function () {
 
     const titleEl = overlay.querySelector(".modal-title");
     if (titleEl) {
-      // Используем шаблон, который сам знает, куда ставить цифры
       let progressTemplate = tr.tok_progress || "Паттерн {current} из {total}";
-      
       titleEl.textContent = progressTemplate
         .replace("{current}", currentQueueIndex + 1)
         .replace("{total}", queue.length);
@@ -735,6 +706,10 @@ window.startTokenizerQueue = function () {
     if (btnDone) {
       const isLastStep = currentQueueIndex === queue.length - 1;
       btnDone.textContent = isLastStep ? (tr.tok_finish || "ЗАВЕРШИТЬ") : (tr.tok_next || "ДАЛЕЕ");
+      
+      // ИСПРАВЛЕНИЕ 2: Глушим кнопку на старте окна
+      btnDone.style.opacity = "0.5";
+      btnDone.style.pointerEvents = "none";
     }
 
     const backBtn = overlay.querySelector(".btn-back");
@@ -749,58 +724,6 @@ window.startTokenizerQueue = function () {
     }
 
     attachLogic(pattern, dicts, overlay);
-
-    if (Object.keys(mappedResults).length > 0) {
-      Object.keys(mappedResults).forEach((sysKey) => {
-        const rule = mappedResults[sysKey];
-        const humanName =
-          (window.mapper2State.sysToHumanMap &&
-            window.mapper2State.sysToHumanMap[sysKey]) ||
-          sysKey;
-
-        const row = Array.from(overlay.querySelectorAll(".param-row")).find(
-          (r) =>
-            r.dataset.paramName === humanName || r.dataset.paramName === sysKey,
-        );
-
-        if (row) {
-          const gluedText = rule.indexes
-            .map((idx) => currentTokens[idx])
-            .join("");
-          const displayVal = rule.value || gluedText;
-
-          row.classList.remove("active-target");
-          row.classList.add("disabled");
-          row.querySelector(".param-preview").style.display = "none";
-          row.querySelector(".btn-confirm-inline").style.display = "none";
-
-          const radio = row.querySelector('input[type="radio"]');
-          if (radio) radio.checked = true;
-
-          const oldBadge = row.querySelector(".param-badge");
-          if (oldBadge) oldBadge.remove();
-
-          const badgeHtml = `<span class="param-badge" style="background: var(--accent-green, #2ecc71); color: #000; padding: 4px 12px; border-radius: 6px; font-size: 13px; font-weight: bold; margin-left: auto; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">✓ ${displayVal}</span>`;
-          row.insertAdjacentHTML("beforeend", badgeHtml);
-        }
-
-        rule.indexes.forEach((idx) => {
-          const tokenBtn = overlay.querySelector(`.token[data-index="${idx}"]`);
-          if (tokenBtn) {
-            tokenBtn.classList.remove("selected");
-            tokenBtn.classList.add("disabled");
-          }
-        });
-      });
-
-      if (btnDone) {
-        btnDone.style.opacity = "1";
-        setTimeout(() => {
-          btnDone.style.pointerEvents = "auto";
-          btnDone.style.cursor = "pointer";
-        }, 300);
-      }
-    }
   }
 
   function attachLogic(pattern, dicts, overlay) {
@@ -814,16 +737,10 @@ window.startTokenizerQueue = function () {
     const btnBack = overlay.querySelector(".btn-back");
 
     const updatePreview = () => {
-      overlay
-        .querySelectorAll(".param-row:not(.disabled) .param-preview")
-        .forEach((el) => (el.innerHTML = ""));
+      overlay.querySelectorAll(".param-row:not(.disabled) .param-preview").forEach((el) => (el.innerHTML = ""));
       const activeRow = overlay.querySelector(".param-row.active-target");
       if (!activeRow) return;
-      const selectedText = Array.from(
-        overlay.querySelectorAll(".token.selected"),
-      )
-        .map((b) => b.textContent)
-        .join("");
+      const selectedText = Array.from(overlay.querySelectorAll(".token.selected")).map((b) => b.textContent).join("");
       activeRow.querySelector(".param-preview").textContent = selectedText;
     };
 
@@ -866,8 +783,7 @@ window.startTokenizerQueue = function () {
           let baseDv = strDv.split("(")[0].trim();
           if (
             baseDv.toLowerCase() === gluedText.toLowerCase() ||
-            (!isNaN(parseFloat(baseDv)) &&
-              parseFloat(baseDv) === parseFloat(gluedText))
+            (!isNaN(parseFloat(baseDv)) && parseFloat(baseDv) === parseFloat(gluedText))
           ) {
             matchedValue = strDv;
             break;
@@ -883,11 +799,8 @@ window.startTokenizerQueue = function () {
           let notFoundMsg = tr.tok_not_found || `Значение <b>"{val}"</b> не найдено в справочнике. Выберите вручную:`;
           overlay.querySelector(".fallback-msg").innerHTML = notFoundMsg.replace("{val}", gluedText);
           
-          fallbackSelect.innerHTML =
-            `<option value="" disabled selected>${tr.tok_dict_name || "Справочник:"} ${paramName}...</option>` +
-            dictArray
-              .map((val) => `<option value="${val}">${val}</option>`)
-              .join("");
+          fallbackSelect.innerHTML = `<option value="" disabled selected>${tr.tok_dict_name || "Справочник:"} ${paramName}...</option>` +
+            dictArray.map((val) => `<option value="${val}">${val}</option>`).join("");
           fallbackZone.style.display = "block";
         }
       });
@@ -897,17 +810,14 @@ window.startTokenizerQueue = function () {
       const activeRow = overlay.querySelector(".param-row.active-target");
       const paramName = activeRow.querySelector('input[type="radio"]').value;
       const gluedText = activeRow.querySelector(".param-preview").textContent;
-      const selectedVal = window.tempFallbackVal; // ИЗМЕНЕНО: берем из глобальной переменной
+      const selectedVal = window.tempFallbackVal; 
       if (!selectedVal) return;
       
-      // Если чекбокс нажат, добавляем ключ в глобальный applyToAllMap
       if (window.tempFallbackApplyAll) {
           if (!window.applyToAllMap) window.applyToAllMap = {};
-          // Находим системный ключ для этого параметра
           let sysKey = Object.keys(window.mapper2State.sysToHumanMap || {}).find(k => window.mapper2State.sysToHumanMap[k] === paramName) || paramName;
           window.applyToAllMap[sysKey] = true;
       }
-      
       lockParameter(activeRow, paramName, selectedVal, gluedText);
       fallbackZone.style.display = "none";
     });
@@ -918,9 +828,7 @@ window.startTokenizerQueue = function () {
       );
       if (!sysKey) sysKey = humanName;
 
-      const selectedTokens = Array.from(
-        overlay.querySelectorAll(".token.selected"),
-      );
+      const selectedTokens = Array.from(overlay.querySelectorAll(".token.selected"));
       const tokenIndexes = selectedTokens.map((t) => parseInt(t.dataset.index));
 
       mappedResults[sysKey] = {
@@ -946,11 +854,17 @@ window.startTokenizerQueue = function () {
         t.classList.add("disabled");
       });
 
-      btnDone.style.opacity = "1";
-      setTimeout(() => {
-        btnDone.style.pointerEvents = "auto";
-        btnDone.style.cursor = "pointer";
-      }, 300);
+      // ИСПРАВЛЕНИЕ 3: Проверяем, все ли параметры (строки) заблокированы
+      const allRowsCount = paramRows.length;
+      const disabledRowsCount = overlay.querySelectorAll(".param-row.disabled").length;
+      
+      if (disabledRowsCount >= allRowsCount) {
+        btnDone.style.opacity = "1";
+        setTimeout(() => {
+          btnDone.style.pointerEvents = "auto";
+          btnDone.style.cursor = "pointer";
+        }, 300);
+      }
     };
 
     btnClear.addEventListener("click", () => {
@@ -974,15 +888,11 @@ window.startTokenizerQueue = function () {
       if (btnDone.disabled) return;
       btnDone.disabled = true;
 
-      if (
-        !pattern.resolvedAttributes ||
-        Object.keys(pattern.resolvedAttributes).length === 0
-      ) {
+      if (!pattern.resolvedAttributes || Object.keys(pattern.resolvedAttributes).length === 0) {
         btnDone.disabled = false;
         return;
       }
       
-      // ИСПРАВЛЕНИЕ: Если это был последний шаг, применяем результаты и уходим.
       if (currentQueueIndex === queue.length - 1) {
           applyResultsToData();
       } else {
@@ -999,9 +909,7 @@ window.startTokenizerQueue = function () {
       if (item._hasCollisions) {
         let attrsObj = {};
 
-        if (item._attributesObj) {
-          Object.assign(attrsObj, item._attributesObj);
-        }
+        if (item._attributesObj) Object.assign(attrsObj, item._attributesObj);
         if (item.attributes) {
           try {
             let parsed = JSON.parse(item.attributes);
@@ -1014,67 +922,58 @@ window.startTokenizerQueue = function () {
           const resolvedPattern = queue.find((q) => q.mask === mask);
 
           if (resolvedPattern && resolvedPattern.resolvedAttributes) {
-            const colTokens = col.rawString.match(
-              /\d+(?:\.\d+)?|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g,
-            ) || [col.rawString];
+            const colTokens = col.rawString.match(regexTokens) || [col.rawString];
 
-            Object.keys(resolvedPattern.resolvedAttributes).forEach(
-              (sysKey) => {
-                const rule = resolvedPattern.resolvedAttributes[sysKey];
-                if (rule && rule.indexes && rule.indexes.length > 0) {
-                  const gluedText = rule.indexes
-                    .map((idx) => colTokens[idx])
-                    .join("");
+            Object.keys(resolvedPattern.resolvedAttributes).forEach((sysKey) => {
+              const rule = resolvedPattern.resolvedAttributes[sysKey];
+              if (rule && rule.indexes && rule.indexes.length > 0) {
+                const gluedText = rule.indexes.map((idx) => colTokens[idx]).join("");
+                let finalVal = rule.value || gluedText;
 
-                  let finalVal = rule.value || gluedText;
-
-                  if (!rule.value) {
-                    let humanName = window.mapper2State.sysToHumanMap
-                      ? window.mapper2State.sysToHumanMap[sysKey]
-                      : sysKey;
-                    let dictArray = dicts[humanName] || dicts[sysKey] || [];
-                    if (dictArray.length > 0) {
-                      for (let dv of dictArray) {
-                        let strDv = String(dv).trim();
-                        let baseDv = strDv.split("(")[0].trim();
-                        if (
-                          baseDv.toLowerCase() === gluedText.toLowerCase() ||
-                          (!isNaN(parseFloat(baseDv)) &&
-                            parseFloat(baseDv) === parseFloat(gluedText))
-                        ) {
-                          finalVal = strDv;
-                          break;
-                        }
+                if (!rule.value) {
+                  let humanName = window.mapper2State.sysToHumanMap ? window.mapper2State.sysToHumanMap[sysKey] : sysKey;
+                  let dictArray = dicts[humanName] || dicts[sysKey] || [];
+                  if (dictArray.length > 0) {
+                    for (let dv of dictArray) {
+                      let strDv = String(dv).trim();
+                      let baseDv = strDv.split("(")[0].trim();
+                      if (
+                        baseDv.toLowerCase() === gluedText.toLowerCase() ||
+                        (!isNaN(parseFloat(baseDv)) && parseFloat(baseDv) === parseFloat(gluedText))
+                      ) {
+                        finalVal = strDv;
+                        break;
                       }
                     }
                   }
-
-                  attrsObj[sysKey] = finalVal;
                 }
-              },
-            );
+                attrsObj[sysKey] = finalVal;
+              }
+            });
           }
         });
-
-        item.attributes =
-          Object.keys(attrsObj).length > 0 ? JSON.stringify(attrsObj) : "";
+        item.attributes = Object.keys(attrsObj).length > 0 ? JSON.stringify(attrsObj) : "";
         item._attributesObj = attrsObj;
       }
     });
 
     window.mapper2State.quarantine = [];
-    finishAndGoToPreview();
+    finishAndGoToMapper();
   }
 
-  function finishAndGoToPreview() {
+  // ИСПРАВЛЕНИЕ 4: После Токенизатора идем в Маппер, а не в Предпросмотр!
+  function finishAndGoToMapper() {
     const overlay = document.getElementById("tokenizer-overlay");
     if (overlay) {
       overlay.style.display = "none";
       overlay.innerHTML = "";
     }
-    window.renderPreviewTable();
-    document.getElementById("mapper2Area").style.display = "none";
-    document.getElementById("invoicePreviewArea").style.display = "flex";
+    if (typeof window.navigateIncomeStep === "function") {
+      window.navigateIncomeStep(2);
+    }
+    if (typeof window.renderMapper2Cards === "function") {
+      window.renderMapper2Cards(window.currentTemplateData);
+    }
   }
 
   processNext();
