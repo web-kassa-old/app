@@ -370,6 +370,18 @@ window.renderSmartMapperModal = function (complexColumns) {
 
       // ⚡ 1. СОБИРАЕМ ДАННЫЕ ДЛЯ ТОКЕНИЗАТОРА ПРЯМО ЗДЕСЬ (до Маппера)
       window.mapper2State.quarantine = [];
+      
+      // === ДОСТАЕМ СЛОВАРИ ДЛЯ ТОКЕНИЗАТОРА ===
+      const tData = window.currentTemplateData || {};
+      window.kaspiDicts = tData.dictionary || {};
+      window.mapper2State.sysToHumanMap = {};
+      if (tData.systemKeys && tData.humanNames) {
+        for (let i = 0; i < tData.systemKeys.length; i++) {
+          window.mapper2State.sysToHumanMap[tData.systemKeys[i]] = tData.humanNames[i];
+        }
+      }
+      // ==========================================
+
       const headers = window.mapper2State.invoiceHeaders || [];
       const rows = window.mapper2State.invoiceRows || [];
 
