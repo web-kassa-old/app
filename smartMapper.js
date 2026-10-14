@@ -1002,15 +1002,23 @@ window.startTokenizerQueue = function () {
           const lang = window.currentLang || localStorage.getItem("pos_lang") || "ru";
           const tr = typeof translations !== "undefined" && translations[lang] ? translations[lang] : {};
           
-          let notFoundMsg = tr.tok_not_found || `Значение <b>"{val}"</b> не найдено в справочнике. Выберите вручную:`;
-          overlay.querySelector(".fallback-msg").innerHTML = notFoundMsg.replace("{val}", gluedText);
+          let notFoundMsg = tr.tok_not_found || `Значение <b>"{val}"</b> не найдено. Выберите вручную:`;
           
-          fallbackSelect.innerHTML =
-            `<option value="" disabled selected>${tr.tok_dict_name || "Справочник:"} ${paramName}...</option>` +
-            dictArray
-              .map((val) => `<option value="${val}">${val}</option>`)
-              .join("");
-          fallbackZone.style.display = "block";
+          // ⚡ Безопасная проверка: если текстового блока нет, выводим стандартный alert
+          let msgEl = overlay.querySelector(".fallback-msg");
+          if (msgEl) {
+            msgEl.innerHTML = notFoundMsg.replace("{val}", gluedText);
+          } else {
+            alert(`Внимание: Значение "${gluedText}" не найдено в справочнике Kaspi. Выберите подходящее из списка.`);
+          }
+          
+          // ⚡ Безопасная загрузка выпадающего списка
+          if (fallbackSelect) {
+            fallbackSelect.innerHTML =
+              `<option value="" disabled selected>${tr.tok_dict_name || "Справочник:"} ${paramName}...</option>` +
+              dictArray.map((val) => `<option value="${val}">${val}</option>`).join("");
+          }
+          if (fallbackZone) fallbackZone.style.display = "block";
         }
       });
     });
@@ -1133,7 +1141,8 @@ window.startTokenizerQueue = function () {
 
     // Очищаем очередь и переходим в Маппер
     window.mapper2State.quarantine = [];
-    finishAndGoToMapper();
+    // ⚡ Вызываем функцию по её настоящему старому имени
+    finishAndGoToPreview(); 
   }
 
   function finishAndGoToPreview() {
