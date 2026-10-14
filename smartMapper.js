@@ -999,8 +999,13 @@ window.startTokenizerQueue = function () {
         if (matchedValue) {
           lockParameter(row, paramName, matchedValue, gluedText);
         } else {
-          // ⚡ Никаких манипуляций с DOM и выпадающими списками. Только предупреждение. Токены остаются активными, чтобы их можно было отжать.
-          alert(`Внимание: Значение "${gluedText}" не найдено в справочнике Kaspi.\n\nКликните по лишнему фрагменту в верхней панели (например, букве), чтобы убрать его, и нажмите ОК снова.`);
+          // ⚡ Красивое визуальное сообщение прямо в кнопке (без блокирующих alert)
+          const previewEl = row.querySelector(".param-preview");
+          const originalText = previewEl.innerHTML;
+          previewEl.innerHTML = `<span style="color:#ff4444; font-size:11px;">🚫 Не в справочнике</span>`;
+          setTimeout(() => {
+            previewEl.innerHTML = originalText;
+          }, 2000); // Вернет текст обратно через 2 секунды
         }
       });
     });
@@ -1112,17 +1117,18 @@ window.startTokenizerQueue = function () {
         Object.keys(pattern.resolvedAttributes).forEach((paramName) => {
           if (paramName !== "Лишние символы") {
             const rule = pattern.resolvedAttributes[paramName];
-            
-            // ⚡ ЖЕЛЕЗОБЕТОННЫЙ ПЕРЕВОД ЧЕЛОВЕЧЕСКОГО ИМЕНИ В СИСТЕМНЫЙ КЛЮЧ
-            let sysKey = null;
-            const tData = window.currentTemplateData || {};
-            if (tData.humanNames && tData.systemKeys) {
-              const idx = tData.humanNames.indexOf(paramName);
-              if (idx !== -1) sysKey = tData.systemKeys[idx];
-            }
-
-            if (sysKey && rule && rule.indexes && rule.indexes.length > 0) {
-              window.mapper2State.splitRules[sysKey] = rule.indexes;
+            if (rule && rule.indexes && rule.indexes.length > 0) {
+              // 1. Сохраняем надежно по русскому имени
+              window.mapper2State.splitRules[paramName] = rule.indexes;
+              
+              // 2. Дублируем по системному ключу (если найдем)
+              const tData = window.currentTemplateData || {};
+              if (tData.humanNames && tData.systemKeys) {
+                const idx = tData.humanNames.indexOf(paramName);
+                if (idx !== -1) {
+                  window.mapper2State.splitRules[tData.systemKeys[idx]] = rule.indexes;
+                }
+              }
             }
           }
         });

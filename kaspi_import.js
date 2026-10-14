@@ -630,9 +630,10 @@ window.renderMapper2Cards = function (templateData) {
         window.mapper2State.invoiceHeaders[mappedIndex] ||
         `Колонка ${mappedIndex + 1}`;
 
+      // ⚡ Читаем правила И по ключу (Specs), И по имени (Ширина профиля)
       let splitData =
         window.mapper2State.splitRules &&
-        window.mapper2State.splitRules[req.sysKey];
+        (window.mapper2State.splitRules[req.sysKey] || window.mapper2State.splitRules[req.name]);
       let ruleIndices = [];
       if (Array.isArray(splitData)) ruleIndices = splitData;
       else if (splitData && Array.isArray(splitData.rule))
