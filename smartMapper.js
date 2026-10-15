@@ -1001,15 +1001,29 @@ window.startTokenizerQueue = function () {
         } else {
           const previewEl = row.querySelector(".param-preview");
           if (previewEl) {
-            // Текст будет висеть, пока пользователь не кликнет по токену наверху (это автоматически перезапишет текст)
             previewEl.innerHTML = `<span style="color:#ff4444; font-size:11px; line-height:1.2; display:inline-block; margin-top:2px;">
               🚫 <b>${gluedText}</b> нет в Kaspi.<br>Отожмите лишний фрагмент вверху.
             </span>`;
           }
-          // Прячем кнопку ОК, чтобы нельзя было пройти дальше с ошибкой
           const okBtn = row.querySelector(".btn-confirm-inline");
           if (okBtn) okBtn.style.display = "none";
           row.classList.remove("active-target");
+
+          // ⚡ Ищем все выделенные токены наверху и красим их в красный
+          document.querySelectorAll('.selected').forEach(btn => {
+            // Защита, чтобы красились только кнопки токенов
+            if(btn.tagName === 'BUTTON' || btn.tagName === 'DIV') {
+              btn.style.boxShadow = "0 0 0 2px #ff4444 inset";
+              btn.style.backgroundColor = "rgba(255, 68, 68, 0.2)";
+              
+              // Как только пользователь кликнет по любому токену — снимаем красноту
+              btn.addEventListener('click', function resetRed() {
+                 btn.style.boxShadow = "";
+                 btn.style.backgroundColor = "";
+                 btn.removeEventListener('click', resetRed);
+              }, {once: true});
+            }
+          });
         }
       });
     });

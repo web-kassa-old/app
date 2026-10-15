@@ -633,7 +633,7 @@ window.renderMapper2Cards = function (templateData) {
       // ⚡ Читаем правила И по ключу (Specs), И по имени (Ширина профиля)
       let splitData =
         window.mapper2State.splitRules &&
-        (window.mapper2State.splitRules[req.sysKey] || window.mapper2State.splitRules[req.name]);
+        (window.mapper2State.splitRules[req.name] || window.mapper2State.splitRules[req.sysKey]);
       let ruleIndices = [];
       if (Array.isArray(splitData)) ruleIndices = splitData;
       else if (splitData && Array.isArray(splitData.rule))
