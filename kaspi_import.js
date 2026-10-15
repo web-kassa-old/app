@@ -35,7 +35,14 @@ function toggleIncomeModule() {
 window.processInvoiceFile = async function () {
   const fileInput = document.getElementById("invoiceFileInput");
   if (!fileInput || !fileInput.files.length)
-    return alert(translations[currentLang].inc_no_file || "Выберите файл");
+    return alert(translations[currentLang]?.inc_no_file || "Выберите файл");
+
+  // ⚡ 1. ЖЕСТКИЙ СБРОС СОСТОЯНИЯ (Лекарство от черных экранов при возврате "Назад")
+  // Сохраняем только кэш словаря, а старые файлы, шапки и токены выжигаем под ноль
+  const preservedDict = window.mapper2State?.dictValues || (typeof invoiceSynonyms !== "undefined" ? invoiceSynonyms : {});
+  window.mapper2State = {
+    dictValues: preservedDict
+  };
 
   let templateData = null;
 
@@ -45,19 +52,13 @@ window.processInvoiceFile = async function () {
     if (!templateName)
       return alert("Пожалуйста, выберите шаблон Kaspi из списка!");
 
-    // === ИСПРАВЛЕНИЕ: Внедряем мгновенное кэширование структуры шаблона ===
     window.kaspiTemplateCache = window.kaspiTemplateCache || {};
 
     if (window.kaspiTemplateCache[templateName]) {
-      // Шаблон уже был скачан ранее, берем его из памяти без запросов к серверу
       templateData = window.kaspiTemplateCache[templateName];
       window.showLoading("Чтение накладной...");
     } else {
-      // Шаблона нет в памяти, скачиваем с сервера и сохраняем
-      let tText =
-        typeof translations !== "undefined" &&
-        translations[currentLang] &&
-        translations[currentLang].kaspi_download_tpl
+      let tText = typeof translations !== "undefined" && translations[currentLang] && translations[currentLang].kaspi_download_tpl
           ? translations[currentLang].kaspi_download_tpl
           : "Скачивание структуры шаблона...";
       window.showLoading(tText);
@@ -69,16 +70,11 @@ window.processInvoiceFile = async function () {
           category: templateName,
         };
         const res = await window.smartFetch(GATEWAY_URL, payload);
-
         const headersRaw = res.headersJson || res.headers_json || res.headers;
+        
         if (res && res.success && headersRaw) {
-          templateData =
-            typeof headersRaw === "string"
-              ? JSON.parse(headersRaw)
-              : headersRaw;
+          templateData = typeof headersRaw === "string" ? JSON.parse(headersRaw) : headersRaw;
           if (res.memoryJson) templateData.memoryJson = res.memoryJson;
-
-          // Сохраняем в кэш, чтобы больше не скачивать при повторном выборе файла
           window.kaspiTemplateCache[templateName] = templateData;
         } else {
           throw new Error("Структура шапок пустая");
@@ -88,7 +84,6 @@ window.processInvoiceFile = async function () {
         return alert("Ошибка загрузки шаблона: " + err.message);
       }
     }
-    // ====================================================================
   } else {
     window.showLoading("Чтение накладной...");
   }
@@ -114,9 +109,7 @@ window.processInvoiceFile = async function () {
     const workbook = XLSX.read(arrayBuffer, { type: "array" });
     let rows = [];
     for (let sName of workbook.SheetNames) {
-      let sRows = XLSX.utils.sheet_to_json(workbook.Sheets[sName], {
-        header: 1,
-      });
+      let sRows = XLSX.utils.sheet_to_json(workbook.Sheets[sName], { header: 1 });
       if (sRows && sRows.length > 0) {
         rows = sRows;
         break;
@@ -126,42 +119,25 @@ window.processInvoiceFile = async function () {
 
     let file_doc_no = "UNKNOWN";
     let file_supplier = "UNKNOWN";
-
-    let dict =
-      window.mapper2State?.dictValues ||
-      (typeof invoiceSynonyms !== "undefined" ? invoiceSynonyms : {});
-    let supSyns = []
-      .concat(
-        dict["Поиск имени поставщика"] || [],
-        dict["supplier_keywords"] || [],
-        ["supplier", "vendor", "the seller", "поставщик"],
-      )
-      .map((s) => String(s).replace(/\s+/g, "").toLowerCase())
-      .filter(Boolean);
-    let docSyns = []
-      .concat(dict["Номер накладной"] || [], dict["invoice_no"] || [], [
-        "invoice no",
-        "invoice",
-        "doc",
-        "инвойс",
-        "№ накл",
-      ])
-      .map((s) => String(s).replace(/\s+/g, "").toLowerCase())
-      .filter(Boolean);
+    let dict = window.mapper2State.dictValues;
+    
+    let supSyns = [].concat(dict["Поиск имени поставщика"] || [], dict["supplier_keywords"] || [], ["supplier", "vendor", "the seller", "поставщик"])
+      .map((s) => String(s).replace(/\s+/g, "").toLowerCase()).filter(Boolean);
+      
+    let docSyns = [].concat(dict["Номер накладной"] || [], dict["invoice_no"] || [], ["invoice no", "invoice", "doc", "инвойс", "№ накл"])
+      .map((s) => String(s).replace(/\s+/g, "").toLowerCase()).filter(Boolean);
 
     for (let i = 0; i < Math.min(15, rows.length); i++) {
       let row = rows[i] || [];
       for (let j = 0; j < row.length; j++) {
         let rawCell = String(row[j] || "").trim();
-        let cellVal = rawCell.toLowerCase();
-        let cleanCell = cellVal.replace(/\s+/g, "");
+        let cleanCell = rawCell.toLowerCase().replace(/\s+/g, "");
         if (!cleanCell) continue;
 
         if (supSyns.some((syn) => cleanCell.includes(syn))) {
           if (rawCell.includes(":")) {
             let parts = rawCell.split(":");
-            if (parts[1] && parts[1].trim())
-              file_supplier = parts[1].trim().replace(/^"|"$/g, "");
+            if (parts[1] && parts[1].trim()) file_supplier = parts[1].trim().replace(/^"|"$/g, "");
           }
           if (file_supplier === "UNKNOWN") {
             for (let k = j + 1; k < row.length; k++) {
@@ -176,8 +152,7 @@ window.processInvoiceFile = async function () {
         if (docSyns.some((syn) => cleanCell.includes(syn))) {
           if (rawCell.includes(":")) {
             let parts = rawCell.split(":");
-            if (parts[1] && parts[1].trim())
-              file_doc_no = parts[1].trim().replace(/^"|"$/g, "");
+            if (parts[1] && parts[1].trim()) file_doc_no = parts[1].trim().replace(/^"|"$/g, "");
           }
           if (file_doc_no === "UNKNOWN" || file_doc_no === "") {
             let val = String(row[j + 1] || "").trim();
@@ -187,8 +162,7 @@ window.processInvoiceFile = async function () {
       }
     }
 
-    window.mapper2State.supplier =
-      file_supplier !== "UNKNOWN" ? file_supplier : "Не указан";
+    window.mapper2State.supplier = file_supplier !== "UNKNOWN" ? file_supplier : "Не указан";
     if (file_doc_no !== "UNKNOWN" && file_doc_no !== "") {
       window.mapper2State.docNo = file_doc_no;
     } else {
@@ -203,12 +177,7 @@ window.processInvoiceFile = async function () {
         let val = String(c).trim().replace(/,/g, "");
         return val !== "" && !isNaN(Number(val));
       }).length;
-      if (
-        numCount >= 2 &&
-        !String(row[0] || "")
-          .toUpperCase()
-          .includes("TOTAL")
-      ) {
+      if (numCount >= 2 && !String(row[0] || "").toUpperCase().includes("TOTAL")) {
         firstDataRowIdx = i;
         break;
       }
@@ -216,19 +185,10 @@ window.processInvoiceFile = async function () {
 
     if (firstDataRowIdx > 0) {
       let rawHeaders = rows[firstDataRowIdx - 1] || [];
-      window.mapper2State.invoiceHeaders = rawHeaders.map((h) =>
-        String(h || "")
-          .replace(/[\r\n]+/g, " ")
-          .trim(),
-      );
+      window.mapper2State.invoiceHeaders = rawHeaders.map((h) => String(h || "").replace(/[\r\n]+/g, " ").trim());
       window.mapper2State.invoiceRows = rows.slice(firstDataRowIdx);
 
-      let fileContentStr =
-        window.mapper2State.docNo +
-        "_" +
-        window.mapper2State.supplier +
-        "_" +
-        JSON.stringify(window.mapper2State.invoiceRows.slice(0, 5));
+      let fileContentStr = window.mapper2State.docNo + "_" + window.mapper2State.supplier + "_" + JSON.stringify(window.mapper2State.invoiceRows.slice(0, 5));
       let hashNum = 0;
       for (let i = 0; i < fileContentStr.length; i++) {
         hashNum = (hashNum << 5) - hashNum + fileContentStr.charCodeAt(i);
@@ -237,35 +197,28 @@ window.processInvoiceFile = async function () {
       window.mapper2State.fileHash = "hash_" + Math.abs(hashNum).toString(16);
 
       window.hideLoading();
-
       window.currentTemplateData = templateData;
 
       let smartHeaders = window.mapper2State.invoiceHeaders || [];
       let smartRows = window.mapper2State.invoiceRows || [];
 
       if (typeof window.detectComplexColumns !== "function") {
-        console.error(
-          "ОШИБКА: Функция detectComplexColumns не найдена! Файл smartMapper.js не загрузился или закэширован.",
-        );
+        console.error("ОШИБКА: Функция detectComplexColumns не найдена!");
         return;
       }
-      const complexColumns = window.detectComplexColumns(
-        smartHeaders,
-        smartRows,
-      );
-
-      console.log("Детектор получил шапки Excel:", smartHeaders);
-      console.log(
-        "Детектор получил строки Excel (первые 2):",
-        smartRows.slice(0, 2),
-      );
-      console.log("Детектор нашел сложные колонки:", complexColumns);
-
-      window.mapper2State = window.mapper2State || {};
+      
+      const complexColumns = window.detectComplexColumns(smartHeaders, smartRows);
 
       if (complexColumns && complexColumns.length > 0) {
         window.mapper2State.lastComplexColumns = complexColumns;
         window.navigateIncomeStep("smart");
+        
+        // ⚡ 2. ПРИНУДИТЕЛЬНАЯ ОТРИСОВКА (Если окно было очищено кнопкой "Назад")
+        if (typeof window.renderSmartMapper === "function") {
+          window.renderSmartMapper();
+        } else if (typeof window.initSmartMapper === "function") {
+          window.initSmartMapper();
+        }
       } else {
         window.navigateIncomeStep(2);
         if (typeof window.renderMapper2Cards === "function") {
