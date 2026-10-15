@@ -1037,80 +1037,115 @@ window.startTokenizerQueue = function () {
         const gluedText = row.querySelector(".param-preview").textContent;
         if (!gluedText) return;
 
+        // Если это корзина - просто фиксируем и выходим, не ищем в словаре
+        if (paramName === "Лишние символы") {
+          lockParameter(row, paramName, gluedText, gluedText);
+          return;
+        }
+
         let dictArray = dicts[paramName] || [];
 
-        // --- ДИАГНОСТИЧЕСКИЙ БЛОК ---
-        console.group(`🛑 ДЕБАГ: ${paramName}`);
-        console.log("1. Оригинальный gluedText:", JSON.stringify(gluedText));
-        console.log(
-          "2. Длина словаря:",
-          dictArray.length,
-          "| Есть ли '20' в сыром виде?:",
-          dictArray.includes("20") || dictArray.includes(20),
-        );
-
-        const selectedBtns = Array.from(
-          document.querySelectorAll(".selected"),
-        ).filter(
-          (b) =>
-            (b.tagName === "BUTTON" || b.tagName === "DIV") &&
-            !b.closest(".currency-minimal-container"),
-        );
-        console.log(`3. Найдено .selected кнопок: ${selectedBtns.length}`);
-
-        const tokens = selectedBtns.map((btn) =>
-          btn.textContent.replace(/[\s\u200B-\u200D\uFEFF]/g, ""),
-        );
-        console.log("4. Массив токенов, который видит скрипт:", tokens);
-
-        const normalize = (val) =>
-          String(val ?? "")
-            .normalize("NFKC")
-            .replace(/[\s\u200B-\u200D\u2060\uFEFF]/g, "")
+        // ⚡ 1. Идеальная нормализация
+        const normalize = (val) => {
+          return String(val ?? '')
+            .normalize('NFKC')
+            .replace(/[\s\u200B-\u200D\u2060\uFEFF]/g, '')
             .trim()
             .toUpperCase();
+        };
+
+        // Создаем Map для быстрого и точного поиска
         const dictMap = new Map();
-        dictArray.forEach((val) => {
-          if (val != null) dictMap.set(normalize(val), val);
+        dictArray.forEach(val => {
+          if (val !== null && val !== undefined) {
+            dictMap.set(normalize(val), val); // Ключ - чистая строка, значение - оригинал из базы Kaspi
+          }
         });
 
-        console.log(
-          "5. Есть ли нормализованное '20' в словаре?",
-          dictMap.has("20"),
-        );
+        const cleanGlued = normalize(gluedText);
 
-        const candidates = [];
-        for (let i = 0; i < tokens.length; i++) {
-          const candidateText = tokens
-            .filter((_, index) => index !== i)
-            .join("");
-          const isMatch = dictMap.has(candidateText);
-          console.log(
-            `-- Шаг ${i}: Выкидываем '${tokens[i]}'. Остаток: '${candidateText}'. Найден в базе? ${isMatch}`,
-          );
-          if (isMatch)
-            candidates.push({
-              element: selectedBtns[i],
-              matchedValue: dictMap.get(candidateText),
-            });
+        // ⚡ 2. Проверка точного совпадения (Если выбрано только "20")
+        if (dictMap.has(cleanGlued)) {
+          lockParameter(row, paramName, dictMap.get(cleanGlued), gluedText);
+          return; // Успешно сохраняем и выходим!
         }
 
-        console.log(
-          "6. Итого кандидатов на удаление:",
-          candidates.length,
-          candidates,
+        // ⚡ 3. Детектор лишнего токена (Если выбрано "R20")
+        // Обязательно исключаем контейнер валюты, чтобы USD не ломал массив
+        const selectedBtns = Array.from(document.querySelectorAll('.selected')).filter(b => 
+          (b.tagName === 'BUTTON' || b.tagName === 'DIV') && !b.closest('.currency-minimal-container')
         );
-        console.groupEnd();
-        // --- КОНЕЦ БЛОКА ---
+        
+        let extraBtn = null;
+        let validOriginalValue = null;
 
-        // Если кандидатов ровно 1 - красим его (упрощенная логика для теста)
+        if (selectedBtns.length > 1) {
+          const tokens = selectedBtns.map(btn => normalize(btn.textContent));
+          const candidates = [];
+
+          // Исключаем по одной кнопке и проверяем
+          for (let i = 0; i < tokens.length; i++) {
+            const candidateText = tokens.filter((_, index) => index !== i).join('');
+            
+            if (dictMap.has(candidateText)) {
+              candidates.push({
+                element: selectedBtns[i],
+                matchedValue: dictMap.get(candidateText)
+              });
+            }
+          }
+
+          // Принимаем решение только если нашлось РОВНО 1 совпадение
+          if (candidates.length === 1) {
+            extraBtn = candidates[0].element;
+            validOriginalValue = candidates[0].matchedValue;
+          }
+        }
+
         const previewEl = row.querySelector(".param-preview");
-        if (candidates.length === 1) {
-          previewEl.innerHTML = `<span style="color:#ff4444; font-size:11px;">🚫 Лишний: <b>${candidates[0].element.textContent}</b></span>`;
-          candidates[0].element.style.boxShadow = "0 0 0 2px #ff4444 inset";
+        const okBtn = row.querySelector(".btn-confirm-inline");
+        if (okBtn) okBtn.style.display = "none";
+
+        if (extraBtn) {
+          // Нашли 1 лишний токен! Красим ТОЛЬКО ЕГО
+          if (previewEl) {
+            previewEl.innerHTML = `<span style="color:#ff4444; font-size:11px; line-height:1.2; display:inline-block; margin-top:2px;">
+              🚫 Фрагмент <b>${extraBtn.textContent}</b> лишний.<br>Значение <b>${validOriginalValue}</b> есть в базе. Отщелкните лишнее.
+            </span>`;
+          }
+          extraBtn.style.boxShadow = "0 0 0 2px #ff4444 inset";
+          extraBtn.style.backgroundColor = "rgba(255, 68, 68, 0.2)";
+          extraBtn.classList.add('error-token');
         } else {
-          previewEl.innerHTML = `<span style="color:#ff4444; font-size:11px;">🚫 Не найдено или слишком много кандидатов.</span>`;
+          // Если кандидатов 0 или больше 1 — красим всё
+          if (previewEl) {
+            let displayGlued = gluedText.replace(/[\s\u200B-\u200D\uFEFF]/g, '');
+            previewEl.innerHTML = `<span style="color:#ff4444; font-size:11px; line-height:1.2; display:inline-block; margin-top:2px;">
+              🚫 <b>${displayGlued}</b> нет в Kaspi.<br>Отщелкните лишние фрагменты.
+            </span>`;
+          }
+          selectedBtns.forEach(btn => {
+            btn.style.boxShadow = "0 0 0 2px #ff4444 inset";
+            btn.style.backgroundColor = "rgba(255, 68, 68, 0.2)";
+            btn.classList.add('error-token');
+          });
         }
+
+        // Функция сброса визуала
+        const resetError = () => {
+          document.querySelectorAll('.error-token').forEach(b => {
+            b.style.boxShadow = "";
+            b.style.backgroundColor = "";
+            b.classList.remove('error-token');
+          });
+          if (okBtn) okBtn.style.display = ""; 
+          document.removeEventListener('click', resetError);
+        };
+
+        // Ждем следующего клика для сброса ошибки
+        setTimeout(() => {
+          document.addEventListener('click', resetError, { once: true });
+        }, 100);
       });
     });
 
