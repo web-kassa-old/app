@@ -1040,43 +1040,53 @@ window.startTokenizerQueue = function () {
         if (matchedValue) {
           lockParameter(row, paramName, matchedValue, gluedText);
         } else {
-          // ⚡ УРОВЕНЬ 2 и 3: Вакуумная очистка и Поиск ошибки строго с краев
+          // ⚡ УРОВЕНЬ 2 и 3: БРОНЕБОЙНЫЙ ПОИСК (Отрезаем от чистой строки)
           const selectedBtns = Array.from(document.querySelectorAll('.selected')).filter(b => b.tagName === 'BUTTON' || b.tagName === 'DIV');
           let smartSuggestion = null;
 
           if (selectedBtns.length > 1) {
-            // Вспомогательная функция проверки массива токенов
-            const checkMatch = (btnsArray) => {
-              // Вырезаем ВСЕ пробелы, табы и невидимые символы
-              let testText = btnsArray.map(b => (b.innerText || b.textContent)).join('').replace(/\s+/g, '');
-              let match = dictArray.find((v) => String(v).trim().toLowerCase() === testText.toLowerCase());
-              
-              if (!match && /^\d+(?:[.,]\d+)?$/.test(testText)) {
-                match = dictArray.find((v) => !isNaN(parseFloat(v)) && parseFloat(v) === parseFloat(testText.replace(',', '.')));
-              }
-              return match ? testText : null;
-            };
-
-            // 1. Проверяем, откинув крайний ПРАВЫЙ токен
-            let rightDropped = selectedBtns.slice(0, -1);
-            let rightMatch = checkMatch(rightDropped);
+            let cleanGlued = gluedText.trim();
             
-            if (rightMatch) {
-              smartSuggestion = {
-                badBtn: selectedBtns[selectedBtns.length - 1],
-                badText: (selectedBtns[selectedBtns.length - 1].innerText || selectedBtns[selectedBtns.length - 1].textContent).trim(),
-                validText: rightMatch
-              };
-            } else {
-              // 2. Если справа не подошло — проверяем, откинув крайний ЛЕВЫЙ токен
-              let leftDropped = selectedBtns.slice(1);
-              let leftMatch = checkMatch(leftDropped);
-              if (leftMatch) {
+            // 1. Проверяем откидывание ПРАВОГО токена
+            let rightBtn = selectedBtns[selectedBtns.length - 1];
+            // Вычищаем невидимые DOM-символы из самой кнопки перед отрезанием
+            let rightText = (rightBtn.innerText || rightBtn.textContent).replace(/[\s\u200B-\u200D\uFEFF]/g, '');
+            
+            if (cleanGlued.endsWith(rightText)) {
+              let testRight = cleanGlued.substring(0, cleanGlued.length - rightText.length).trim();
+              
+              let matchRight = dictArray.find((v) => String(v).trim().toLowerCase() === testRight.toLowerCase());
+              if (!matchRight && /^\d+(?:[.,]\d+)?$/.test(testRight)) {
+                matchRight = dictArray.find((v) => !isNaN(parseFloat(v)) && parseFloat(v) === parseFloat(testRight.replace(',', '.')));
+              }
+              if (matchRight) {
                 smartSuggestion = {
-                  badBtn: selectedBtns[0],
-                  badText: (selectedBtns[0].innerText || selectedBtns[0].textContent).trim(),
-                  validText: leftMatch
+                  badBtn: rightBtn,
+                  badText: rightText,
+                  validText: testRight
                 };
+              }
+            }
+
+            // 2. Если справа не подошло — проверяем откидывание ЛЕВОГО токена
+            if (!smartSuggestion) {
+              let leftBtn = selectedBtns[0];
+              let leftText = (leftBtn.innerText || leftBtn.textContent).replace(/[\s\u200B-\u200D\uFEFF]/g, '');
+              
+              if (cleanGlued.startsWith(leftText)) {
+                let testLeft = cleanGlued.substring(leftText.length).trim();
+                
+                let matchLeft = dictArray.find((v) => String(v).trim().toLowerCase() === testLeft.toLowerCase());
+                if (!matchLeft && /^\d+(?:[.,]\d+)?$/.test(testLeft)) {
+                  matchLeft = dictArray.find((v) => !isNaN(parseFloat(v)) && parseFloat(v) === parseFloat(testLeft.replace(',', '.')));
+                }
+                if (matchLeft) {
+                  smartSuggestion = {
+                    badBtn: leftBtn,
+                    badText: leftText,
+                    validText: testLeft
+                  };
+                }
               }
             }
           }
@@ -1099,9 +1109,9 @@ window.startTokenizerQueue = function () {
           } else {
             // Если ошибка сложнее — красим всё
             if (previewEl) {
-              let cleanGluedText = gluedText.replace(/\s+/g, '');
+              let displayGlued = gluedText.replace(/[\s\u200B-\u200D\uFEFF]/g, '');
               previewEl.innerHTML = `<span style="color:#ff4444; font-size:11px; line-height:1.2; display:inline-block; margin-top:2px;">
-                🚫 <b>${cleanGluedText}</b> нет в Kaspi.<br>Отщелкните лишние фрагменты.
+                🚫 <b>${displayGlued}</b> нет в Kaspi.<br>Отщелкните лишние фрагменты.
               </span>`;
             }
             selectedBtns.forEach(btn => {
