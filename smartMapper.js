@@ -1044,44 +1044,48 @@ window.startTokenizerQueue = function () {
         if (matchedValue) {
           lockParameter(row, paramName, matchedValue, gluedText);
         } else {
-          // ⚡ УРОВЕНЬ 3: Бронебойный поиск с краев
+          // ⚡ УРОВЕНЬ 3: Бронебойный поиск с краев (без startsWith/endsWith)
           const selectedBtns = Array.from(document.querySelectorAll('.selected')).filter(b => b.tagName === 'BUTTON' || b.tagName === 'DIV');
           let smartSuggestion = null;
 
           if (selectedBtns.length > 1) {
             let cleanGlued = gluedText.replace(/[\s\u200B-\u200D\uFEFF]/g, '');
             
-            // 1. Отрезаем ПРАВЫЙ токен жестко по длине
+            // 1. Отрезаем ПРАВЫЙ токен
             let rightBtn = selectedBtns[selectedBtns.length - 1];
             let rightText = (rightBtn.innerText || rightBtn.textContent).replace(/[\s\u200B-\u200D\uFEFF]/g, '');
+            // Отрезаем количество символов равное длине правой кнопки
             let testRight = cleanGlued.substring(0, cleanGlued.length - rightText.length);
             
             let matchRight = dictArray.find((v) => String(v).trim().toLowerCase() === testRight.toLowerCase());
             if (!matchRight && /^\d+(?:[.,]\d+)?$/.test(testRight)) {
               matchRight = dictArray.find((v) => !isNaN(parseFloat(v)) && parseFloat(v) === parseFloat(testRight.replace(',', '.')));
             }
-            if (matchRight) smartSuggestion = { badBtn: rightBtn, badText: rightText, validText: testRight };
+            if (matchRight) {
+              smartSuggestion = { badBtn: rightBtn, badText: rightText, validText: testRight };
+            }
 
-            // 2. Отрезаем ЛЕВЫЙ токен жестко по длине
+            // 2. Отрезаем ЛЕВЫЙ токен (если справа не подошло)
             if (!smartSuggestion) {
               let leftBtn = selectedBtns[0];
               let leftText = (leftBtn.innerText || leftBtn.textContent).replace(/[\s\u200B-\u200D\uFEFF]/g, '');
+              // Отрезаем количество символов равное длине левой кнопки
               let testLeft = cleanGlued.substring(leftText.length);
               
               let matchLeft = dictArray.find((v) => String(v).trim().toLowerCase() === testLeft.toLowerCase());
               if (!matchLeft && /^\d+(?:[.,]\d+)?$/.test(testLeft)) {
                 matchLeft = dictArray.find((v) => !isNaN(parseFloat(v)) && parseFloat(v) === parseFloat(testLeft.replace(',', '.')));
               }
-              if (matchLeft) smartSuggestion = { badBtn: leftBtn, badText: leftText, validText: testLeft };
+              if (matchLeft) {
+                smartSuggestion = { badBtn: leftBtn, badText: leftText, validText: testLeft };
+              }
             }
           }
 
           const previewEl = row.querySelector(".param-preview");
           const okBtn = row.querySelector(".btn-confirm-inline");
           if (okBtn) okBtn.style.display = "none";
-          
-          // ⚡ ИСПРАВЛЕНИЕ П.2: Убрано удаление класса active-target
-          // Строка остается активной, поэтому при отщелкивании токена значение больше не стирается целиком!
+          // ⚡ (row.classList.remove("active-target") убрано — строка не сбрасывается)
 
           if (smartSuggestion) {
             // Нашли 1 лишний токен с краю! Красим ТОЛЬКО ЕГО
