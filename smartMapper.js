@@ -663,6 +663,10 @@ window.showTokenizer = function (columnName, tokensArray, paramsList) {
   overlay.querySelector(".close-btn").addEventListener("click", () => {
     overlay.style.display = "none";
     overlay.innerHTML = "";
+    // Принудительно возвращаем интерфейс на первый шаг (загрузка файла)
+    if (typeof window.navigateIncomeStep === "function") {
+      window.navigateIncomeStep(1);
+    }
   });
 };
 
@@ -1229,24 +1233,51 @@ window.startTokenizerQueue = function () {
 
     if (btnBack) {
       btnBack.addEventListener("click", () => {
+        // Очищаем текущие результаты при возврате назад
+        mappedResults = {};
+        if (pattern.resolvedAttributes) {
+          delete pattern.resolvedAttributes;
+        }
+        
         if (currentQueueIndex > 0) {
           currentQueueIndex--;
           processNext();
+        } else {
+          // Если это первый паттерн и мы жмем назад — возвращаемся в Маппер
+          overlay.style.display = "none";
+          overlay.innerHTML = "";
+          if (typeof window.navigateIncomeStep === "function") {
+            window.navigateIncomeStep(2); 
+            if (typeof window.renderMapper2Cards === "function" && window.currentTemplateData) {
+              window.renderMapper2Cards(window.currentTemplateData);
+            }
+          }
         }
       });
     }
 
     btnDone.addEventListener("click", (e) => {
       if (btnDone.disabled) return;
-      btnDone.disabled = true;
-
-      if (
-        !pattern.resolvedAttributes ||
-        Object.keys(pattern.resolvedAttributes).length === 0
-      ) {
-        btnDone.disabled = false;
+      
+      if (!pattern.resolvedAttributes || Object.keys(pattern.resolvedAttributes).length === 0) {
+        // Если ничего не выбрали - не пускаем дальше
+        btnDone.style.transform = "translateX(2px)";
+        setTimeout(() => (btnDone.style.transform = "translateX(-2px)"), 50);
+        setTimeout(() => (btnDone.style.transform = "translateX(0)"), 100);
         return;
       }
+      
+      btnDone.disabled = true;
+
+      // ⚡ ГЛАВНЫЙ ФИКС: Сохраняем чистые значения в глобальный стейт Маппера!
+      window.mapper2State = window.mapper2State || {};
+      window.mapper2State.smartTokens = window.mapper2State.smartTokens || {};
+
+      // Переносим все подтвержденные результаты из паттерна в глобальный словарь
+      Object.keys(pattern.resolvedAttributes).forEach(sysKey => {
+        window.mapper2State.smartTokens[sysKey] = pattern.resolvedAttributes[sysKey].value; 
+      });
+
       currentQueueIndex++;
       processNext();
     });
