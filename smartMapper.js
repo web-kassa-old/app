@@ -1023,107 +1023,106 @@ window.startTokenizerQueue = function () {
 
         let dictArray = dicts[paramName] || [];
 
-        // ⚡ УНИВЕРСАЛЬНАЯ ФУНКЦИЯ ПОИСКА: Жестко чистит мусор и сравнивает числа как числа (Float)
-        const findInDict = (text) => {
-          if (!text) return null;
-          let cleanText = text.replace(/[\s\u200B-\u200D\uFEFF]/g, '');
-          
-          // 1. Строгое текстовое совпадение
-          let match = dictArray.find((v) => String(v).replace(/[\s\u200B-\u200D\uFEFF]/g, '').toLowerCase() === cleanText.toLowerCase());
-          if (match) return match;
-          
-          // 2. Математическое совпадение (если это число, сравниваем через parseFloat)
-          if (/^\d+(?:[.,]\d+)?$/.test(cleanText)) {
-            let numVal = parseFloat(cleanText.replace(',', '.'));
-            match = dictArray.find((v) => {
-              let dictStr = String(v).replace(/[\s\u200B-\u200D\uFEFF]/g, '').replace(',', '.');
-              let dictNum = parseFloat(dictStr);
-              return !isNaN(dictNum) && dictNum === numVal;
-            });
-            if (match) return match;
-          }
-          return null;
+        // ⚡ 1. Идеальная нормализация (идея от GPT)
+        const normalize = (val) => {
+          return String(val ?? '')
+            .normalize('NFKC') // Унифицирует символы (например, разные виды пробелов и дефисов)
+            .replace(/[\s\u200B-\u200D\u2060\uFEFF]/g, '') // Выжигает всю невидимую грязь
+            .trim()
+            .toUpperCase();
         };
 
-        // Пробуем найти весь склеенный текст
-        let matchedValue = findInDict(gluedText);
-
-        if (matchedValue) {
-          lockParameter(row, paramName, matchedValue, gluedText);
-        } else {
-          // ⚡ ПЕРЕБОР МАССИВА ПО ИНДЕКСАМ (Идеальный подход)
-          const selectedBtns = Array.from(document.querySelectorAll('.selected')).filter(b => b.tagName === 'BUTTON' || b.tagName === 'DIV');
-          let smartSuggestion = null;
-
-          if (selectedBtns.length > 1) {
-            // Перебираем каждый индекс массива токенов
-            for (let i = 0; i < selectedBtns.length; i++) {
-              let badBtn = selectedBtns[i];
-              let badText = (badBtn.innerText || badBtn.textContent).replace(/[\s\u200B-\u200D\uFEFF]/g, '');
-              
-              // Создаем новый массив БЕЗ текущего индекса и склеиваем его
-              let remainingBtns = selectedBtns.filter((_, idx) => idx !== i);
-              let testText = remainingBtns.map(b => (b.innerText || b.textContent)).join('').replace(/[\s\u200B-\u200D\uFEFF]/g, '');
-              
-              // Ищем получившийся кусок в базе
-              let match = findInDict(testText);
-              
-              if (match) {
-                smartSuggestion = {
-                  badBtn: badBtn,
-                  badText: badText,
-                  validText: match // Возвращаем чистое значение прямо из базы Kaspi
-                };
-                break; // Нашли ошибку, останавливаем перебор
-              }
-            }
+        // ⚡ 2. Создаем "умный словарь" (Map). Ключ - очищенная строка, Значение - оригинал из базы Kaspi
+        const dictMap = new Map();
+        dictArray.forEach(val => {
+          if (val !== null && val !== undefined) {
+            dictMap.set(normalize(val), val); // Сохраняем оригинальное значение, чтобы потом отдать его Мапперу
           }
+        });
 
-          const previewEl = row.querySelector(".param-preview");
-          const okBtn = row.querySelector(".btn-confirm-inline");
-          if (okBtn) okBtn.style.display = "none";
+        // Полная склейка, очищенная новым методом
+        const cleanGlued = normalize(gluedText);
 
-          if (smartSuggestion) {
-            // Нашли 1 лишний токен! Красим ТОЛЬКО ЕГО
-            if (previewEl) {
-              previewEl.innerHTML = `<span style="color:#ff4444; font-size:11px; line-height:1.2; display:inline-block; margin-top:2px;">
-                🚫 Фрагмент <b>${smartSuggestion.badText}</b> лишний.<br>Значение <b>${smartSuggestion.validText}</b> есть в базе. Отщелкните лишнее.
-              </span>`;
-            }
-            smartSuggestion.badBtn.style.boxShadow = "0 0 0 2px #ff4444 inset";
-            smartSuggestion.badBtn.style.backgroundColor = "rgba(255, 68, 68, 0.2)";
-            smartSuggestion.badBtn.classList.add('error-token');
-          } else {
-            // Если ошибка сложнее (или токенов отжато больше одного) — красим всё
-            if (previewEl) {
-              let displayGlued = gluedText.replace(/[\s\u200B-\u200D\uFEFF]/g, '');
-              previewEl.innerHTML = `<span style="color:#ff4444; font-size:11px; line-height:1.2; display:inline-block; margin-top:2px;">
-                🚫 <b>${displayGlued}</b> нет в Kaspi.<br>Отщелкните лишние фрагменты.
-              </span>`;
-            }
-            selectedBtns.forEach(btn => {
-              btn.style.boxShadow = "0 0 0 2px #ff4444 inset";
-              btn.style.backgroundColor = "rgba(255, 68, 68, 0.2)";
-              btn.classList.add('error-token');
-            });
-          }
-
-          // Функция сброса: возвращаем только визуал и кнопку
-          const resetError = () => {
-            document.querySelectorAll('.error-token').forEach(b => {
-              b.style.boxShadow = "";
-              b.style.backgroundColor = "";
-              b.classList.remove('error-token');
-            });
-            if (okBtn) okBtn.style.display = ""; 
-            document.removeEventListener('click', resetError);
-          };
-
-          // Ждем следующего клика в любом месте для сброса ошибки
-          setTimeout(() => {
-            document.addEventListener('click', resetError, { once: true });
-          }, 100);
+        // ⚡ 3. Проверка: а вдруг полная склейка уже есть в базе?
+        if (dictMap.has(cleanGlued)) {
+          lockParameter(row, paramName, dictMap.get(cleanGlued), gluedText);
+          return;
         }
+
+        // ⚡ 4. Детектор лишнего токена (Алгоритм GPT)
+        const selectedBtns = Array.from(document.querySelectorAll('.selected')).filter(b => b.tagName === 'BUTTON' || b.tagName === 'DIV');
+        
+        let extraBtn = null;
+        let validOriginalValue = null;
+
+        if (selectedBtns.length > 1) {
+          // Получаем чистые текстовые значения кнопок
+          const tokens = selectedBtns.map(btn => normalize(btn.textContent));
+          const candidates = [];
+
+          // Исключаем по одной кнопке и проверяем
+          for (let i = 0; i < tokens.length; i++) {
+            const candidateText = tokens.filter((_, index) => index !== i).join('');
+            
+            if (dictMap.has(candidateText)) {
+              candidates.push({
+                element: selectedBtns[i],
+                matchedValue: dictMap.get(candidateText) // Достаем из Map красивый оригинал ("20", а не нормализованный текст)
+              });
+            }
+          }
+
+          // Принимаем решение только если нашлось РОВНО 1 совпадение
+          if (candidates.length === 1) {
+            extraBtn = candidates[0].element;
+            validOriginalValue = candidates[0].matchedValue;
+          }
+        }
+
+        const previewEl = row.querySelector(".param-preview");
+        const okBtn = row.querySelector(".btn-confirm-inline");
+        if (okBtn) okBtn.style.display = "none";
+
+        if (extraBtn) {
+          // Нашли 1 лишний токен! Красим ТОЛЬКО ЕГО
+          if (previewEl) {
+            previewEl.innerHTML = `<span style="color:#ff4444; font-size:11px; line-height:1.2; display:inline-block; margin-top:2px;">
+              🚫 Фрагмент <b>${extraBtn.textContent}</b> лишний.<br>Значение <b>${validOriginalValue}</b> есть в базе. Отщелкните лишнее.
+            </span>`;
+          }
+          extraBtn.style.boxShadow = "0 0 0 2px #ff4444 inset";
+          extraBtn.style.backgroundColor = "rgba(255, 68, 68, 0.2)";
+          extraBtn.classList.add('error-token');
+        } else {
+          // Если кандидатов 0 (ошибка сложнее) или больше 1 (неоднозначность) — красим всё
+          if (previewEl) {
+            let displayGlued = gluedText.replace(/[\s\u200B-\u200D\uFEFF]/g, '');
+            previewEl.innerHTML = `<span style="color:#ff4444; font-size:11px; line-height:1.2; display:inline-block; margin-top:2px;">
+              🚫 <b>${displayGlued}</b> нет в Kaspi.<br>Отщелкните лишние фрагменты.
+            </span>`;
+          }
+          selectedBtns.forEach(btn => {
+            btn.style.boxShadow = "0 0 0 2px #ff4444 inset";
+            btn.style.backgroundColor = "rgba(255, 68, 68, 0.2)";
+            btn.classList.add('error-token');
+          });
+        }
+
+        // Функция сброса: возвращаем только визуал и кнопку
+        const resetError = () => {
+          document.querySelectorAll('.error-token').forEach(b => {
+            b.style.boxShadow = "";
+            b.style.backgroundColor = "";
+            b.classList.remove('error-token');
+          });
+          if (okBtn) okBtn.style.display = ""; 
+          document.removeEventListener('click', resetError);
+        };
+
+        // Ждем следующего клика в любом месте для сброса ошибки
+        setTimeout(() => {
+          document.addEventListener('click', resetError, { once: true });
+        }, 100);
       });
     });
 
