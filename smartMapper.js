@@ -999,31 +999,76 @@ window.startTokenizerQueue = function () {
         if (matchedValue) {
           lockParameter(row, paramName, matchedValue, gluedText);
         } else {
-          const previewEl = row.querySelector(".param-preview");
-          if (previewEl) {
-            previewEl.innerHTML = `<span style="color:#ff4444; font-size:11px; line-height:1.2; display:inline-block; margin-top:2px;">
-              🚫 <b>${gluedText}</b> нет в Kaspi.<br>Отожмите лишний фрагмент вверху.
-            </span>`;
+          // ⚡ ТВОЙ АЛГОРИТМ: УМНЫЙ ПОИСК ЛИШНЕГО ТОКЕНА
+          const selectedBtns = Array.from(document.querySelectorAll('.selected')).filter(b => b.tagName === 'BUTTON' || b.tagName === 'DIV');
+          let smartSuggestion = null;
+
+          // Пробуем «в уме» откидывать по одному токену и проверять результат
+          if (selectedBtns.length > 1) {
+            for (let i = 0; i < selectedBtns.length; i++) {
+              let testBtns = selectedBtns.filter((_, idx) => idx !== i);
+              let testText = testBtns.map(b => b.textContent).join('');
+              
+              let match = dictArray.find((v) => String(v).trim().toLowerCase() === testText.trim().toLowerCase());
+              if (!match && /^\d+(?:[.,]\d+)?$/.test(testText.trim())) {
+                match = dictArray.find((v) => !isNaN(parseFloat(v)) && parseFloat(v) === parseFloat(testText.replace(',', '.')));
+              }
+              
+              if (match) {
+                smartSuggestion = {
+                  badBtn: selectedBtns[i],
+                  badText: selectedBtns[i].textContent,
+                  validText: testText
+                };
+                break; // Нашли лишний токен, останавливаем перебор
+              }
+            }
           }
+
+          const previewEl = row.querySelector(".param-preview");
           const okBtn = row.querySelector(".btn-confirm-inline");
           if (okBtn) okBtn.style.display = "none";
           row.classList.remove("active-target");
 
-          // ⚡ Ищем все выделенные токены наверху и красим их в красный
-          document.querySelectorAll('.selected').forEach(btn => {
-            // Защита, чтобы красились только кнопки токенов
-            if(btn.tagName === 'BUTTON' || btn.tagName === 'DIV') {
+          if (smartSuggestion) {
+            // Нашли конкретный лишний токен! Подсвечиваем ТОЛЬКО его
+            if (previewEl) {
+              previewEl.innerHTML = `<span style="color:#ff4444; font-size:11px; line-height:1.2; display:inline-block; margin-top:2px;">
+                🚫 Фрагмент <b>${smartSuggestion.badText}</b> лишний.<br>Значение <b>${smartSuggestion.validText}</b> есть в базе. Отщелкните лишнее.
+              </span>`;
+            }
+            smartSuggestion.badBtn.style.boxShadow = "0 0 0 2px #ff4444 inset";
+            smartSuggestion.badBtn.style.backgroundColor = "rgba(255, 68, 68, 0.2)";
+            smartSuggestion.badBtn.classList.add('error-token');
+          } else {
+            // Не смогли найти один лишний - красим все выбранные
+            if (previewEl) {
+              previewEl.innerHTML = `<span style="color:#ff4444; font-size:11px; line-height:1.2; display:inline-block; margin-top:2px;">
+                🚫 <b>${gluedText}</b> нет в Kaspi.<br>Отщелкните лишние фрагменты вверху.
+              </span>`;
+            }
+            selectedBtns.forEach(btn => {
               btn.style.boxShadow = "0 0 0 2px #ff4444 inset";
               btn.style.backgroundColor = "rgba(255, 68, 68, 0.2)";
-              
-              // Как только пользователь кликнет по любому токену — снимаем красноту
-              btn.addEventListener('click', function resetRed() {
-                 btn.style.boxShadow = "";
-                 btn.style.backgroundColor = "";
-                 btn.removeEventListener('click', resetRed);
-              }, {once: true});
-            }
-          });
+              btn.classList.add('error-token');
+            });
+          }
+
+          // Функция сброса: возвращаем только визуал и кнопку, НЕ трогая классы .selected
+          const resetError = () => {
+            document.querySelectorAll('.error-token').forEach(b => {
+              b.style.boxShadow = "";
+              b.style.backgroundColor = "";
+              b.classList.remove('error-token');
+            });
+            if (okBtn) okBtn.style.display = ""; // Возвращаем кнопку ОК
+            document.removeEventListener('click', resetError);
+          };
+
+          // Ждем следующего клика в любом месте для сброса ошибки
+          setTimeout(() => {
+            document.addEventListener('click', resetError, { once: true });
+          }, 100);
         }
       });
     });
