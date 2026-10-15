@@ -1022,15 +1022,19 @@ window.startTokenizerQueue = function () {
         }
 
         let dictArray = dicts[paramName] || [];
+        
+        // ⚡ Отладка: Поможет понять, видит ли скрипт цифру 20 в справочнике
+        console.log(`[Отладка] Словарь для '${paramName}':`, dictArray); 
+
         let matchedValue = null;
 
-        // ⚡ 1. Строгий поиск точь-в-точь (без учета регистра)
+        // 1. Строгий поиск точь-в-точь
         let exactMatch = dictArray.find((v) => String(v).trim().toLowerCase() === gluedText.trim().toLowerCase());
         
         if (exactMatch) {
           matchedValue = exactMatch;
         } else {
-          // ⚡ 2. Математическое сравнение (только если в строке НЕТ букв вообще)
+          // 2. Математическое сравнение
           const isPureNumber = /^\d+(?:[.,]\d+)?$/.test(gluedText.trim());
           if (isPureNumber) {
             matchedValue = dictArray.find((v) => !isNaN(parseFloat(v)) && parseFloat(v) === parseFloat(gluedText.replace(',', '.')));
@@ -1040,61 +1044,44 @@ window.startTokenizerQueue = function () {
         if (matchedValue) {
           lockParameter(row, paramName, matchedValue, gluedText);
         } else {
-          // ⚡ УРОВЕНЬ 2 и 3: БРОНЕБОЙНЫЙ ПОИСК (Отрезаем от чистой строки)
+          // ⚡ УРОВЕНЬ 3: Бронебойный поиск с краев
           const selectedBtns = Array.from(document.querySelectorAll('.selected')).filter(b => b.tagName === 'BUTTON' || b.tagName === 'DIV');
           let smartSuggestion = null;
 
           if (selectedBtns.length > 1) {
-            let cleanGlued = gluedText.trim();
+            let cleanGlued = gluedText.replace(/[\s\u200B-\u200D\uFEFF]/g, '');
             
-            // 1. Проверяем откидывание ПРАВОГО токена
+            // 1. Отрезаем ПРАВЫЙ токен жестко по длине
             let rightBtn = selectedBtns[selectedBtns.length - 1];
-            // Вычищаем невидимые DOM-символы из самой кнопки перед отрезанием
             let rightText = (rightBtn.innerText || rightBtn.textContent).replace(/[\s\u200B-\u200D\uFEFF]/g, '');
+            let testRight = cleanGlued.substring(0, cleanGlued.length - rightText.length);
             
-            if (cleanGlued.endsWith(rightText)) {
-              let testRight = cleanGlued.substring(0, cleanGlued.length - rightText.length).trim();
-              
-              let matchRight = dictArray.find((v) => String(v).trim().toLowerCase() === testRight.toLowerCase());
-              if (!matchRight && /^\d+(?:[.,]\d+)?$/.test(testRight)) {
-                matchRight = dictArray.find((v) => !isNaN(parseFloat(v)) && parseFloat(v) === parseFloat(testRight.replace(',', '.')));
-              }
-              if (matchRight) {
-                smartSuggestion = {
-                  badBtn: rightBtn,
-                  badText: rightText,
-                  validText: testRight
-                };
-              }
+            let matchRight = dictArray.find((v) => String(v).trim().toLowerCase() === testRight.toLowerCase());
+            if (!matchRight && /^\d+(?:[.,]\d+)?$/.test(testRight)) {
+              matchRight = dictArray.find((v) => !isNaN(parseFloat(v)) && parseFloat(v) === parseFloat(testRight.replace(',', '.')));
             }
+            if (matchRight) smartSuggestion = { badBtn: rightBtn, badText: rightText, validText: testRight };
 
-            // 2. Если справа не подошло — проверяем откидывание ЛЕВОГО токена
+            // 2. Отрезаем ЛЕВЫЙ токен жестко по длине
             if (!smartSuggestion) {
               let leftBtn = selectedBtns[0];
               let leftText = (leftBtn.innerText || leftBtn.textContent).replace(/[\s\u200B-\u200D\uFEFF]/g, '');
+              let testLeft = cleanGlued.substring(leftText.length);
               
-              if (cleanGlued.startsWith(leftText)) {
-                let testLeft = cleanGlued.substring(leftText.length).trim();
-                
-                let matchLeft = dictArray.find((v) => String(v).trim().toLowerCase() === testLeft.toLowerCase());
-                if (!matchLeft && /^\d+(?:[.,]\d+)?$/.test(testLeft)) {
-                  matchLeft = dictArray.find((v) => !isNaN(parseFloat(v)) && parseFloat(v) === parseFloat(testLeft.replace(',', '.')));
-                }
-                if (matchLeft) {
-                  smartSuggestion = {
-                    badBtn: leftBtn,
-                    badText: leftText,
-                    validText: testLeft
-                  };
-                }
+              let matchLeft = dictArray.find((v) => String(v).trim().toLowerCase() === testLeft.toLowerCase());
+              if (!matchLeft && /^\d+(?:[.,]\d+)?$/.test(testLeft)) {
+                matchLeft = dictArray.find((v) => !isNaN(parseFloat(v)) && parseFloat(v) === parseFloat(testLeft.replace(',', '.')));
               }
+              if (matchLeft) smartSuggestion = { badBtn: leftBtn, badText: leftText, validText: testLeft };
             }
           }
 
           const previewEl = row.querySelector(".param-preview");
           const okBtn = row.querySelector(".btn-confirm-inline");
           if (okBtn) okBtn.style.display = "none";
-          row.classList.remove("active-target");
+          
+          // ⚡ ИСПРАВЛЕНИЕ П.2: Убрано удаление класса active-target
+          // Строка остается активной, поэтому при отщелкивании токена значение больше не стирается целиком!
 
           if (smartSuggestion) {
             // Нашли 1 лишний токен с краю! Красим ТОЛЬКО ЕГО
