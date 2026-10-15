@@ -1271,8 +1271,6 @@ window.startTokenizerQueue = function () {
       window.mapper2State = window.mapper2State || {};
       window.mapper2State.splitRules = window.mapper2State.splitRules || {};
 
-      console.log("🟢 [ТОКЕНИЗАТОР] Подготовил данные:", JSON.parse(JSON.stringify(pattern.resolvedAttributes)));
-
       window.mapper2State.smartTokens = window.mapper2State.smartTokens || {};
       
       Object.keys(pattern.resolvedAttributes).forEach(sysKey => {
@@ -1286,8 +1284,6 @@ window.startTokenizerQueue = function () {
           window.mapper2State.splitRules[sysKey] = pattern.resolvedAttributes[sysKey].indexes;
         }
       });
-      
-      console.log("🟢 [ТОКЕНИЗАТОР] Итоговый словарь splitRules:", JSON.parse(JSON.stringify(window.mapper2State.splitRules)));
 
       currentQueueIndex++;
       processNext();
@@ -1325,11 +1321,6 @@ window.startTokenizerQueue = function () {
       });
     }
   });
-
-  console.log(
-    "🛠️ ДИАГНОСТИКА: Данные Токенизатора перед отправкой в Маппер:",
-    JSON.parse(JSON.stringify(window.mapper2State.splitRules))
-  );
 
   window.mapper2State.quarantine = [];
   finishAndGoToPreview();

@@ -592,7 +592,6 @@ window.renderMapper2Cards = function (templateData) {
         `Колонка ${mappedIndex + 1}`;
 
       // ⚡ Читаем правила И по ключу (Specs), И по имени (Ширина профиля)
-      console.log(`🔵 [МАППЕР] Карточка: ${req.name} | Ищет ключи: [${req.name}] или [${req.sysKey}]`);
       
       let splitData =
         window.mapper2State.splitRules &&
