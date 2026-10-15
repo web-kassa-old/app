@@ -1295,41 +1295,45 @@ window.startTokenizerQueue = function () {
   }
 
   function applyResultsToData() {
-    window.mapper2State.splitRules = window.mapper2State.splitRules || {};
+  window.mapper2State.splitRules = window.mapper2State.splitRules || {};
 
-    queue.forEach((pattern) => {
-      if (pattern.resolvedAttributes) {
-        Object.keys(pattern.resolvedAttributes).forEach((paramName) => {
-          if (paramName !== "Лишние символы") {
-            const rule = pattern.resolvedAttributes[paramName];
-            if (rule && rule.indexes && rule.indexes.length > 0) {
-              // 1. Сохраняем надежно по русскому имени
+  queue.forEach((pattern) => {
+    if (pattern.resolvedAttributes) {
+      Object.keys(pattern.resolvedAttributes).forEach((paramName) => {
+        if (paramName !== "Лишние символы") {
+          const rule = pattern.resolvedAttributes[paramName];
+          if (rule && rule.indexes && rule.indexes.length > 0) {
+            
+            // ⚡ ФИКС: Сохраняем только если для этого параметра еще нет индексов
+            if (!window.mapper2State.splitRules[paramName]) {
               window.mapper2State.splitRules[paramName] = rule.indexes;
+            }
 
-              // 2. Дублируем по системному ключу (если найдем)
-              const tData = window.currentTemplateData || {};
-              if (tData.humanNames && tData.systemKeys) {
-                const idx = tData.humanNames.indexOf(paramName);
-                if (idx !== -1) {
-                  window.mapper2State.splitRules[tData.systemKeys[idx]] =
-                    rule.indexes;
+            // Дублируем по системному ключу (с той же защитой от перезаписи)
+            const tData = window.currentTemplateData || {};
+            if (tData.humanNames && tData.systemKeys) {
+              const idx = tData.humanNames.indexOf(paramName);
+              if (idx !== -1) {
+                const sysKey = tData.systemKeys[idx];
+                if (!window.mapper2State.splitRules[sysKey]) {
+                  window.mapper2State.splitRules[sysKey] = rule.indexes;
                 }
               }
             }
           }
-        });
-      }
-    });
+        }
+      });
+    }
+  });
 
-    // ⚡ ВЫВОДИМ В КОНСОЛЬ ТО, ЧТО ТОКЕНИЗАТОР СОБРАЛ И ПЕРЕДАЕТ В МАППЕР
-    console.log(
-      "🛠️ ДИАГНОСТИКА: Данные Токенизатора перед отправкой в Маппер:",
-      JSON.parse(JSON.stringify(window.mapper2State.splitRules)),
-    );
+  console.log(
+    "🛠️ ДИАГНОСТИКА: Данные Токенизатора перед отправкой в Маппер:",
+    JSON.parse(JSON.stringify(window.mapper2State.splitRules))
+  );
 
-    window.mapper2State.quarantine = [];
-    finishAndGoToPreview();
-  }
+  window.mapper2State.quarantine = [];
+  finishAndGoToPreview();
+}
 
   function finishAndGoToPreview() {
     const overlay = document.getElementById("tokenizer-overlay");
