@@ -943,9 +943,50 @@ window.startTokenizerQueue = function () {
       activeRow.querySelector(".param-preview").textContent = selectedText;
     };
 
-    tokensBtns.forEach((btn) => {
+    // Обязательно добавляем параметр index в forEach
+    tokensBtns.forEach((btn, index) => {
       btn.addEventListener("click", () => {
         if (btn.classList.contains("disabled")) return;
+
+        // ⚡ УРОВЕНЬ 1: Защита от разрывов (проверка на соседство)
+        const isCurrentlySelected = btn.classList.contains("selected");
+        const selectedIndices = [];
+        tokensBtns.forEach((b, i) => {
+          if (b.classList.contains("selected")) selectedIndices.push(i);
+        });
+
+        if (selectedIndices.length > 0) {
+          const minIdx = Math.min(...selectedIndices);
+          const maxIdx = Math.max(...selectedIndices);
+
+          if (!isCurrentlySelected) {
+            // Пытаемся ВЫБРАТЬ новый токен: он должен быть строго слева или справа от группы
+            if (index !== minIdx - 1 && index !== maxIdx + 1) {
+              // Визуальный отказ (микро-тряска)
+              btn.style.transform = "translateX(2px)";
+              btn.style.backgroundColor = "rgba(255, 68, 68, 0.2)";
+              setTimeout(() => btn.style.transform = "translateX(-2px)", 50);
+              setTimeout(() => {
+                btn.style.transform = "translateX(0)";
+                btn.style.backgroundColor = "";
+              }, 100);
+              return; // Блокируем клик
+            }
+          } else {
+            // Пытаемся ОТЖАТЬ токен: запрещаем отжимать из середины, только с краев
+            if (index !== minIdx && index !== maxIdx && selectedIndices.length > 2) {
+              btn.style.transform = "translateX(2px)";
+              btn.style.backgroundColor = "rgba(255, 68, 68, 0.2)";
+              setTimeout(() => btn.style.transform = "translateX(-2px)", 50);
+              setTimeout(() => {
+                btn.style.transform = "translateX(0)";
+                btn.style.backgroundColor = "";
+              }, 100);
+              return; // Блокируем клик
+            }
+          }
+        }
+
         btn.classList.toggle("selected");
         fallbackZone.style.display = "none";
         updatePreview();
@@ -999,28 +1040,43 @@ window.startTokenizerQueue = function () {
         if (matchedValue) {
           lockParameter(row, paramName, matchedValue, gluedText);
         } else {
-          // ⚡ ТВОЙ АЛГОРИТМ: УМНЫЙ ПОИСК ЛИШНЕГО ТОКЕНА
+          // ⚡ УРОВЕНЬ 2 и 3: Вакуумная очистка и Поиск ошибки строго с краев
           const selectedBtns = Array.from(document.querySelectorAll('.selected')).filter(b => b.tagName === 'BUTTON' || b.tagName === 'DIV');
           let smartSuggestion = null;
 
-          // Пробуем «в уме» откидывать по одному токену и проверять результат
           if (selectedBtns.length > 1) {
-            for (let i = 0; i < selectedBtns.length; i++) {
-              let testBtns = selectedBtns.filter((_, idx) => idx !== i);
-              let testText = testBtns.map(b => b.textContent).join('');
+            // Вспомогательная функция проверки массива токенов
+            const checkMatch = (btnsArray) => {
+              // Вырезаем ВСЕ пробелы, табы и невидимые символы
+              let testText = btnsArray.map(b => (b.innerText || b.textContent)).join('').replace(/\s+/g, '');
+              let match = dictArray.find((v) => String(v).trim().toLowerCase() === testText.toLowerCase());
               
-              let match = dictArray.find((v) => String(v).trim().toLowerCase() === testText.trim().toLowerCase());
-              if (!match && /^\d+(?:[.,]\d+)?$/.test(testText.trim())) {
+              if (!match && /^\d+(?:[.,]\d+)?$/.test(testText)) {
                 match = dictArray.find((v) => !isNaN(parseFloat(v)) && parseFloat(v) === parseFloat(testText.replace(',', '.')));
               }
-              
-              if (match) {
+              return match ? testText : null;
+            };
+
+            // 1. Проверяем, откинув крайний ПРАВЫЙ токен
+            let rightDropped = selectedBtns.slice(0, -1);
+            let rightMatch = checkMatch(rightDropped);
+            
+            if (rightMatch) {
+              smartSuggestion = {
+                badBtn: selectedBtns[selectedBtns.length - 1],
+                badText: (selectedBtns[selectedBtns.length - 1].innerText || selectedBtns[selectedBtns.length - 1].textContent).trim(),
+                validText: rightMatch
+              };
+            } else {
+              // 2. Если справа не подошло — проверяем, откинув крайний ЛЕВЫЙ токен
+              let leftDropped = selectedBtns.slice(1);
+              let leftMatch = checkMatch(leftDropped);
+              if (leftMatch) {
                 smartSuggestion = {
-                  badBtn: selectedBtns[i],
-                  badText: selectedBtns[i].textContent,
-                  validText: testText
+                  badBtn: selectedBtns[0],
+                  badText: (selectedBtns[0].innerText || selectedBtns[0].textContent).trim(),
+                  validText: leftMatch
                 };
-                break; // Нашли лишний токен, останавливаем перебор
               }
             }
           }
@@ -1031,7 +1087,7 @@ window.startTokenizerQueue = function () {
           row.classList.remove("active-target");
 
           if (smartSuggestion) {
-            // Нашли конкретный лишний токен! Подсвечиваем ТОЛЬКО его
+            // Нашли 1 лишний токен с краю! Красим ТОЛЬКО ЕГО
             if (previewEl) {
               previewEl.innerHTML = `<span style="color:#ff4444; font-size:11px; line-height:1.2; display:inline-block; margin-top:2px;">
                 🚫 Фрагмент <b>${smartSuggestion.badText}</b> лишний.<br>Значение <b>${smartSuggestion.validText}</b> есть в базе. Отщелкните лишнее.
@@ -1041,10 +1097,11 @@ window.startTokenizerQueue = function () {
             smartSuggestion.badBtn.style.backgroundColor = "rgba(255, 68, 68, 0.2)";
             smartSuggestion.badBtn.classList.add('error-token');
           } else {
-            // Не смогли найти один лишний - красим все выбранные
+            // Если ошибка сложнее — красим всё
             if (previewEl) {
+              let cleanGluedText = gluedText.replace(/\s+/g, '');
               previewEl.innerHTML = `<span style="color:#ff4444; font-size:11px; line-height:1.2; display:inline-block; margin-top:2px;">
-                🚫 <b>${gluedText}</b> нет в Kaspi.<br>Отщелкните лишние фрагменты вверху.
+                🚫 <b>${cleanGluedText}</b> нет в Kaspi.<br>Отщелкните лишние фрагменты.
               </span>`;
             }
             selectedBtns.forEach(btn => {
@@ -1054,14 +1111,14 @@ window.startTokenizerQueue = function () {
             });
           }
 
-          // Функция сброса: возвращаем только визуал и кнопку, НЕ трогая классы .selected
+          // Функция сброса: возвращаем только визуал и кнопку
           const resetError = () => {
             document.querySelectorAll('.error-token').forEach(b => {
               b.style.boxShadow = "";
               b.style.backgroundColor = "";
               b.classList.remove('error-token');
             });
-            if (okBtn) okBtn.style.display = ""; // Возвращаем кнопку ОК
+            if (okBtn) okBtn.style.display = ""; 
             document.removeEventListener('click', resetError);
           };
 
