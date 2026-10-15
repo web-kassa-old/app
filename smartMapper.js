@@ -983,16 +983,16 @@ window.startTokenizerQueue = function () {
         let dictArray = dicts[paramName] || [];
         let matchedValue = null;
 
-        for (let dv of dictArray) {
-          let strDv = String(dv).trim();
-          let baseDv = strDv.split("(")[0].trim();
-          if (
-            baseDv.toLowerCase() === gluedText.toLowerCase() ||
-            (!isNaN(parseFloat(baseDv)) &&
-              parseFloat(baseDv) === parseFloat(gluedText))
-          ) {
-            matchedValue = strDv;
-            break;
+        // ⚡ 1. Строгий поиск точь-в-точь (без учета регистра)
+        let exactMatch = dictArray.find((v) => String(v).trim().toLowerCase() === gluedText.trim().toLowerCase());
+        
+        if (exactMatch) {
+          matchedValue = exactMatch;
+        } else {
+          // ⚡ 2. Математическое сравнение (только если в строке НЕТ букв вообще)
+          const isPureNumber = /^\d+(?:[.,]\d+)?$/.test(gluedText.trim());
+          if (isPureNumber) {
+            matchedValue = dictArray.find((v) => !isNaN(parseFloat(v)) && parseFloat(v) === parseFloat(gluedText.replace(',', '.')));
           }
         }
 
