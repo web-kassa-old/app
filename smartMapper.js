@@ -999,13 +999,17 @@ window.startTokenizerQueue = function () {
         if (matchedValue) {
           lockParameter(row, paramName, matchedValue, gluedText);
         } else {
-          // ⚡ Красивое визуальное сообщение прямо в кнопке (без блокирующих alert)
           const previewEl = row.querySelector(".param-preview");
-          const originalText = previewEl.innerHTML;
-          previewEl.innerHTML = `<span style="color:#ff4444; font-size:11px;">🚫 Не в справочнике</span>`;
-          setTimeout(() => {
-            previewEl.innerHTML = originalText;
-          }, 2000); // Вернет текст обратно через 2 секунды
+          if (previewEl) {
+            // Текст будет висеть, пока пользователь не кликнет по токену наверху (это автоматически перезапишет текст)
+            previewEl.innerHTML = `<span style="color:#ff4444; font-size:11px; line-height:1.2; display:inline-block; margin-top:2px;">
+              🚫 <b>${gluedText}</b> нет в Kaspi.<br>Отожмите лишний фрагмент вверху.
+            </span>`;
+          }
+          // Прячем кнопку ОК, чтобы нельзя было пройти дальше с ошибкой
+          const okBtn = row.querySelector(".btn-confirm-inline");
+          if (okBtn) okBtn.style.display = "none";
+          row.classList.remove("active-target");
         }
       });
     });
@@ -1135,6 +1139,9 @@ window.startTokenizerQueue = function () {
       }
     });
 
+    // ⚡ ВЫВОДИМ В КОНСОЛЬ ТО, ЧТО ТОКЕНИЗАТОР СОБРАЛ И ПЕРЕДАЕТ В МАППЕР
+    console.log("🛠️ ДИАГНОСТИКА: Данные Токенизатора перед отправкой в Маппер:", JSON.parse(JSON.stringify(window.mapper2State.splitRules)));
+    
     window.mapper2State.quarantine = [];
     finishAndGoToPreview();
   }
