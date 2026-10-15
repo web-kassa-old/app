@@ -1273,10 +1273,17 @@ window.startTokenizerQueue = function () {
 
       console.log("🟢 [ТОКЕНИЗАТОР] Подготовил данные:", JSON.parse(JSON.stringify(pattern.resolvedAttributes)));
 
+      window.mapper2State.smartTokens = window.mapper2State.smartTokens || {};
+      
       Object.keys(pattern.resolvedAttributes).forEach(sysKey => {
-        if (pattern.resolvedAttributes[sysKey].indexes) {
+        // 1. Сохраняем чистый текст для кнопки (например "20")
+        if (pattern.resolvedAttributes[sysKey].value) {
+          window.mapper2State.smartTokens[sysKey] = pattern.resolvedAttributes[sysKey].value;
+        }
+        
+        // 2. Сохраняем индексы ТОЛЬКО от первого паттерна (не даем второму перезаписать их)
+        if (pattern.resolvedAttributes[sysKey].indexes && !window.mapper2State.splitRules[sysKey]) {
           window.mapper2State.splitRules[sysKey] = pattern.resolvedAttributes[sysKey].indexes;
-          console.log(`🟢 [ТОКЕНИЗАТОР] Записал индексы для [${sysKey}]:`, pattern.resolvedAttributes[sysKey].indexes);
         }
       });
       

@@ -665,10 +665,11 @@ window.renderMapper2Cards = function (templateData) {
             })
             .join("");
         }
+        
+        // Берем идеальный сохраненный текст из Токенизатора!
+        let cleanText = window.mapper2State.smartTokens && window.mapper2State.smartTokens[req.sysKey];
 
-        // ⚡ ГЛАВНОЕ ИСЦЕЛЕНИЕ: Если Токенизатор сохранил чистое значение (например, "20"),
-        // берем строго его. Если нет (это ручной сплиттер) — берем сырую склейку gluedText.
-        statusText = `✂ ${gluedText || colName}`;
+        statusText = `✂ ${cleanText || gluedText || colName}`;
         statusI18n = "";
         statusStyle =
           "border: 1px solid var(--accent-green, #2ecc71); color: var(--accent-green, #2ecc71); background: var(--bg-success-dim, rgba(46, 204, 113, 0.15)); font-weight: bold;";
