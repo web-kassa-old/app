@@ -1260,7 +1260,6 @@ window.startTokenizerQueue = function () {
       if (btnDone.disabled) return;
       
       if (!pattern.resolvedAttributes || Object.keys(pattern.resolvedAttributes).length === 0) {
-        // Если ничего не выбрали - не пускаем дальше
         btnDone.style.transform = "translateX(2px)";
         setTimeout(() => (btnDone.style.transform = "translateX(-2px)"), 50);
         setTimeout(() => (btnDone.style.transform = "translateX(0)"), 100);
@@ -1269,16 +1268,19 @@ window.startTokenizerQueue = function () {
       
       btnDone.disabled = true;
 
-      // ⚡ ГЛАВНЫЙ ФИКС: Обновляем глобальные правила разбивки (splitRules)!
       window.mapper2State = window.mapper2State || {};
       window.mapper2State.splitRules = window.mapper2State.splitRules || {};
 
+      console.log("🟢 [ТОКЕНИЗАТОР] Подготовил данные:", JSON.parse(JSON.stringify(pattern.resolvedAttributes)));
+
       Object.keys(pattern.resolvedAttributes).forEach(sysKey => {
-        // Записываем правильные ИНДЕКСЫ, которые мы оставили зелеными в Токенизаторе
         if (pattern.resolvedAttributes[sysKey].indexes) {
           window.mapper2State.splitRules[sysKey] = pattern.resolvedAttributes[sysKey].indexes;
+          console.log(`🟢 [ТОКЕНИЗАТОР] Записал индексы для [${sysKey}]:`, pattern.resolvedAttributes[sysKey].indexes);
         }
       });
+      
+      console.log("🟢 [ТОКЕНИЗАТОР] Итоговый словарь splitRules:", JSON.parse(JSON.stringify(window.mapper2State.splitRules)));
 
       currentQueueIndex++;
       processNext();

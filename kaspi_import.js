@@ -592,9 +592,14 @@ window.renderMapper2Cards = function (templateData) {
         `Колонка ${mappedIndex + 1}`;
 
       // ⚡ Читаем правила И по ключу (Specs), И по имени (Ширина профиля)
+      console.log(`🔵 [МАППЕР] Карточка: ${req.name} | Ищет ключи: [${req.name}] или [${req.sysKey}]`);
+      
       let splitData =
         window.mapper2State.splitRules &&
         (window.mapper2State.splitRules[req.name] || window.mapper2State.splitRules[req.sysKey]);
+        
+      console.log(`🔵 [МАППЕР] Карточка: ${req.name} | Получил splitData:`, JSON.stringify(splitData));
+
       let ruleIndices = [];
       if (Array.isArray(splitData)) ruleIndices = splitData;
       else if (splitData && Array.isArray(splitData.rule))
