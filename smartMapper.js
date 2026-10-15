@@ -1022,66 +1022,59 @@ window.startTokenizerQueue = function () {
         }
 
         let dictArray = dicts[paramName] || [];
-        
-        // ⚡ Отладка: Поможет понять, видит ли скрипт цифру 20 в справочнике
-        console.log(`[Отладка] Словарь для '${paramName}':`, dictArray); 
 
-        let matchedValue = null;
-
-        // 1. Строгий поиск точь-в-точь
-        let exactMatch = dictArray.find((v) => String(v).trim().toLowerCase() === gluedText.trim().toLowerCase());
-        
-        if (exactMatch) {
-          matchedValue = exactMatch;
-        } else {
-          // 2. Математическое сравнение
-          const isPureNumber = /^\d+(?:[.,]\d+)?$/.test(gluedText.trim());
-          if (isPureNumber) {
-            matchedValue = dictArray.find((v) => !isNaN(parseFloat(v)) && parseFloat(v) === parseFloat(gluedText.replace(',', '.')));
+        // ⚡ УНИВЕРСАЛЬНАЯ ФУНКЦИЯ ПОИСКА: Жестко чистит мусор и сравнивает числа как числа (Float)
+        const findInDict = (text) => {
+          if (!text) return null;
+          let cleanText = text.replace(/[\s\u200B-\u200D\uFEFF]/g, '');
+          
+          // 1. Строгое текстовое совпадение
+          let match = dictArray.find((v) => String(v).replace(/[\s\u200B-\u200D\uFEFF]/g, '').toLowerCase() === cleanText.toLowerCase());
+          if (match) return match;
+          
+          // 2. Математическое совпадение (если это число, сравниваем через parseFloat)
+          if (/^\d+(?:[.,]\d+)?$/.test(cleanText)) {
+            let numVal = parseFloat(cleanText.replace(',', '.'));
+            match = dictArray.find((v) => {
+              let dictStr = String(v).replace(/[\s\u200B-\u200D\uFEFF]/g, '').replace(',', '.');
+              let dictNum = parseFloat(dictStr);
+              return !isNaN(dictNum) && dictNum === numVal;
+            });
+            if (match) return match;
           }
-        }
+          return null;
+        };
+
+        // Пробуем найти весь склеенный текст
+        let matchedValue = findInDict(gluedText);
 
         if (matchedValue) {
           lockParameter(row, paramName, matchedValue, gluedText);
         } else {
-          // ⚡ УРОВЕНЬ 3: Бронебойный поиск через физическое исключение кнопок
+          // ⚡ ПЕРЕБОР МАССИВА ПО ИНДЕКСАМ (Идеальный подход)
           const selectedBtns = Array.from(document.querySelectorAll('.selected')).filter(b => b.tagName === 'BUTTON' || b.tagName === 'DIV');
           let smartSuggestion = null;
 
           if (selectedBtns.length > 1) {
-            // Вспомогательная функция: берет массив кнопок, склеивает их в чистый текст и ищет в базе
-            const checkCombination = (btnsToKeep) => {
-              let combinedText = btnsToKeep.map(b => (b.innerText || b.textContent)).join('').replace(/[\s\u200B-\u200D\uFEFF]/g, '');
-              let match = dictArray.find((v) => String(v).trim().toLowerCase() === combinedText.toLowerCase());
-              if (!match && /^\d+(?:[.,]\d+)?$/.test(combinedText)) {
-                match = dictArray.find((v) => !isNaN(parseFloat(v)) && parseFloat(v) === parseFloat(combinedText.replace(',', '.')));
-              }
-              return { combinedText, match };
-            };
-
-            // 1. Пробуем откинуть ПРАВЫЙ токен (оставляем все кнопки, кроме последней)
-            let keepLeftBtns = selectedBtns.slice(0, -1);
-            let resRight = checkCombination(keepLeftBtns);
-            
-            if (resRight.match) {
-              let badBtn = selectedBtns[selectedBtns.length - 1];
-              smartSuggestion = {
-                badBtn: badBtn,
-                badText: (badBtn.innerText || badBtn.textContent).replace(/[\s\u200B-\u200D\uFEFF]/g, ''),
-                validText: resRight.combinedText
-              };
-            } else {
-              // 2. Если справа не подошло — пробуем откинуть ЛЕВЫЙ токен (оставляем все кнопки, кроме первой)
-              let keepRightBtns = selectedBtns.slice(1);
-              let resLeft = checkCombination(keepRightBtns);
+            // Перебираем каждый индекс массива токенов
+            for (let i = 0; i < selectedBtns.length; i++) {
+              let badBtn = selectedBtns[i];
+              let badText = (badBtn.innerText || badBtn.textContent).replace(/[\s\u200B-\u200D\uFEFF]/g, '');
               
-              if (resLeft.match) {
-                let badBtn = selectedBtns[0];
+              // Создаем новый массив БЕЗ текущего индекса и склеиваем его
+              let remainingBtns = selectedBtns.filter((_, idx) => idx !== i);
+              let testText = remainingBtns.map(b => (b.innerText || b.textContent)).join('').replace(/[\s\u200B-\u200D\uFEFF]/g, '');
+              
+              // Ищем получившийся кусок в базе
+              let match = findInDict(testText);
+              
+              if (match) {
                 smartSuggestion = {
                   badBtn: badBtn,
-                  badText: (badBtn.innerText || badBtn.textContent).replace(/[\s\u200B-\u200D\uFEFF]/g, ''),
-                  validText: resLeft.combinedText
+                  badText: badText,
+                  validText: match // Возвращаем чистое значение прямо из базы Kaspi
                 };
+                break; // Нашли ошибку, останавливаем перебор
               }
             }
           }
@@ -1091,7 +1084,7 @@ window.startTokenizerQueue = function () {
           if (okBtn) okBtn.style.display = "none";
 
           if (smartSuggestion) {
-            // Нашли 1 лишний токен с краю! Красим ТОЛЬКО ЕГО
+            // Нашли 1 лишний токен! Красим ТОЛЬКО ЕГО
             if (previewEl) {
               previewEl.innerHTML = `<span style="color:#ff4444; font-size:11px; line-height:1.2; display:inline-block; margin-top:2px;">
                 🚫 Фрагмент <b>${smartSuggestion.badText}</b> лишний.<br>Значение <b>${smartSuggestion.validText}</b> есть в базе. Отщелкните лишнее.
@@ -1101,7 +1094,7 @@ window.startTokenizerQueue = function () {
             smartSuggestion.badBtn.style.backgroundColor = "rgba(255, 68, 68, 0.2)";
             smartSuggestion.badBtn.classList.add('error-token');
           } else {
-            // Если ошибка сложнее — красим всё
+            // Если ошибка сложнее (или токенов отжато больше одного) — красим всё
             if (previewEl) {
               let displayGlued = gluedText.replace(/[\s\u200B-\u200D\uFEFF]/g, '');
               previewEl.innerHTML = `<span style="color:#ff4444; font-size:11px; line-height:1.2; display:inline-block; margin-top:2px;">
@@ -1115,7 +1108,7 @@ window.startTokenizerQueue = function () {
             });
           }
 
-          // Функция сброса визуала и возврата кнопки ОК при клике
+          // Функция сброса: возвращаем только визуал и кнопку
           const resetError = () => {
             document.querySelectorAll('.error-token').forEach(b => {
               b.style.boxShadow = "";
