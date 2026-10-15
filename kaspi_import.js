@@ -244,8 +244,7 @@ window.navigateIncomeStep = function (stepNumber, isBack = false) {
   window.mapper2State.history = window.mapper2State.history || [];
 
   if (!isBack) {
-    const lastStep =
-      window.mapper2State.history[window.mapper2State.history.length - 1];
+    const lastStep = window.mapper2State.history[window.mapper2State.history.length - 1];
     if (lastStep !== stepNumber) {
       window.mapper2State.history.push(stepNumber);
     }
@@ -266,6 +265,7 @@ window.navigateIncomeStep = function (stepNumber, isBack = false) {
   if (smartContainer) {
     smartContainer.className = "";
     smartContainer.innerHTML = "";
+    smartContainer.style.display = "none"; // ⚡ Надежно скрываем
   }
 
   // 4. Показываем запрошенный шаг
@@ -288,23 +288,31 @@ window.navigateIncomeStep = function (stepNumber, isBack = false) {
       uploadWrapper.style.pointerEvents = "auto";
     }
   } else if (stepNumber === "smart") {
-    // Включаем Умное сито
+    // Включаем Умное сито (Токенизатор)
     if (tabs) tabs.style.display = "none";
     if (currency) currency.style.display = "none";
 
     if (smartContainer) {
+      smartContainer.style.display = "flex"; // ⚡ Принудительно делаем видимым!
       smartContainer.className = "smart-mapper-overlay";
-      if (
-        window.renderSmartMapperModal &&
-        window.mapper2State.lastComplexColumns
-      ) {
+      
+      // Вызываем отрисовку
+      if (window.renderSmartMapperModal && window.mapper2State.lastComplexColumns) {
         window.renderSmartMapperModal(window.mapper2State.lastComplexColumns);
+      } else if (typeof window.initSmartMapper === "function") {
+        window.initSmartMapper();
       }
     }
   } else if (stepNumber === 2 && step2) {
+    // Включаем Маппер (Шаг 2)
     step2.style.display = "flex";
     if (tabs) tabs.style.display = "none";
     if (currency) currency.style.display = "none";
+    
+    // ⚡ ПРИНУДИТЕЛЬНАЯ ОТРИСОВКА МАППЕРА ПРИ ВОЗВРАТЕ
+    if (typeof window.renderMapper2Cards === "function" && window.currentTemplateData) {
+      window.renderMapper2Cards(window.currentTemplateData);
+    }
   } else if (stepNumber === 3 && step3) {
     step3.style.display = "flex";
     if (tabs) tabs.style.display = "none";
