@@ -1269,13 +1269,15 @@ window.startTokenizerQueue = function () {
       
       btnDone.disabled = true;
 
-      // ⚡ ГЛАВНЫЙ ФИКС: Сохраняем чистые значения в глобальный стейт Маппера!
+      // ⚡ ГЛАВНЫЙ ФИКС: Обновляем глобальные правила разбивки (splitRules)!
       window.mapper2State = window.mapper2State || {};
-      window.mapper2State.smartTokens = window.mapper2State.smartTokens || {};
+      window.mapper2State.splitRules = window.mapper2State.splitRules || {};
 
-      // Переносим все подтвержденные результаты из паттерна в глобальный словарь
       Object.keys(pattern.resolvedAttributes).forEach(sysKey => {
-        window.mapper2State.smartTokens[sysKey] = pattern.resolvedAttributes[sysKey].value; 
+        // Записываем правильные ИНДЕКСЫ, которые мы оставили зелеными в Токенизаторе
+        if (pattern.resolvedAttributes[sysKey].indexes) {
+          window.mapper2State.splitRules[sysKey] = pattern.resolvedAttributes[sysKey].indexes;
+        }
       });
 
       currentQueueIndex++;
