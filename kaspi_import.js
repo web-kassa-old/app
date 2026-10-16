@@ -3170,6 +3170,16 @@ window.handleCardSelectForExport = async function (
       });
       const extractedHeaders = Array.from(allHeaders);
 
+      // ПАРСИМ СОХРАНЕННЫЕ МЕТАДАННЫЕ ИЗ БАЗЫ (ТВОЯ ПАМЯТЬ КНОПОК)
+      let savedMeta = {};
+      if (res.items && res.items.length > 0 && res.items[0].export_metadata) {
+         try {
+            savedMeta = JSON.parse(res.items[0].export_metadata);
+         } catch(e) {
+            console.error("Ошибка парсинга export_metadata", e);
+         }
+      }
+
       window.mapper2State = Object.assign(
         {
           colMap: {},
@@ -3180,8 +3190,28 @@ window.handleCardSelectForExport = async function (
             extractedHeaders.map((h) => item[h]),
           ),
         },
-        res.templateConfig || {},
+        res.templateConfig || {} 
       );
+
+      // ЖЕСТКО ВОССТАНАВЛИВАЕМ СПЛИТТЕРЫ И СЛОВАРИ ПОВЕРХ ШАБЛОНА
+      if (savedMeta.saved_complex_params) {
+         if (savedMeta.saved_complex_params.splitRules) {
+             window.mapper2State.splitRules = savedMeta.saved_complex_params.splitRules;
+         }
+         if (savedMeta.saved_complex_params.dictValues) {
+             window.mapper2State.dictValues = savedMeta.saved_complex_params.dictValues;
+         }
+      }
+      if (savedMeta.saved_mapping) {
+          // Восстанавливаем связки колонок, если они не прилетели из шаблона
+          window.mapper2State.colMap = Object.assign({}, savedMeta.saved_mapping, window.mapper2State.colMap);
+      }
+      
+      // Глобальная переменная для Токенатора/Сплиттера
+      window.kaspiComplexParamsState = {
+         splitRules: window.mapper2State.splitRules || {},
+         dictValues: window.mapper2State.dictValues || {}
+      };
 
       // === ВОССТАНОВЛЕНИЕ ЗАГОЛОВКОВ И ПЕРЕВОДА НА РУССКИЙ ===
       window.mapper2State.supplier = "Kaspi (Экспорт)";
