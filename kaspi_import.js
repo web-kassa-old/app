@@ -3290,20 +3290,28 @@ window.handleCardSelectForExport = async function (
           }
       });
 
-      // 4. ОБХОД ПРОВЕРКИ (Подставляем нули для цены и количества, чтобы валидатор пропустил)
+      // 4. ОБХОД ПРОВЕРКИ (Глубокая очистка данных в самом ядре)
       let priceIdx = window.mapper2State.colMap["price"];
       let qtyIdx = window.mapper2State.colMap["qty"];
-      
-      window.mapper2State.invoiceRows.forEach(row => {
-          if (priceIdx !== undefined && row[priceIdx] !== undefined) {
-              let cleanPrice = String(row[priceIdx]).replace(/\s/g, '').replace(/,/g, '.').replace(/[^\d.-]/g, '');
-              row[priceIdx] = cleanPrice === "" ? "0" : cleanPrice;
+      let priceKey = extractedHeaders[priceIdx];
+      let qtyKey = extractedHeaders[qtyIdx];
+
+      // Чистим оригинальный массив товаров
+      window.parsedInvoiceData.forEach(item => {
+          if (priceKey) {
+              let cleanPrice = String(item[priceKey] || "").replace(/\s/g, '').replace(/,/g, '.').replace(/[^\d.-]/g, '');
+              item[priceKey] = cleanPrice === "" ? 0 : Number(cleanPrice);
           }
-          if (qtyIdx !== undefined && row[qtyIdx] !== undefined) {
-              let cleanQty = String(row[qtyIdx]).replace(/\s/g, '').replace(/,/g, '.').replace(/[^\d.-]/g, '');
-              row[qtyIdx] = cleanQty === "" ? "0" : cleanQty;
+          if (qtyKey) {
+              let cleanQty = String(item[qtyKey] || "").replace(/\s/g, '').replace(/,/g, '.').replace(/[^\d.-]/g, '');
+              item[qtyKey] = cleanQty === "" ? 0 : Number(cleanQty);
           }
       });
+
+      // Синхронизируем очищенные данные с визуальной таблицей маппера
+      window.mapper2State.invoiceRows = window.parsedInvoiceData.map((item) =>
+          extractedHeaders.map((h) => item[h])
+      );
 
       // === ВОССТАНОВЛЕНИЕ МАППЕРА ===
       window.renderMapper2Cards(res.templateConfig);
