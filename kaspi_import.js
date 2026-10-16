@@ -2760,12 +2760,20 @@ async function sendInvoiceToBackend() {
   setTimeout(() => {
   alert(translations[currentLang].inc_all_done);
 
-  // ⚡ ФИКС: Жестко прячем экраны маппера и превью
-  const mapperArea = document.getElementById("mapper2Area");
-  if (mapperArea) mapperArea.style.display = "none";
-  
-  const previewArea = document.getElementById("invoicePreviewArea");
-  if (previewArea) previewArea.style.display = "none";
+  // Жестко прячем абсолютно все элементы маппера
+  const idsToHide = [
+    "mapperArea",           // Тот самый Шаг 1 со скриншота
+    "invoiceUploadWrapper",
+    "mapperTabsContainer",
+    "importModeContainer",
+    "mapperCurrencyBlock",
+    "mapper2Area",          // Шаг 2
+    "invoicePreviewArea"    // Шаг 3
+  ];
+  idsToHide.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = "none";
+  });
 
   window.parsedInvoiceData = [];
   window.invoiceGroups = {};
