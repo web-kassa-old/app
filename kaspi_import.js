@@ -3241,7 +3241,17 @@ window.handleCardSelectForExport = async function (
 
       if (step1) step1.style.display = "none";
 
-      // === ВОССТАНОВЛЕНИЕ МАППЕРА: Рендерим его всегда, чтобы кнопка "Назад" не вела в пустоту! ===
+      // === ПОДМЕНА ПУСТОГО ШАБЛОНА НА НАШУ СОХРАНЕННУЮ ПАМЯТЬ ===
+      if (!res.templateConfig) res.templateConfig = {};
+      if (savedMeta.saved_mapping) {
+          res.templateConfig.mapping = savedMeta.saved_mapping; 
+      }
+      if (savedMeta.saved_complex_params) {
+          res.templateConfig.splitRules = savedMeta.saved_complex_params.splitRules;
+          res.templateConfig.dictValues = savedMeta.saved_complex_params.dictValues;
+      }
+
+      // === ВОССТАНОВЛЕНИЕ МАППЕРА: Рендерим его с НАШИМИ данными! ===
       window.renderMapper2Cards(res.templateConfig);
 
       // Умная навигация
