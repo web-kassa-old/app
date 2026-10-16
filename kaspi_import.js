@@ -2610,6 +2610,15 @@ window.showMapperArea = function () {
   document.getElementById("invoicePreviewArea").style.display = "none";
 };
 
+// === ФУНКЦИЯ-СБОРЩИК МЕТАДАННЫХ ДЛЯ KASPI ===
+window.buildKaspiExportMetadata = function() {
+    return JSON.stringify({
+        raw_headers: window.rawExcelHeaders || [], 
+        saved_mapping: window.mapper2State ? window.mapper2State.colMap : {},
+        saved_complex_params: window.kaspiComplexParamsState || {} 
+    });
+};
+
 async function sendInvoiceToBackend() {
   if (!window.parsedInvoiceData || window.parsedInvoiceData.length === 0)
     return alert(translations[currentLang].inc_empty_cart);
