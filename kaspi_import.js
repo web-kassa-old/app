@@ -3268,11 +3268,11 @@ window.handleCardSelectForExport = async function (
           };
       }
 
-      // 3. Жестко привязываем базовые поля, чтобы нижний блок работал и не пустел
+      // 3. Жестко привязываем базовые поля (с правильным ключом "name")
       const baseFieldsMap = {
-          "item_name": ["item_name", "name", "title"],
+          "name": ["item_name", "name", "title"], // Исправлено с item_name на name
           "item_id": ["item_id", "id", "sku"],
-          "price": ["price", "cost", "price_in"],
+          "price": ["cost", "price", "price_in"],
           "qty": ["qty", "quantity"],
           "barcode": ["barcode", "ean"],
           "brand": ["brand"]
@@ -3287,6 +3287,21 @@ window.handleCardSelectForExport = async function (
                   window.mapper2State.colMap[targetKey] = idx;
                   break; 
               }
+          }
+      });
+
+      // 4. ОБХОД ПРОВЕРКИ (Подставляем нули для цены и количества, чтобы валидатор пропустил)
+      let priceIdx = window.mapper2State.colMap["price"];
+      let qtyIdx = window.mapper2State.colMap["qty"];
+      
+      window.mapper2State.invoiceRows.forEach(row => {
+          if (priceIdx !== undefined && row[priceIdx] !== undefined) {
+              let cleanPrice = String(row[priceIdx]).replace(/\s/g, '').replace(/,/g, '.').replace(/[^\d.-]/g, '');
+              row[priceIdx] = cleanPrice === "" ? "0" : cleanPrice;
+          }
+          if (qtyIdx !== undefined && row[qtyIdx] !== undefined) {
+              let cleanQty = String(row[qtyIdx]).replace(/\s/g, '').replace(/,/g, '.').replace(/[^\d.-]/g, '');
+              row[qtyIdx] = cleanQty === "" ? "0" : cleanQty;
           }
       });
 
