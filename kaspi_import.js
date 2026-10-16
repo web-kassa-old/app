@@ -3241,17 +3241,25 @@ window.handleCardSelectForExport = async function (
 
       if (step1) step1.style.display = "none";
 
-      // === ВОССТАНАВЛИВАЕМ ТОЛЬКО СПЛИТТЕРЫ И СЛОВАРИ ===
+      // === АВТОМАТИЧЕСКОЕ ВОССТАНОВЛЕНИЕ СВЯЗЕЙ В РЕЖИМЕ ЭКСПОРТА ===
       if (!res.templateConfig) res.templateConfig = {};
-      
-      // Маппинг (mapping) НЕ ТРОГАЕМ, оставляем серверный!
-      
+      if (!res.templateConfig.mapping) res.templateConfig.mapping = {};
+
+      // 1. Привязываем специфичные параметры Kaspi (Ширина, Диаметр и т.д.)
+      if (res.templateConfig.systemKeys) {
+          res.templateConfig.systemKeys.forEach(sysKey => {
+              let colIndex = extractedHeaders.indexOf(sysKey);
+              if (colIndex !== -1) {
+                  res.templateConfig.mapping[sysKey] = colIndex;
+                  window.mapper2State.colMap[sysKey] = colIndex;
+              }
+          });
+      }
+
+      // 2. Восстанавливаем сплиттеры чисто для визуала (данные уже готовы)
       if (savedMeta.saved_complex_params) {
-          // Подкидываем только настройки распила и словарей
           res.templateConfig.splitRules = savedMeta.saved_complex_params.splitRules || {};
           res.templateConfig.dictValues = savedMeta.saved_complex_params.dictValues || {};
-          
-          // Пробрасываем в глобальную переменную, чтобы интерфейс их подхватил
           window.mapper2State.splitRules = res.templateConfig.splitRules;
           window.mapper2State.dictValues = res.templateConfig.dictValues;
           window.kaspiComplexParamsState = {
@@ -3260,7 +3268,29 @@ window.handleCardSelectForExport = async function (
           };
       }
 
-      // === ВОССТАНОВЛЕНИЕ МАППЕРА: Рендерим его! ===
+      // 3. Жестко привязываем базовые поля, чтобы нижний блок работал и не пустел
+      const baseFieldsMap = {
+          "item_name": ["item_name", "name", "title"],
+          "item_id": ["item_id", "id", "sku"],
+          "price": ["price", "cost", "price_in"],
+          "qty": ["qty", "quantity"],
+          "barcode": ["barcode", "ean"],
+          "brand": ["brand"]
+      };
+
+      Object.keys(baseFieldsMap).forEach(targetKey => {
+          let possibleNames = baseFieldsMap[targetKey];
+          for (let pName of possibleNames) {
+              let idx = extractedHeaders.indexOf(pName);
+              if (idx !== -1) {
+                  res.templateConfig.mapping[targetKey] = idx;
+                  window.mapper2State.colMap[targetKey] = idx;
+                  break; 
+              }
+          }
+      });
+
+      // === ВОССТАНОВЛЕНИЕ МАППЕРА ===
       window.renderMapper2Cards(res.templateConfig);
 
       // === ВОССТАНОВЛЕНИЕ МАППЕРА: Рендерим его с НАШИМИ данными! ===
