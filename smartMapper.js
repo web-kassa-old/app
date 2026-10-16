@@ -803,7 +803,6 @@ window.startTokenizerQueue = function () {
     }
 
     const pattern = queue[currentQueueIndex];
-    console.log("🕵️ ДИАГНОСТИКА: Что пришло в Токенизатор?", pattern.rawString);
     mappedResults = pattern.resolvedAttributes
       ? JSON.parse(JSON.stringify(pattern.resolvedAttributes))
       : {};
