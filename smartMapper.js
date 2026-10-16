@@ -1274,15 +1274,33 @@ window.startTokenizerQueue = function () {
 
       window.mapper2State.smartTokens = window.mapper2State.smartTokens || {};
       
+      // ⚡ ГЕНЕРАТОР СИГНАТУР (D = цифры, L = буквы, . = символы)
+      const getSignature = (text) => {
+        const tks = text.match(/\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g) || [];
+        return tks.map(t => {
+          if (/\d/.test(t)) return 'D';
+          if (/[a-zA-Zа-яА-ЯёЁ]/.test(t)) return 'L';
+          return '.'; 
+        }).join('-');
+      };
+      const currentSignature = getSignature(pattern.rawString);
+
       Object.keys(pattern.resolvedAttributes).forEach(sysKey => {
-        // 1. Сохраняем чистый текст для кнопки (например "20")
+        // 1. Сохраняем чистый текст для кнопки
         if (pattern.resolvedAttributes[sysKey].value) {
           window.mapper2State.smartTokens[sysKey] = pattern.resolvedAttributes[sysKey].value;
         }
         
-        // 2. Сохраняем индексы ТОЛЬКО от первого паттерна (не даем второму перезаписать их)
-        if (pattern.resolvedAttributes[sysKey].indexes && !window.mapper2State.splitRules[sysKey]) {
-          window.mapper2State.splitRules[sysKey] = pattern.resolvedAttributes[sysKey].indexes;
+        // 2. Сохраняем индексы С ПРИВЯЗКОЙ К СИГНАТУРЕ
+        if (pattern.resolvedAttributes[sysKey].indexes) {
+          // Если правила еще нет или оно в старом формате (массив) — делаем объектом
+          if (!window.mapper2State.splitRules[sysKey] || Array.isArray(window.mapper2State.splitRules[sysKey])) {
+            window.mapper2State.splitRules[sysKey] = {};
+          }
+          // Сохраняем правило для конкретной структуры текста
+          if (!window.mapper2State.splitRules[sysKey][currentSignature]) {
+            window.mapper2State.splitRules[sysKey][currentSignature] = pattern.resolvedAttributes[sysKey].indexes;
+          }
         }
       });
 
@@ -1325,7 +1343,7 @@ window.startTokenizerQueue = function () {
 
   window.mapper2State.quarantine = [];
   finishAndGoToPreview();
-}
+  }
 
   function finishAndGoToPreview() {
     const overlay = document.getElementById("tokenizer-overlay");

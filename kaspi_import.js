@@ -592,19 +592,11 @@ window.renderMapper2Cards = function (templateData) {
         `Колонка ${mappedIndex + 1}`;
 
       // ⚡ Читаем правила И по ключу (Specs), И по имени (Ширина профиля)
-      
       let splitData =
         window.mapper2State.splitRules &&
         (window.mapper2State.splitRules[req.name] || window.mapper2State.splitRules[req.sysKey]);
         
-      let ruleIndices = [];
-      if (Array.isArray(splitData)) ruleIndices = splitData;
-      else if (splitData && Array.isArray(splitData.rule))
-        ruleIndices = splitData.rule;
-      else if (splitData && Array.isArray(splitData.tokens))
-        ruleIndices = splitData.tokens;
-
-      if (ruleIndices.length > 0) {
+      if (splitData) { // Убрали жесткую проверку массива, проверяем просто наличие данных
         let sampleText = "";
         let gluedText = "";
         let highlighted = "";
@@ -628,14 +620,23 @@ window.renderMapper2Cards = function (templateData) {
           const regex = /\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g;
           let tokens = sampleText.match(regex) || [];
           
-          // ⚡ ДОСТАЕМ ИНДЕКСЫ ИЗ ЛЮБОГО ФОРМАТА
+          // Генерируем сигнатуру для превью
+          const sig = tokens.map(t => {
+            if (/\d/.test(t)) return 'D';
+            if (/[a-zA-Zа-яА-ЯёЁ]/.test(t)) return 'L';
+            return '.';
+          }).join('-');
+          
+          // ⚡ ДОСТАЕМ ИНДЕКСЫ (поддерживаем и старый массив, и новые сигнатуры)
           let rawIndices = [];
-          if (Array.isArray(ruleIndices) && ruleIndices.length > 0 && ruleIndices[0].rule !== undefined) {
-            // Формат Авто-Токенизатора: [{mask: "N-S...", rule: [0, 1, 2]}]
-            rawIndices = ruleIndices[0].rule; 
-          } else if (Array.isArray(ruleIndices)) {
-            // Формат ручного сплиттера: [0, 1, 2]
-            rawIndices = ruleIndices;
+          if (Array.isArray(splitData)) {
+            rawIndices = splitData; // Старый формат
+          } else if (splitData[sig]) {
+            rawIndices = splitData[sig]; // Новый формат по точной сигнатуре
+          } else if (Object.keys(splitData).length > 0) {
+            // Фолбэк для превью: берем первое попавшееся правило, если сигнатура образца не совпала
+            let firstKey = Object.keys(splitData)[0];
+            rawIndices = Array.isArray(splitData[firstKey]) ? splitData[firstKey] : [];
           }
 
           let validIndices = rawIndices.map(idx => {
@@ -1522,8 +1523,30 @@ window.applyMapper2Logic = function () {
       let rawVal = String(row[colIdx] || "").trim();
       if (state.splitRules && state.splitRules[primaryKey]) {
         const tokens = rawVal.match(regex) || [];
+        
+        // Генерируем сигнатуру текущей ячейки
+        const sig = tokens.map(t => {
+          if (/\d/.test(t)) return 'D';
+          if (/[a-zA-Zа-яА-ЯёЁ]/.test(t)) return 'L';
+          return '.';
+        }).join('-');
+
+        const ruleData = state.splitRules[primaryKey];
+        let targetIndices = [];
+
+        if (Array.isArray(ruleData)) {
+           // Обратная совместимость со старыми правилами
+           targetIndices = ruleData;
+        } else if (ruleData[sig]) {
+           // Берем индексы именно для этой структуры текста
+           targetIndices = ruleData[sig];
+        } else {
+           // Если структура неизвестна, возвращаем сырой текст
+           return rawVal; 
+        }
+
         let result = [];
-        state.splitRules[primaryKey].forEach((idx) => {
+        targetIndices.forEach((idx) => {
           if (tokens[idx] !== undefined) result.push(tokens[idx]);
         });
         return result.join("");
