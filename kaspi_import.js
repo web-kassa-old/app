@@ -2760,16 +2760,13 @@ async function sendInvoiceToBackend() {
   setTimeout(() => {
   alert(translations[currentLang].inc_all_done);
 
-  // Жестко прячем абсолютно все элементы маппера
+  // ⚡ ФИКС: Жестко прячем блок сопоставления и экраны превью
   const idsToHide = [
-    "mapperArea",           // Тот самый Шаг 1 со скриншота
-    "invoiceUploadWrapper",
-    "mapperTabsContainer",
-    "importModeContainer",
-    "mapperCurrencyBlock",
-    "mapper2Area",          // Шаг 2
-    "invoicePreviewArea"    // Шаг 3
+    "exportMapperArea", // Тот самый блок со скриншота
+    "mapper2Area",      
+    "invoicePreviewArea"
   ];
+  
   idsToHide.forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = "none";
