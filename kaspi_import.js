@@ -2610,12 +2610,20 @@ window.showMapperArea = function () {
   document.getElementById("invoicePreviewArea").style.display = "none";
 };
 
-// === ФУНКЦИЯ-СБОРЩИК МЕТАДАННЫХ ДЛЯ KASPI ===
+/// === ФУНКЦИЯ-СБОРЩИК МЕТАДАННЫХ ДЛЯ KASPI (ИСПРАВЛЕННАЯ) ===
 window.buildKaspiExportMetadata = function() {
+    // Надежно собираем сплиттеры и словари из всех возможных мест
+    let complexParams = window.kaspiComplexParamsState || {};
+    
+    if (window.mapper2State) {
+        complexParams.splitRules = window.mapper2State.splitRules || complexParams.splitRules || {};
+        complexParams.dictValues = window.mapper2State.dictValues || complexParams.dictValues || {};
+    }
+
     return JSON.stringify({
         raw_headers: window.rawExcelHeaders || [], 
         saved_mapping: window.mapper2State ? window.mapper2State.colMap : {},
-        saved_complex_params: window.kaspiComplexParamsState || {} 
+        saved_complex_params: complexParams // Теперь тут точно будут твои настройки!
     });
 };
 
