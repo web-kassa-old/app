@@ -3241,15 +3241,27 @@ window.handleCardSelectForExport = async function (
 
       if (step1) step1.style.display = "none";
 
-      // === ПОДМЕНА ПУСТОГО ШАБЛОНА НА НАШУ СОХРАНЕННУЮ ПАМЯТЬ ===
+      // === ВОССТАНАВЛИВАЕМ ТОЛЬКО СПЛИТТЕРЫ И СЛОВАРИ ===
       if (!res.templateConfig) res.templateConfig = {};
-      if (savedMeta.saved_mapping) {
-          res.templateConfig.mapping = savedMeta.saved_mapping; 
-      }
+      
+      // Маппинг (mapping) НЕ ТРОГАЕМ, оставляем серверный!
+      
       if (savedMeta.saved_complex_params) {
-          res.templateConfig.splitRules = savedMeta.saved_complex_params.splitRules;
-          res.templateConfig.dictValues = savedMeta.saved_complex_params.dictValues;
+          // Подкидываем только настройки распила и словарей
+          res.templateConfig.splitRules = savedMeta.saved_complex_params.splitRules || {};
+          res.templateConfig.dictValues = savedMeta.saved_complex_params.dictValues || {};
+          
+          // Пробрасываем в глобальную переменную, чтобы интерфейс их подхватил
+          window.mapper2State.splitRules = res.templateConfig.splitRules;
+          window.mapper2State.dictValues = res.templateConfig.dictValues;
+          window.kaspiComplexParamsState = {
+              splitRules: res.templateConfig.splitRules,
+              dictValues: res.templateConfig.dictValues
+          };
       }
+
+      // === ВОССТАНОВЛЕНИЕ МАППЕРА: Рендерим его! ===
+      window.renderMapper2Cards(res.templateConfig);
 
       // === ВОССТАНОВЛЕНИЕ МАППЕРА: Рендерим его с НАШИМИ данными! ===
       window.renderMapper2Cards(res.templateConfig);
