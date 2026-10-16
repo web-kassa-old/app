@@ -2758,10 +2758,17 @@ async function sendInvoiceToBackend() {
   statusText.style.color = "var(--accent-green)";
 
   setTimeout(() => {
-    alert(translations[currentLang].inc_all_done);
+  alert(translations[currentLang].inc_all_done);
 
-    window.parsedInvoiceData = [];
-    window.invoiceGroups = {};
+  // ⚡ ФИКС: Жестко прячем экраны маппера и превью
+  const mapperArea = document.getElementById("mapper2Area");
+  if (mapperArea) mapperArea.style.display = "none";
+  
+  const previewArea = document.getElementById("invoicePreviewArea");
+  if (previewArea) previewArea.style.display = "none";
+
+  window.parsedInvoiceData = [];
+  window.invoiceGroups = {};
 
     const fileInput = document.getElementById("invoiceFileInput");
     if (fileInput) {
