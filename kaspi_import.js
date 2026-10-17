@@ -1556,7 +1556,15 @@ window.applyMapper2Logic = function () {
 
     let qty = parseFloat(getValue("qty"));
     let price = parseFloat(String(getValue("price", "cost")).replace(",", "."));
-    if (isNaN(qty) || isNaN(price)) return;
+    
+    // В режиме Экспорта Kaspi цена и количество не критичны — подставляем нули
+    if (window.isKaspiExportMode) {
+      if (isNaN(qty)) qty = 0;
+      if (isNaN(price)) price = 0;
+    } else {
+      // При первичном оприходовании жесткая проверка остается
+      if (isNaN(qty) || isNaN(price)) return;
+    }
 
     let rawId = getValue("barcode", "merchant_sku");
     let barcode = /^\d{8,13}$/.test(rawId) ? rawId : "";
@@ -1592,36 +1600,25 @@ window.applyMapper2Logic = function () {
       let searchString = rawValue;
       let extractedDirectly = null;
 
-      let isMetric = searchString.match(/(\d{3})\s*[\/\\]\s*(\d{2,3})\s*[a-zA-Z-]*\s*(\d{2})/);
-      let isImperial = searchString.match(/(\d{2}(?:\.\d+)?)\s*[xXхХ*]\s*(\d{1,2}(?:\.\d+)?)\s*[a-zA-Z-]*\s*(\d{2})/i);
-
-      if (isMetric) {
-        if (lowerHuman.includes("ширина")) extractedDirectly = isMetric[1];
-        else if (lowerHuman.includes("высота") || lowerHuman.includes("профиль")) extractedDirectly = isMetric[2];
-        else if (lowerHuman.includes("диаметр") || lowerHuman.includes("диск") || lowerHuman.includes("радиус")) extractedDirectly = isMetric[3];
-      } else if (isImperial) {
-        if (lowerHuman.includes("ширина")) extractedDirectly = isImperial[1];
-        else if (lowerHuman.includes("высота") || lowerHuman.includes("профиль")) extractedDirectly = isImperial[2];
-        else if (lowerHuman.includes("диаметр") || lowerHuman.includes("диск") || lowerHuman.includes("радиус")) extractedDirectly = isImperial[3];
-      }
-
       let dict = window.kaspiDicts && window.kaspiDicts[humanName];
       let hasDictionary = dict && Array.isArray(dict) && dict.length > 0;
       let foundMatch = false;
       let matchedDictValue = searchString;
 
-      if (extractedDirectly !== null) {
-        matchedDictValue = extractedDirectly;
-        if (hasDictionary) {
-          for (let dv of dict) {
-            let strDv = String(dv).trim();
-            if (!strDv) continue;
-            let baseDv = strDv.split("(")[0].trim();
-            if (!isNaN(parseFloat(baseDv)) && parseFloat(baseDv) === parseFloat(extractedDirectly)) {
-              matchedDictValue = strDv;
-              foundMatch = true;
-              break;
-            }
+      if (hasDictionary) {
+        for (let dv of dict) {
+          let strDv = String(dv).trim();
+          let baseDv = strDv.split("(")[0].trim();
+          let isStrictNumber = /^[\d\.]+$/.test(String(searchString).trim());
+
+          if (
+            strDv.toLowerCase() === String(searchString).trim().toLowerCase() ||
+            baseDv.toLowerCase() === String(searchString).trim().toLowerCase() ||
+            (isStrictNumber && !isNaN(parseFloat(baseDv)) && parseFloat(baseDv) === parseFloat(searchString))
+          ) {
+            matchedDictValue = strDv;
+            foundMatch = true;
+            break;
           }
         }
       } else {
