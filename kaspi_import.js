@@ -2619,10 +2619,30 @@ window.buildKaspiExportMetadata = function() {
         complexParams.dictValues = window.mapper2State.dictValues || complexParams.dictValues || {};
     }
 
+    // ================= ПЕРЕВОДЧИК КОЛОНОК (ФИКС ПУСТЫХ ЯЧЕЕК) =================
+    let finalMapping = {};
+    if (window.mapper2State && window.mapper2State.colMap) {
+        for (let key in window.mapper2State.colMap) {
+            let val = window.mapper2State.colMap[key];
+            
+            // Проверяем, является ли сохраненное значение цифрой (например, "3" или 3)
+            let isNumberIndex = (val !== "" && val !== null && !isNaN(val));
+
+            // Если это Экспорт и значение - цифра, достаем реальное текстовое название поля
+            if (window.isKaspiExportMode && window.rawExcelHeaders && isNumberIndex) {
+                let fieldName = window.rawExcelHeaders[Number(val)];
+                finalMapping[key] = fieldName ? fieldName : val; // Меняем 3 на "cost"
+            } else {
+                finalMapping[key] = val; // Сплиттеры и словари оставляем как есть
+            }
+        }
+    }
+    // =========================================================================
+
     return JSON.stringify({
         raw_headers: window.rawExcelHeaders || [], 
-        saved_mapping: window.mapper2State ? window.mapper2State.colMap : {},
-        saved_complex_params: complexParams // Теперь тут точно будут твои настройки!
+        saved_mapping: finalMapping, // <-- Отправляем переведенные текстовые ключи
+        saved_complex_params: complexParams 
     });
 };
 
