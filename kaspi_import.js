@@ -2609,9 +2609,8 @@ window.showMapperArea = function () {
   document.getElementById("invoicePreviewArea").style.display = "none";
 };
 
-/// === ФУНКЦИЯ-СБОРЩИК МЕТАДАННЫХ ДЛЯ KASPI (ИСПРАВЛЕННАЯ) ===
+// === ФУНКЦИЯ-СБОРЩИК МЕТАДАННЫХ ДЛЯ KASPI (ИСПРАВЛЕННАЯ) ===
 window.buildKaspiExportMetadata = function() {
-    // Надежно собираем сплиттеры и словари из всех возможных мест
     let complexParams = window.kaspiComplexParamsState || {};
     
     if (window.mapper2State) {
@@ -2619,29 +2618,26 @@ window.buildKaspiExportMetadata = function() {
         complexParams.dictValues = window.mapper2State.dictValues || complexParams.dictValues || {};
     }
 
-    // ================= ПЕРЕВОДЧИК КОЛОНОК (ФИКС ПУСТЫХ ЯЧЕЕК) =================
+    // ================= ПУЛЕНЕПРОБИВАЕМЫЙ ПЕРЕВОДЧИК =================
     let finalMapping = {};
     if (window.mapper2State && window.mapper2State.colMap) {
         for (let key in window.mapper2State.colMap) {
             let val = window.mapper2State.colMap[key];
             
-            // Проверяем, является ли сохраненное значение цифрой (например, "3" или 3)
-            let isNumberIndex = (val !== "" && val !== null && !isNaN(val));
-
-            // Если это Экспорт и значение - цифра, достаем реальное текстовое название поля
-            if (window.isKaspiExportMode && window.rawExcelHeaders && isNumberIndex) {
-                let fieldName = window.rawExcelHeaders[Number(val)];
-                finalMapping[key] = fieldName ? fieldName : val; // Меняем 3 на "cost"
+            // Если это Экспорт и значение - цифра (например, 5 или 9)
+            if (window.isKaspiExportMode && val !== "" && val !== null && !isNaN(val)) {
+                // Гениальное просто: сам ключ (например, "price") и есть нужное нам слово!
+                finalMapping[key] = key; 
             } else {
-                finalMapping[key] = val; // Сплиттеры и словари оставляем как есть
+                finalMapping[key] = val; // Сплиттеры оставляем в покое
             }
         }
     }
-    // =========================================================================
+    // ================================================================
 
     return JSON.stringify({
         raw_headers: window.rawExcelHeaders || [], 
-        saved_mapping: finalMapping, // <-- Отправляем переведенные текстовые ключи
+        saved_mapping: finalMapping, // <-- Теперь сюда 100% улетят слова "price", "qty", а не цифры!
         saved_complex_params: complexParams 
     });
 };
