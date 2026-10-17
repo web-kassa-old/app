@@ -1755,6 +1755,13 @@ window.applyMapper2Logic = function () {
 
     const exportBtns = document.getElementById("exportActionButtons");
     if (exportBtns) exportBtns.style.display = "flex";
+  } else {
+    // 🔥 ФИКС: Возвращаем зеленую кнопку при обычной приемке
+    const sendBtn = document.getElementById("sendInvoiceBtn");
+    if (sendBtn) sendBtn.style.display = "flex"; // или "block", в зависимости от твоей верстки
+
+    const exportBtns = document.getElementById("exportActionButtons");
+    if (exportBtns) exportBtns.style.display = "none";
   }
 };
 

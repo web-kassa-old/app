@@ -6764,37 +6764,23 @@ window.generateExportFile = async function (target = "local") {
         if (sourceDbField && !isNaN(sourceDbField)) {
           sourceDbField = kaspiKey || humanKey;
         }
-        // ===============================================
 
-        // === ЖЕЛЕЗНОЕ ПРАВИЛО ДЛЯ АРТИКУЛА (KASPI MERCHANT_SKU) ===
-        if (kaspiKey === "merchant_sku") {
-            sourceDbField = "barcode"; // Принудительно отсекаем любые другие поля
+        // === ЖЕЛЕЗНАЯ СВЯЗКА АРТИКУЛА И ШТРИХКОДА ===
+        if (kaspiKey === "merchant_sku" && (!sourceDbField || sourceDbField === "merchant_sku")) {
+            sourceDbField = "barcode";
         }
-        // ==========================================================
+        // ============================================
 
         let value = "";
 
-        if (sourceDbField === "barcode") {
-          // УБРАЛИ "|| item.item_id". Теперь ТОЛЬКО чистый штрихкод.
-          value = item.barcode || ""; 
-          
-          // Если штрихкода в корне нет, на всякий случай ищем его внутри attributes
-          if (!value && item.attributes) {
-             try {
-                let attrs = typeof item.attributes === "string" ? JSON.parse(item.attributes) : item.attributes;
-                value = attrs.barcode || "";
-             } catch(e) {}
-          }
-        }
-        else if (sourceDbField === "name") {
+        if (sourceDbField === "barcode")
+          value = item.barcode || ""; // УБРАЛИ item_id! Берем только чистый штрихкод из базы.
+        else if (sourceDbField === "name")
           value = String(item.name || item.item_name || "");
-        }
-        else if (sourceDbField === "price") {
+        else if (sourceDbField === "price")
           value = Number(item.price || item.cost || item.retail_price) || 0;
-        }
-        else if (sourceDbField === "qty") {
+        else if (sourceDbField === "qty")
           value = Number(item.qty || item.quantity) || 0;
-        }
         else if (sourceDbField && String(sourceDbField).startsWith("static_")) {
           value = String(sourceDbField).replace("static_", "");
         } else if (sourceDbField) {
@@ -6970,8 +6956,6 @@ window.selectImportMode = function (mode) {
   const templateBlock = document.getElementById("kaspiTemplateBlock");
 
   if (mode === "internal") {
-    window.isKaspiExportMode = false; // 🔥 ФИКС: Жестко выключаем режим Каспи
-    
     btnInternal.style.borderColor = "var(--accent-green)";
     btnKaspi.style.borderColor = "var(--border-main)";
     if (templateBlock) templateBlock.style.display = "none";
@@ -6983,8 +6967,6 @@ window.selectImportMode = function (mode) {
       "📁",
     );
   } else {
-    window.isKaspiExportMode = true; // 🔥 ФИКС: Включаем режим Каспи
-    
     btnKaspi.style.borderColor = "var(--accent-green)";
     btnInternal.style.borderColor = "var(--border-main)";
     if (templateBlock) templateBlock.style.display = "block";
@@ -6992,6 +6974,7 @@ window.selectImportMode = function (mode) {
     const select = document.getElementById("kaspiTemplateSelect");
 
     // === ИСПРАВЛЕНИЕ 1: Железобетонный замок на загрузку списка шаблонов ===
+    // Запрашиваем список с сервера ровно один раз за сессию
     if (
       !window.kaspiTemplatesLoaded &&
       typeof window.loadKaspiTemplatesFromServer === "function"
