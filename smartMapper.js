@@ -977,7 +977,13 @@ window.startTokenizerQueue = function () {
           if (b.classList.contains("selected")) selectedIndices.push(i);
         });
 
-        if (selectedIndices.length > 0) {
+        // Узнаем, какое поле сейчас активно (нажато)
+        const activeRow = overlay.querySelector(".param-row.active-target");
+        const activeParamName = activeRow ? activeRow.querySelector('input[type="radio"]').value : "";
+        const isTrashActive = activeParamName === "Лишние символы";
+
+        // Проверяем соседство ТОЛЬКО если это не корзина
+        if (selectedIndices.length > 0 && !isTrashActive) {
           const minIdx = Math.min(...selectedIndices);
           const maxIdx = Math.max(...selectedIndices);
 
