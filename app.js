@@ -6970,6 +6970,8 @@ window.selectImportMode = function (mode) {
   const templateBlock = document.getElementById("kaspiTemplateBlock");
 
   if (mode === "internal") {
+    window.isKaspiExportMode = false; // 🔥 ФИКС: Жестко выключаем режим Каспи
+    
     btnInternal.style.borderColor = "var(--accent-green)";
     btnKaspi.style.borderColor = "var(--border-main)";
     if (templateBlock) templateBlock.style.display = "none";
@@ -6981,6 +6983,8 @@ window.selectImportMode = function (mode) {
       "📁",
     );
   } else {
+    window.isKaspiExportMode = true; // 🔥 ФИКС: Включаем режим Каспи
+    
     btnKaspi.style.borderColor = "var(--accent-green)";
     btnInternal.style.borderColor = "var(--border-main)";
     if (templateBlock) templateBlock.style.display = "block";
@@ -6988,7 +6992,6 @@ window.selectImportMode = function (mode) {
     const select = document.getElementById("kaspiTemplateSelect");
 
     // === ИСПРАВЛЕНИЕ 1: Железобетонный замок на загрузку списка шаблонов ===
-    // Запрашиваем список с сервера ровно один раз за сессию
     if (
       !window.kaspiTemplatesLoaded &&
       typeof window.loadKaspiTemplatesFromServer === "function"
