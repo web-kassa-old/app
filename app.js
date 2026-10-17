@@ -6655,7 +6655,6 @@ window.generateExportFile = async function (target = "local") {
     window.showLoading(null, "kaspi_saving");
 
   try {
-    // БЕРЕМ ДАННЫЕ ЛИБО ИЗ ТАБЛИЦЫ (с учетом ручных правок), ЛИБО СЫРЫЕ
     const items = window.parsedInvoiceData || window.kaspiExportItems;
     if (!items || items.length === 0)
       throw new Error("Нет товаров для выгрузки.");
@@ -6666,10 +6665,7 @@ window.generateExportFile = async function (target = "local") {
       if (!cell || cell.value === null || cell.value === undefined) return "";
       if (typeof cell.value === "object") {
         if (cell.value.richText)
-          return cell.value.richText
-            .map((rt) => rt.text)
-            .join("")
-            .trim();
+          return cell.value.richText.map((rt) => rt.text).join("").trim();
         if (cell.value.result !== undefined)
           return String(cell.value.result).trim();
       }
@@ -6711,7 +6707,6 @@ window.generateExportFile = async function (target = "local") {
     const sysKeyRow = worksheet.getRow(sysKeyRowIndex);
     const humanKeyRow = worksheet.getRow(sysKeyRowIndex + 1);
 
-    // ПЫТАЕМСЯ ВЗЯТЬ ПАМЯТЬ ИЗ МАППЕРА (если он был открыт) ИЛИ ИЗ БАЗЫ
     let memory = {};
     if (
       window.mapper2State &&
@@ -6743,16 +6738,18 @@ window.generateExportFile = async function (target = "local") {
 
         let sourceDbField = "";
 
-        if (memory[kaspiKey]) {
+        // === ПУЛЕНЕПРОБИВАЕМЫЙ ПОИСК ПОЛЯ ИЗ МАППЕРА ===
+        if (memory[colNumber]) {
+          sourceDbField = memory[colNumber];
+        } else if (memory[String(colNumber)]) {
+          sourceDbField = memory[String(colNumber)];
+        } else if (memory[kaspiKey]) {
           sourceDbField = memory[kaspiKey];
         } else if (memory[humanKey]) {
           sourceDbField = memory[humanKey];
         } else {
           for (const [key, val] of Object.entries(memory)) {
-            if (
-              Array.isArray(val) &&
-              (val.includes(kaspiKey) || val.includes(humanKey))
-            ) {
+            if (Array.isArray(val) && (val.includes(kaspiKey) || val.includes(humanKey))) {
               sourceDbField = key;
               break;
             } else if (val === kaspiKey || val === humanKey) {
@@ -6762,11 +6759,14 @@ window.generateExportFile = async function (target = "local") {
           }
         }
 
+        // Если скрипт вытащил цифру вместо текста (например, "5"), 
+        // значит маппер сохранил номер колонки. Принудительно ставим текстовый ключ.
+        if (sourceDbField && !isNaN(sourceDbField)) {
+          sourceDbField = kaspiKey || humanKey;
+        }
+        // ===============================================
+
         let value = "";
-        
-        // ================== КАПКАН 2 (ГЕНЕРАТОР) ==================
-        console.log(`🔍 [ГЕНЕРАТОР] Шаблон запросил поле: "${sourceDbField}"`);
-        // ==========================================================
 
         if (sourceDbField === "barcode")
           value = item.barcode || item.item_id || "";
@@ -6787,47 +6787,21 @@ window.generateExportFile = async function (target = "local") {
                 : item.attributes || {};
           } catch (e) {}
 
-          if (
-            attrs[sourceDbField] !== undefined &&
-            attrs[sourceDbField] !== null
-          ) {
+          if (attrs[sourceDbField] !== undefined && attrs[sourceDbField] !== null) {
             value = attrs[sourceDbField];
-          } else if (
-            item[sourceDbField] !== undefined &&
-            item[sourceDbField] !== null
-          ) {
+          } else if (item[sourceDbField] !== undefined && item[sourceDbField] !== null) {
             value = item[sourceDbField];
           }
         }
 
-        // ================== ИТОГ ГЕНЕРАТОРА ==================
-        if (value === "") {
-             console.warn(`⚠️ [ГЕНЕРАТОР] ПУСТО! В товаре нет поля "${sourceDbField}". Вот сам товар:`, item);
-        } else {
-             console.log(`✅ [ГЕНЕРАТОР] Найдено:`, value);
-        }
-        // =====================================================
-
-        // === МАГИЯ АВТО-МЭТЧИНГА ===
-        if (
-          (value === "" || value === null || value === undefined) &&
-          !sourceDbField
-        ) {
-          if (
-            item[humanKey] !== undefined &&
-            item[humanKey] !== null &&
-            item[humanKey] !== ""
-          ) {
+        // Авто-мэтчинг
+        if ((value === "" || value === null || value === undefined) && !sourceDbField) {
+          if (item[humanKey] !== undefined && item[humanKey] !== null && item[humanKey] !== "") {
             value = item[humanKey];
-          } else if (
-            item[kaspiKey] !== undefined &&
-            item[kaspiKey] !== null &&
-            item[kaspiKey] !== ""
-          ) {
+          } else if (item[kaspiKey] !== undefined && item[kaspiKey] !== null && item[kaspiKey] !== "") {
             value = item[kaspiKey];
           }
         }
-        // ============================
 
         if (value !== "" && value !== undefined && value !== null) {
           targetRow.getCell(colNumber).value = value;
@@ -6839,9 +6813,7 @@ window.generateExportFile = async function (target = "local") {
     });
 
     if (insertedCount === 0) {
-      alert(
-        "⚠️ Скрипт отработал, но данные пустые. Проверьте сопоставление колонок в настройках шаблона.",
-      );
+      alert("⚠️ Скрипт отработал, но данные пустые. Проверьте сопоставление колонок в настройках шаблона.");
       throw new Error("Пустые данные");
     }
 
@@ -6851,40 +6823,25 @@ window.generateExportFile = async function (target = "local") {
 
     // ТИХОЕ АВТОСОХРАНЕНИЕ
     if (window.isKaspiExportMode && window.parsedInvoiceData) {
-      const url =
-        typeof APPS_SCRIPT_URL !== "undefined"
-          ? APPS_SCRIPT_URL
-          : window.APPS_SCRIPT_URL;
+      const url = typeof APPS_SCRIPT_URL !== "undefined" ? APPS_SCRIPT_URL : window.APPS_SCRIPT_URL;
       const itemsToUpdate = window.parsedInvoiceData.map((item) => ({
         item_id: item.item_id || item.id,
-        attributes:
-          typeof item.attributes === "object"
-            ? JSON.stringify(item.attributes)
-            : item.attributes || "{}",
+        attributes: typeof item.attributes === "object" ? JSON.stringify(item.attributes) : item.attributes || "{}",
       }));
 
       fetch(url, {
         method: "POST",
-        body: JSON.stringify({
-          action: "silentUpdateAttributesBackend",
-          api_key: CLIENT_API_KEY,
-          items: itemsToUpdate,
-        }),
+        body: JSON.stringify({ action: "silentUpdateAttributesBackend", api_key: CLIENT_API_KEY, items: itemsToUpdate }),
       })
         .then((res) => res.json())
         .then((data) => {
-          if (data.success)
-            console.log("✅ Параметры товаров успешно обновлены в базе!");
+          if (data.success) console.log("✅ Параметры товаров успешно обновлены в базе!");
         })
-        .catch((e) =>
-          console.error("Ошибка сети при сохранении параметров:", e),
-        );
+        .catch((e) => console.error("Ошибка сети при сохранении параметров:", e));
     }
 
     if (target === "local") {
-      const blob = new Blob([buffer], {
-        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      });
+      const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
       const link = document.createElement("a");
       link.href = URL.createObjectURL(blob);
       link.download = fileName;
@@ -6892,25 +6849,13 @@ window.generateExportFile = async function (target = "local") {
       link.click();
       document.body.removeChild(link);
 
-      // === ВЕРНУЛ БЛОК ОБНОВЛЕНИЯ СТАТУСА ПАРТИИ (ПЕРЕВОД В ЗЕЛЕНЫЙ ЦВЕТ) ===
-      if (
-        window.kaspiExportRowIndexes &&
-        window.kaspiExportRowIndexes.length > 0
-      ) {
-        const url =
-          typeof APPS_SCRIPT_URL !== "undefined"
-            ? APPS_SCRIPT_URL
-            : window.APPS_SCRIPT_URL;
+      if (window.kaspiExportRowIndexes && window.kaspiExportRowIndexes.length > 0) {
+        const url = typeof APPS_SCRIPT_URL !== "undefined" ? APPS_SCRIPT_URL : window.APPS_SCRIPT_URL;
         fetch(url, {
           method: "POST",
-          body: JSON.stringify({
-            action: "markKaspiExportedBackend",
-            api_key: CLIENT_API_KEY,
-            rowIndexes: window.kaspiExportRowIndexes,
-          }),
+          body: JSON.stringify({ action: "markKaspiExportedBackend", api_key: CLIENT_API_KEY, rowIndexes: window.kaspiExportRowIndexes }),
         }).catch((e) => console.error("Ошибка при обновлении статусов", e));
       }
-      // ======================================================================
     }
   } catch (err) {
     console.error("Ошибка при генерации прайса:", err);
