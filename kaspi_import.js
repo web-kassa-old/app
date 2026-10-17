@@ -1707,7 +1707,7 @@ window.applyMapper2Logic = function () {
       name: name,
       desc: name,
       description: name,
-      barcode: barcode || rawId, // Жесткая синхронизация (если штрихкода нет, пишем артикул)
+      barcode: barcode, // 🔥 ИСПРАВЛЕНО: Убрали || rawId. Если штрихкода нет, отправляем пустоту!
       category: activeCategoryText, // Динамическая категория (Текст)
       sku: rawId, // Поле для выгрузки в Каспи
       title: name, // Поле для выгрузки в Каспи
