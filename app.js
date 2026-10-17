@@ -6772,8 +6772,8 @@ window.generateExportFile = async function (target = "local") {
           value = Number(item.price || item.cost || item.retail_price) || 0;
         else if (sourceDbField === "qty")
           value = Number(item.qty || item.quantity) || 0;
-        else if (sourceDbField && sourceDbField.startsWith("static_")) {
-          value = sourceDbField.replace("static_", "");
+        else if (sourceDbField && String(sourceDbField).startsWith("static_")) {
+          value = String(sourceDbField).replace("static_", "");
         } else if (sourceDbField) {
           let attrs = {};
           try {
