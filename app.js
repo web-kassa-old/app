@@ -6764,12 +6764,17 @@ window.generateExportFile = async function (target = "local") {
         if (sourceDbField && !isNaN(sourceDbField)) {
           sourceDbField = kaspiKey || humanKey;
         }
-        // ===============================================
+
+        // === ЖЕЛЕЗНАЯ СВЯЗКА АРТИКУЛА И ШТРИХКОДА ===
+        if (kaspiKey === "merchant_sku" && (!sourceDbField || sourceDbField === "merchant_sku")) {
+            sourceDbField = "barcode";
+        }
+        // ============================================
 
         let value = "";
 
         if (sourceDbField === "barcode")
-          value = item.barcode || item.item_id || "";
+          value = item.barcode || ""; // УБРАЛИ item_id! Берем только чистый штрихкод из базы.
         else if (sourceDbField === "name")
           value = String(item.name || item.item_name || "");
         else if (sourceDbField === "price")
