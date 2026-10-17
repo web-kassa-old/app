@@ -237,7 +237,6 @@ window.processInvoiceFile = async function () {
 
 // === РОУТЕР ШАГОВ ПРИЕМКИ (ОБНОВЛЕННЫЙ) ===
 window.navigateIncomeStep = function (stepNumber, isBack = false) {
-  window.isKaspiExportMode = false;
 
   // 1. Ведем запись в историю (если идем вперед)
   window.mapper2State = window.mapper2State || {};
