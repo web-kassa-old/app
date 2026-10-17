@@ -2618,26 +2618,21 @@ window.buildKaspiExportMetadata = function() {
         complexParams.dictValues = window.mapper2State.dictValues || complexParams.dictValues || {};
     }
 
-    // ================= ПУЛЕНЕПРОБИВАЕМЫЙ ПЕРЕВОДЧИК =================
     let finalMapping = {};
     if (window.mapper2State && window.mapper2State.colMap) {
         for (let key in window.mapper2State.colMap) {
             let val = window.mapper2State.colMap[key];
-            
-            // Если это Экспорт и значение - цифра (например, 5 или 9)
             if (window.isKaspiExportMode && val !== "" && val !== null && !isNaN(val)) {
-                // Гениальное просто: сам ключ (например, "price") и есть нужное нам слово!
                 finalMapping[key] = key; 
             } else {
-                finalMapping[key] = val; // Сплиттеры оставляем в покое
+                finalMapping[key] = val;
             }
         }
     }
-    // ================================================================
 
     return JSON.stringify({
         raw_headers: window.rawExcelHeaders || [], 
-        saved_mapping: finalMapping, // <-- Теперь сюда 100% улетят слова "price", "qty", а не цифры!
+        saved_mapping: finalMapping,
         saved_complex_params: complexParams 
     });
 };

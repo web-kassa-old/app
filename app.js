@@ -6763,6 +6763,10 @@ window.generateExportFile = async function (target = "local") {
         }
 
         let value = "";
+        
+        // ================== КАПКАН 2 (ГЕНЕРАТОР) ==================
+        console.log(`🔍 [ГЕНЕРАТОР] Шаблон запросил поле: "${sourceDbField}"`);
+        // ==========================================================
 
         if (sourceDbField === "barcode")
           value = item.barcode || item.item_id || "";
@@ -6795,6 +6799,14 @@ window.generateExportFile = async function (target = "local") {
             value = item[sourceDbField];
           }
         }
+
+        // ================== ИТОГ ГЕНЕРАТОРА ==================
+        if (value === "") {
+             console.warn(`⚠️ [ГЕНЕРАТОР] ПУСТО! В товаре нет поля "${sourceDbField}". Вот сам товар:`, item);
+        } else {
+             console.log(`✅ [ГЕНЕРАТОР] Найдено:`, value);
+        }
+        // =====================================================
 
         // === МАГИЯ АВТО-МЭТЧИНГА ===
         if (
