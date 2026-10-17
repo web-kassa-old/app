@@ -3242,16 +3242,11 @@ window.handleCardSelectForExport = async function (
       if (!res.templateConfig) res.templateConfig = {};
       if (!res.templateConfig.mapping) res.templateConfig.mapping = {};
 
-      // 1. Привязываем специфичные параметры Kaspi (Ширина, Диаметр и т.д.)
-      if (res.templateConfig.systemKeys) {
-          res.templateConfig.systemKeys.forEach(sysKey => {
-              let colIndex = extractedHeaders.indexOf(sysKey);
-              if (colIndex !== -1) {
-                  res.templateConfig.mapping[sysKey] = colIndex;
-                  window.mapper2State.colMap[sysKey] = colIndex;
-              }
-          });
-      }
+      // 1. Универсальная привязка ВСЕХ параметров из базы данных (ничего не потеряется)
+      extractedHeaders.forEach((header, idx) => {
+          res.templateConfig.mapping[header] = idx;
+          window.mapper2State.colMap[header] = idx;
+      });
 
       // 2. Восстанавливаем сплиттеры чисто для визуала (данные уже готовы)
       if (savedMeta.saved_complex_params) {
