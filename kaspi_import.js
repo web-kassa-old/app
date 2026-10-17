@@ -3242,7 +3242,11 @@ window.handleCardSelectForExport = async function (
       if (!res.templateConfig) res.templateConfig = {};
       if (!res.templateConfig.mapping) res.templateConfig.mapping = {};
 
-      // 1. Универсальная привязка ВСЕХ параметров из базы данных (ничего не потеряется)
+      // 0. ЖЕСТКАЯ ОЧИСТКА ПАМЯТИ: Сбрасываем старые фантомные номера колонок Excel
+      res.templateConfig.mapping = {};
+      window.mapper2State.colMap = {};
+
+      // 1. Универсальная привязка ВСЕХ параметров из виртуальной базы
       extractedHeaders.forEach((header, idx) => {
           res.templateConfig.mapping[header] = idx;
           window.mapper2State.colMap[header] = idx;
