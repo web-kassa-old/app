@@ -1554,16 +1554,16 @@ window.applyMapper2Logic = function () {
       return rawVal;
     };
 
-    let qty = parseFloat(getValue("qty"));
-    let price = parseFloat(String(getValue("price", "cost")).replace(",", "."));
-    
-    // В режиме Экспорта Kaspi цена и количество не критичны — подставляем нули
-    if (window.isKaspiExportMode) {
-      if (isNaN(qty)) qty = 0;
-      if (isNaN(price)) price = 0;
-    } else {
-      // При первичном оприходовании жесткая проверка остается
-      if (isNaN(qty) || isNaN(price)) return;
+    let qty = 0;
+    let price = 0;
+
+    // Если это ОБЫЧНАЯ приемка на склад — честно ищем цифры.
+    if (!window.isKaspiExportMode) {
+        qty = parseFloat(getValue("qty"));
+        price = parseFloat(String(getValue("price", "cost")).replace(",", "."));
+        
+        // Выбрасываем товар из сборки ТОЛЬКО при складской приемке
+        if (isNaN(qty) || isNaN(price)) return; 
     }
 
     let rawId = getValue("barcode", "merchant_sku");
