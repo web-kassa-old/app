@@ -6764,8 +6764,6 @@ window.generateExportFile = async function (target = "local") {
 
         let value = "";
 
-        console.log("🔍 Ищем поле:", sourceDbField, "в товаре:", item.item_name || item.name);
-
         if (sourceDbField === "barcode")
           value = item.barcode || item.item_id || "";
         else if (sourceDbField === "name")
@@ -6797,8 +6795,6 @@ window.generateExportFile = async function (target = "local") {
             value = item[sourceDbField];
           }
         }
-
-        console.log("✅ Найдено значение:", value);
 
         // === МАГИЯ АВТО-МЭТЧИНГА ===
         if (
