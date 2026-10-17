@@ -1553,31 +1553,20 @@ window.applyMapper2Logic = function () {
       return rawVal;
     };
 
-    // ================= ДИАГНОСТИКА (ЛОГИ) =================
     let rawQty = getValue("qty");
     let rawPrice = getValue("price", "cost");
-    
-    console.log(`--- Строка ${index} ---`);
-    console.log(`1. Флаг Экспорта (isKaspiExportMode):`, window.isKaspiExportMode);
-    console.log(`2. Сырое кол-во: "${rawQty}", Сырая цена: "${rawPrice}"`);
 
     let qty = 0;
     let price = 0;
 
+    // Если это ОБЫЧНАЯ приемка на склад — честно ищем цифры.
     if (!window.isKaspiExportMode) {
         qty = parseFloat(rawQty);
         price = parseFloat(String(rawPrice).replace(",", "."));
-        console.log(`3. Попытка парсинга (Складской режим): qty=${qty}, price=${price}`);
         
-        if (isNaN(qty) || isNaN(price)) {
-            console.error(`❌ ТОВАР ${index} ВЫБРОШЕН! (isNaN сработал)`);
-            return; 
-        }
-    } else {
-        console.log(`3. Режим экспорта подтвержден! Проверка чисел пропущена.`);
+        // Выбрасываем товар из сборки ТОЛЬКО при складской приемке
+        if (isNaN(qty) || isNaN(price)) return; 
     }
-    console.log(`✅ ТОВАР ${index} УСПЕШНО ПРОШЕЛ ПРОВЕРКУ!`);
-    // ======================================================
 
     let rawId = getValue("barcode", "merchant_sku");
     let barcode = /^\d{8,13}$/.test(rawId) ? rawId : "";
@@ -3255,13 +3244,14 @@ window.handleCardSelectForExport = async function (
       if (!res.templateConfig) res.templateConfig = {};
       if (!res.templateConfig.mapping) res.templateConfig.mapping = {};
 
-      // 0. ЖЕСТКАЯ ОЧИСТКА ПАМЯТИ: Сбрасываем старые фантомные номера колонок Excel
+      // 0. ЖЕСТКАЯ ОЧИСТКА ПАМЯТИ
       res.templateConfig.mapping = {};
       window.mapper2State.colMap = {};
 
-      // 1. Универсальная привязка ВСЕХ параметров из виртуальной базы
+      // 1. Универсальная привязка ВСЕХ параметров
       extractedHeaders.forEach((header, idx) => {
-          res.templateConfig.mapping[header] = idx;
+          // ИСПРАВЛЕНИЕ: Генератору нужен текст (header), а мапперу - индекс (idx)
+          res.templateConfig.mapping[header] = header; 
           window.mapper2State.colMap[header] = idx;
       });
 
@@ -3292,7 +3282,8 @@ window.handleCardSelectForExport = async function (
           for (let pName of possibleNames) {
               let idx = extractedHeaders.indexOf(pName);
               if (idx !== -1) {
-                  res.templateConfig.mapping[targetKey] = idx;
+                  // ИСПРАВЛЕНИЕ: Передаем ключ, а не цифру
+                  res.templateConfig.mapping[targetKey] = targetKey; 
                   window.mapper2State.colMap[targetKey] = idx;
                   break; 
               }
