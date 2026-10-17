@@ -329,7 +329,7 @@ window.renderSmartMapperModal = function (complexColumns) {
             <button class="confirm-btn btn-primary green" id="smartConfirmBtn" data-i18n="smart_mapper_btn" style="flex: 2; margin: 0; font-weight: bold; font-size: 14px; text-transform: uppercase;">${confirmBtnText}</button>
         </div>
     `;
-  modal.appendChild(footer);
+  body.appendChild(footer);
   container.appendChild(modal);
 
   // Запускаем глобальный переводчик (на всякий случай для других статических текстов)
