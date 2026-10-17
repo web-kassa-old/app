@@ -1554,17 +1554,31 @@ window.applyMapper2Logic = function () {
       return rawVal;
     };
 
+    // ================= ДИАГНОСТИКА (ЛОГИ) =================
+    let rawQty = getValue("qty");
+    let rawPrice = getValue("price", "cost");
+    
+    console.log(`--- Строка ${index} ---`);
+    console.log(`1. Флаг Экспорта (isKaspiExportMode):`, window.isKaspiExportMode);
+    console.log(`2. Сырое кол-во: "${rawQty}", Сырая цена: "${rawPrice}"`);
+
     let qty = 0;
     let price = 0;
 
-    // Если это ОБЫЧНАЯ приемка на склад — честно ищем цифры.
     if (!window.isKaspiExportMode) {
-        qty = parseFloat(getValue("qty"));
-        price = parseFloat(String(getValue("price", "cost")).replace(",", "."));
+        qty = parseFloat(rawQty);
+        price = parseFloat(String(rawPrice).replace(",", "."));
+        console.log(`3. Попытка парсинга (Складской режим): qty=${qty}, price=${price}`);
         
-        // Выбрасываем товар из сборки ТОЛЬКО при складской приемке
-        if (isNaN(qty) || isNaN(price)) return; 
+        if (isNaN(qty) || isNaN(price)) {
+            console.error(`❌ ТОВАР ${index} ВЫБРОШЕН! (isNaN сработал)`);
+            return; 
+        }
+    } else {
+        console.log(`3. Режим экспорта подтвержден! Проверка чисел пропущена.`);
     }
+    console.log(`✅ ТОВАР ${index} УСПЕШНО ПРОШЕЛ ПРОВЕРКУ!`);
+    // ======================================================
 
     let rawId = getValue("barcode", "merchant_sku");
     let barcode = /^\d{8,13}$/.test(rawId) ? rawId : "";
