@@ -39,7 +39,7 @@ window.showComplexColumnSelector = function(headers, rows, templateData) {
     const modal = document.createElement("div");
     modal.className = "complex-modal";
 
-    // Умный поиск примера по ВСЕМ строкам колонки
+    // Умный поиск примера по ЧИСТЫМ строкам
     const getComplexExample = (colIdx) => {
         let bestVal = "";
         let maxScore = -1;
@@ -50,11 +50,12 @@ window.showComplexColumnSelector = function(headers, rows, templateData) {
             if (!val) continue;
             
             let score = 0;
-            if (/[\/\\]/.test(val)) score += 50; // Слэши
-            if (/[xXхХ*]/.test(val)) score += 40; // Габариты (вкл. русскую "Х" и звездочку)
+            // Ищем реальные признаки сложных параметров
+            if (/[\/\\]/.test(val)) score += 50; // Слэши - главный маркер
+            if (/[xXхХ*]/.test(val)) score += 40; // Габариты
             if (/[a-zA-Zа-яА-Я]/.test(val) && /[0-9]/.test(val)) score += 30; // Буквы + Цифры
             if (/\s/.test(val)) score += 20; // Пробелы
-            score += val.length; // Чем длиннее, тем выше шанс склейки
+            score += val.length; 
             
             if (score > maxScore) {
                 maxScore = score;
@@ -284,27 +285,59 @@ window.processInvoiceFile = async function () {
       window.mapper2State.invoiceHeaders = rawHeaders.map((h) => String(h || "").replace(/[\r\n]+/g, " ").trim());
       window.mapper2State.invoiceRows = rows.slice(firstDataRowIdx);
 
-      // 🔥 БАЗОВАЯ ОЧИСТКА ОТ МУСОРА (ДО МАППИНГА)
-        // Выкидываем пустые строки и явные подвалы, чтобы они не попали в окно сложных колонок
-        window.mapper2State.invoiceRows = window.mapper2State.invoiceRows.filter(row => {
-            if (!row || row.length === 0) return false; // Пустые массивы
-            
-            // Если вся строка состоит только из пустот - в мусор
-            let isEmpty = row.every(cell => String(cell || "").trim() === "");
-            if (isEmpty) return false;
+      // 🔥 АВТО-ОПРЕДЕЛЕНИЕ КОЛОНОК ДЛЯ ПРЕ-ФИЛЬТРА (Используем ТОЛЬКО системный словарь)
+      let dict = window.mapper2State.dictValues || {};
+      let headersToSearch = window.mapper2State.invoiceHeaders.map(h => String(h).toLowerCase().replace(/\s+/g, ""));
 
-            // Если строка содержит слова-маркеры подвала - в мусор
-            let rowText = row.join(" ").toUpperCase();
-            if (rowText.includes("TOTAL AMOUNT") || 
-                rowText.includes("REMARK") || 
-                rowText.includes("KGS") || 
-                rowText.includes("1X40HC") ||
-                rowText.includes("SHIPPING")) {
-                return false;
-            }
-            
-            return true; // Нормальные товары оставляем
-        });
+      // Функция вытягивает синонимы из словаря по указанным ключам
+      const findColByDict = (dictKeys) => {
+          let syns = [];
+          dictKeys.forEach(k => {
+              if (dict[k]) {
+                  // Поддержка как массива, так и строки через запятую
+                  let rawSyns = Array.isArray(dict[k]) ? dict[k] : String(dict[k]).split(',');
+                  syns = syns.concat(rawSyns);
+              }
+          });
+          syns = syns.map(s => String(s).toLowerCase().replace(/\s+/g, "")).filter(Boolean);
+          if (syns.length === 0) return -1;
+          
+          return headersToSearch.findIndex(h => syns.some(syn => h.includes(syn)));
+      };
+
+      // Ищем индексы колонок по ключам из твоей таблицы настроек
+      let priceIdx = findColByDict(["Розничная цена", "Закупочная цена", "price", "cost"]);
+      let brandIdx = findColByDict(["Бренд / Производитель", "Бренд", "brand"]);
+      let codeIdx = findColByDict(["Артикул / Код товара", "Артикул", "id", "code"]);
+
+      // Если нашли Цену и хотя бы один идентификатор (Бренд или Код), запускаем очистку
+      if (priceIdx !== -1 && (brandIdx !== -1 || codeIdx !== -1)) {
+          window.mapper2State.invoiceRows = window.mapper2State.invoiceRows.filter(row => {
+              if (!row || row.length === 0) return false;
+
+              let isEmpty = row.every(cell => String(cell || "").trim() === "");
+              if (isEmpty) return false;
+
+              // Фактор 1: Цена > 0
+              let rawPrice = String(row[priceIdx] || "").replace(",", ".").replace(/[^0-9.-]/g, "");
+              let price = parseFloat(rawPrice);
+              if (isNaN(price) || price <= 0) return false; 
+
+              // Фактор 2: Наличие Бренда ИЛИ Кода
+              let rawBrand = brandIdx !== -1 ? String(row[brandIdx] || "").trim() : "";
+              let rawCode = codeIdx !== -1 ? String(row[codeIdx] || "").trim() : "";
+              let hasIdentifier = rawBrand !== "" || rawCode !== "";
+              
+              if (!hasIdentifier) return false;
+
+              // Фактор 3: Жесткая защита от смещения подвала в рабочие колонки
+              if (rawBrand.toUpperCase().includes("TOTAL") || rawCode.toUpperCase().includes("TOTAL")) {
+                  return false; 
+              }
+
+              return true; 
+          });
+      }
 
       let fileContentStr = window.mapper2State.docNo + "_" + window.mapper2State.supplier + "_" + JSON.stringify(window.mapper2State.invoiceRows.slice(0, 5));
       let hashNum = 0;
@@ -320,7 +353,7 @@ window.processInvoiceFile = async function () {
       let smartHeaders = window.mapper2State.invoiceHeaders || [];
       let smartRows = window.mapper2State.invoiceRows || [];
 
-      // 🔥 Просто вызываем наше окно поверх всего
+      // Вызываем модалку, передавая уже очищенную от мусора таблицу
       window.showComplexColumnSelector(smartHeaders, smartRows, templateData);
     } else {
       throw new Error("Не удалось найти таблицу с товарами");
