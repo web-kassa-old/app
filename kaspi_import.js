@@ -1566,16 +1566,24 @@ window.updateReqCardStatus = function (sysKey, text, className, previewText) {
 
 // 6. ФИНАЛЬНАЯ СБОРКА JSON ДЛЯ СЕРВЕРА
 window.applyMapper2Logic = function () {
-  const state = window.mapper2State;
+  const state = window.mapper2State || {};
+  const colMap = state.colMap || {};
+  const dict = state.dictValues || {};
 
-  const qtyIdx = state.colMap["qty"];
-  const priceIdx = state.colMap["price"] !== undefined ? state.colMap["price"] : state.colMap["cost"];
-  const nameIdx = state.colMap["name"] !== undefined ? state.colMap["name"] : state.colMap["model"];
+  // Проверяем: есть ли привязка к Excel ИЛИ ручной ввод для каждого обязательного поля
+  const hasQty = colMap["qty"] !== undefined || dict["qty"] !== undefined;
+  
+  const hasPrice = colMap["price"] !== undefined || colMap["cost"] !== undefined || 
+                   dict["price"] !== undefined || dict["cost"] !== undefined;
+                   
+  const hasName = colMap["name"] !== undefined || colMap["model"] !== undefined || 
+                  dict["name"] !== undefined || dict["model"] !== undefined;
 
-  if (qtyIdx === undefined || priceIdx === undefined || nameIdx === undefined) {
+  // Если хотя бы одно обязательное поле вообще никак не заполнено — блокируем
+  if (!hasQty || !hasPrice || !hasName) {
     const lang = window.currentLang || localStorage.getItem("pos_lang") || "ru";
     const tr = typeof translations !== "undefined" && translations[lang] ? translations[lang] : {};
-    const errorMsg = tr.mapper_err_missing_cols || "⚠️ Обязательно привяжите колонки:\n1. Наименование (или model)\n2. Количество (qty)\n3. Цена (price)";
+    const errorMsg = tr.mapper_err_missing_cols || "⚠️ Обязательно привяжите колонки (или введите вручную):\n1. Наименование (или model)\n2. Количество (qty)\n3. Цена (price/cost)";
     return alert(errorMsg);
   }
 
