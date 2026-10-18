@@ -285,33 +285,27 @@ window.processInvoiceFile = async function () {
       window.mapper2State.invoiceHeaders = rawHeaders.map((h) => String(h || "").replace(/[\r\n]+/g, " ").trim());
       window.mapper2State.invoiceRows = rows.slice(firstDataRowIdx);
 
-      // 🔥 АВТО-ОПРЕДЕЛЕНИЕ КОЛОНОК ДЛЯ ПРЕ-ФИЛЬТРА (Используем ТОЛЬКО системный словарь)
-      let dict = window.mapper2State.dictValues || {};
+      // 🔥 АВТО-ОПРЕДЕЛЕНИЕ КОЛОНОК (Используем твой глобальный словарь invoiceSynonyms)
+      let globalSyns = typeof invoiceSynonyms !== "undefined" ? invoiceSynonyms : {};
       let headersToSearch = window.mapper2State.invoiceHeaders.map(h => String(h).toLowerCase().replace(/\s+/g, ""));
 
-      // Функция вытягивает синонимы из словаря по указанным ключам
-      const findColByDict = (dictKeys) => {
+      // Ищем колонку по системному ключу (sysKey) или запасным вариантам
+      const findCol = (keys, fallbacks) => {
           let syns = [];
-          dictKeys.forEach(k => {
-              if (dict[k]) {
-                  // Поддержка как массива, так и строки через запятую
-                  let rawSyns = Array.isArray(dict[k]) ? dict[k] : String(dict[k]).split(',');
-                  syns = syns.concat(rawSyns);
-              }
+          keys.forEach(k => {
+              if (globalSyns[k]) syns = syns.concat(globalSyns[k]);
           });
-          syns = syns.map(s => String(s).toLowerCase().replace(/\s+/g, "")).filter(Boolean);
-          if (syns.length === 0) return -1;
-          
+          syns = syns.concat(fallbacks).map(s => String(s).toLowerCase().replace(/\s+/g, "")).filter(Boolean);
           return headersToSearch.findIndex(h => syns.some(syn => h.includes(syn)));
       };
 
-      // Ищем индексы колонок по ключам из твоей таблицы настроек
-      let priceIdx = findColByDict(["Розничная цена", "Закупочная цена", "price", "cost"]);
-      let brandIdx = findColByDict(["Бренд / Производитель", "Бренд", "brand"]);
-      let codeIdx = findColByDict(["Артикул / Код товара", "Артикул", "id", "code"]);
+      // Ищем индексы, используя системные ключи из твоей конфигурации (price, barcode, name)
+      let priceIdx = findCol(["price", "Розничная цена", "Закупочная цена"], ["usd", "цена", "стоимость", "amount"]);
+      let idIdx = findCol(["barcode", "Артикул / Код товара", "id", "code"], ["артикул", "штрихкод"]);
+      let nameIdx = findCol(["name", "Бренд / Производитель", "Наименование товара"], ["brand", "бренд", "наименование", "товар"]);
 
-      // Если нашли Цену и хотя бы один идентификатор (Бренд или Код), запускаем очистку
-      if (priceIdx !== -1 && (brandIdx !== -1 || codeIdx !== -1)) {
+      // Запускаем 2-факторную очистку, если нашли Цену и хотя бы один идентификатор (Артикул или Название)
+      if (priceIdx !== -1 && (idIdx !== -1 || nameIdx !== -1)) {
           window.mapper2State.invoiceRows = window.mapper2State.invoiceRows.filter(row => {
               if (!row || row.length === 0) return false;
 
@@ -323,15 +317,15 @@ window.processInvoiceFile = async function () {
               let price = parseFloat(rawPrice);
               if (isNaN(price) || price <= 0) return false; 
 
-              // Фактор 2: Наличие Бренда ИЛИ Кода
-              let rawBrand = brandIdx !== -1 ? String(row[brandIdx] || "").trim() : "";
-              let rawCode = codeIdx !== -1 ? String(row[codeIdx] || "").trim() : "";
-              let hasIdentifier = rawBrand !== "" || rawCode !== "";
+              // Фактор 2: Наличие Идентификатора (Артикула ИЛИ Названия/Бренда)
+              let rawId = idIdx !== -1 ? String(row[idIdx] || "").trim() : "";
+              let rawName = nameIdx !== -1 ? String(row[nameIdx] || "").trim() : "";
+              let hasIdentifier = rawId !== "" || rawName !== "";
               
               if (!hasIdentifier) return false;
 
-              // Фактор 3: Жесткая защита от смещения подвала в рабочие колонки
-              if (rawBrand.toUpperCase().includes("TOTAL") || rawCode.toUpperCase().includes("TOTAL")) {
+              // Фактор 3: Защита от смещения "TOTAL AMOUNT" в рабочие колонки
+              if (rawId.toUpperCase().includes("TOTAL") || rawName.toUpperCase().includes("TOTAL")) {
                   return false; 
               }
 
@@ -353,7 +347,7 @@ window.processInvoiceFile = async function () {
       let smartHeaders = window.mapper2State.invoiceHeaders || [];
       let smartRows = window.mapper2State.invoiceRows || [];
 
-      // Вызываем модалку, передавая уже очищенную от мусора таблицу
+      // Вызываем модалку, передавая идеально чистую таблицу!
       window.showComplexColumnSelector(smartHeaders, smartRows, templateData);
     } else {
       throw new Error("Не удалось найти таблицу с товарами");
