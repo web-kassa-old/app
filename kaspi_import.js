@@ -1757,10 +1757,27 @@ window.applyMapper2Logic = function () {
 
   if (window.mapper2State.quarantine && window.mapper2State.quarantine.length > 0) {
     console.log("➡️ Запускаем Сито (Токенизатор)...");
+    
+    // 🔥 1. ЖЕСТКО прячем текущее окно маппера, чтобы оно не перекрывало экран
+    let mapperArea = document.getElementById("mapper2Area");
+    if (mapperArea) mapperArea.style.display = "none";
+
+    // 🔥 2. Восстанавливаем контейнер Токенизатора, если его нет в HTML
+    let smartContainer = document.getElementById("smartMapperContainer");
+    if (!smartContainer) {
+        smartContainer = document.createElement("div");
+        smartContainer.id = "smartMapperContainer";
+        smartContainer.className = "smart-mapper-overlay"; // Твой CSS класс для фона
+        document.body.appendChild(smartContainer);
+    }
+    
+    // Выводим его на самый верхний слой
+    smartContainer.style.zIndex = "9999"; 
+
     if (typeof window.startTokenizerQueue === "function") {
       window.startTokenizerQueue();
     } else {
-      alert("Найдены сложные форматы, но модуль Токенизатора еще не загружен.");
+      alert("ОШИБКА: Функция window.startTokenizerQueue не найдена в коде!");
     }
     return;
   }
