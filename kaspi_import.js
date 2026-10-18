@@ -1464,15 +1464,21 @@ window.updateReqCardStatus = function (sysKey, text, className, previewText) {
 // 6. ФИНАЛЬНАЯ СБОРКА JSON ДЛЯ СЕРВЕРА
 window.applyMapper2Logic = function (isFromTokenizer = false) {
   console.log("🚀 ЗАПУСК applyMapper2Logic", isFromTokenizer ? "(Фоновая пересборка)" : "(Первый запуск)");
-  
+
   let mapperArea = document.getElementById("mapper2Area");
   if (mapperArea) mapperArea.style.display = "flex";
 
   const state = window.mapper2State || {};
-  const colMap = state.colMap || {};
-  const dict = state.dictValues || {};
+  
+  // 🔥 ГЛАВНЫЙ ФИКС ОШИБКИ: Жестко защищаем объекты от null/undefined!
+  state.colMap = state.colMap || {};
+  state.dictValues = state.dictValues || {};
+  state.splitRules = state.splitRules || {};
 
-  // 🔥 VIP-ПРОПУСК: Если нас запустил Токенизатор, мы ПРОПУСКАЕМ эти проверки (ты их уже прошел)
+  const colMap = state.colMap;
+  const dict = state.dictValues;
+
+  // VIP-ПРОПУСК: Если нас запустил Токенизатор, мы ПРОПУСКАЕМ проверки интерфейса
   if (!isFromTokenizer) {
       const hasQty = colMap["qty"] !== undefined || dict["qty"] !== undefined;
       const hasPrice = colMap["price"] !== undefined || colMap["cost"] !== undefined || dict["price"] !== undefined || dict["cost"] !== undefined;
@@ -1506,9 +1512,10 @@ window.applyMapper2Logic = function (isFromTokenizer = false) {
       try { currentMemory = JSON.parse(window.mapper2State.rawMemoryJson || "{}"); } catch (e) {}
       let memoryUpdated = false;
 
-      Object.keys(state.colMap).forEach((sysKey) => {
-        let colIndex = state.colMap[sysKey];
-        let headerText = state.invoiceHeaders[colIndex];
+      // Используем безопасный colMap
+      Object.keys(colMap).forEach((sysKey) => {
+        let colIndex = colMap[sysKey];
+        let headerText = state.invoiceHeaders ? state.invoiceHeaders[colIndex] : "";
         if (headerText) {
           let cleanWord = String(headerText).trim().toLowerCase();
           if (!Array.isArray(currentMemory[sysKey])) {
@@ -1543,23 +1550,27 @@ window.applyMapper2Logic = function (isFromTokenizer = false) {
   };
 
   const regex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,]/g;
-  let mappedIndices = Object.values(state.colMap).filter((v) => v !== undefined);
+  let mappedIndices = Object.values(colMap).filter((v) => v !== undefined);
 
   window.mapper2State.quarantine = [];
+
+  if (!state.invoiceRows || !Array.isArray(state.invoiceRows)) {
+     return alert("Ошибка: нет данных строк для обработки.");
+  }
 
   state.invoiceRows.forEach((row, index) => {
     if (!row || row.length === 0) return;
 
     const getValue = (primaryKey, kaspiKey) => {
-      if (state.dictValues && state.dictValues[primaryKey]) return state.dictValues[primaryKey];
-      if (kaspiKey && state.dictValues && state.dictValues[kaspiKey]) return state.dictValues[kaspiKey];
+      if (dict[primaryKey]) return dict[primaryKey];
+      if (kaspiKey && dict[kaspiKey]) return dict[kaspiKey];
 
-      let colIdx = state.colMap[primaryKey];
-      if (colIdx === undefined && kaspiKey) colIdx = state.colMap[kaspiKey];
+      let colIdx = colMap[primaryKey];
+      if (colIdx === undefined && kaspiKey) colIdx = colMap[kaspiKey];
       if (colIdx === undefined) return "";
 
       let rawVal = String(row[colIdx] || "").trim();
-      if (state.splitRules && state.splitRules[primaryKey]) {
+      if (state.splitRules[primaryKey]) {
         const tokens = rawVal.match(regex) || [];
         const sig = tokens.map(t => {
           if (/\d/.test(t)) return 'D';
@@ -1627,13 +1638,13 @@ window.applyMapper2Logic = function (isFromTokenizer = false) {
       let humanName = state.sysToHumanMap ? state.sysToHumanMap[key] : key;
       let searchString = rawValue;
 
-      let dict = window.kaspiDicts && window.kaspiDicts[humanName];
-      let hasDictionary = dict && Array.isArray(dict) && dict.length > 0;
+      let dictMatch = window.kaspiDicts && window.kaspiDicts[humanName];
+      let hasDictionary = dictMatch && Array.isArray(dictMatch) && dictMatch.length > 0;
       let foundMatch = false;
       let matchedDictValue = searchString;
 
       if (hasDictionary) {
-        for (let dv of dict) {
+        for (let dv of dictMatch) {
           let strDv = String(dv).trim();
           let baseDv = strDv.split("(")[0].trim();
           let isStrictNumber = /^[\d\.]+$/.test(String(searchString).trim());
@@ -1651,10 +1662,10 @@ window.applyMapper2Logic = function (isFromTokenizer = false) {
       }
 
       if (window.currentImportMode === "kaspi" && hasDictionary && !foundMatch) {
-        let colIdx = state.colMap[key];
+        let colIdx = colMap[key];
         let excelHeader = colIdx !== undefined && state.invoiceHeaders ? state.invoiceHeaders[colIdx] : "";
         let isComplex = window.complexColumnsToTokenize && window.complexColumnsToTokenize.includes(excelHeader);
-        let ruleExists = state.splitRules && state.splitRules[key];
+        let ruleExists = state.splitRules[key];
 
         if (isComplex && !ruleExists) {
           itemHasCollisions = true;
@@ -1668,9 +1679,9 @@ window.applyMapper2Logic = function (isFromTokenizer = false) {
       attributesObj[key] = matchedDictValue;
     };
 
-    let allKeys = new Set(Object.keys(state.colMap));
-    if (state.dictValues) Object.keys(state.dictValues).forEach((k) => allKeys.add(k));
-    if (state.splitRules) Object.keys(state.splitRules).forEach((k) => allKeys.add(k));
+    let allKeys = new Set(Object.keys(colMap));
+    Object.keys(dict).forEach((k) => allKeys.add(k));
+    Object.keys(state.splitRules).forEach((k) => allKeys.add(k));
 
     allKeys.forEach((key) => processAttribute(key));
 
@@ -1723,7 +1734,8 @@ window.applyMapper2Logic = function (isFromTokenizer = false) {
   window.renderPreviewTable();
   
   if (mapperArea) mapperArea.style.display = "none";
-  document.getElementById("invoicePreviewArea").style.display = "flex";
+  let invoicePreviewArea = document.getElementById("invoicePreviewArea");
+  if (invoicePreviewArea) invoicePreviewArea.style.display = "flex";
 
   if (window.isKaspiExportMode) {
     const sendBtn = document.getElementById("sendInvoiceBtn");
