@@ -277,7 +277,15 @@ window.processInvoiceFile = async function () {
 
       // 🔥 ВМЕСТО АВТОМАТИКИ ВЫЗЫВАЕМ ОКНО РУЧНОГО ВЫБОРА:
       // Передаем заголовки, самую первую товарную строку (для превью) и шаблон
-      window.showComplexColumnSelector(smartHeaders, smartRows[0] || [], templateData);
+      // 🔥 1. Принудительно прячем стартовый экран, чтобы не было конфликтов и сбросов
+      if (typeof window.navigateIncomeStep === "function") {
+          window.navigateIncomeStep("complex_modal_step"); 
+      }
+
+      // 🔥 2. Вызываем наше окно
+      setTimeout(() => {
+          window.showComplexColumnSelector(smartHeaders, smartRows[0] || [], templateData);
+      }, 100); // Небольшая задержка, чтобы DOM успел скрыть старые элементы
     } else {
       throw new Error("Не удалось найти таблицу с товарами");
     }
