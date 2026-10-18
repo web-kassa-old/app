@@ -1555,22 +1555,25 @@ window.applyMapper2Logic = function () {
 
     let rawQty = getValue("qty");
     let rawPrice = getValue("price", "cost");
+    let rawId = getValue("barcode", "merchant_sku");
+    let rawName = getValue("name", "model");
 
-    let qty = 0;
-    let price = 0;
+    let qty = parseFloat(rawQty) || 0; // Если пустая или текст - будет 0
+    let price = parseFloat(String(rawPrice).replace(",", "."));
 
-    // Если это ОБЫЧНАЯ приемка на склад — честно ищем цифры.
-    if (!window.isKaspiExportMode) {
-        qty = parseFloat(rawQty);
-        price = parseFloat(String(rawPrice).replace(",", "."));
-        
-        // Выбрасываем товар из сборки ТОЛЬКО при складской приемке
-        if (isNaN(qty) || isNaN(price)) return; 
+    // 🔥 1. БАЗОВЫЙ ФИЛЬТР МУСОРА: Цена должна быть числом больше нуля
+    if (isNaN(price) || price <= 0) {
+        return; // Пропускаем строку (нет цены -> это шапка, подвал или разделитель)
     }
 
-    let rawId = getValue("barcode", "merchant_sku");
+    // 🔥 2. ФИЛЬТР ТЕХНИЧЕСКИХ ПОДВАЛОВ: Должен быть хоть какой-то идентификатор
+    let hasIdentifier = (rawId && String(rawId).trim() !== "") || (rawName && String(rawName).trim() !== "");
+    if (!hasIdentifier) {
+        return; // Пропускаем строку (есть цифры, но нет ни названия, ни артикула -> это строка "Итого")
+    }
+
     let barcode = /^\d{8,13}$/.test(rawId) ? rawId : "";
-    let name = getValue("name", "model") || rawId || "Без названия";
+    let name = rawName || rawId || "Без названия";
 
     let rawLogisticsStr = "";
     row.forEach((cellVal, idx) => {
@@ -1594,19 +1597,19 @@ window.applyMapper2Logic = function () {
       let lowerKey = String(key).toLowerCase();
       let rawValue = getValue(key);
 
+      // Пропускаем базовые системные поля (они уже обработаны выше)
       if (["qty", "price", "cost", "name", "model", "barcode", "cbm", "weight"].includes(lowerKey)) return;
       if (!rawValue) return;
 
       let humanName = state.sysToHumanMap ? state.sysToHumanMap[key] : key;
-      let lowerHuman = String(humanName).toLowerCase();
       let searchString = rawValue;
-      let extractedDirectly = null;
 
       let dict = window.kaspiDicts && window.kaspiDicts[humanName];
       let hasDictionary = dict && Array.isArray(dict) && dict.length > 0;
       let foundMatch = false;
-      let matchedDictValue = searchString;
+      let matchedDictValue = searchString; // По умолчанию берем сырое значение
 
+      // 1. Ищем точное совпадение в справочнике Kaspi (если он есть)
       if (hasDictionary) {
         for (let dv of dict) {
           let strDv = String(dv).trim();
@@ -1623,51 +1626,33 @@ window.applyMapper2Logic = function () {
             break;
           }
         }
-      } else {
-        if (hasDictionary) {
-          for (let dv of dict) {
-            let strDv = String(dv).trim();
-            let baseDv = strDv.split("(")[0].trim();
-            let isStrictNumber = /^[\d\.]+$/.test(String(searchString).trim());
-
-            if (
-              strDv.toLowerCase() === String(searchString).trim().toLowerCase() ||
-              baseDv.toLowerCase() === String(searchString).trim().toLowerCase() ||
-              (isStrictNumber && !isNaN(parseFloat(baseDv)) && parseFloat(baseDv) === parseFloat(searchString))
-            ) {
-              matchedDictValue = strDv;
-              foundMatch = true;
-              break;
-            }
-          }
-        }
       }
 
+      // 2. Логика коллизий (есть словарь, но нет совпадения)
       if (window.currentImportMode === "kaspi" && hasDictionary && !foundMatch) {
-        itemHasCollisions = true;
         let colIdx = state.colMap[key];
-        let excelHeader = colIdx !== undefined && state.invoiceHeaders ? state.invoiceHeaders[colIdx] : "ДАННЫЕ ИЗ НАКЛАДНОЙ";
+        let excelHeader = colIdx !== undefined && state.invoiceHeaders ? state.invoiceHeaders[colIdx] : "";
 
-        itemCollisionsList.push({
-          sysKey: key,
-          humanName: humanName,
-          rawString: rawValue,
-          excelColumnName: excelHeader,
-        });
+        // 🔥 ПРОВЕРКА "БЕЛОГО СПИСКА": Отметил ли клиент эту колонку в интерфейсе?
+        let isComplex = window.complexColumnsToTokenize && window.complexColumnsToTokenize.includes(excelHeader);
 
-        const excludeFromSmart = [
-          "Артикул", "Название товара", "Бренд", "Цена", "Название модели", "Модель", "Рубрика", "category",
-          "Сезонность", "Назначение", "Тип шины", "Комплектация", "Тип рисунка протектора", "Шипы",
-          "Код изображений", "Ссылка на YouTube", "Ссылка на картинку", "Описание (мин. 100 символов, макс. 7 000 символов)",
-          "Описание", "Вес для расчета логистики", "Объединить в одну карточку", "В наличии"
-        ];
-
-        if (excludeFromSmart.includes(humanName)) {
+        if (isComplex) {
+          // Колонка сложная -> отправляем в карантин для Сита/Токенизатора
+          itemHasCollisions = true;
+          itemCollisionsList.push({
+            sysKey: key,
+            humanName: humanName,
+            rawString: rawValue,
+            excelColumnName: excelHeader || "ДАННЫЕ ИЗ НАКЛАДНОЙ",
+          });
+        } else {
+          // Колонка простая (не отмечена) -> принудительно сохраняем текст из Excel как есть
           attributesObj[key] = rawValue;
         }
-        return;
+        return; // Завершаем обработку для этого поля
       }
 
+      // 3. Сохраняем словарное значение (или оригинальное, если словаря не было)
       attributesObj[key] = matchedDictValue;
     };
 
@@ -1744,6 +1729,14 @@ window.applyMapper2Logic = function () {
     }
     return;
   }
+
+  console.log("🔥 ЧИСТЫЕ ТОВАРЫ ПОСЛЕ ФИЛЬТРА:", window.parsedInvoiceData);
+  console.table(window.parsedInvoiceData.map(item => ({
+      "Артикул": item.item_id,
+      "Название": item.item_name,
+      "Цена": item.cost,
+      "Кол-во": item.qty
+  })));
 
   window.renderPreviewTable();
   document.getElementById("mapper2Area").style.display = "none";
