@@ -1462,7 +1462,9 @@ window.updateReqCardStatus = function (sysKey, text, className, previewText) {
 };
 
 // 6. ФИНАЛЬНАЯ СБОРКА JSON ДЛЯ СЕРВЕРА
-window.applyMapper2Logic = function (isFromTokenizer = false) {
+window.applyMapper2Logic = function (mode) {
+  // 🔥 ЗАЩИТА ОТ КЛИКОВ МЫШКИ: Строго проверяем, что передан именно true, а не объект Event
+  const isFromTokenizer = (mode === true);
   console.log("🚀 ЗАПУСК applyMapper2Logic", isFromTokenizer ? "(Фоновая пересборка)" : "(Первый запуск)");
 
   let mapperArea = document.getElementById("mapper2Area");
@@ -1470,25 +1472,27 @@ window.applyMapper2Logic = function (isFromTokenizer = false) {
 
   const state = window.mapper2State || {};
 
-  // 🔥 БРОНЕБОЙНОЕ ВОССТАНОВЛЕНИЕ (100% защита от null/undefined)
   let colMap = state.colMap || {};
   let dict = state.dictValues || {};
 
+  // 🔥 ГЛУБОКОЕ ВОССТАНОВЛЕНИЕ: Клонируем данные, чтобы избежать их затирания браузером
   if (isFromTokenizer) {
       if (window.safeBackupColMap && Object.keys(window.safeBackupColMap).length > 0) {
-          colMap = window.safeBackupColMap;
+          colMap = JSON.parse(JSON.stringify(window.safeBackupColMap));
       }
       if (window.safeBackupDictValues && Object.keys(window.safeBackupDictValues).length > 0) {
-          dict = window.safeBackupDictValues;
+          dict = JSON.parse(JSON.stringify(window.safeBackupDictValues));
       }
   } else {
-      window.safeBackupColMap = Object.assign({}, colMap);
-      window.safeBackupDictValues = Object.assign({}, dict);
+      window.safeBackupColMap = JSON.parse(JSON.stringify(colMap));
+      window.safeBackupDictValues = JSON.parse(JSON.stringify(dict));
   }
 
   state.colMap = colMap;
   state.dictValues = dict;
   state.splitRules = state.splitRules || {};
+
+  console.log("🔍 АКТУАЛЬНЫЕ ПРИВЯЗКИ:", colMap);
 
   if (!isFromTokenizer) {
       const hasQty = colMap["qty"] !== undefined || dict["qty"] !== undefined;
@@ -1497,19 +1501,17 @@ window.applyMapper2Logic = function (isFromTokenizer = false) {
 
       if (!hasQty || !hasPrice || !hasName) {
         const tr = typeof translations !== "undefined" && translations[window.currentLang || "ru"] ? translations[window.currentLang || "ru"] : {};
-        return alert(tr.mapper_err_missing_cols || "⚠️ Обязательно привяжите колонки (или введите вручную):\n1. Наименование (или model)\n2. Количество (qty)\n3. Цена (price/cost)");
+        return alert(tr.mapper_err_missing_cols || "⚠️ Обязательно привяжите колонки:\n1. Наименование\n2. Количество\n3. Цена");
       }
 
       const reqCards = document.querySelectorAll('.req-card .req-title.required');
       for (let i = 0; i < reqCards.length; i++) {
           let card = reqCards[i].closest('.req-card');
           if (card && !card.querySelector('.status-filled') && !card.querySelector('.status-dict')) {
-              return alert("⚠️ ВНИМАНИЕ: Заполнены не все обязательные поля Kaspi!\n\nПроверьте блок 'Обязательные для заполнения' (выделены красным).");
+              return alert("⚠️ ВНИМАНИЕ: Заполнены не все обязательные поля Kaspi!");
           }
       }
   }
-
-  console.log("✅ Валидация пройдена. Сохранение памяти Kaspi...");
 
   if (window.currentImportMode === "kaspi") {
     const templateSelect = document.getElementById("kaspiTemplateSelect");
@@ -1562,8 +1564,12 @@ window.applyMapper2Logic = function (isFromTokenizer = false) {
      return alert("Ошибка: нет данных строк для обработки.");
   }
 
+  // СКАУТ-ДИАГНОСТ: Собирает причину пропуска строк
+  let stats = { total: 0, noPrice: 0, noId: 0, success: 0 };
+
   state.invoiceRows.forEach((row, index) => {
     if (!row || row.length === 0) return;
+    stats.total++;
 
     const getValue = (primaryKey, kaspiKey) => {
       if (dict[primaryKey]) return dict[primaryKey];
@@ -1606,10 +1612,19 @@ window.applyMapper2Logic = function (isFromTokenizer = false) {
     let qty = parseFloat(rawQty) || 0;
     let price = parseFloat(String(rawPrice).replace(",", "."));
 
-    if (isNaN(price) || price <= 0) return;
+    if (isNaN(price) || price <= 0) {
+        stats.noPrice++;
+        if (stats.noPrice === 1) console.log(`⚠️ Пример пропуска (нет цены) строка ${index}: сырая цена='${rawPrice}'`);
+        return;
+    }
 
     let hasIdentifier = (rawId && String(rawId).trim() !== "") || (rawName && String(rawName).trim() !== "");
-    if (!hasIdentifier) return;
+    if (!hasIdentifier) {
+        stats.noId++;
+        return;
+    }
+
+    stats.success++;
 
     let barcode = /^\d{8,13}$/.test(rawId) ? rawId : "";
     let name = rawName || rawId || "Без названия";
@@ -1718,7 +1733,7 @@ window.applyMapper2Logic = function (isFromTokenizer = false) {
     }
   });
 
-  console.log("✅ Сформировано товаров: ", window.parsedInvoiceData.length);
+  console.log("📊 СТАТИСТИКА ПАРСИНГА:", stats);
 
   if (window.parsedInvoiceData.length === 0) {
     return alert("Не удалось сформировать товары. Убедитесь, что в колонках «Количество» и «Цена» находятся ТОЛЬКО цифры.");
