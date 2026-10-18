@@ -1485,11 +1485,12 @@ window.applyMapper2Logic = function () {
     return alert(errorMsg);
   }
 
-  // 2. Проверяем поля Kaspi (чтобы пользователь не пропустил красные поля)
+  // 2. Проверяем поля Kaspi 
   const reqCards = document.querySelectorAll('.req-card .req-title.required');
   for (let i = 0; i < reqCards.length; i++) {
       let card = reqCards[i].closest('.req-card');
-      if (card && !card.querySelector('.status-filled')) {
+      // Игнорируем поля, которые заполнены вручную (status-filled) или системно (status-dict)
+      if (card && !card.querySelector('.status-filled') && !card.querySelector('.status-dict')) {
           console.log("❌ Ошибка: Не заполнены обязательные поля Kaspi");
           return alert("⚠️ ВНИМАНИЕ: Заполнены не все обязательные поля Kaspi!\n\nПроверьте блок 'Обязательные для заполнения' (выделены красным).");
       }
