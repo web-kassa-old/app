@@ -322,17 +322,41 @@ window.renderSmartMapperModal = function (complexColumns) {
             Object.keys(window.mapper2State.smartRules).forEach((colName) => {
                 const colIndex = headers.findIndex((h) => String(h).trim() === colName);
                 if (colIndex !== -1) {
-                    const uniquePatterns = new Set();
+                    
+                    // 🔥 Используем словарь сигнатур вместо простого Set()
+                    const signatureMap = {};
+
                     for (let i = 0; i < Math.min(1000, rows.length); i++) {
                         if (rows[i] && rows[i][colIndex]) {
-                            const strVal = String(rows[i][colIndex]).trim();
-                            // Собираем значения для токенизации (только не пустые и не чистые числа)
+                            // ⚡ УДАЛЯЕМ ПРОБЕЛЫ перед анализом сложного параметра
+                            let strVal = String(rows[i][colIndex]).replace(/\s+/g, "").trim();
+
                             if (strVal && isNaN(Number(strVal.replace(/,/g, "")))) {
-                                uniquePatterns.add(strVal);
+                                
+                                // Разбиваем строку на токены нашей эталонной регуляркой
+                                const regex = /\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g;
+                                const tokens = strVal.match(regex) || [];
+
+                                // Если параметр состоит всего из 1 токена (резать нечего) - пропускаем
+                                if (tokens.length > 1) {
+                                    // Генерируем уникальную структуру (например: D-.-D-L-D)
+                                    const sig = tokens.map(t => {
+                                        if (/\d/.test(t)) return 'D';
+                                        if (/[a-zA-Zа-яА-ЯёЁ]/.test(t)) return 'L';
+                                        return '.';
+                                    }).join('-');
+
+                                    // Берем только ПЕРВЫЙ попавшийся пример для каждой уникальной структуры
+                                    if (!signatureMap[sig]) {
+                                        signatureMap[sig] = strVal;
+                                    }
+                                }
                             }
                         }
                     }
-                    uniquePatterns.forEach((str) => {
+                    
+                    // Отправляем в карантин только уникальные структуры (без повторов)
+                    Object.values(signatureMap).forEach((str) => {
                         window.mapper2State.quarantine.push({
                             rawString: str,
                             excelColumnName: colName,
