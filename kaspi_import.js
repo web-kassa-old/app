@@ -1463,7 +1463,6 @@ window.updateReqCardStatus = function (sysKey, text, className, previewText) {
 
 // 6. ФИНАЛЬНАЯ СБОРКА JSON ДЛЯ СЕРВЕРА
 window.applyMapper2Logic = function (mode) {
-  // Строго проверяем, что это фоновый запуск от Токенизатора
   const isFromTokenizer = (mode === true);
   console.log("🚀 ЗАПУСК applyMapper2Logic", isFromTokenizer ? "(Фоновая пересборка)" : "(Первый запуск)");
 
@@ -1472,31 +1471,42 @@ window.applyMapper2Logic = function (mode) {
 
   const state = window.mapper2State || {};
 
-  // === 🛡️ ТИТАНОВЫЙ СЕЙФ: Защита от сброса памяти при сворачивании браузера ===
-  
-  // 1. Если текущая память ПУСТАЯ (система её стерла), но у нас есть бекап — ВОССТАНАВЛИВАЕМ
-  if (!state.colMap || Object.keys(state.colMap).length === 0) {
-      if (window.safeBackupColMap && Object.keys(window.safeBackupColMap).length > 0) {
-          state.colMap = JSON.parse(JSON.stringify(window.safeBackupColMap));
-          console.log("🔄 Восстановлен colMap из бекапа!");
-      }
-  }
-  if (!state.dictValues || Object.keys(state.dictValues).length === 0) {
-      if (window.safeBackupDictValues && Object.keys(window.safeBackupDictValues).length > 0) {
-          state.dictValues = JSON.parse(JSON.stringify(window.safeBackupDictValues));
-          console.log("🔄 Восстановлен dictValues из бекапа!");
-      }
-  }
-
   let colMap = state.colMap || {};
   let dict = state.dictValues || {};
 
-  // 2. Если данные ЕСТЬ, обновляем наш сейф (чтобы там всегда была свежая копия)
-  if (Object.keys(colMap).length > 0) {
-      window.safeBackupColMap = JSON.parse(JSON.stringify(colMap));
-  }
-  if (Object.keys(dict).length > 0) {
-      window.safeBackupDictValues = JSON.parse(JSON.stringify(dict));
+  // === 💾 АБСОЛЮТНЫЙ СЕЙФ: Записываем данные прямо в память устройства ===
+  if (isFromTokenizer) {
+      // Пытаемся восстановить из жесткого диска браузера
+      if (Object.keys(colMap).length === 0) {
+          let savedCols = localStorage.getItem("pos_backup_colMap");
+          if (savedCols) {
+              colMap = JSON.parse(savedCols);
+              console.log("💾 ВОССТАНОВЛЕНО ИЗ LOCALSTORAGE: colMap", colMap);
+          }
+      }
+      if (Object.keys(dict).length === 0) {
+          let savedDict = localStorage.getItem("pos_backup_dict");
+          if (savedDict) {
+              dict = JSON.parse(savedDict);
+              console.log("💾 ВОССТАНОВЛЕНО ИЗ LOCALSTORAGE: dictValues", dict);
+          }
+      }
+      // Восстанавливаем системную карту, если она тоже стерлась
+      let savedSysMap = localStorage.getItem("pos_backup_sysMap");
+      if (savedSysMap && (!state.sysToHumanMap || Object.keys(state.sysToHumanMap).length === 0)) {
+          state.sysToHumanMap = JSON.parse(savedSysMap);
+      }
+  } else {
+      // При первом запуске делаем жесткое сохранение на диск
+      if (Object.keys(colMap).length > 0) {
+          localStorage.setItem("pos_backup_colMap", JSON.stringify(colMap));
+      }
+      if (Object.keys(dict).length > 0) {
+          localStorage.setItem("pos_backup_dict", JSON.stringify(dict));
+      }
+      if (state.sysToHumanMap) {
+          localStorage.setItem("pos_backup_sysMap", JSON.stringify(state.sysToHumanMap));
+      }
   }
 
   state.colMap = colMap;
@@ -1504,8 +1514,6 @@ window.applyMapper2Logic = function (mode) {
   state.splitRules = state.splitRules || {};
 
   console.log("🔍 АКТУАЛЬНЫЕ ПРИВЯЗКИ:", colMap);
-
-  // === КОНЕЦ БЛОКА ЗАЩИТЫ ===
 
   if (!isFromTokenizer) {
       const hasQty = colMap["qty"] !== undefined || dict["qty"] !== undefined;
