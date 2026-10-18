@@ -284,6 +284,28 @@ window.processInvoiceFile = async function () {
       window.mapper2State.invoiceHeaders = rawHeaders.map((h) => String(h || "").replace(/[\r\n]+/g, " ").trim());
       window.mapper2State.invoiceRows = rows.slice(firstDataRowIdx);
 
+      // 🔥 БАЗОВАЯ ОЧИСТКА ОТ МУСОРА (ДО МАППИНГА)
+        // Выкидываем пустые строки и явные подвалы, чтобы они не попали в окно сложных колонок
+        window.mapper2State.invoiceRows = window.mapper2State.invoiceRows.filter(row => {
+            if (!row || row.length === 0) return false; // Пустые массивы
+            
+            // Если вся строка состоит только из пустот - в мусор
+            let isEmpty = row.every(cell => String(cell || "").trim() === "");
+            if (isEmpty) return false;
+
+            // Если строка содержит слова-маркеры подвала - в мусор
+            let rowText = row.join(" ").toUpperCase();
+            if (rowText.includes("TOTAL AMOUNT") || 
+                rowText.includes("REMARK") || 
+                rowText.includes("KGS") || 
+                rowText.includes("1X40HC") ||
+                rowText.includes("SHIPPING")) {
+                return false;
+            }
+            
+            return true; // Нормальные товары оставляем
+        });
+
       let fileContentStr = window.mapper2State.docNo + "_" + window.mapper2State.supplier + "_" + JSON.stringify(window.mapper2State.invoiceRows.slice(0, 5));
       let hashNum = 0;
       for (let i = 0; i < fileContentStr.length; i++) {
