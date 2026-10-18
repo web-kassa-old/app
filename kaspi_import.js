@@ -1721,14 +1721,14 @@ window.applyMapper2Logic = function () {
     return alert("Не удалось сформировать товары. Убедитесь, что в колонках «Количество» и «Цена» находятся ТОЛЬКО цифры.");
   }
 
-  if (window.mapper2State.quarantine && window.mapper2State.quarantine.length > 0) {
-    if (typeof window.startTokenizerQueue === "function") {
-      window.startTokenizerQueue();
-    } else {
-      alert("Найдены сложные форматы, но модуль Токенизатора еще не загружен.");
-    }
-    return;
-  }
+  // if (window.mapper2State.quarantine && window.mapper2State.quarantine.length > 0) {
+  //   if (typeof window.startTokenizerQueue === "function") {
+  //     window.startTokenizerQueue();
+  //   } else {
+  //     alert("Найдены сложные форматы, но модуль Токенизатора еще не загружен.");
+  //   }
+  //   return;
+  // }
 
   console.log("🔥 ЧИСТЫЕ ТОВАРЫ ПОСЛЕ ФИЛЬТРА:", window.parsedInvoiceData);
   console.table(window.parsedInvoiceData.map(item => ({
