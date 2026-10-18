@@ -1463,26 +1463,39 @@ window.updateReqCardStatus = function (sysKey, text, className, previewText) {
 
 // 6. ФИНАЛЬНАЯ СБОРКА JSON ДЛЯ СЕРВЕРА
 window.applyMapper2Logic = function () {
+  console.log("🚀 ЗАПУСК applyMapper2Logic");
   const state = window.mapper2State || {};
   const colMap = state.colMap || {};
   const dict = state.dictValues || {};
 
-  // Проверяем: есть ли привязка к Excel ИЛИ ручной ввод для каждого обязательного поля
-  const hasQty = colMap["qty"] !== undefined || dict["qty"] !== undefined;
-  
-  const hasPrice = colMap["price"] !== undefined || colMap["cost"] !== undefined || 
-                   dict["price"] !== undefined || dict["cost"] !== undefined;
-                   
-  const hasName = colMap["name"] !== undefined || colMap["model"] !== undefined || 
-                  dict["name"] !== undefined || dict["model"] !== undefined;
+  console.log("📊 Привязки колонок:", colMap);
+  console.log("✍️ Ручной ввод:", dict);
 
-  // Если хотя бы одно обязательное поле вообще никак не заполнено — блокируем
+  // 1. Проверяем базовые поля POS
+  const hasQty = colMap["qty"] !== undefined || dict["qty"] !== undefined;
+  const hasPrice = colMap["price"] !== undefined || colMap["cost"] !== undefined || dict["price"] !== undefined || dict["cost"] !== undefined;
+  const hasName = colMap["name"] !== undefined || colMap["model"] !== undefined || dict["name"] !== undefined || dict["model"] !== undefined;
+
   if (!hasQty || !hasPrice || !hasName) {
+    console.log("❌ Ошибка: Не заполнены базовые поля POS.");
     const lang = window.currentLang || localStorage.getItem("pos_lang") || "ru";
     const tr = typeof translations !== "undefined" && translations[lang] ? translations[lang] : {};
+    // 🔥 ИСПРАВЛЕНА СИНТАКСИЧЕСКАЯ ОШИБКА (убрали лишний перенос строки в коде)
     const errorMsg = tr.mapper_err_missing_cols || "⚠️ Обязательно привяжите колонки (или введите вручную):\n1. Наименование (или model)\n2. Количество (qty)\n3. Цена (price/cost)";
     return alert(errorMsg);
   }
+
+  // 2. Проверяем поля Kaspi (чтобы пользователь не пропустил красные поля)
+  const reqCards = document.querySelectorAll('.req-card .req-title.required');
+  for (let i = 0; i < reqCards.length; i++) {
+      let card = reqCards[i].closest('.req-card');
+      if (card && !card.querySelector('.status-filled')) {
+          console.log("❌ Ошибка: Не заполнены обязательные поля Kaspi");
+          return alert("⚠️ ВНИМАНИЕ: Заполнены не все обязательные поля Kaspi!\n\nПроверьте блок 'Обязательные для заполнения' (выделены красным).");
+      }
+  }
+
+  console.log("✅ Проверки пройдены. Сохранение памяти Kaspi...");
 
   if (window.currentImportMode === "kaspi") {
     const templateSelect = document.getElementById("kaspiTemplateSelect");
@@ -1524,6 +1537,7 @@ window.applyMapper2Logic = function () {
     }
   }
 
+  console.log("⏳ Начинаем парсинг строк...");
   window.parsedInvoiceData = [];
   window.invoiceGroups = {};
   window.invoiceGroups[state.docNo] = {
@@ -1587,19 +1601,15 @@ window.applyMapper2Logic = function () {
     let rawId = getValue("barcode", "merchant_sku");
     let rawName = getValue("name", "model");
 
-    let qty = parseFloat(rawQty) || 0; // Если пустая или текст - будет 0
+    let qty = parseFloat(rawQty) || 0; 
     let price = parseFloat(String(rawPrice).replace(",", "."));
 
-    // 🔥 1. БАЗОВЫЙ ФИЛЬТР МУСОРА: Цена должна быть числом больше нуля
-    if (isNaN(price) || price <= 0) {
-        return; // Пропускаем строку (нет цены -> это шапка, подвал или разделитель)
-    }
+    // 1. БАЗОВЫЙ ФИЛЬТР МУСОРА
+    if (isNaN(price) || price <= 0) return; 
 
-    // 🔥 2. ФИЛЬТР ТЕХНИЧЕСКИХ ПОДВАЛОВ: Должен быть хоть какой-то идентификатор
+    // 2. ФИЛЬТР ТЕХНИЧЕСКИХ ПОДВАЛОВ
     let hasIdentifier = (rawId && String(rawId).trim() !== "") || (rawName && String(rawName).trim() !== "");
-    if (!hasIdentifier) {
-        return; // Пропускаем строку (есть цифры, но нет ни названия, ни артикула -> это строка "Итого")
-    }
+    if (!hasIdentifier) return; 
 
     let barcode = /^\d{8,13}$/.test(rawId) ? rawId : "";
     let name = rawName || rawId || "Без названия";
@@ -1626,7 +1636,6 @@ window.applyMapper2Logic = function () {
       let lowerKey = String(key).toLowerCase();
       let rawValue = getValue(key);
 
-      // Пропускаем базовые системные поля (они уже обработаны выше)
       if (["qty", "price", "cost", "name", "model", "barcode", "cbm", "weight"].includes(lowerKey)) return;
       if (!rawValue) return;
 
@@ -1636,9 +1645,8 @@ window.applyMapper2Logic = function () {
       let dict = window.kaspiDicts && window.kaspiDicts[humanName];
       let hasDictionary = dict && Array.isArray(dict) && dict.length > 0;
       let foundMatch = false;
-      let matchedDictValue = searchString; // По умолчанию берем сырое значение
+      let matchedDictValue = searchString;
 
-      // 1. Ищем точное совпадение в справочнике Kaspi (если он есть)
       if (hasDictionary) {
         for (let dv of dict) {
           let strDv = String(dv).trim();
@@ -1657,16 +1665,13 @@ window.applyMapper2Logic = function () {
         }
       }
 
-      // 2. Логика коллизий (есть словарь, но нет совпадения)
       if (window.currentImportMode === "kaspi" && hasDictionary && !foundMatch) {
         let colIdx = state.colMap[key];
         let excelHeader = colIdx !== undefined && state.invoiceHeaders ? state.invoiceHeaders[colIdx] : "";
 
-        // 🔥 ПРОВЕРКА "БЕЛОГО СПИСКА": Отметил ли клиент эту колонку в интерфейсе?
         let isComplex = window.complexColumnsToTokenize && window.complexColumnsToTokenize.includes(excelHeader);
 
         if (isComplex) {
-          // Колонка сложная -> отправляем в карантин для Сита/Токенизатора
           itemHasCollisions = true;
           itemCollisionsList.push({
             sysKey: key,
@@ -1675,13 +1680,11 @@ window.applyMapper2Logic = function () {
             excelColumnName: excelHeader || "ДАННЫЕ ИЗ НАКЛАДНОЙ",
           });
         } else {
-          // Колонка простая (не отмечена) -> принудительно сохраняем текст из Excel как есть
           attributesObj[key] = rawValue;
         }
-        return; // Завершаем обработку для этого поля
+        return; 
       }
 
-      // 3. Сохраняем словарное значение (или оригинальное, если словаря не было)
       attributesObj[key] = matchedDictValue;
     };
 
@@ -1691,7 +1694,6 @@ window.applyMapper2Logic = function () {
 
     allKeys.forEach((key) => processAttribute(key));
 
-    // ⚡ 1. ИЗОЛИРУЕМ ДУБЛИ ДЛЯ ИНТЕРФЕЙСА (но сохраняем оригинальный маппинг)
     let cleanAttributesObj = Object.assign({}, attributesObj);
     delete cleanAttributesObj['Артикул'];
     delete cleanAttributesObj['Название модели'];
@@ -1705,14 +1707,13 @@ window.applyMapper2Logic = function () {
       ? templateDropdown.options[templateDropdown.selectedIndex].text.trim() 
       : "Новые товары";
 
-    // ⚡ 2. ГИБРИДНАЯ СБОРКА ТОВАРА (База + Каспи)
     const itemData = {
       doc_no: state.docNo,
       supplier: state.supplier,
       item_id: rawId,
       item_name: name,
       qty: qty,
-      cost: price, // База ждет закупочную цену именно тут
+      cost: price,
       cbm: cbm,
       weight: weight,
       raw_logistics: rawLogisticsStr.trim(),
@@ -1721,10 +1722,10 @@ window.applyMapper2Logic = function () {
       name: name,
       desc: name,
       description: name,
-      barcode: barcode, // 🔥 ИСПРАВЛЕНО: Убрали || rawId. Если штрихкода нет, отправляем пустоту!
-      category: activeCategoryText, // Динамическая категория (Текст)
-      sku: rawId, // Поле для выгрузки в Каспи
-      title: name, // Поле для выгрузки в Каспи
+      barcode: barcode, 
+      category: activeCategoryText, 
+      sku: rawId, 
+      title: name, 
       attributes: finalAttributes,
       _hasCollisions: itemHasCollisions,
       _collisionsList: itemCollisionsList,
@@ -1746,11 +1747,15 @@ window.applyMapper2Logic = function () {
     }
   });
 
+  console.log("✅ Сформировано товаров: ", window.parsedInvoiceData.length);
+  console.log("🧲 Товаров в карантине: ", window.mapper2State.quarantine.length);
+
   if (window.parsedInvoiceData.length === 0) {
     return alert("Не удалось сформировать товары. Убедитесь, что в колонках «Количество» и «Цена» находятся ТОЛЬКО цифры.");
   }
 
   if (window.mapper2State.quarantine && window.mapper2State.quarantine.length > 0) {
+    console.log("➡️ Запускаем Сито (Токенизатор)...");
     if (typeof window.startTokenizerQueue === "function") {
       window.startTokenizerQueue();
     } else {
@@ -1759,6 +1764,7 @@ window.applyMapper2Logic = function () {
     return;
   }
 
+  console.log("➡️ Переходим к таблице превью...");
   window.renderPreviewTable();
   document.getElementById("mapper2Area").style.display = "none";
   document.getElementById("invoicePreviewArea").style.display = "flex";
@@ -1770,9 +1776,8 @@ window.applyMapper2Logic = function () {
     const exportBtns = document.getElementById("exportActionButtons");
     if (exportBtns) exportBtns.style.display = "flex";
   } else {
-    // 🔥 ФИКС: Возвращаем зеленую кнопку при обычной приемке
     const sendBtn = document.getElementById("sendInvoiceBtn");
-    if (sendBtn) sendBtn.style.display = "flex"; // или "block", в зависимости от твоей верстки
+    if (sendBtn) sendBtn.style.display = "flex"; 
 
     const exportBtns = document.getElementById("exportActionButtons");
     if (exportBtns) exportBtns.style.display = "none";
