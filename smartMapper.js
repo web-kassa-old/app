@@ -749,9 +749,8 @@ window.startTokenizerQueue = function() {
         if (container) container.style.display = "none";
         
         console.log("✅ Токенизация завершена! Пересобираем накладную...");
-        // Перезапускаем сборщик, он подхватит новые splitRules и сразу выдаст финал
-        window.applyMapper2Logic(); 
-        return;
+            window.applyMapper2Logic(true); // <--- Добавили true
+            return;
     }
 
     const currentItem = window.mapper2State.quarantine[0];
