@@ -880,17 +880,25 @@ window.openColumnSelector = function (sysKey, reqName, isKaspi) {
   window.mapper2State.currentSysKey = sysKey;
   window.mapper2State.currentReqName = reqName;
 
-  document.getElementById("sheet-title").innerText =
-    translations[currentLang].mapper_source + reqName;
+  document.getElementById("sheet-title").innerText = translations[currentLang].mapper_source + reqName;
 
   const colList = document.getElementById("sheet-col-list");
 
-  // Кнопка справочника показывается для всех полей шаблона Kaspi
-  let dictBtnHtml = isKaspi
-    ? `<button onclick="window.openKaspiDictSearch()" style="background: var(--accent-green, #4CAF50); border: none; color: #000; padding: 5px 12px; border-radius: 4px; font-size: 11px; font-weight: bold; cursor: pointer; margin-right: 8px;">
-    🔍 <span data-i18n="mapper_btn_dict">Справочник</span>
-</button>`
-    : "";
+  // 🔥 УМНАЯ ПРОВЕРКА: Есть ли у этого поля реальный справочник в Kaspi?
+  let hasDict = window.kaspiDicts && window.kaspiDicts[reqName] && window.kaspiDicts[reqName].length > 0;
+
+  let dictBtnHtml = "";
+  if (isKaspi) {
+      if (hasDict) {
+          // Если справочник есть — показываем стандартную кнопку поиска
+          dictBtnHtml = `<button onclick="window.openKaspiDictSearch()" style="background: var(--accent-green, #4CAF50); border: none; color: #000; padding: 5px 12px; border-radius: 4px; font-size: 11px; font-weight: bold; cursor: pointer; margin-right: 8px;">
+          🔍 <span data-i18n="mapper_btn_dict">Справочник</span></button>`;
+      } else {
+          // Если справочника НЕТ — даем кнопку ручного ввода константы!
+          dictBtnHtml = `<button onclick="window.setManualConstantValue('${sysKey}', '${reqName.replace(/'/g, "\\'")}')" style="background: var(--accent-blue, #3498db); border: none; color: #fff; padding: 5px 12px; border-radius: 4px; font-size: 11px; font-weight: bold; cursor: pointer; margin-right: 8px;">
+          ✍️ Ввести вручную</button>`;
+      }
+  }
 
   colList.innerHTML = `
     <div style="position: sticky; top: 0; background: var(--bg-panel, #1e1e1e); z-index: 10; padding: 15px 20px; margin: -20px 0 15px 0; border-bottom: 1px solid var(--border-light, #333); display: flex; justify-content: space-between; align-items: center;">
@@ -905,13 +913,8 @@ window.openColumnSelector = function (sysKey, reqName, isKaspi) {
         </div>
     </div>`;
 
-  // ВАЖНО: Восстановлена переменная currentSplitRule, чтобы клик по выбранной строке не выдавал ошибку
-  let currentlyMappedIndex = window.mapper2State.colMap
-    ? window.mapper2State.colMap[sysKey]
-    : undefined;
-  let currentSplitRule = window.mapper2State.splitRules
-    ? window.mapper2State.splitRules[sysKey]
-    : null;
+  let currentlyMappedIndex = window.mapper2State.colMap ? window.mapper2State.colMap[sysKey] : undefined;
+  let currentSplitRule = window.mapper2State.splitRules ? window.mapper2State.splitRules[sysKey] : null;
   let splitRules = window.mapper2State.splitRules || {};
   let usedByOthers = {};
 
@@ -929,17 +932,13 @@ window.openColumnSelector = function (sysKey, reqName, isKaspi) {
 
   window.mapper2State.invoiceHeaders.forEach((rawColName, index) => {
     let colName = String(rawColName || "").trim();
-    if (!colName) colName = `[Колонка ${index + 1} - Пустой заголовок]`;
+    if (!colName) colName = `[Колонка ${index + 1} Пустой заголовок]`;
 
     let displayColName = colName.replace(/[\r\n]+/g, " ");
     let safeColName = displayColName.replace(/'/g, "\\'").replace(/"/g, '\\"');
 
     let previews = [];
-    for (
-      let i = 0;
-      i < Math.min(10, window.mapper2State.invoiceRows.length);
-      i++
-    ) {
+    for (let i = 0; i < Math.min(10, window.mapper2State.invoiceRows.length); i++) {
       let val = String(window.mapper2State.invoiceRows[i][index] || "").trim();
       if (val && previews.length < 3 && !previews.some((p) => p.orig === val)) {
         previews.push({ orig: val });
@@ -949,8 +948,7 @@ window.openColumnSelector = function (sysKey, reqName, isKaspi) {
     if (rawColName === "" && previews.length === 0) return;
 
     let isSelected = currentlyMappedIndex === index;
-    let isUsedByOther =
-      usedByOthers[index] !== undefined && usedByOthers[index].length > 0;
+    let isUsedByOther = usedByOthers[index] !== undefined && usedByOthers[index].length > 0;
 
     let takenTokens = new Set();
     let isFullyTaken = false;
@@ -971,10 +969,8 @@ window.openColumnSelector = function (sysKey, reqName, isKaspi) {
       let text = p.orig;
       let tokens = text.match(regex) || [];
 
-      let highlightedHtml = tokens
-        .map((tok, i) => {
-          let isCurrentSplit =
-            isSelected && currentSplitRule && currentSplitRule.includes(i);
+      let highlightedHtml = tokens.map((tok, i) => {
+          let isCurrentSplit = isSelected && currentSplitRule && currentSplitRule.includes(i);
           let isTakenByOther = isFullyTaken || takenTokens.has(i);
 
           if (isCurrentSplit) {
@@ -984,8 +980,7 @@ window.openColumnSelector = function (sysKey, reqName, isKaspi) {
           } else {
             return tok;
           }
-        })
-        .join("");
+        }).join("");
 
       if (isSelected && (!currentSplitRule || currentSplitRule.length === 0)) {
         highlightedHtml = `<b style="color:var(--accent-green, #4CAF50);">${text}</b>`;
@@ -994,36 +989,19 @@ window.openColumnSelector = function (sysKey, reqName, isKaspi) {
       previewHtmlArr.push("- " + highlightedHtml);
     });
 
-    let previewText =
-      previewHtmlArr.length > 0
-        ? previewHtmlArr.join("<br>")
-        : "Пустая колонка (нет данных)";
-    let safePreview = previews[0]
-      ? String(previews[0].orig)
-          .replace(/[\r\n]+/g, " ")
-          .replace(/'/g, "\\'")
-          .replace(/"/g, '\\"')
-      : "";
+    let previewText = previewHtmlArr.length > 0 ? previewHtmlArr.join("<br>") : "Пустая колонка (нет данных)";
+    let safePreview = previews[0] ? String(previews[0].orig).replace(/[\r\n]+/g, " ").replace(/'/g, "\\'").replace(/"/g, '\\"') : "";
 
-    let itemStyle =
-      "background: var(--bg-card, #252525); border: 1px solid var(--border-light, #333); border-radius: 6px; padding: 10px; margin-bottom: 10px; transition: 0.2s;";
+    let itemStyle = "background: var(--bg-card, #252525); border: 1px solid var(--border-light, #333); border-radius: 6px; padding: 10px; margin-bottom: 10px; transition: 0.2s;";
     let badgeHtml = "";
 
     if (isSelected) {
-      itemStyle =
-        "border: 2px solid var(--accent-green, #4CAF50); background: rgba(76, 175, 80, 0.05); border-radius: 6px; padding: 10px; margin-bottom: 10px;";
-      let splitNote =
-        currentSplitRule && currentSplitRule.length > 0
-          ? " (Часть)"
-          : " (Целиком)";
+      itemStyle = "border: 2px solid var(--accent-green, #4CAF50); background: rgba(76, 175, 80, 0.05); border-radius: 6px; padding: 10px; margin-bottom: 10px;";
+      let splitNote = currentSplitRule && currentSplitRule.length > 0 ? " (Часть)" : " (Целиком)";
       badgeHtml = `<div style="font-size: 10px; margin-bottom: 8px;"><span style="background: var(--accent-green, #4CAF50); color: #000; padding: 3px 8px; border-radius: 4px; font-weight: bold;">📌 ВЫБРАНО${splitNote.toUpperCase()}</span></div>`;
     } else if (isUsedByOther) {
-      itemStyle =
-        "background: #151515; border: 1px solid #222; border-radius: 6px; padding: 10px; margin-bottom: 10px; opacity: 0.9;";
-      // 2. Яркие оранжевые плашки для занятых полей
-      let usedLabel = isFullyTaken
-        ? `⚠️ ${translations[currentLang].mapper_busy_full}`
-        : `⚠️ ${translations[currentLang].mapper_busy_part}`;
+      itemStyle = "background: #151515; border: 1px solid #222; border-radius: 6px; padding: 10px; margin-bottom: 10px; opacity: 0.9;";
+      let usedLabel = isFullyTaken ? `⚠️ ${translations[currentLang].mapper_busy_full}` : `⚠️ ${translations[currentLang].mapper_busy_part}`;
       badgeHtml = `<div style="font-size: 10px; margin-bottom: 8px;"><span style="background: rgba(255, 152, 0, 0.15); border: 1px solid rgba(255, 152, 0, 0.4); color: #ff9800; padding: 3px 8px; border-radius: 4px; font-weight: bold;">${usedLabel}</span></div>`;
     }
 
@@ -1050,11 +1028,26 @@ window.openColumnSelector = function (sysKey, reqName, isKaspi) {
   });
 
   document.getElementById("sheet-overlay").style.display = "block";
-  setTimeout(
-    () => (document.getElementById("sheet-overlay").style.opacity = "1"),
-    10,
-  );
+  setTimeout(() => (document.getElementById("sheet-overlay").style.opacity = "1"), 10);
   document.getElementById("bottom-sheet").style.transform = "translateY(0)";
+};
+
+window.setManualConstantValue = function(sysKey, reqName) {
+    let val = prompt(`Введите постоянное значение для поля "${reqName}"\n(Оно будет применено ко всем товарам в накладной):`);
+    if (val !== null && val.trim() !== "") {
+        window.mapper2State.dictValues = window.mapper2State.dictValues || {};
+        window.mapper2State.dictValues[sysKey] = val.trim();
+        
+        // Скрываем окно селектора колонок
+        document.getElementById('sheet-overlay').style.opacity = '0';
+        document.getElementById('bottom-sheet').style.transform = 'translateY(100%)';
+        setTimeout(() => { document.getElementById('sheet-overlay').style.display = 'none'; }, 300);
+        
+        // Обновляем интерфейс (поле станет зеленым, кнопка разблокируется)
+        if (typeof window.renderMapper2Cards === 'function') {
+            window.renderMapper2Cards();
+        }
+    }
 };
 
 window.selectMapper2Col = function (colIndex, colName) {
