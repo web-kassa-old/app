@@ -1463,7 +1463,7 @@ window.updateReqCardStatus = function (sysKey, text, className, previewText) {
 
 // 6. ФИНАЛЬНАЯ СБОРКА JSON ДЛЯ СЕРВЕРА
 window.applyMapper2Logic = function (mode) {
-  // 🔥 ЗАЩИТА ОТ КЛИКОВ МЫШКИ: Строго проверяем, что передан именно true, а не объект Event
+  // Строго проверяем, что это фоновый запуск от Токенизатора
   const isFromTokenizer = (mode === true);
   console.log("🚀 ЗАПУСК applyMapper2Logic", isFromTokenizer ? "(Фоновая пересборка)" : "(Первый запуск)");
 
@@ -1472,19 +1472,30 @@ window.applyMapper2Logic = function (mode) {
 
   const state = window.mapper2State || {};
 
+  // === 🛡️ ТИТАНОВЫЙ СЕЙФ: Защита от сброса памяти при сворачивании браузера ===
+  
+  // 1. Если текущая память ПУСТАЯ (система её стерла), но у нас есть бекап — ВОССТАНАВЛИВАЕМ
+  if (!state.colMap || Object.keys(state.colMap).length === 0) {
+      if (window.safeBackupColMap && Object.keys(window.safeBackupColMap).length > 0) {
+          state.colMap = JSON.parse(JSON.stringify(window.safeBackupColMap));
+          console.log("🔄 Восстановлен colMap из бекапа!");
+      }
+  }
+  if (!state.dictValues || Object.keys(state.dictValues).length === 0) {
+      if (window.safeBackupDictValues && Object.keys(window.safeBackupDictValues).length > 0) {
+          state.dictValues = JSON.parse(JSON.stringify(window.safeBackupDictValues));
+          console.log("🔄 Восстановлен dictValues из бекапа!");
+      }
+  }
+
   let colMap = state.colMap || {};
   let dict = state.dictValues || {};
 
-  // 🔥 ГЛУБОКОЕ ВОССТАНОВЛЕНИЕ: Клонируем данные, чтобы избежать их затирания браузером
-  if (isFromTokenizer) {
-      if (window.safeBackupColMap && Object.keys(window.safeBackupColMap).length > 0) {
-          colMap = JSON.parse(JSON.stringify(window.safeBackupColMap));
-      }
-      if (window.safeBackupDictValues && Object.keys(window.safeBackupDictValues).length > 0) {
-          dict = JSON.parse(JSON.stringify(window.safeBackupDictValues));
-      }
-  } else {
+  // 2. Если данные ЕСТЬ, обновляем наш сейф (чтобы там всегда была свежая копия)
+  if (Object.keys(colMap).length > 0) {
       window.safeBackupColMap = JSON.parse(JSON.stringify(colMap));
+  }
+  if (Object.keys(dict).length > 0) {
       window.safeBackupDictValues = JSON.parse(JSON.stringify(dict));
   }
 
@@ -1493,6 +1504,8 @@ window.applyMapper2Logic = function (mode) {
   state.splitRules = state.splitRules || {};
 
   console.log("🔍 АКТУАЛЬНЫЕ ПРИВЯЗКИ:", colMap);
+
+  // === КОНЕЦ БЛОКА ЗАЩИТЫ ===
 
   if (!isFromTokenizer) {
       const hasQty = colMap["qty"] !== undefined || dict["qty"] !== undefined;
@@ -1564,7 +1577,6 @@ window.applyMapper2Logic = function (mode) {
      return alert("Ошибка: нет данных строк для обработки.");
   }
 
-  // СКАУТ-ДИАГНОСТ: Собирает причину пропуска строк
   let stats = { total: 0, noPrice: 0, noId: 0, success: 0 };
 
   state.invoiceRows.forEach((row, index) => {
