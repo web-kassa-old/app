@@ -299,7 +299,7 @@ window.processInvoiceFile = async function () {
       let smartRows = window.mapper2State.invoiceRows || [];
 
       // 🔥 Просто вызываем наше окно поверх всего
-      window.showComplexColumnSelector(smartHeaders, smartRows[0] || [], templateData);
+      window.showComplexColumnSelector(smartHeaders, smartRows, templateData);
     } else {
       throw new Error("Не удалось найти таблицу с товарами");
     }
