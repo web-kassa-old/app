@@ -31,6 +31,79 @@ function toggleIncomeModule() {
   }
 }
 
+window.showComplexColumnSelector = function(headers, firstRow, templateData) {
+    const overlay = document.createElement("div");
+    overlay.id = "complexColsOverlay";
+    overlay.style.cssText = "position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:9999; display:flex; align-items:center; justify-content:center;";
+
+    const modal = document.createElement("div");
+    modal.style.cssText = "background:#fff; padding:25px; border-radius:12px; width:90%; max-width:550px; max-height:85vh; overflow-y:auto; font-family:sans-serif; box-shadow: 0 10px 30px rgba(0,0,0,0.5);";
+
+    let html = `<h3 style="margin-top:0; color:#111; font-size:20px;">Настройка сложных колонок</h3>`;
+    html += `<p style="color:#555; font-size:14px; margin-bottom:20px; line-height:1.4;">
+                Отметьте галочкой колонки, в которых <b>склеено несколько параметров</b> (например, Габариты или Размер). 
+                <br><span style="color:#888; font-size:12px;">Остальные колонки скрипт загрузит напрямую.</span>
+             </p>`;
+
+    html += `<div style="display:flex; flex-direction:column; gap:8px; margin-bottom:25px; max-height:50vh; overflow-y:auto; padding-right:10px;">`;
+    
+    headers.forEach((header, idx) => {
+        let colName = header || `Колонка ${idx + 1}`;
+        let sampleVal = firstRow[idx] !== undefined ? String(firstRow[idx]).trim() : "";
+        if (sampleVal.length > 40) sampleVal = sampleVal.substring(0, 40) + "...";
+        
+        let displayVal = sampleVal ? `<div style="color:#777; font-size:13px; margin-top:3px;">Пример: <span style="color:#333; background:#eee; padding:2px 6px; border-radius:4px;">${sampleVal}</span></div>` : `<div style="color:#aaa; font-size:13px; margin-top:3px;">(Пусто)</div>`;
+        
+        html += `
+            <label style="display:flex; align-items:flex-start; gap:12px; cursor:pointer; padding:10px; background:#fbfbfb; border-radius:8px; border:1px solid #e0e0e0; transition: background 0.2s;">
+                <input type="checkbox" class="complex-col-cb" value="${colName}" style="margin-top:4px; transform: scale(1.2);">
+                <div style="flex: 1;">
+                    <strong style="color:#222; font-size:15px;">${colName}</strong>
+                    ${displayVal}
+                </div>
+            </label>
+        `;
+    });
+
+    html += `</div>`;
+    html += `<div style="text-align:right;">
+                <button id="btnComplexNext" style="background:#007BFF; color:white; border:none; padding:12px 24px; border-radius:6px; font-weight:bold; font-size:14px; cursor:pointer; box-shadow: 0 2px 5px rgba(0,123,255,0.3);">ДАЛЕЕ ➔</button>
+             </div>`;
+
+    modal.innerHTML = html;
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+
+    document.getElementById("btnComplexNext").addEventListener("click", () => {
+        const checkboxes = modal.querySelectorAll(".complex-col-cb:checked");
+        const selected = Array.from(checkboxes).map(cb => cb.value);
+
+        // 1. Сохраняем "Белый список" глобально (для processAttribute)
+        window.complexColumnsToTokenize = selected;
+        window.mapper2State.lastComplexColumns = selected; // Для совместимости со старым Ситом
+        
+        // 2. Закрываем окно
+        document.body.removeChild(overlay);
+
+        // 3. Маршрутизация
+        if (selected.length > 0) {
+            // Если клиент выбрал сложные колонки -> отправляем в Сито
+            window.navigateIncomeStep("smart");
+            if (typeof window.renderSmartMapper === "function") {
+                window.renderSmartMapper();
+            } else if (typeof window.initSmartMapper === "function") {
+                window.initSmartMapper();
+            }
+        } else {
+            // Если ничего не выбрал -> сразу в классический Маппер (Шаг 4)
+            window.navigateIncomeStep(2);
+            if (typeof window.renderMapper2Cards === "function") {
+                window.renderMapper2Cards(templateData);
+            }
+        }
+    });
+};
+
 // 1. ЧТЕНИЕ ФАЙЛА И ПОИСК ТАБЛИЦЫ
 window.processInvoiceFile = async function () {
   const fileInput = document.getElementById("invoiceFileInput");
@@ -202,29 +275,9 @@ window.processInvoiceFile = async function () {
       let smartHeaders = window.mapper2State.invoiceHeaders || [];
       let smartRows = window.mapper2State.invoiceRows || [];
 
-      if (typeof window.detectComplexColumns !== "function") {
-        console.error("ОШИБКА: Функция detectComplexColumns не найдена!");
-        return;
-      }
-      
-      const complexColumns = window.detectComplexColumns(smartHeaders, smartRows);
-
-      if (complexColumns && complexColumns.length > 0) {
-        window.mapper2State.lastComplexColumns = complexColumns;
-        window.navigateIncomeStep("smart");
-        
-        // ⚡ 2. ПРИНУДИТЕЛЬНАЯ ОТРИСОВКА (Если окно было очищено кнопкой "Назад")
-        if (typeof window.renderSmartMapper === "function") {
-          window.renderSmartMapper();
-        } else if (typeof window.initSmartMapper === "function") {
-          window.initSmartMapper();
-        }
-      } else {
-        window.navigateIncomeStep(2);
-        if (typeof window.renderMapper2Cards === "function") {
-          window.renderMapper2Cards(templateData);
-        }
-      }
+      // 🔥 ВМЕСТО АВТОМАТИКИ ВЫЗЫВАЕМ ОКНО РУЧНОГО ВЫБОРА:
+      // Передаем заголовки, самую первую товарную строку (для превью) и шаблон
+      window.showComplexColumnSelector(smartHeaders, smartRows[0] || [], templateData);
     } else {
       throw new Error("Не удалось найти таблицу с товарами");
     }
@@ -1721,22 +1774,14 @@ window.applyMapper2Logic = function () {
     return alert("Не удалось сформировать товары. Убедитесь, что в колонках «Количество» и «Цена» находятся ТОЛЬКО цифры.");
   }
 
-  // if (window.mapper2State.quarantine && window.mapper2State.quarantine.length > 0) {
-  //   if (typeof window.startTokenizerQueue === "function") {
-  //     window.startTokenizerQueue();
-  //   } else {
-  //     alert("Найдены сложные форматы, но модуль Токенизатора еще не загружен.");
-  //   }
-  //   return;
-  // }
-
-  console.log("🔥 ЧИСТЫЕ ТОВАРЫ ПОСЛЕ ФИЛЬТРА:", window.parsedInvoiceData);
-  console.table(window.parsedInvoiceData.map(item => ({
-      "Артикул": item.item_id,
-      "Название": item.item_name,
-      "Цена": item.cost,
-      "Кол-во": item.qty
-  })));
+  if (window.mapper2State.quarantine && window.mapper2State.quarantine.length > 0) {
+    if (typeof window.startTokenizerQueue === "function") {
+      window.startTokenizerQueue();
+    } else {
+      alert("Найдены сложные форматы, но модуль Токенизатора еще не загружен.");
+    }
+    return;
+  }
 
   window.renderPreviewTable();
   document.getElementById("mapper2Area").style.display = "none";
