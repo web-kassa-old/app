@@ -1470,22 +1470,26 @@ window.applyMapper2Logic = function (isFromTokenizer = false) {
 
   const state = window.mapper2State || {};
 
-  // 🔥 СИСТЕМА БЕКАПА: Прячем привязки в сейф при первом запуске!
-  if (!isFromTokenizer) {
-      window.safeBackupColMap = JSON.parse(JSON.stringify(state.colMap || {}));
-      window.safeBackupDictValues = JSON.parse(JSON.stringify(state.dictValues || {}));
+  // 🔥 БРОНЕБОЙНОЕ ВОССТАНОВЛЕНИЕ (100% защита от null/undefined)
+  let colMap = state.colMap || {};
+  let dict = state.dictValues || {};
+
+  if (isFromTokenizer) {
+      if (window.safeBackupColMap && Object.keys(window.safeBackupColMap).length > 0) {
+          colMap = window.safeBackupColMap;
+      }
+      if (window.safeBackupDictValues && Object.keys(window.safeBackupDictValues).length > 0) {
+          dict = window.safeBackupDictValues;
+      }
+  } else {
+      window.safeBackupColMap = Object.assign({}, colMap);
+      window.safeBackupDictValues = Object.assign({}, dict);
   }
 
-  // 🔥 ВОССТАНОВЛЕНИЕ: Если на втором круге переменные стерлись, достаем их из сейфа
-  const colMap = (isFromTokenizer && (!state.colMap || Object.keys(state.colMap).length === 0)) ? window.safeBackupColMap : (state.colMap || {});
-  const dict = (isFromTokenizer && (!state.dictValues || Object.keys(state.dictValues).length === 0)) ? window.safeBackupDictValues : (state.dictValues || {});
-  state.splitRules = state.splitRules || {};
-
-  // Обновляем память скрипта
   state.colMap = colMap;
   state.dictValues = dict;
+  state.splitRules = state.splitRules || {};
 
-  // Проверки интерфейса (работают только на первом круге)
   if (!isFromTokenizer) {
       const hasQty = colMap["qty"] !== undefined || dict["qty"] !== undefined;
       const hasPrice = colMap["price"] !== undefined || colMap["cost"] !== undefined || dict["price"] !== undefined || dict["cost"] !== undefined;
@@ -1504,6 +1508,8 @@ window.applyMapper2Logic = function (isFromTokenizer = false) {
           }
       }
   }
+
+  console.log("✅ Валидация пройдена. Сохранение памяти Kaspi...");
 
   if (window.currentImportMode === "kaspi") {
     const templateSelect = document.getElementById("kaspiTemplateSelect");
@@ -1538,6 +1544,7 @@ window.applyMapper2Logic = function (isFromTokenizer = false) {
     }
   }
 
+  console.log("⏳ Начинаем парсинг строк...");
   window.parsedInvoiceData = [];
   window.invoiceGroups = {};
   window.invoiceGroups[state.docNo] = {
@@ -1599,7 +1606,6 @@ window.applyMapper2Logic = function (isFromTokenizer = false) {
     let qty = parseFloat(rawQty) || 0;
     let price = parseFloat(String(rawPrice).replace(",", "."));
 
-    // Если цена не распозналась, строка пропускается
     if (isNaN(price) || price <= 0) return;
 
     let hasIdentifier = (rawId && String(rawId).trim() !== "") || (rawName && String(rawName).trim() !== "");
