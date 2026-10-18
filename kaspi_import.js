@@ -34,7 +34,7 @@ function toggleIncomeModule() {
 window.showComplexColumnSelector = function(headers, firstRow, templateData) {
     const overlay = document.createElement("div");
     overlay.id = "complexColsOverlay";
-    overlay.style.cssText = "position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:9999; display:flex; align-items:center; justify-content:center;";
+    overlay.style.cssText = "position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:999999; display:flex; align-items:center; justify-content:center;";
 
     const modal = document.createElement("div");
     modal.style.cssText = "background:#fff; padding:25px; border-radius:12px; width:90%; max-width:550px; max-height:85vh; overflow-y:auto; font-family:sans-serif; box-shadow: 0 10px 30px rgba(0,0,0,0.5);";
@@ -275,17 +275,8 @@ window.processInvoiceFile = async function () {
       let smartHeaders = window.mapper2State.invoiceHeaders || [];
       let smartRows = window.mapper2State.invoiceRows || [];
 
-      // 🔥 ВМЕСТО АВТОМАТИКИ ВЫЗЫВАЕМ ОКНО РУЧНОГО ВЫБОРА:
-      // Передаем заголовки, самую первую товарную строку (для превью) и шаблон
-      // 🔥 1. Принудительно прячем стартовый экран, чтобы не было конфликтов и сбросов
-      if (typeof window.navigateIncomeStep === "function") {
-          window.navigateIncomeStep("complex_modal_step"); 
-      }
-
-      // 🔥 2. Вызываем наше окно
-      setTimeout(() => {
-          window.showComplexColumnSelector(smartHeaders, smartRows[0] || [], templateData);
-      }, 100); // Небольшая задержка, чтобы DOM успел скрыть старые элементы
+      // 🔥 Просто вызываем наше окно поверх всего
+      window.showComplexColumnSelector(smartHeaders, smartRows[0] || [], templateData);
     } else {
       throw new Error("Не удалось найти таблицу с товарами");
     }
