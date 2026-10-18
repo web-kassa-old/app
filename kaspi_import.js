@@ -1464,12 +1464,14 @@ window.updateReqCardStatus = function (sysKey, text, className, previewText) {
 // 6. ФИНАЛЬНАЯ СБОРКА JSON ДЛЯ СЕРВЕРА
 window.applyMapper2Logic = function () {
   console.log("🚀 ЗАПУСК applyMapper2Logic");
+  
+  // 🔥 ЗАЩИТА ИНТЕРФЕЙСА: Принудительно показываем маппер, чтобы экран не был черным при ошибке
+  let mapperArea = document.getElementById("mapper2Area");
+  if (mapperArea) mapperArea.style.display = "flex";
+
   const state = window.mapper2State || {};
   const colMap = state.colMap || {};
   const dict = state.dictValues || {};
-
-  console.log("📊 Привязки колонок:", colMap);
-  console.log("✍️ Ручной ввод:", dict);
 
   // 1. Проверяем базовые поля POS
   const hasQty = colMap["qty"] !== undefined || dict["qty"] !== undefined;
@@ -1480,7 +1482,6 @@ window.applyMapper2Logic = function () {
     console.log("❌ Ошибка: Не заполнены базовые поля POS.");
     const lang = window.currentLang || localStorage.getItem("pos_lang") || "ru";
     const tr = typeof translations !== "undefined" && translations[lang] ? translations[lang] : {};
-    // 🔥 ИСПРАВЛЕНА СИНТАКСИЧЕСКАЯ ОШИБКА (убрали лишний перенос строки в коде)
     const errorMsg = tr.mapper_err_missing_cols || "⚠️ Обязательно привяжите колонки (или введите вручную):\n1. Наименование (или model)\n2. Количество (qty)\n3. Цена (price/cost)";
     return alert(errorMsg);
   }
@@ -1489,7 +1490,6 @@ window.applyMapper2Logic = function () {
   const reqCards = document.querySelectorAll('.req-card .req-title.required');
   for (let i = 0; i < reqCards.length; i++) {
       let card = reqCards[i].closest('.req-card');
-      // Игнорируем поля, которые заполнены вручную (status-filled) или системно (status-dict)
       if (card && !card.querySelector('.status-filled') && !card.querySelector('.status-dict')) {
           console.log("❌ Ошибка: Не заполнены обязательные поля Kaspi");
           return alert("⚠️ ВНИМАНИЕ: Заполнены не все обязательные поля Kaspi!\n\nПроверьте блок 'Обязательные для заполнения' (выделены красным).");
@@ -1527,12 +1527,7 @@ window.applyMapper2Logic = function () {
       }
 
       if (memoryUpdated) {
-        const payload = {
-          action: "updateKaspiMemory",
-          api_key: CLIENT_API_KEY,
-          category: templateName,
-          memoryJson: JSON.stringify(currentMemory),
-        };
+        const payload = { action: "updateKaspiMemory", api_key: CLIENT_API_KEY, category: templateName, memoryJson: JSON.stringify(currentMemory) };
         window.smartFetch(GATEWAY_URL, payload).catch((e) => console.error("Ошибка обновления словаря", e));
       }
     }
@@ -1566,8 +1561,6 @@ window.applyMapper2Logic = function () {
       let rawVal = String(row[colIdx] || "").trim();
       if (state.splitRules && state.splitRules[primaryKey]) {
         const tokens = rawVal.match(regex) || [];
-        
-        // Генерируем сигнатуру текущей ячейки
         const sig = tokens.map(t => {
           if (/\d/.test(t)) return 'D';
           if (/[a-zA-Zа-яА-ЯёЁ]/.test(t)) return 'L';
@@ -1577,16 +1570,9 @@ window.applyMapper2Logic = function () {
         const ruleData = state.splitRules[primaryKey];
         let targetIndices = [];
 
-        if (Array.isArray(ruleData)) {
-           // Обратная совместимость со старыми правилами
-           targetIndices = ruleData;
-        } else if (ruleData[sig]) {
-           // Берем индексы именно для этой структуры текста
-           targetIndices = ruleData[sig];
-        } else {
-           // Если структура неизвестна, возвращаем сырой текст
-           return rawVal; 
-        }
+        if (Array.isArray(ruleData)) targetIndices = ruleData;
+        else if (ruleData[sig]) targetIndices = ruleData[sig];
+        else return rawVal; 
 
         let result = [];
         targetIndices.forEach((idx) => {
@@ -1605,10 +1591,8 @@ window.applyMapper2Logic = function () {
     let qty = parseFloat(rawQty) || 0; 
     let price = parseFloat(String(rawPrice).replace(",", "."));
 
-    // 1. БАЗОВЫЙ ФИЛЬТР МУСОРА
     if (isNaN(price) || price <= 0) return; 
 
-    // 2. ФИЛЬТР ТЕХНИЧЕСКИХ ПОДВАЛОВ
     let hasIdentifier = (rawId && String(rawId).trim() !== "") || (rawName && String(rawName).trim() !== "");
     if (!hasIdentifier) return; 
 
@@ -1669,19 +1653,16 @@ window.applyMapper2Logic = function () {
       if (window.currentImportMode === "kaspi" && hasDictionary && !foundMatch) {
         let colIdx = state.colMap[key];
         let excelHeader = colIdx !== undefined && state.invoiceHeaders ? state.invoiceHeaders[colIdx] : "";
-
         let isComplex = window.complexColumnsToTokenize && window.complexColumnsToTokenize.includes(excelHeader);
 
-        if (isComplex) {
+        // 🔥 ИСПРАВЛЕНИЕ: Проверяем, создал ли Токенизатор уже правило для этого ключа!
+        let ruleExists = state.splitRules && state.splitRules[key];
+
+        if (isComplex && !ruleExists) {
           itemHasCollisions = true;
-          itemCollisionsList.push({
-            sysKey: key,
-            humanName: humanName,
-            rawString: rawValue,
-            excelColumnName: excelHeader || "ДАННЫЕ ИЗ НАКЛАДНОЙ",
-          });
+          itemCollisionsList.push({ sysKey: key, humanName: humanName, rawString: rawValue, excelColumnName: excelHeader || "ДАННЫЕ ИЗ НАКЛАДНОЙ" });
         } else {
-          attributesObj[key] = rawValue;
+          attributesObj[key] = rawValue; // Если правило есть, просто сохраняем результат
         }
         return; 
       }
@@ -1704,33 +1685,13 @@ window.applyMapper2Logic = function () {
     let finalAttributes = Object.keys(cleanAttributesObj).length > 0 ? JSON.stringify(cleanAttributesObj) : "";
 
     const templateDropdown = document.getElementById("kaspiTemplateSelect");
-    const activeCategoryText = templateDropdown && templateDropdown.selectedIndex !== -1 
-      ? templateDropdown.options[templateDropdown.selectedIndex].text.trim() 
-      : "Новые товары";
+    const activeCategoryText = templateDropdown && templateDropdown.selectedIndex !== -1 ? templateDropdown.options[templateDropdown.selectedIndex].text.trim() : "Новые товары";
 
     const itemData = {
-      doc_no: state.docNo,
-      supplier: state.supplier,
-      item_id: rawId,
-      item_name: name,
-      qty: qty,
-      cost: price,
-      cbm: cbm,
-      weight: weight,
-      raw_logistics: rawLogisticsStr.trim(),
-      staff_id: typeof currentUser !== "undefined" && currentUser ? currentUser.uid : "Auto-Import",
-      id: rawId,
-      name: name,
-      desc: name,
-      description: name,
-      barcode: barcode, 
-      category: activeCategoryText, 
-      sku: rawId, 
-      title: name, 
-      attributes: finalAttributes,
-      _hasCollisions: itemHasCollisions,
-      _collisionsList: itemCollisionsList,
-      _attributesObj: attributesObj,
+      doc_no: state.docNo, supplier: state.supplier, item_id: rawId, item_name: name, qty: qty, cost: price,
+      cbm: cbm, weight: weight, raw_logistics: rawLogisticsStr.trim(), staff_id: typeof currentUser !== "undefined" && currentUser ? currentUser.uid : "Auto-Import",
+      id: rawId, name: name, desc: name, description: name, barcode: barcode, category: activeCategoryText, sku: rawId, title: name, attributes: finalAttributes,
+      _hasCollisions: itemHasCollisions, _collisionsList: itemCollisionsList, _attributesObj: attributesObj,
     };
 
     window.parsedInvoiceData.push(itemData);
@@ -1738,65 +1699,43 @@ window.applyMapper2Logic = function () {
 
     if (itemHasCollisions) {
       itemCollisionsList.forEach((collision) => {
-        const exists = window.mapper2State.quarantine.find(
-          (q) => q.rawString === collision.rawString && q.sysKey === collision.sysKey
-        );
-        if (!exists) {
-          window.mapper2State.quarantine.push(collision);
-        }
+        const exists = window.mapper2State.quarantine.find((q) => q.rawString === collision.rawString && q.sysKey === collision.sysKey);
+        if (!exists) window.mapper2State.quarantine.push(collision);
       });
     }
   });
 
   console.log("✅ Сформировано товаров: ", window.parsedInvoiceData.length);
-  console.log("🧲 Товаров в карантине: ", window.mapper2State.quarantine.length);
-
+  
   if (window.parsedInvoiceData.length === 0) {
     return alert("Не удалось сформировать товары. Убедитесь, что в колонках «Количество» и «Цена» находятся ТОЛЬКО цифры.");
   }
 
   if (window.mapper2State.quarantine && window.mapper2State.quarantine.length > 0) {
     console.log("➡️ Запускаем Сито (Токенизатор)...");
-    
-    // 🔥 1. ЖЕСТКО прячем текущее окно маппера, чтобы оно не перекрывало экран
-    let mapperArea = document.getElementById("mapper2Area");
-    if (mapperArea) mapperArea.style.display = "none";
-
-    // 🔥 2. Восстанавливаем контейнер Токенизатора, если его нет в HTML
-    let smartContainer = document.getElementById("smartMapperContainer");
-    if (!smartContainer) {
-        smartContainer = document.createElement("div");
-        smartContainer.id = "smartMapperContainer";
-        smartContainer.className = "smart-mapper-overlay"; // Твой CSS класс для фона
-        document.body.appendChild(smartContainer);
-    }
-    
-    // Выводим его на самый верхний слой
-    smartContainer.style.zIndex = "9999"; 
-
     if (typeof window.startTokenizerQueue === "function") {
       window.startTokenizerQueue();
     } else {
-      alert("ОШИБКА: Функция window.startTokenizerQueue не найдена в коде!");
+      alert("Модуль Токенизатора не загружен.");
     }
     return;
   }
 
   console.log("➡️ Переходим к таблице превью...");
   window.renderPreviewTable();
-  document.getElementById("mapper2Area").style.display = "none";
+  
+  // Только при успешном финале прячем маппер и показываем таблицу
+  if (mapperArea) mapperArea.style.display = "none";
   document.getElementById("invoicePreviewArea").style.display = "flex";
 
   if (window.isKaspiExportMode) {
     const sendBtn = document.getElementById("sendInvoiceBtn");
     if (sendBtn) sendBtn.style.display = "none";
-
     const exportBtns = document.getElementById("exportActionButtons");
     if (exportBtns) exportBtns.style.display = "flex";
   } else {
     const sendBtn = document.getElementById("sendInvoiceBtn");
     if (sendBtn) sendBtn.style.display = "flex"; 
-
     const exportBtns = document.getElementById("exportActionButtons");
     if (exportBtns) exportBtns.style.display = "none";
   }
