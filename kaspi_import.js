@@ -1462,18 +1462,27 @@ window.updateReqCardStatus = function (sysKey, text, className, previewText) {
 };
 
 // 6. ФИНАЛЬНАЯ СБОРКА JSON ДЛЯ СЕРВЕРА
-window.applyMapper2Logic = function () {
+window.applyMapper2Logic = function (mode) {
+  const isFromTokenizer = (mode === true); // ⚡ Принимаем VIP-пропуск от Токенизатора
   const state = window.mapper2State;
 
-  const qtyIdx = state.colMap["qty"];
-  const priceIdx = state.colMap["price"] !== undefined ? state.colMap["price"] : state.colMap["cost"];
-  const nameIdx = state.colMap["name"] !== undefined ? state.colMap["name"] : state.colMap["model"];
+  // 🚦 ВАЛИДАЦИЯ (Полностью пропускается при возврате из Токенизатора)
+  if (!isFromTokenizer) {
+    const qtyIdx = state.colMap["qty"];
+    const priceIdx = state.colMap["price"] !== undefined ? state.colMap["price"] : state.colMap["cost"];
+    const nameIdx = state.colMap["name"] !== undefined ? state.colMap["name"] : state.colMap["model"];
 
-  if (qtyIdx === undefined || priceIdx === undefined || nameIdx === undefined) {
-    const lang = window.currentLang || localStorage.getItem("pos_lang") || "ru";
-    const tr = typeof translations !== "undefined" && translations[lang] ? translations[lang] : {};
-    const errorMsg = tr.mapper_err_missing_cols || "⚠️ Обязательно привяжите колонки:\n1. Наименование (или model)\n2. Количество (qty)\n3. Цена (price)";
-    return alert(errorMsg);
+    // Учитываем ручной ввод (dictValues), чтобы скрипт не блокировал сборку, если данные вписаны руками
+    const hasQty = qtyIdx !== undefined || (state.dictValues && state.dictValues["qty"]);
+    const hasPrice = priceIdx !== undefined || (state.dictValues && (state.dictValues["price"] || state.dictValues["cost"]));
+    const hasName = nameIdx !== undefined || (state.dictValues && (state.dictValues["name"] || state.dictValues["model"]));
+
+    if (!hasQty || !hasPrice || !hasName) {
+      const lang = window.currentLang || localStorage.getItem("pos_lang") || "ru";
+      const tr = typeof translations !== "undefined" && translations[lang] ? translations[lang] : {};
+      const errorMsg = tr.mapper_err_missing_cols || "⚠️ Обязательно привяжите колонки:\n1. Наименование (или model)\n2. Количество (qty)\n3. Цена (price)";
+      return alert(errorMsg);
+    }
   }
 
   if (window.currentImportMode === "kaspi") {
