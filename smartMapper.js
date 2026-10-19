@@ -748,13 +748,8 @@ window.startTokenizerQueue = function() {
         const container = document.getElementById("smartMapperContainer");
         if (container) container.style.display = "none";
         
-        console.log("✅ Токенизация завершена! Имитируем клик по главной кнопке...");
-        const mainBtn = document.getElementById("applyMapper2Btn");
-        if (mainBtn) {
-            mainBtn.click(); // Считываем интерфейс как положено!
-        } else {
-            window.applyMapper2Logic(); 
-        }
+        console.log("✅ Токенизация завершена! Пересобираем накладную...");
+        window.applyMapper2Logic(true); // <--- Прямой запуск с флагом VIP-пропуска
         return;
     }
 

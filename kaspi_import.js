@@ -1462,35 +1462,52 @@ window.updateReqCardStatus = function (sysKey, text, className, previewText) {
 };
 
 // 6. ФИНАЛЬНАЯ СБОРКА JSON ДЛЯ СЕРВЕРА
-window.applyMapper2Logic = function () {
-  console.log("🚀 ЗАПУСК applyMapper2Logic (Чистая оригинальная логика)");
-
-  let mapperArea = document.getElementById("mapper2Area");
-  if (mapperArea) mapperArea.style.display = "flex";
+window.applyMapper2Logic = function (isFromTokenizer = false) {
+  console.log("🚀 ЗАПУСК applyMapper2Logic", isFromTokenizer === true ? "(ФОНОВАЯ ПЕРЕСБОРКА)" : "(ПЕРВЫЙ КЛИК)");
 
   const state = window.mapper2State || {};
-  const colMap = state.colMap || {};
-  const dict = state.dictValues || {};
+  let colMap = state.colMap || {};
+  let dict = state.dictValues || {};
 
-  console.log("🔍 АКТУАЛЬНЫЕ ПРИВЯЗКИ:", colMap);
-
-  // Валидация
-  const hasQty = colMap["qty"] !== undefined || dict["qty"] !== undefined;
-  const hasPrice = colMap["price"] !== undefined || colMap["cost"] !== undefined || dict["price"] !== undefined || dict["cost"] !== undefined;
-  const hasName = colMap["name"] !== undefined || colMap["model"] !== undefined || dict["name"] !== undefined || dict["model"] !== undefined;
-
-  if (!hasQty || !hasPrice || !hasName) {
-    return alert("⚠️ Обязательно привяжите колонки:\n1. Наименование\n2. Количество\n3. Цена");
+  // === 1. БУНКЕР (Защита от app.js) ===
+  if (isFromTokenizer === true) {
+      // При пересборке app.js уже всё стер. Достаем из диска!
+      try {
+          if (localStorage.getItem("POS_BUNKER_COLMAP")) colMap = JSON.parse(localStorage.getItem("POS_BUNKER_COLMAP"));
+          if (localStorage.getItem("POS_BUNKER_DICT")) dict = JSON.parse(localStorage.getItem("POS_BUNKER_DICT"));
+      } catch (e) {}
+      
+      state.colMap = colMap;
+      state.dictValues = dict;
+  } else {
+      // При первом клике сохраняем свежие данные на диск
+      if (Object.keys(colMap).length > 0) localStorage.setItem("POS_BUNKER_COLMAP", JSON.stringify(colMap));
+      if (Object.keys(dict).length > 0) localStorage.setItem("POS_BUNKER_DICT", JSON.stringify(dict));
   }
 
-  const reqCards = document.querySelectorAll('.req-card .req-title.required');
-  for (let i = 0; i < reqCards.length; i++) {
-      let card = reqCards[i].closest('.req-card');
-      if (card && !card.querySelector('.status-filled') && !card.querySelector('.status-dict')) {
-          return alert("⚠️ ВНИМАНИЕ: Заполнены не все обязательные поля Kaspi!");
+  // === 2. ВАЛИДАЦИЯ (ТОЛЬКО ПРИ ПЕРВОМ КЛИКЕ) ===
+  if (isFromTokenizer !== true) {
+      const hasQty = colMap["qty"] !== undefined || dict["qty"] !== undefined;
+      const hasPrice = colMap["price"] !== undefined || colMap["cost"] !== undefined || dict["price"] !== undefined || dict["cost"] !== undefined;
+      const hasName = colMap["name"] !== undefined || colMap["model"] !== undefined || dict["name"] !== undefined || dict["model"] !== undefined;
+
+      if (!hasQty || !hasPrice || !hasName) {
+        return alert("⚠️ Обязательно привяжите колонки:\n1. Наименование\n2. Количество\n3. Цена");
       }
+
+      const reqCards = document.querySelectorAll('.req-card .req-title.required');
+      for (let i = 0; i < reqCards.length; i++) {
+          let card = reqCards[i].closest('.req-card');
+          if (card && !card.querySelector('.status-filled') && !card.querySelector('.status-dict')) {
+              return alert("⚠️ ВНИМАНИЕ: Заполнены не все обязательные поля Kaspi!");
+          }
+      }
+      
+      let mapperArea = document.getElementById("mapper2Area");
+      if (mapperArea) mapperArea.style.display = "flex";
   }
 
+  // === 3. ПАРСИНГ СТРОК ===
   if (window.currentImportMode === "kaspi") {
     const templateSelect = document.getElementById("kaspiTemplateSelect");
     const templateName = templateSelect ? templateSelect.value : "";
@@ -1533,7 +1550,7 @@ window.applyMapper2Logic = function () {
   let mappedIndices = Object.values(colMap).filter((v) => v !== undefined);
   window.mapper2State.quarantine = [];
 
-  if (!state.invoiceRows || !Array.isArray(state.invoiceRows)) return alert("Ошибка: нет данных строк для обработки.");
+  if (!state.invoiceRows || !Array.isArray(state.invoiceRows)) return;
 
   state.invoiceRows.forEach((row, index) => {
     if (!row || row.length === 0) return;
@@ -1683,22 +1700,23 @@ window.applyMapper2Logic = function () {
     }
   });
 
-  console.log("✅ Сформировано товаров: ", window.parsedInvoiceData.length);
-
-  if (window.parsedInvoiceData.length === 0) {
-    return alert("Не удалось сформировать товары. Убедитесь, что в колонках «Количество» и «Цена» находятся ТОЛЬКО цифры.");
-  }
-
+  // === 4. ТОКЕНИЗАТОР ===
   if (window.mapper2State.quarantine && window.mapper2State.quarantine.length > 0) {
     if (typeof window.startTokenizerQueue === "function") window.startTokenizerQueue();
-    else alert("Модуль Токенизатора не загружен.");
     return;
+  }
+
+  // === 5. ФИНАЛ ===
+  if (window.parsedInvoiceData.length === 0) {
+    return alert("Не удалось сформировать товары. Убедитесь, что в колонках «Количество» и «Цена» находятся ТОЛЬКО цифры.");
   }
 
   console.log("➡️ Переходим к таблице превью...");
   if (typeof window.renderPreviewTable === "function") window.renderPreviewTable();
 
+  let mapperArea = document.getElementById("mapper2Area");
   if (mapperArea) mapperArea.style.display = "none";
+  
   let invoicePreviewArea = document.getElementById("invoicePreviewArea");
   if (invoicePreviewArea) invoicePreviewArea.style.display = "flex";
 
