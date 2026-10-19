@@ -1462,70 +1462,32 @@ window.updateReqCardStatus = function (sysKey, text, className, previewText) {
 };
 
 // 6. ФИНАЛЬНАЯ СБОРКА JSON ДЛЯ СЕРВЕРА
-window.applyMapper2Logic = function (mode) {
-  const isFromTokenizer = (mode === true);
-  console.log(`\n--- [1] 🚀 СТАРТ ФУНКЦИИ | Режим: ${isFromTokenizer ? "ФОНОВАЯ ПЕРЕСБОРКА" : "ПЕРВЫЙ КЛИК"} ---`);
+window.applyMapper2Logic = function () {
+  console.log("🚀 ЗАПУСК applyMapper2Logic (Чистая оригинальная логика)");
 
   let mapperArea = document.getElementById("mapper2Area");
-  if (mapperArea && !isFromTokenizer) mapperArea.style.display = "flex";
+  if (mapperArea) mapperArea.style.display = "flex";
 
   const state = window.mapper2State || {};
-  let colMap = state.colMap || {};
-  let dict = state.dictValues || {};
+  const colMap = state.colMap || {};
+  const dict = state.dictValues || {};
 
-  console.log(`[2] 📥 Входящие данные (colMap):`, JSON.parse(JSON.stringify(colMap)));
+  console.log("🔍 АКТУАЛЬНЫЕ ПРИВЯЗКИ:", colMap);
 
-  // === 🛡️ ЗАЩИЩЕННЫЙ БУНКЕР ===
-  if (!isFromTokenizer) {
-      // СОХРАНЯЕМ ТОЛЬКО ЕСЛИ ЕСТЬ ЧТО СОХРАНЯТЬ (защита от фантомных перезаписей пустотой)
-      if (Object.keys(colMap).length > 0) {
-          window.__SAFE_BUNKER_COLMAP__ = JSON.stringify(colMap);
-          console.log(`[3] 💾 УСПЕШНО СОХРАНЕНО В БУНКЕР:`, colMap);
-      } else {
-          console.log(`[3] ⚠️ ВНИМАНИЕ: Попытка запуска с пустой картой! Бункер НЕ перезаписан.`);
-      }
+  // Валидация
+  const hasQty = colMap["qty"] !== undefined || dict["qty"] !== undefined;
+  const hasPrice = colMap["price"] !== undefined || colMap["cost"] !== undefined || dict["price"] !== undefined || dict["cost"] !== undefined;
+  const hasName = colMap["name"] !== undefined || colMap["model"] !== undefined || dict["name"] !== undefined || dict["model"] !== undefined;
 
-      if (Object.keys(dict).length > 0) {
-          window.__SAFE_BUNKER_DICT__ = JSON.stringify(dict);
-      }
+  if (!hasQty || !hasPrice || !hasName) {
+    return alert("⚠️ Обязательно привяжите колонки:\n1. Наименование\n2. Количество\n3. Цена");
   }
 
-  // === 🔄 ВОССТАНОВЛЕНИЕ ИЗ БУНКЕРА ===
-  if (isFromTokenizer) {
-      if (window.__SAFE_BUNKER_COLMAP__) {
-          colMap = JSON.parse(window.__SAFE_BUNKER_COLMAP__);
-          console.log(`[4] ♻️ ДАННЫЕ ВОССТАНОВЛЕНЫ ИЗ БУНКЕРА:`, colMap);
-      } else {
-          console.log(`[4] ❌ ОШИБКА: БУНКЕР ПУСТ ПРИ ПЕРЕСБОРКЕ!`);
-      }
-
-      if (window.__SAFE_BUNKER_DICT__) {
-          dict = JSON.parse(window.__SAFE_BUNKER_DICT__);
-      }
-  }
-
-  // Обновляем state восстановленными данными, чтобы ничего не упало дальше
-  state.colMap = colMap;
-  state.dictValues = dict;
-  state.splitRules = state.splitRules || {};
-
-  // === ВАЛИДАЦИЯ (Только на первом круге) ===
-  if (!isFromTokenizer) {
-      const hasQty = colMap["qty"] !== undefined || dict["qty"] !== undefined;
-      const hasPrice = colMap["price"] !== undefined || colMap["cost"] !== undefined || dict["price"] !== undefined || dict["cost"] !== undefined;
-      const hasName = colMap["name"] !== undefined || colMap["model"] !== undefined || dict["name"] !== undefined || dict["model"] !== undefined;
-
-      if (!hasQty || !hasPrice || !hasName) {
-        console.log(`[5] ⛔ БЛОКИРОВКА: Не привязаны базовые колонки.`);
-        return alert("⚠️ Обязательно привяжите колонки (или введите вручную):\n1. Наименование\n2. Количество\n3. Цена");
-      }
-
-      const reqCards = document.querySelectorAll('.req-card .req-title.required');
-      for (let i = 0; i < reqCards.length; i++) {
-          let card = reqCards[i].closest('.req-card');
-          if (card && !card.querySelector('.status-filled') && !card.querySelector('.status-dict')) {
-              return alert("⚠️ ВНИМАНИЕ: Заполнены не все обязательные поля Kaspi!");
-          }
+  const reqCards = document.querySelectorAll('.req-card .req-title.required');
+  for (let i = 0; i < reqCards.length; i++) {
+      let card = reqCards[i].closest('.req-card');
+      if (card && !card.querySelector('.status-filled') && !card.querySelector('.status-dict')) {
+          return alert("⚠️ ВНИМАНИЕ: Заполнены не все обязательные поля Kaspi!");
       }
   }
 
@@ -1562,7 +1524,7 @@ window.applyMapper2Logic = function (mode) {
     }
   }
 
-  console.log("[6] ⏳ Начинаем парсинг строк...");
+  console.log("⏳ Начинаем парсинг строк...");
   window.parsedInvoiceData = [];
   window.invoiceGroups = {};
   window.invoiceGroups[state.docNo] = { supplier: state.supplier, items: [], originalFiles: [{ fileName: state.fileName, fileBase64: state.originalBase64 }] };
@@ -1571,16 +1533,10 @@ window.applyMapper2Logic = function (mode) {
   let mappedIndices = Object.values(colMap).filter((v) => v !== undefined);
   window.mapper2State.quarantine = [];
 
-  if (!state.invoiceRows || !Array.isArray(state.invoiceRows)) {
-      console.log("[7] ❌ ОШИБКА: Нет данных invoiceRows!");
-      return alert("Ошибка: нет данных строк для обработки.");
-  }
-
-  let stats = { total: 0, noPrice: 0, noId: 0, success: 0 };
+  if (!state.invoiceRows || !Array.isArray(state.invoiceRows)) return alert("Ошибка: нет данных строк для обработки.");
 
   state.invoiceRows.forEach((row, index) => {
     if (!row || row.length === 0) return;
-    stats.total++;
 
     const getValue = (primaryKey, kaspiKey) => {
       if (dict[primaryKey]) return dict[primaryKey];
@@ -1591,7 +1547,7 @@ window.applyMapper2Logic = function (mode) {
       if (colIdx === undefined) return "";
 
       let rawVal = String(row[colIdx] || "").trim();
-      if (state.splitRules[primaryKey]) {
+      if (state.splitRules && state.splitRules[primaryKey]) {
         const tokens = rawVal.match(regex) || [];
         const sig = tokens.map(t => {
           if (/\d/.test(t)) return 'D';
@@ -1621,16 +1577,15 @@ window.applyMapper2Logic = function (mode) {
     let qty = parseFloat(rawQty) || 0;
     let price = parseFloat(String(rawPrice).replace(",", "."));
 
-    if (isNaN(price) || price <= 0) { stats.noPrice++; return; }
+    if (isNaN(price) || price <= 0) return; 
 
     let hasIdentifier = (rawId && String(rawId).trim() !== "") || (rawName && String(rawName).trim() !== "");
-    if (!hasIdentifier) { stats.noId++; return; }
-
-    stats.success++;
+    if (!hasIdentifier) return;
 
     let barcode = /^\d{8,13}$/.test(rawId) ? rawId : "";
     let name = rawName || rawId || "Без названия";
     let rawLogisticsStr = "";
+    
     row.forEach((cellVal, idx) => {
       if (mappedIndices.includes(idx)) return;
       let val = String(cellVal || "").trim();
@@ -1681,7 +1636,7 @@ window.applyMapper2Logic = function (mode) {
         let colIdx = colMap[key];
         let excelHeader = colIdx !== undefined && state.invoiceHeaders ? state.invoiceHeaders[colIdx] : "";
         let isComplex = window.complexColumnsToTokenize && window.complexColumnsToTokenize.includes(excelHeader);
-        let ruleExists = state.splitRules[key];
+        let ruleExists = state.splitRules && state.splitRules[key];
 
         if (isComplex && !ruleExists) {
           itemHasCollisions = true;
@@ -1696,7 +1651,7 @@ window.applyMapper2Logic = function (mode) {
 
     let allKeys = new Set(Object.keys(colMap));
     Object.keys(dict).forEach((k) => allKeys.add(k));
-    Object.keys(state.splitRules).forEach((k) => allKeys.add(k));
+    if (state.splitRules) Object.keys(state.splitRules).forEach((k) => allKeys.add(k));
 
     allKeys.forEach((key) => processAttribute(key));
 
@@ -1728,7 +1683,7 @@ window.applyMapper2Logic = function (mode) {
     }
   });
 
-  console.log("[8] 📊 СТАТИСТИКА:", stats);
+  console.log("✅ Сформировано товаров: ", window.parsedInvoiceData.length);
 
   if (window.parsedInvoiceData.length === 0) {
     return alert("Не удалось сформировать товары. Убедитесь, что в колонках «Количество» и «Цена» находятся ТОЛЬКО цифры.");
@@ -1740,7 +1695,7 @@ window.applyMapper2Logic = function (mode) {
     return;
   }
 
-  console.log("[9] ➡️ Переходим к таблице превью...");
+  console.log("➡️ Переходим к таблице превью...");
   if (typeof window.renderPreviewTable === "function") window.renderPreviewTable();
 
   if (mapperArea) mapperArea.style.display = "none";
