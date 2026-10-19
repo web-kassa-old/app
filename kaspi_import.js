@@ -1767,13 +1767,12 @@ window.applyMapper2Logic = function () {
 
         // 🔥 ПРОВЕРКА "БЕЛОГО СПИСКА": Отметил ли клиент эту колонку в интерфейсе?
         let isComplex = window.complexColumnsToTokenize && window.complexColumnsToTokenize.includes(excelHeader);
-        
-        // ⚡ СТРАХОВКА ОТ ЧЕРНОЙ ДЫРЫ: Если Токенизатор уже отработал эту колонку, пропускаем карантин!
-        let isAlreadyProcessed = state.splitRules && state.splitRules[key];
 
-        if (isComplex && !isAlreadyProcessed) {
-          // Колонка сложная и еще не обработана -> отправляем в карантин
-          itemHasCollisions = true;
+// ⚡ ПРОВЕРЯЕМ ОБА КЛЮЧА: и системный, и русский
+let isAlreadyProcessed = state.splitRules && (state.splitRules[key] || state.splitRules[humanName]);
+
+if (isComplex && !isAlreadyProcessed) {
+    itemHasCollisions = true;
           itemCollisionsList.push({
             sysKey: key,
             humanName: humanName,
