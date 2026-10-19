@@ -1463,19 +1463,44 @@ window.updateReqCardStatus = function (sysKey, text, className, previewText) {
 
 // 6. ФИНАЛЬНАЯ СБОРКА JSON ДЛЯ СЕРВЕРА
 window.applyMapper2Logic = function (mode) {
-  const isFromTokenizer = (mode === true); // ⚡ Принимаем VIP-пропуск от Токенизатора
+  const isFromTokenizer = (mode === true); // ⚡ VIP-пропуск от Токенизатора
+  window.mapper2State = window.mapper2State || {};
   const state = window.mapper2State;
+
+  // 🛡️ БУНКЕР ПАМЯТИ: Спасаем колонки и ручной ввод от очистки app.js
+  let colMap = state.colMap || {};
+  let dictValues = state.dictValues || {};
+
+  if (isFromTokenizer) {
+      // Восстанавливаем данные с жесткого диска браузера
+      try {
+          let savedCol = localStorage.getItem("POS_BUNKER_COL");
+          let savedDict = localStorage.getItem("POS_BUNKER_DICT");
+          if (savedCol) colMap = JSON.parse(savedCol);
+          if (savedDict) dictValues = JSON.parse(savedDict);
+      } catch(e) {}
+      state.colMap = colMap;
+      state.dictValues = dictValues;
+  } else {
+      // Сохраняем свежие данные при первом клике по кнопке "Собрать"
+      if (Object.keys(colMap).length > 0) localStorage.setItem("POS_BUNKER_COL", JSON.stringify(colMap));
+      if (Object.keys(dictValues).length > 0) localStorage.setItem("POS_BUNKER_DICT", JSON.stringify(dictValues));
+  }
+
+  // Защита от undefined для всех остальных объектов
+  state.splitRules = state.splitRules || {};
+  state.invoiceRows = state.invoiceRows || [];
+  state.invoiceHeaders = state.invoiceHeaders || [];
 
   // 🚦 ВАЛИДАЦИЯ (Полностью пропускается при возврате из Токенизатора)
   if (!isFromTokenizer) {
-    const qtyIdx = state.colMap["qty"];
-    const priceIdx = state.colMap["price"] !== undefined ? state.colMap["price"] : state.colMap["cost"];
-    const nameIdx = state.colMap["name"] !== undefined ? state.colMap["name"] : state.colMap["model"];
+    const qtyIdx = colMap["qty"];
+    const priceIdx = colMap["price"] !== undefined ? colMap["price"] : colMap["cost"];
+    const nameIdx = colMap["name"] !== undefined ? colMap["name"] : colMap["model"];
 
-    // Учитываем ручной ввод (dictValues), чтобы скрипт не блокировал сборку, если данные вписаны руками
-    const hasQty = qtyIdx !== undefined || (state.dictValues && state.dictValues["qty"]);
-    const hasPrice = priceIdx !== undefined || (state.dictValues && (state.dictValues["price"] || state.dictValues["cost"]));
-    const hasName = nameIdx !== undefined || (state.dictValues && (state.dictValues["name"] || state.dictValues["model"]));
+    const hasQty = qtyIdx !== undefined || dictValues["qty"];
+    const hasPrice = priceIdx !== undefined || dictValues["price"] || dictValues["cost"];
+    const hasName = nameIdx !== undefined || dictValues["name"] || dictValues["model"];
 
     if (!hasQty || !hasPrice || !hasName) {
       const lang = window.currentLang || localStorage.getItem("pos_lang") || "ru";
@@ -1493,8 +1518,8 @@ window.applyMapper2Logic = function (mode) {
       try { currentMemory = JSON.parse(window.mapper2State.rawMemoryJson || "{}"); } catch (e) {}
       let memoryUpdated = false;
 
-      Object.keys(state.colMap).forEach((sysKey) => {
-        let colIndex = state.colMap[sysKey];
+      Object.keys(colMap).forEach((sysKey) => {
+        let colIndex = colMap[sysKey];
         let headerText = state.invoiceHeaders[colIndex];
         if (headerText) {
           let cleanWord = String(headerText).trim().toLowerCase();
@@ -1508,7 +1533,7 @@ window.applyMapper2Logic = function (mode) {
         }
       });
 
-      if (state.splitRules && Object.keys(state.splitRules).length > 0) {
+      if (Object.keys(state.splitRules).length > 0) {
         currentMemory._splitRules = state.splitRules;
         memoryUpdated = true;
       }
@@ -1534,7 +1559,7 @@ window.applyMapper2Logic = function (mode) {
   };
 
   const regex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,]/g;
-  let mappedIndices = Object.values(state.colMap).filter((v) => v !== undefined);
+  let mappedIndices = Object.values(colMap).filter((v) => v !== undefined);
 
   window.mapper2State.quarantine = [];
 
@@ -1542,18 +1567,17 @@ window.applyMapper2Logic = function (mode) {
     if (!row || row.length === 0) return;
 
     const getValue = (primaryKey, kaspiKey) => {
-      if (state.dictValues && state.dictValues[primaryKey]) return state.dictValues[primaryKey];
-      if (kaspiKey && state.dictValues && state.dictValues[kaspiKey]) return state.dictValues[kaspiKey];
+      if (dictValues && dictValues[primaryKey]) return dictValues[primaryKey];
+      if (kaspiKey && dictValues && dictValues[kaspiKey]) return dictValues[kaspiKey];
 
-      let colIdx = state.colMap[primaryKey];
-      if (colIdx === undefined && kaspiKey) colIdx = state.colMap[kaspiKey];
+      let colIdx = colMap[primaryKey];
+      if (colIdx === undefined && kaspiKey) colIdx = colMap[kaspiKey];
       if (colIdx === undefined) return "";
 
       let rawVal = String(row[colIdx] || "").trim();
       if (state.splitRules && state.splitRules[primaryKey]) {
         const tokens = rawVal.match(regex) || [];
         
-        // Генерируем сигнатуру текущей ячейки
         const sig = tokens.map(t => {
           if (/\d/.test(t)) return 'D';
           if (/[a-zA-Zа-яА-ЯёЁ]/.test(t)) return 'L';
@@ -1564,13 +1588,10 @@ window.applyMapper2Logic = function (mode) {
         let targetIndices = [];
 
         if (Array.isArray(ruleData)) {
-           // Обратная совместимость со старыми правилами
            targetIndices = ruleData;
         } else if (ruleData[sig]) {
-           // Берем индексы именно для этой структуры текста
            targetIndices = ruleData[sig];
         } else {
-           // Если структура неизвестна, возвращаем сырой текст
            return rawVal; 
         }
 
@@ -1588,19 +1609,15 @@ window.applyMapper2Logic = function (mode) {
     let rawId = getValue("barcode", "merchant_sku");
     let rawName = getValue("name", "model");
 
-    let qty = parseFloat(rawQty) || 0; // Если пустая или текст - будет 0
+    let qty = parseFloat(rawQty) || 0; 
     let price = parseFloat(String(rawPrice).replace(",", "."));
 
-    // 🔥 1. БАЗОВЫЙ ФИЛЬТР МУСОРА: Цена должна быть числом больше нуля
-    if (isNaN(price) || price <= 0) {
-        return; // Пропускаем строку (нет цены -> это шапка, подвал или разделитель)
-    }
+    // 🔥 1. БАЗОВЫЙ ФИЛЬТР МУСОРА
+    if (isNaN(price) || price <= 0) return;
 
-    // 🔥 2. ФИЛЬТР ТЕХНИЧЕСКИХ ПОДВАЛОВ: Должен быть хоть какой-то идентификатор
+    // 🔥 2. ФИЛЬТР ТЕХНИЧЕСКИХ ПОДВАЛОВ
     let hasIdentifier = (rawId && String(rawId).trim() !== "") || (rawName && String(rawName).trim() !== "");
-    if (!hasIdentifier) {
-        return; // Пропускаем строку (есть цифры, но нет ни названия, ни артикула -> это строка "Итого")
-    }
+    if (!hasIdentifier) return;
 
     let barcode = /^\d{8,13}$/.test(rawId) ? rawId : "";
     let name = rawName || rawId || "Без названия";
@@ -1627,7 +1644,6 @@ window.applyMapper2Logic = function (mode) {
       let lowerKey = String(key).toLowerCase();
       let rawValue = getValue(key);
 
-      // Пропускаем базовые системные поля (они уже обработаны выше)
       if (["qty", "price", "cost", "name", "model", "barcode", "cbm", "weight"].includes(lowerKey)) return;
       if (!rawValue) return;
 
@@ -1637,9 +1653,8 @@ window.applyMapper2Logic = function (mode) {
       let dict = window.kaspiDicts && window.kaspiDicts[humanName];
       let hasDictionary = dict && Array.isArray(dict) && dict.length > 0;
       let foundMatch = false;
-      let matchedDictValue = searchString; // По умолчанию берем сырое значение
+      let matchedDictValue = searchString;
 
-      // 1. Ищем точное совпадение в справочнике Kaspi (если он есть)
       if (hasDictionary) {
         for (let dv of dict) {
           let strDv = String(dv).trim();
@@ -1658,16 +1673,13 @@ window.applyMapper2Logic = function (mode) {
         }
       }
 
-      // 2. Логика коллизий (есть словарь, но нет совпадения)
       if (window.currentImportMode === "kaspi" && hasDictionary && !foundMatch) {
-        let colIdx = state.colMap[key];
+        let colIdx = colMap[key];
         let excelHeader = colIdx !== undefined && state.invoiceHeaders ? state.invoiceHeaders[colIdx] : "";
 
-        // 🔥 ПРОВЕРКА "БЕЛОГО СПИСКА": Отметил ли клиент эту колонку в интерфейсе?
         let isComplex = window.complexColumnsToTokenize && window.complexColumnsToTokenize.includes(excelHeader);
 
         if (isComplex) {
-          // Колонка сложная -> отправляем в карантин для Сита/Токенизатора
           itemHasCollisions = true;
           itemCollisionsList.push({
             sysKey: key,
@@ -1676,23 +1688,19 @@ window.applyMapper2Logic = function (mode) {
             excelColumnName: excelHeader || "ДАННЫЕ ИЗ НАКЛАДНОЙ",
           });
         } else {
-          // Колонка простая (не отмечена) -> принудительно сохраняем текст из Excel как есть
           attributesObj[key] = rawValue;
         }
-        return; // Завершаем обработку для этого поля
+        return; 
       }
-
-      // 3. Сохраняем словарное значение (или оригинальное, если словаря не было)
       attributesObj[key] = matchedDictValue;
     };
 
-    let allKeys = new Set(Object.keys(state.colMap));
-    if (state.dictValues) Object.keys(state.dictValues).forEach((k) => allKeys.add(k));
+    let allKeys = new Set(Object.keys(colMap));
+    if (dictValues) Object.keys(dictValues).forEach((k) => allKeys.add(k));
     if (state.splitRules) Object.keys(state.splitRules).forEach((k) => allKeys.add(k));
 
     allKeys.forEach((key) => processAttribute(key));
 
-    // ⚡ 1. ИЗОЛИРУЕМ ДУБЛИ ДЛЯ ИНТЕРФЕЙСА (но сохраняем оригинальный маппинг)
     let cleanAttributesObj = Object.assign({}, attributesObj);
     delete cleanAttributesObj['Артикул'];
     delete cleanAttributesObj['Название модели'];
@@ -1706,14 +1714,13 @@ window.applyMapper2Logic = function (mode) {
       ? templateDropdown.options[templateDropdown.selectedIndex].text.trim() 
       : "Новые товары";
 
-    // ⚡ 2. ГИБРИДНАЯ СБОРКА ТОВАРА (База + Каспи)
     const itemData = {
       doc_no: state.docNo,
       supplier: state.supplier,
       item_id: rawId,
       item_name: name,
       qty: qty,
-      cost: price, // База ждет закупочную цену именно тут
+      cost: price, 
       cbm: cbm,
       weight: weight,
       raw_logistics: rawLogisticsStr.trim(),
@@ -1722,10 +1729,10 @@ window.applyMapper2Logic = function (mode) {
       name: name,
       desc: name,
       description: name,
-      barcode: barcode, // 🔥 ИСПРАВЛЕНО: Убрали || rawId. Если штрихкода нет, отправляем пустоту!
-      category: activeCategoryText, // Динамическая категория (Текст)
-      sku: rawId, // Поле для выгрузки в Каспи
-      title: name, // Поле для выгрузки в Каспи
+      barcode: barcode, 
+      category: activeCategoryText, 
+      sku: rawId, 
+      title: name, 
       attributes: finalAttributes,
       _hasCollisions: itemHasCollisions,
       _collisionsList: itemCollisionsList,
@@ -1760,9 +1767,12 @@ window.applyMapper2Logic = function (mode) {
     return;
   }
 
-  window.renderPreviewTable();
-  document.getElementById("mapper2Area").style.display = "none";
-  document.getElementById("invoicePreviewArea").style.display = "flex";
+  if (typeof window.renderPreviewTable === "function") window.renderPreviewTable();
+  
+  const mArea = document.getElementById("mapper2Area");
+  if (mArea) mArea.style.display = "none";
+  const pArea = document.getElementById("invoicePreviewArea");
+  if (pArea) pArea.style.display = "flex";
 
   if (window.isKaspiExportMode) {
     const sendBtn = document.getElementById("sendInvoiceBtn");
@@ -1771,9 +1781,8 @@ window.applyMapper2Logic = function (mode) {
     const exportBtns = document.getElementById("exportActionButtons");
     if (exportBtns) exportBtns.style.display = "flex";
   } else {
-    // 🔥 ФИКС: Возвращаем зеленую кнопку при обычной приемке
     const sendBtn = document.getElementById("sendInvoiceBtn");
-    if (sendBtn) sendBtn.style.display = "flex"; // или "block", в зависимости от твоей верстки
+    if (sendBtn) sendBtn.style.display = "flex"; 
 
     const exportBtns = document.getElementById("exportActionButtons");
     if (exportBtns) exportBtns.style.display = "none";
