@@ -872,25 +872,7 @@ window.renderMapper2Cards = function (templateData) {
   if (currency) currency.style.display = "none";
 
   document.getElementById("mapper2Area").style.display = "flex";
-  
-  // 🔥 УМНАЯ РАЗБЛОКИРОВКА КНОПКИ
-  const applyBtn = document.getElementById("applyMapper2Btn");
-  if (applyBtn) {
-      applyBtn.style.display = "block";
-      
-      // Если пустых обязательных полей не осталось (htmlRequired пуст)
-      if (htmlRequired === "") {
-          applyBtn.disabled = false;
-          applyBtn.style.opacity = "1";
-          applyBtn.style.pointerEvents = "auto"; // Принудительно включаем кликабельность
-          applyBtn.style.cursor = "pointer";
-      } else {
-          // Если еще есть обязательные поля - блокируем
-          applyBtn.disabled = true;
-          applyBtn.style.opacity = "0.4";
-          applyBtn.style.pointerEvents = "none";
-      }
-  }
+  document.getElementById("applyMapper2Btn").style.display = "block";
 };
 
 // 3. ОТКРЫТИЕ ШТОРКИ И ОТРИСОВКА КОЛОНОК
