@@ -1562,31 +1562,6 @@ window.updateReqCardStatus = function (sysKey, text, className, previewText) {
       container.appendChild(card);
     }
   }
-
-  // ⚡ ФИНАЛЬНАЯ ПРОВЕРКА ГОТОВНОСТИ (Зажигаем кнопку)
-  const st = window.mapper2State || {};
-  const cm = st.colMap || {};
-  const dv = st.dictValues || {};
-
-  const hasQty = cm["qty"] !== undefined || dv["qty"] !== undefined;
-  const hasPrice = cm["price"] !== undefined || cm["cost"] !== undefined || dv["price"] !== undefined || dv["cost"] !== undefined;
-  const hasName = cm["name"] !== undefined || cm["model"] !== undefined || dv["name"] !== undefined || dv["model"] !== undefined;
-
-  const finalBtn = document.getElementById("applyMapper2Btn");
-  if (finalBtn) {
-    if (hasQty && hasPrice && hasName) {
-      // Все обязательные собраны -> зажигаем зеленую кнопку!
-      finalBtn.style.backgroundColor = "var(--accent-green, #2ecc71)";
-      finalBtn.style.color = "#000";
-      finalBtn.style.opacity = "1";
-      finalBtn.style.pointerEvents = "auto";
-    } else {
-      // Чего-то не хватает -> кнопка серая и неактивная
-      finalBtn.style.backgroundColor = "";
-      finalBtn.style.opacity = "0.5";
-      finalBtn.style.pointerEvents = "none";
-    }
-  }
 };
 
 // 6. ФИНАЛЬНАЯ СБОРКА JSON ДЛЯ СЕРВЕРА
@@ -1792,9 +1767,12 @@ window.applyMapper2Logic = function () {
 
         // 🔥 ПРОВЕРКА "БЕЛОГО СПИСКА": Отметил ли клиент эту колонку в интерфейсе?
         let isComplex = window.complexColumnsToTokenize && window.complexColumnsToTokenize.includes(excelHeader);
+        
+        // ⚡ СТРАХОВКА ОТ ЧЕРНОЙ ДЫРЫ: Если Токенизатор уже отработал эту колонку, пропускаем карантин!
+        let isAlreadyProcessed = state.splitRules && state.splitRules[key];
 
-        if (isComplex) {
-          // Колонка сложная -> отправляем в карантин для Сита/Токенизатора
+        if (isComplex && !isAlreadyProcessed) {
+          // Колонка сложная и еще не обработана -> отправляем в карантин
           itemHasCollisions = true;
           itemCollisionsList.push({
             sysKey: key,
