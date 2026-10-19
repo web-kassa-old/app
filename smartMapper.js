@@ -123,9 +123,8 @@ window.renderSmartMapperModal = function (complexColumns) {
     const container = document.getElementById("smartMapperContainer");
     if (!container) return;
     container.innerHTML = "";
-    container.style.display = "flex"; // Убеждаемся, что контейнер видим
+    container.style.display = "flex";
 
-    // Нормализуем входящие данные (поддержка массива строк из нашего нового первого шага)
     let cols = complexColumns || window.complexColumnsToTokenize || [];
     cols = cols.map(c => typeof c === 'string' ? { colName: c, example: "" } : c);
 
@@ -166,11 +165,7 @@ window.renderSmartMapperModal = function (complexColumns) {
                     });
 
                     if (isCodeOrNumber) {
-                        kaspiParams.push({
-                            id: paramName,
-                            name: paramName,
-                            examples: validExamples.slice(0, 3),
-                        });
+                        kaspiParams.push({ id: paramName, name: paramName, examples: validExamples.slice(0, 3) });
                     }
                 }
             }
@@ -179,11 +174,32 @@ window.renderSmartMapperModal = function (complexColumns) {
 
     window.mapper2State = window.mapper2State || {};
     const savedRules = window.mapper2State.smartRules || {};
+    const headers = window.mapper2State.invoiceHeaders || [];
+    const rows = window.mapper2State.invoiceRows || [];
 
     cols.forEach((col) => {
         const card = document.createElement("div");
         card.className = "smart-mapper-card";
         card.dataset.colname = col.colName;
+
+        // 🔥 АВТОПОИСК САМОГО СЛОЖНОГО ПРИМЕРА ИЗ ФАЙЛА
+        let bestExample = "";
+        let maxTokens = 0;
+        const colIdx = headers.findIndex(h => String(h).trim() === col.colName);
+        
+        if (colIdx !== -1) {
+            for (let i = 0; i < Math.min(1000, rows.length); i++) {
+                let val = String(rows[i] ? rows[i][colIdx] || "" : "").trim();
+                // Ищем не число, а сложную строку
+                if (val && isNaN(Number(val.replace(/,/g, "")))) {
+                    let tokenCount = (val.match(/\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g) || []).length;
+                    if (tokenCount > maxTokens) {
+                        maxTokens = tokenCount;
+                        bestExample = val;
+                    }
+                }
+            }
+        }
 
         const rawColName = String(col.colName).toLowerCase().trim();
         let translatedName = col.colName;
@@ -211,18 +227,14 @@ window.renderSmartMapperModal = function (complexColumns) {
             `;
         }).join("");
 
-        let initialChips = "";
-        if (currentSavedParams.length > 0) {
-            let selectedNames = kaspiParams.filter((p) => currentSavedParams.includes(p.id)).map((p) => p.name);
-            initialChips = selectedNames.map((name) => `<span class="chip">${name}</span>`).join("");
-        } else {
-            initialChips = `<span class="empty-chips" data-i18n="smart_mapper_empty">Не выбрано</span>`;
-        }
+        let initialChips = currentSavedParams.length > 0 
+            ? kaspiParams.filter((p) => currentSavedParams.includes(p.id)).map((p) => `<span class="chip">${p.name}</span>`).join("")
+            : `<span class="empty-chips" data-i18n="smart_mapper_empty">Не выбрано</span>`;
 
         card.innerHTML = `
             <div class="smart-col-info">
                 <span data-i18n="smart_mapper_col_prefix">Колонка:</span> <span>${translatedName.toUpperCase()}</span>
-                <strong>${col.example || ""}</strong>
+                <div style="margin-top: 8px; font-size: 14px; color: var(--accent-yellow);">Пример из файла: <strong style="color:var(--text-main); font-family:monospace; font-size:16px;">${bestExample}</strong></div>
             </div>
             <div class="smart-chips-area">
                 <div class="chips-title" data-i18n="smart_mapper_you_selected">Вы выбрали:</div>
@@ -237,31 +249,19 @@ window.renderSmartMapperModal = function (complexColumns) {
 
         const checkboxes = card.querySelectorAll('input[type="checkbox"]');
         const chipsContainer = card.querySelector(".chips-container");
-
         checkboxes.forEach((cb) => {
             cb.addEventListener("change", function () {
                 const label = this.closest(".checkbox-item");
-                if (this.checked) label.classList.add("active");
-                else label.classList.remove("active");
-
+                if (this.checked) label.classList.add("active"); else label.classList.remove("active");
                 const selected = Array.from(checkboxes).filter((box) => box.checked).map((box) => box.dataset.name);
-
-                if (selected.length > 0) {
-                    chipsContainer.innerHTML = selected.map((name) => `<span class="chip">${name}</span>`).join("");
-                } else {
-                    chipsContainer.innerHTML = `<span class="empty-chips" data-i18n="smart_mapper_empty">Не выбрано</span>`;
-                    if (typeof window.applyLanguage === "function") window.applyLanguage(currentLang);
-                }
+                chipsContainer.innerHTML = selected.length > 0 ? selected.map((name) => `<span class="chip">${name}</span>`).join("") : `<span class="empty-chips" data-i18n="smart_mapper_empty">Не выбрано</span>`;
             });
         });
     });
 
     modal.appendChild(body);
 
-    // Подвал с кнопками
-    let backBtnText = "НАЗАД";
-    let confirmBtnText = "ПОДТВЕРДИТЬ";
-
+    let backBtnText = "НАЗАД", confirmBtnText = "ПОДТВЕРДИТЬ";
     if (typeof translations !== "undefined" && typeof currentLang !== "undefined" && translations[currentLang]) {
         backBtnText = translations[currentLang]["smart_mapper_back"] || translations[currentLang]["cancel"] || backBtnText;
         confirmBtnText = translations[currentLang]["smart_mapper_btn"] || confirmBtnText;
@@ -271,114 +271,70 @@ window.renderSmartMapperModal = function (complexColumns) {
     footer.className = "smart-modal-footer";
     footer.innerHTML = `
         <div style="display: flex; gap: 10px; width: 100%;">
-            <button class="cancel-btn" id="smartBackBtn" data-i18n="inc_back" style="flex: 1; font-weight: bold; font-size: 14px; text-transform: uppercase; padding: 12px; border-radius: 8px; cursor: pointer;">${backBtnText}</button>
-            <button class="confirm-btn btn-primary green" id="smartConfirmBtn" data-i18n="smart_mapper_btn" style="flex: 2; margin: 0; font-weight: bold; font-size: 14px; text-transform: uppercase; padding: 12px; border-radius: 8px; cursor: pointer;">${confirmBtnText}</button>
+            <button class="cancel-btn" id="smartBackBtn" style="flex: 1; font-weight: bold; padding: 12px; border-radius: 8px;">${backBtnText}</button>
+            <button class="confirm-btn btn-primary green" id="smartConfirmBtn" style="flex: 2; font-weight: bold; padding: 12px; border-radius: 8px;">${confirmBtnText}</button>
         </div>
     `;
     body.appendChild(footer);
     container.appendChild(modal);
 
-    if (typeof window.applyLanguage === "function" && typeof currentLang !== "undefined") {
-        window.applyLanguage(currentLang);
-    }
+    document.getElementById("smartBackBtn").addEventListener("click", () => {
+        if (typeof window.navigateIncomeStep === "function") window.navigateIncomeStep(1);
+    });
 
-    const backBtn = document.getElementById("smartBackBtn");
-    const confirmBtn = document.getElementById("smartConfirmBtn");
-
-    if (backBtn) {
-        backBtn.addEventListener("click", () => {
-            if (typeof window.navigateIncomeStep === "function") window.navigateIncomeStep(1);
+    document.getElementById("smartConfirmBtn").addEventListener("click", () => {
+        window.mapper2State.smartRules = {};
+        body.querySelectorAll(".smart-mapper-card").forEach((card) => {
+            const colName = card.dataset.colname;
+            const selectedParams = Array.from(card.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
+            if (selectedParams.length > 0) window.mapper2State.smartRules[colName] = selectedParams;
         });
-    }
 
-    if (confirmBtn) {
-        confirmBtn.addEventListener("click", () => {
-            window.mapper2State.smartRules = {};
+        window.mapper2State.quarantine = [];
+        const tData = window.currentTemplateData || {};
+        window.kaspiDicts = tData.dictionary || {};
 
-            const cards = body.querySelectorAll(".smart-mapper-card");
-            cards.forEach((card) => {
-                const colName = card.dataset.colname;
-                const checkedBoxes = Array.from(card.querySelectorAll('input[type="checkbox"]:checked'));
-                const selectedParams = checkedBoxes.map((cb) => cb.value);
-                if (selectedParams.length > 0) {
-                    window.mapper2State.smartRules[colName] = selectedParams;
-                }
-            });
+        Object.keys(window.mapper2State.smartRules).forEach((colName) => {
+            const colIndex = headers.findIndex((h) => String(h).trim() === colName);
+            if (colIndex !== -1) {
+                const signatureMap = {};
+                for (let i = 0; i < Math.min(1000, rows.length); i++) {
+                    if (rows[i] && rows[i][colIndex]) {
+                        let strVal = String(rows[i][colIndex]).replace(/\s+/g, "").trim();
+                        if (strVal && isNaN(Number(strVal.replace(/,/g, "")))) {
+                            const regex = /\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g;
+                            let tokens = strVal.match(regex) || [];
+                            
+                            if (tokens.length > 1) {
+                                // 🔥 ГЕНИАЛЬНЫЙ ТРЮК: Игнорируем буквы при создании слепка структуры!
+                                // Теперь LT205/70R15W и 175/70R13 получат один и тот же слепок N-S-N-S-N
+                                const sig = tokens.filter(t => !/^[a-zA-Zа-яА-ЯёЁ]+$/.test(t)).map(t => {
+                                    if (/\d/.test(t)) return 'N';
+                                    return 'S';
+                                }).join('-');
 
-            window.mapper2State.quarantine = [];
-            const tData = window.currentTemplateData || {};
-            window.kaspiDicts = tData.dictionary || {};
-            window.mapper2State.sysToHumanMap = {};
-            
-            if (tData.systemKeys && tData.humanNames) {
-                for (let i = 0; i < tData.systemKeys.length; i++) {
-                    window.mapper2State.sysToHumanMap[tData.systemKeys[i]] = tData.humanNames[i];
-                }
-            }
-
-            const headers = window.mapper2State.invoiceHeaders || [];
-            const rows = window.mapper2State.invoiceRows || [];
-
-            Object.keys(window.mapper2State.smartRules).forEach((colName) => {
-                const colIndex = headers.findIndex((h) => String(h).trim() === colName);
-                if (colIndex !== -1) {
-                    
-                    // 🔥 Используем словарь сигнатур вместо простого Set()
-                    const signatureMap = {};
-
-                    for (let i = 0; i < Math.min(1000, rows.length); i++) {
-                        if (rows[i] && rows[i][colIndex]) {
-                            // ⚡ УДАЛЯЕМ ПРОБЕЛЫ перед анализом сложного параметра
-                            let strVal = String(rows[i][colIndex]).replace(/\s+/g, "").trim();
-
-                            if (strVal && isNaN(Number(strVal.replace(/,/g, "")))) {
-                                
-                                // Разбиваем строку на токены нашей эталонной регуляркой
-                                const regex = /\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g;
-                                const tokens = strVal.match(regex) || [];
-
-                                // Если параметр состоит всего из 1 токена (резать нечего) - пропускаем
-                                if (tokens.length > 1) {
-                                    // Генерируем уникальную структуру (например: D-.-D-L-D)
-                                    const sig = tokens.map(t => {
-                                        if (/\d/.test(t)) return 'D';
-                                        if (/[a-zA-Zа-яА-ЯёЁ]/.test(t)) return 'L';
-                                        return '.';
-                                    }).join('-');
-
-                                    // Берем только ПЕРВЫЙ попавшийся пример для каждой уникальной структуры
-                                    if (!signatureMap[sig]) {
-                                        signatureMap[sig] = strVal;
-                                    }
+                                // Сохраняем ИСХОДНУЮ строку. Токенизатор сам отсеет LT и W в пассивный текст
+                                if (!signatureMap[sig]) {
+                                    signatureMap[sig] = strVal;
                                 }
                             }
                         }
                     }
-                    
-                    // Отправляем в карантин только уникальные структуры (без повторов)
-                    Object.values(signatureMap).forEach((str) => {
-                        window.mapper2State.quarantine.push({
-                            rawString: str,
-                            excelColumnName: colName,
-                        });
-                    });
                 }
-            });
-
-            if (container) container.style.display = "none";
-
-            // Переход к Токенизатору или Мапперу
-            if (window.mapper2State.quarantine.length > 0) {
-                if (typeof window.startTokenizerQueue === "function") {
-                    window.startTokenizerQueue();
-                }
-            } else {
-                if (typeof window.navigateIncomeStep === "function") {
-                    window.navigateIncomeStep(2);
-                }
+                
+                Object.values(signatureMap).forEach((str) => {
+                    window.mapper2State.quarantine.push({ rawString: str, excelColumnName: colName });
+                });
             }
         });
-    }
+
+        if (container) container.style.display = "none";
+        if (window.mapper2State.quarantine.length > 0 && typeof window.startTokenizerQueue === "function") {
+            window.startTokenizerQueue();
+        } else if (typeof window.navigateIncomeStep === "function") {
+            window.navigateIncomeStep(2);
+        }
+    });
 };
 
 // Прокси-функция, чтобы кнопка из первого окна находила нужный метод
@@ -702,6 +658,89 @@ window.selectTokenizerDictValue = function (val, liElement) {
   const btnFallback = overlay.querySelector(".btn-fallback");
   if (btnFallback) btnFallback.click();
 };
+
+// Вспомогательная функция: Очистка словарей Каспи от приписок в скобках
+function getCleanDictValues(sysKey) {
+    const dict = window.kaspiDicts || {};
+    if (!dict[sysKey]) return [];
+    
+    return dict[sysKey].map(val => {
+        // Берем строку, отрезаем всё после первой скобки, убираем пробелы по краям и переводим в верхний регистр
+        return String(val).split('(')[0].trim().toUpperCase();
+    });
+}
+
+// Главная функция пре-матчинга: режет строку, склеивает дроби и ищет совпадения
+function parseAndMatchTokens(rawString, colName) {
+    const regex = /\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g;
+    let rawTokens = rawString.match(regex) || [];
+    
+    let processedTokens = [];
+    let selectedParams = window.mapper2State.smartRules[colName] || [];
+
+    // Собираем все допустимые значения для выбранных параметров (уже очищенные от скобок)
+    let validDicts = {};
+    selectedParams.forEach(param => {
+        validDicts[param] = getCleanDictValues(param);
+    });
+
+    let i = 0;
+    while (i < rawTokens.length) {
+        let currentRaw = rawTokens[i];
+        let isDecimal = false;
+        let mergedRaw = currentRaw;
+        let matchValue = currentRaw.toUpperCase(); // То, что будем искать в базе
+
+        // 🔥 Lookahead: Проверяем, не дробь ли это (Цифра + Точка/Запятая + Цифра)
+        if (/\d/.test(currentRaw) && i + 2 < rawTokens.length) {
+            let nextTok = rawTokens[i + 1];
+            let nextNextTok = rawTokens[i + 2];
+            
+            if ((nextTok === '.' || nextTok === ',') && /\d/.test(nextNextTok)) {
+                isDecimal = true;
+                mergedRaw = currentRaw + nextTok + nextNextTok; // Как покажем клиенту (напр. 10,50)
+                matchValue = currentRaw + '.' + nextNextTok;    // Как ищем в словаре (строго 10.50)
+                
+                // Нормализация математики: отсекаем незначащие нули на конце дроби для поиска (10.50 -> 10.5)
+                // Но оставляем исходный вариант, если вдруг в Каспи зашито именно 10.50
+                matchValue = matchValue.toUpperCase();
+            }
+        }
+
+        // Проверяем, есть ли matchValue в наших словарях
+        let foundInParams = [];
+        Object.keys(validDicts).forEach(param => {
+            // Ищем точное совпадение (например, "115" совпадет со словарным "115" после отсечения скобок)
+            // Дополнительно можно добавить проверку Number(matchValue) === Number(dictVal) для гибкости дробей
+            if (validDicts[param].includes(matchValue) || 
+               (isDecimal && validDicts[param].some(v => Number(v) === Number(matchValue)))) {
+                foundInParams.push(param);
+            }
+        });
+
+        if (foundInParams.length > 0) {
+            // ТОКЕН АКТИВЕН (Найден в словаре)
+            processedTokens.push({
+                text: mergedRaw,        // Покажем клиенту (10,50)
+                cleanText: matchValue,  // Отправим в систему (10.50)
+                isActive: true,
+                matchedParams: foundInParams // Подсказка, куда он подходит
+            });
+            if (isDecimal) i += 3; else i += 1;
+        } else {
+            // ТОКЕН ПАССИВЕН (Мусор: LT, W, /, и т.д.)
+            processedTokens.push({
+                text: currentRaw,
+                cleanText: currentRaw,
+                isActive: false,
+                matchedParams: []
+            });
+            i += 1;
+        }
+    }
+    
+    return processedTokens;
+}
 
 window.startTokenizerQueue = function () {
   // ⚡ Жестко прячем Маппер на время работы Токенизатора, чтобы он не светился на фоне
@@ -1276,41 +1315,42 @@ window.startTokenizerQueue = function () {
   }
 
   function applyResultsToData() {
-  window.mapper2State.splitRules = window.mapper2State.splitRules || {};
+    window.mapper2State.splitRules = window.mapper2State.splitRules || {};
 
-  queue.forEach((pattern) => {
-    if (pattern.resolvedAttributes) {
-      Object.keys(pattern.resolvedAttributes).forEach((paramName) => {
-        if (paramName !== "Лишние символы") {
-          const rule = pattern.resolvedAttributes[paramName];
-          if (rule && rule.indexes && rule.indexes.length > 0) {
-            
-            // ⚡ ФИКС: Сохраняем только если для этого параметра еще нет индексов
-            if (!window.mapper2State.splitRules[paramName]) {
-              window.mapper2State.splitRules[paramName] = rule.indexes;
-            }
+    queue.forEach((pattern) => {
+      if (pattern.resolvedAttributes) {
+        Object.keys(pattern.resolvedAttributes).forEach((paramName) => {
+          if (paramName !== "Лишние символы") {
+            const rule = pattern.resolvedAttributes[paramName];
+            if (rule && rule.indexes && rule.indexes.length > 0) {
+              
+              // ⚡ ФИКС: Сохраняем только если для этого параметра еще нет индексов
+              if (!window.mapper2State.splitRules[paramName]) {
+                window.mapper2State.splitRules[paramName] = rule.indexes;
+              }
 
-            // Дублируем по системному ключу (с той же защитой от перезаписи)
-            const tData = window.currentTemplateData || {};
-            if (tData.humanNames && tData.systemKeys) {
-              const idx = tData.humanNames.indexOf(paramName);
-              if (idx !== -1) {
-                const sysKey = tData.systemKeys[idx];
-                if (!window.mapper2State.splitRules[sysKey]) {
-                  window.mapper2State.splitRules[sysKey] = rule.indexes;
+              // Дублируем по системному ключу (с той же защитой от перезаписи)
+              const tData = window.currentTemplateData || {};
+              if (tData.humanNames && tData.systemKeys) {
+                const idx = tData.humanNames.indexOf(paramName);
+                if (idx !== -1) {
+                  const sysKey = tData.systemKeys[idx];
+                  if (!window.mapper2State.splitRules[sysKey]) {
+                    window.mapper2State.splitRules[sysKey] = rule.indexes;
+                  }
                 }
               }
             }
           }
-        }
-      });
-    }
-  });
+        });
+      }
+    });
 
-  window.mapper2State.quarantine = [];
-  finishAndGoToPreview();
+    window.mapper2State.quarantine = [];
+    finishAndGoToPreview();
   }
 
+  // 🔥 ЭТА ТА САМАЯ ИДЕАЛЬНАЯ КОНЦОВКА, КОТОРАЯ ЗАПУСКАЕТ КНОПКУ АВТОМАТИЧЕСКИ
   function finishAndGoToPreview() {
     const overlay = document.getElementById("tokenizer-overlay");
     if (overlay) {
@@ -1319,7 +1359,6 @@ window.startTokenizerQueue = function () {
     }
 
     console.log("✅ Токенизация завершена! Пересобираем накладную...");
-    // ⚡ ВОТ ОН - ТОТ САМЫЙ ЗАПУСК СБОРКИ С VIP-ПРОПУСКОМ:
     if (typeof window.applyMapper2Logic === "function") {
       window.applyMapper2Logic(true);
     }
