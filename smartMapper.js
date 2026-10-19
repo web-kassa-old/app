@@ -1318,17 +1318,10 @@ window.startTokenizerQueue = function () {
       overlay.innerHTML = "";
     }
 
-    // Включаем видимость Маппера и направляем туда
-    const mapperArea = document.getElementById("mapper2Area");
-    if (mapperArea) mapperArea.style.display = "flex";
-
-    if (typeof window.navigateIncomeStep === "function") {
-      window.navigateIncomeStep(2);
-    }
-
-    // Рендерим карточки уже с учетом примененных результатов Токенизатора
-    if (typeof window.renderMapper2Cards === "function") {
-      window.renderMapper2Cards(window.currentTemplateData);
+    console.log("✅ Токенизация завершена! Пересобираем накладную...");
+    // ⚡ ВОТ ОН - ТОТ САМЫЙ ЗАПУСК СБОРКИ С VIP-ПРОПУСКОМ:
+    if (typeof window.applyMapper2Logic === "function") {
+      window.applyMapper2Logic(true);
     }
   }
 
