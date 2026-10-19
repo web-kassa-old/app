@@ -95,8 +95,7 @@ window.showComplexColumnSelector = function(headers, rows, templateData) {
     });
 
     html += `</div>`;
-    html += `<div style="display:flex; justify-content:space-between; margin-top:20px;">
-                <button id="btnComplexBack" class="complex-btn" style="background: var(--bg-card); color: var(--text-main); border: 1px solid var(--border-main);" data-i18n="inc_back">🡠 НАЗАД</button>
+    html += `<div style="text-align:right;">
                 <button id="btnComplexNext" class="complex-btn" data-i18n="btn_next">ДАЛЕЕ ➔</button>
              </div>`;
 
@@ -104,17 +103,11 @@ window.showComplexColumnSelector = function(headers, rows, templateData) {
     overlay.appendChild(modal);
     document.body.appendChild(overlay);
 
+    // 🔥 Сразу переводим интерфейс после отрисовки
     if (typeof window.applyLanguage === "function") {
         window.applyLanguage();
     }
 
-    // Обработчик кнопки НАЗАД
-    document.getElementById("btnComplexBack").addEventListener("click", () => {
-        document.body.removeChild(overlay);
-        if (typeof window.navigateIncomeStep === "function") window.navigateIncomeStep(1);
-    });
-
-    // Обработчик кнопки ДАЛЕЕ
     document.getElementById("btnComplexNext").addEventListener("click", () => {
         const checkboxes = modal.querySelectorAll(".complex-col-cb:checked");
         const selected = Array.from(checkboxes).map(cb => cb.value);
