@@ -477,6 +477,7 @@ window.navigateBack = function () {
 // 2. ОТРИСОВКА КАРТОЧЕК НА ГЛАВНОМ ЭКРАНЕ
 window.renderMapper2Cards = function (templateData) {
   // === КЭШИРОВАНИЕ ДАННЫХ ===
+  // Запоминаем данные при первом вызове, чтобы перерисовка работала при вызове без аргументов
   if (templateData) {
     window.lastTemplateData = templateData;
   } else {
@@ -484,6 +485,8 @@ window.renderMapper2Cards = function (templateData) {
   }
 
   const t = translations[currentLang] || translations["ru"];
+
+  // Защита: если dictionary нет в templateData, берем из памяти или ставим пустой объект
   window.kaspiDicts = templateData.dictionary || window.kaspiDicts || {};
 
   const container = document.getElementById("mapper2CardsContainer");
@@ -531,6 +534,7 @@ window.renderMapper2Cards = function (templateData) {
           : templateData.memoryJson;
       window.mapper2State.rawMemoryJson = JSON.stringify(learnedSynonyms);
       if (learnedSynonyms._splitRules) {
+        // ⚡ НЕ стираем свежие правила из Токенизатора! Только дополняем их старыми из памяти.
         const memorySplits = JSON.parse(JSON.stringify(learnedSynonyms._splitRules));
         window.mapper2State.splitRules = { ...memorySplits, ...window.mapper2State.splitRules };
       }
@@ -566,27 +570,82 @@ window.renderMapper2Cards = function (templateData) {
   }
 
   const posBaseFields = [
-    { sysKey: "name", name: t.pos_name || "Наименование", nameKey: "pos_name", req: true, desc: t.desc_req || "Обязательно", descKey: "desc_req", isKaspi: false },
-    { sysKey: "qty", name: t.pos_qty || "Количество", nameKey: "pos_qty", req: true, desc: t.desc_stock || "На складе (POS)", descKey: "desc_stock", isKaspi: false },
-    { sysKey: "price", name: t.pos_price || "Цена закупа", nameKey: "pos_price", req: true, desc: t.desc_currency || "В валюте накладной", descKey: "desc_currency", isKaspi: false },
-    { sysKey: "barcode", name: t.pos_barcode || "Код / Штрихкод", nameKey: "pos_barcode", req: false, desc: t.desc_id_link || "Связь с ID товара в POS", descKey: "desc_id_link", isKaspi: false },
-    { sysKey: "cbm", name: t.pos_cbm || "Объем (CBM)", nameKey: "pos_cbm", req: false, desc: t.desc_calc || "Для расчета", descKey: "desc_calc", isKaspi: false },
-    { sysKey: "weight", name: t.pos_weight || "Вес (кг)", nameKey: "pos_weight", req: false, desc: t.desc_calc || "Для расчета", descKey: "desc_calc", isKaspi: false },
+    {
+      sysKey: "name",
+      name: t.pos_name || "Наименование",
+      nameKey: "pos_name",
+      req: true,
+      desc: t.desc_req || "Обязательно",
+      descKey: "desc_req",
+      isKaspi: false,
+    },
+    {
+      sysKey: "qty",
+      name: t.pos_qty || "Количество",
+      nameKey: "pos_qty",
+      req: true,
+      desc: t.desc_stock || "На складе (POS)",
+      descKey: "desc_stock",
+      isKaspi: false,
+    },
+    {
+      sysKey: "price",
+      name: t.pos_price || "Цена закупа",
+      nameKey: "pos_price",
+      req: true,
+      desc: t.desc_currency || "В валюте накладной",
+      descKey: "desc_currency",
+      isKaspi: false,
+    },
+    {
+      sysKey: "barcode",
+      name: t.pos_barcode || "Код / Штрихкод",
+      nameKey: "pos_barcode",
+      req: false,
+      desc: t.desc_id_link || "Связь с ID товара в POS",
+      descKey: "desc_id_link",
+      isKaspi: false,
+    },
+    {
+      sysKey: "cbm",
+      name: t.pos_cbm || "Объем (CBM)",
+      nameKey: "pos_cbm",
+      req: false,
+      desc: t.desc_calc || "Для расчета",
+      descKey: "desc_calc",
+      isKaspi: false,
+    },
+    {
+      sysKey: "weight",
+      name: t.pos_weight || "Вес (кг)",
+      nameKey: "pos_weight",
+      req: false,
+      desc: t.desc_calc || "Для расчета",
+      descKey: "desc_calc",
+      isKaspi: false,
+    },
   ];
 
   posBaseFields.forEach((field) => {
     if (!allReqs.some((r) => r.sysKey === field.sysKey)) allReqs.push(field);
   });
 
-  const globalSynonyms = typeof invoiceSynonyms !== "undefined" ? invoiceSynonyms : {};
-  const headersLower = (window.mapper2State.invoiceHeaders || []).map((h) => String(h || "").trim().toLowerCase());
+  const globalSynonyms =
+    typeof invoiceSynonyms !== "undefined" ? invoiceSynonyms : {};
+  const headersLower = (window.mapper2State.invoiceHeaders || []).map((h) =>
+    String(h || "")
+      .trim()
+      .toLowerCase(),
+  );
 
   let htmlRequired = "";
   let htmlOptional = "";
   let htmlFilled = "";
 
   allReqs.forEach((req) => {
-    let isKaspiSku = req.sysKey.toLowerCase().includes("sku") || req.name.toLowerCase().includes("артикул");
+    let isKaspiSku =
+      req.sysKey.toLowerCase().includes("sku") ||
+      req.name.toLowerCase().includes("артикул");
 
     if (isKaspiSku) {
       htmlFilled += `
@@ -604,24 +663,42 @@ window.renderMapper2Cards = function (templateData) {
 
     let learned = learnedSynonyms[req.sysKey] || [];
     let baseRaw = [];
-    if (globalSynonyms[req.sysKey]) baseRaw = baseRaw.concat(globalSynonyms[req.sysKey]);
-    if (globalSynonyms[req.name]) baseRaw = baseRaw.concat(globalSynonyms[req.name]);
-    if (req.isDict && globalSynonyms["Brand"]) baseRaw = baseRaw.concat(globalSynonyms["Brand"]);
+    if (globalSynonyms[req.sysKey])
+      baseRaw = baseRaw.concat(globalSynonyms[req.sysKey]);
+    if (globalSynonyms[req.name])
+      baseRaw = baseRaw.concat(globalSynonyms[req.name]);
+    if (req.isDict && globalSynonyms["Brand"])
+      baseRaw = baseRaw.concat(globalSynonyms["Brand"]);
 
-    let base = baseRaw.map((w) => String(w).trim().toLowerCase()).filter(Boolean);
+    let base = baseRaw
+      .map((w) => String(w).trim().toLowerCase())
+      .filter(Boolean);
     let foundIndex = -1;
 
-    const safeLearned = Array.isArray(learned) ? learned : typeof learned === "string" ? [learned] : [];
+    const safeLearned = Array.isArray(learned)
+      ? learned
+      : typeof learned === "string"
+        ? [learned]
+        : [];
 
     foundIndex = headersLower.findIndex((h) => h && safeLearned.includes(h));
-    if (foundIndex === -1) foundIndex = headersLower.findIndex((h) => h && base.includes(h));
-    if (foundIndex === -1) foundIndex = headersLower.findIndex((h) => h && safeLearned.some((w) => w.length > 2 && h.includes(w)));
-    if (foundIndex === -1) foundIndex = headersLower.findIndex((h) => h && base.some((w) => w.length > 2 && h.includes(w)));
+    if (foundIndex === -1)
+      foundIndex = headersLower.findIndex((h) => h && base.includes(h));
+    if (foundIndex === -1)
+      foundIndex = headersLower.findIndex(
+        (h) => h && safeLearned.some((w) => w.length > 2 && h.includes(w)),
+      );
+    if (foundIndex === -1)
+      foundIndex = headersLower.findIndex(
+        (h) => h && base.some((w) => w.length > 2 && h.includes(w)),
+      );
 
     if (foundIndex !== -1) window.mapper2State.colMap[req.sysKey] = foundIndex;
 
     let mappedIndex = window.mapper2State.colMap[req.sysKey];
-    let dictValue = window.mapper2State.dictValues && window.mapper2State.dictValues[req.sysKey];
+    let dictValue =
+      window.mapper2State.dictValues &&
+      window.mapper2State.dictValues[req.sysKey];
 
     let statusClass = "status-empty";
     let statusText = t.inc_select || "ВЫБРАТЬ";
@@ -631,23 +708,37 @@ window.renderMapper2Cards = function (templateData) {
 
     if (dictValue) {
       statusClass = "status-filled";
-      let shortVal = dictValue.length > 15 ? dictValue.substring(0, 15) + "..." : dictValue;
+      let shortVal =
+        dictValue.length > 15 ? dictValue.substring(0, 15) + "..." : dictValue;
+      // ИСПРАВЛЕНИЕ 1: Добавляем галочку и красим кнопку для словаря
       statusText = `✓ ${shortVal}`;
       statusI18n = "";
-      statusStyle = "border: 1px solid var(--accent-green, #2ecc71); color: var(--accent-green, #2ecc71); background: var(--bg-success-dim, rgba(46, 204, 113, 0.15)); font-weight: bold;";
+      statusStyle =
+        "border: 1px solid var(--accent-green, #2ecc71); color: var(--accent-green, #2ecc71); background: var(--bg-success-dim, rgba(46, 204, 113, 0.15)); font-weight: bold;";
     } else if (mappedIndex !== undefined) {
       statusClass = "status-filled";
-      let colName = window.mapper2State.invoiceHeaders[mappedIndex] || `Колонка ${mappedIndex + 1}`;
+      let colName =
+        window.mapper2State.invoiceHeaders[mappedIndex] ||
+        `Колонка ${mappedIndex + 1}`;
 
-      let splitData = window.mapper2State.splitRules && (window.mapper2State.splitRules[req.name] || window.mapper2State.splitRules[req.sysKey]);
+      // ⚡ Читаем правила И по ключу (Specs), И по имени (Ширина профиля)
+      let splitData =
+        window.mapper2State.splitRules &&
+        (window.mapper2State.splitRules[req.name] || window.mapper2State.splitRules[req.sysKey]);
         
-      if (splitData) {
+      if (splitData) { // Убрали жесткую проверку массива, проверяем просто наличие данных
         let sampleText = "";
         let gluedText = "";
         let highlighted = "";
 
-        for (let i = 0; i < Math.min(10, window.mapper2State.invoiceRows.length); i++) {
-          let val = String(window.mapper2State.invoiceRows[i][mappedIndex] || "").trim();
+        for (
+          let i = 0;
+          i < Math.min(10, window.mapper2State.invoiceRows.length);
+          i++
+        ) {
+          let val = String(
+            window.mapper2State.invoiceRows[i][mappedIndex] || "",
+          ).trim();
           if (val) {
             sampleText = val;
             break;
@@ -655,45 +746,58 @@ window.renderMapper2Cards = function (templateData) {
         }
 
         if (sampleText) {
+          // ⚡ Строго та же регулярка, что и в Токенизаторе
           const regex = /\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g;
           let tokens = sampleText.match(regex) || [];
           
+          // Генерируем сигнатуру для превью
           const sig = tokens.map(t => {
             if (/\d/.test(t)) return 'D';
             if (/[a-zA-Zа-яА-ЯёЁ]/.test(t)) return 'L';
             return '.';
           }).join('-');
           
+          // ⚡ ДОСТАЕМ ИНДЕКСЫ (поддерживаем и старый массив, и новые сигнатуры)
           let rawIndices = [];
           if (Array.isArray(splitData)) {
-            rawIndices = splitData;
+            rawIndices = splitData; // Старый формат
           } else if (splitData[sig]) {
-            rawIndices = splitData[sig];
+            rawIndices = splitData[sig]; // Новый формат по точной сигнатуре
           } else if (Object.keys(splitData).length > 0) {
+            // Фолбэк для превью: берем первое попавшееся правило, если сигнатура образца не совпала
             let firstKey = Object.keys(splitData)[0];
             rawIndices = Array.isArray(splitData[firstKey]) ? splitData[firstKey] : [];
           }
 
           let validIndices = rawIndices.map(idx => {
-            if (typeof idx === 'object' && idx !== null) return idx.index !== undefined ? parseInt(idx.index) : parseInt(idx.i);
+            if (typeof idx === 'object' && idx !== null) {
+              return idx.index !== undefined ? parseInt(idx.index) : parseInt(idx.i);
+            }
             return parseInt(idx);
           }).filter(n => !isNaN(n));
 
+          // Убираем дубликаты и сортируем по порядку
           validIndices = [...new Set(validIndices)].filter(n => n >= 0 && n < tokens.length).sort((a, b) => a - b);
 
           validIndices.forEach(i => {
             if (tokens[i] !== undefined) gluedText += tokens[i];
           });
 
-          highlighted = tokens.map((tok, i) => {
-              if (validIndices.includes(i)) return `<b style="color:#000; background:var(--accent-green, #4CAF50); padding:0 3px; border-radius:3px;">${tok}</b>`;
-              else return `<span style="color:#666; text-decoration:line-through;">${tok}</span>`;
-            }).join("");
+          highlighted = tokens
+            .map((tok, i) => {
+              if (validIndices.includes(i)) {
+                return `<b style="color:#000; background:var(--accent-green, #4CAF50); padding:0 3px; border-radius:3px;">${tok}</b>`;
+              } else {
+                return `<span style="color:#666; text-decoration:line-through;">${tok}</span>`;
+              }
+            })
+            .join("");
         }
         
         statusText = `✂ ${gluedText || colName}`;
         statusI18n = "";
-        statusStyle = "border: 1px solid var(--accent-green, #2ecc71); color: var(--accent-green, #2ecc71); background: var(--bg-success-dim, rgba(46, 204, 113, 0.15)); font-weight: bold;";
+        statusStyle =
+          "border: 1px solid var(--accent-green, #2ecc71); color: var(--accent-green, #2ecc71); background: var(--bg-success-dim, rgba(46, 204, 113, 0.15)); font-weight: bold;";
 
         if (highlighted) {
           extraPreviewHtml = `
@@ -702,9 +806,11 @@ window.renderMapper2Cards = function (templateData) {
                     </div>`;
         }
       } else {
+        // ИСПРАВЛЕНИЕ 3: Меняем текст кнопки для обычного маппинга
         statusText = `✓ ${colName}`;
         statusI18n = "";
-        statusStyle = "border: 1px solid var(--accent-green, #2ecc71); color: var(--accent-green, #2ecc71); background: var(--bg-success-dim, rgba(46, 204, 113, 0.15)); font-weight: bold;";
+        statusStyle =
+          "border: 1px solid var(--accent-green, #2ecc71); color: var(--accent-green, #2ecc71); background: var(--bg-success-dim, rgba(46, 204, 113, 0.15)); font-weight: bold;";
       }
     }
 
@@ -733,13 +839,19 @@ window.renderMapper2Cards = function (templateData) {
   let finalHtml = "";
 
   if (htmlRequired) {
-    finalHtml += `<div class="section-header" data-i18n="req_fill_title" style="color: #ff4444; padding: 15px 10px 5px; font-size: 11px; text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px;">🔴 ${t.req_fill_title || "Обязательные для заполнения"}</div>` + htmlRequired;
+    finalHtml +=
+      `<div class="section-header" data-i18n="req_fill_title" style="color: #ff4444; padding: 15px 10px 5px; font-size: 11px; text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px;">🔴 ${t.req_fill_title || "Обязательные для заполнения"}</div>` +
+      htmlRequired;
   }
   if (htmlOptional) {
-    finalHtml += `<div class="section-header" data-i18n="add_params_title" style="color: var(--accent-blue); padding: 15px 10px 5px; font-size: 11px; text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px;">🔵 ${t.add_params_title || "Дополнительные параметры"}</div>` + htmlOptional;
+    finalHtml +=
+      `<div class="section-header" data-i18n="add_params_title" style="color: var(--accent-blue); padding: 15px 10px 5px; font-size: 11px; text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px;">🔵 ${t.add_params_title || "Дополнительные параметры"}</div>` +
+      htmlOptional;
   }
   if (htmlFilled) {
-    finalHtml += `<div class="section-header" data-i18n="desc_invoice_sys" style="color: var(--accent-green); padding: 15px 10px 5px; font-size: 11px; text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px;">✅ ${t.desc_invoice_sys || "Из накладной и системы"}</div>` + htmlFilled;
+    finalHtml +=
+      `<div class="section-header" data-i18n="desc_invoice_sys" style="color: var(--accent-green); padding: 15px 10px 5px; font-size: 11px; text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px;">✅ ${t.desc_invoice_sys || "Из накладной и системы"}</div>` +
+      htmlFilled;
   }
 
   container.innerHTML = finalHtml;
@@ -760,16 +872,7 @@ window.renderMapper2Cards = function (templateData) {
   if (currency) currency.style.display = "none";
 
   document.getElementById("mapper2Area").style.display = "flex";
-
-  // 🔥 КНОПКА ТЕПЕРЬ ВСЕГДА АКТИВНА И КЛИКАБЕЛЬНА НА 100%
-  const applyBtn = document.getElementById("applyMapper2Btn");
-  if (applyBtn) {
-      applyBtn.style.display = "block";
-      applyBtn.disabled = false;
-      applyBtn.style.opacity = "1";
-      applyBtn.style.pointerEvents = "auto";
-      applyBtn.style.cursor = "pointer";
-  }
+  document.getElementById("applyMapper2Btn").style.display = "block";
 };
 
 // 3. ОТКРЫТИЕ ШТОРКИ И ОТРИСОВКА КОЛОНОК
@@ -777,25 +880,17 @@ window.openColumnSelector = function (sysKey, reqName, isKaspi) {
   window.mapper2State.currentSysKey = sysKey;
   window.mapper2State.currentReqName = reqName;
 
-  document.getElementById("sheet-title").innerText = translations[currentLang].mapper_source + reqName;
+  document.getElementById("sheet-title").innerText =
+    translations[currentLang].mapper_source + reqName;
 
   const colList = document.getElementById("sheet-col-list");
 
-  // 🔥 УМНАЯ ПРОВЕРКА: Есть ли у этого поля реальный справочник в Kaspi?
-  let hasDict = window.kaspiDicts && window.kaspiDicts[reqName] && window.kaspiDicts[reqName].length > 0;
-
-  let dictBtnHtml = "";
-  if (isKaspi) {
-      if (hasDict) {
-          // Если справочник есть — показываем стандартную кнопку поиска
-          dictBtnHtml = `<button onclick="window.openKaspiDictSearch()" style="background: var(--accent-green, #4CAF50); border: none; color: #000; padding: 5px 12px; border-radius: 4px; font-size: 11px; font-weight: bold; cursor: pointer; margin-right: 8px;">
-          🔍 <span data-i18n="mapper_btn_dict">Справочник</span></button>`;
-      } else {
-          // Если справочника НЕТ — даем кнопку ручного ввода константы!
-          dictBtnHtml = `<button onclick="window.setManualConstantValue('${sysKey}', '${reqName.replace(/'/g, "\\'")}')" style="background: var(--accent-blue, #3498db); border: none; color: #fff; padding: 5px 12px; border-radius: 4px; font-size: 11px; font-weight: bold; cursor: pointer; margin-right: 8px;">
-          ✍️ Ввести вручную</button>`;
-      }
-  }
+  // Кнопка справочника показывается для всех полей шаблона Kaspi
+  let dictBtnHtml = isKaspi
+    ? `<button onclick="window.openKaspiDictSearch()" style="background: var(--accent-green, #4CAF50); border: none; color: #000; padding: 5px 12px; border-radius: 4px; font-size: 11px; font-weight: bold; cursor: pointer; margin-right: 8px;">
+    🔍 <span data-i18n="mapper_btn_dict">Справочник</span>
+</button>`
+    : "";
 
   colList.innerHTML = `
     <div style="position: sticky; top: 0; background: var(--bg-panel, #1e1e1e); z-index: 10; padding: 15px 20px; margin: -20px 0 15px 0; border-bottom: 1px solid var(--border-light, #333); display: flex; justify-content: space-between; align-items: center;">
@@ -810,8 +905,13 @@ window.openColumnSelector = function (sysKey, reqName, isKaspi) {
         </div>
     </div>`;
 
-  let currentlyMappedIndex = window.mapper2State.colMap ? window.mapper2State.colMap[sysKey] : undefined;
-  let currentSplitRule = window.mapper2State.splitRules ? window.mapper2State.splitRules[sysKey] : null;
+  // ВАЖНО: Восстановлена переменная currentSplitRule, чтобы клик по выбранной строке не выдавал ошибку
+  let currentlyMappedIndex = window.mapper2State.colMap
+    ? window.mapper2State.colMap[sysKey]
+    : undefined;
+  let currentSplitRule = window.mapper2State.splitRules
+    ? window.mapper2State.splitRules[sysKey]
+    : null;
   let splitRules = window.mapper2State.splitRules || {};
   let usedByOthers = {};
 
@@ -829,13 +929,17 @@ window.openColumnSelector = function (sysKey, reqName, isKaspi) {
 
   window.mapper2State.invoiceHeaders.forEach((rawColName, index) => {
     let colName = String(rawColName || "").trim();
-    if (!colName) colName = `[Колонка ${index + 1} Пустой заголовок]`;
+    if (!colName) colName = `[Колонка ${index + 1} - Пустой заголовок]`;
 
     let displayColName = colName.replace(/[\r\n]+/g, " ");
     let safeColName = displayColName.replace(/'/g, "\\'").replace(/"/g, '\\"');
 
     let previews = [];
-    for (let i = 0; i < Math.min(10, window.mapper2State.invoiceRows.length); i++) {
+    for (
+      let i = 0;
+      i < Math.min(10, window.mapper2State.invoiceRows.length);
+      i++
+    ) {
       let val = String(window.mapper2State.invoiceRows[i][index] || "").trim();
       if (val && previews.length < 3 && !previews.some((p) => p.orig === val)) {
         previews.push({ orig: val });
@@ -845,7 +949,8 @@ window.openColumnSelector = function (sysKey, reqName, isKaspi) {
     if (rawColName === "" && previews.length === 0) return;
 
     let isSelected = currentlyMappedIndex === index;
-    let isUsedByOther = usedByOthers[index] !== undefined && usedByOthers[index].length > 0;
+    let isUsedByOther =
+      usedByOthers[index] !== undefined && usedByOthers[index].length > 0;
 
     let takenTokens = new Set();
     let isFullyTaken = false;
@@ -866,8 +971,10 @@ window.openColumnSelector = function (sysKey, reqName, isKaspi) {
       let text = p.orig;
       let tokens = text.match(regex) || [];
 
-      let highlightedHtml = tokens.map((tok, i) => {
-          let isCurrentSplit = isSelected && currentSplitRule && currentSplitRule.includes(i);
+      let highlightedHtml = tokens
+        .map((tok, i) => {
+          let isCurrentSplit =
+            isSelected && currentSplitRule && currentSplitRule.includes(i);
           let isTakenByOther = isFullyTaken || takenTokens.has(i);
 
           if (isCurrentSplit) {
@@ -877,7 +984,8 @@ window.openColumnSelector = function (sysKey, reqName, isKaspi) {
           } else {
             return tok;
           }
-        }).join("");
+        })
+        .join("");
 
       if (isSelected && (!currentSplitRule || currentSplitRule.length === 0)) {
         highlightedHtml = `<b style="color:var(--accent-green, #4CAF50);">${text}</b>`;
@@ -886,19 +994,36 @@ window.openColumnSelector = function (sysKey, reqName, isKaspi) {
       previewHtmlArr.push("- " + highlightedHtml);
     });
 
-    let previewText = previewHtmlArr.length > 0 ? previewHtmlArr.join("<br>") : "Пустая колонка (нет данных)";
-    let safePreview = previews[0] ? String(previews[0].orig).replace(/[\r\n]+/g, " ").replace(/'/g, "\\'").replace(/"/g, '\\"') : "";
+    let previewText =
+      previewHtmlArr.length > 0
+        ? previewHtmlArr.join("<br>")
+        : "Пустая колонка (нет данных)";
+    let safePreview = previews[0]
+      ? String(previews[0].orig)
+          .replace(/[\r\n]+/g, " ")
+          .replace(/'/g, "\\'")
+          .replace(/"/g, '\\"')
+      : "";
 
-    let itemStyle = "background: var(--bg-card, #252525); border: 1px solid var(--border-light, #333); border-radius: 6px; padding: 10px; margin-bottom: 10px; transition: 0.2s;";
+    let itemStyle =
+      "background: var(--bg-card, #252525); border: 1px solid var(--border-light, #333); border-radius: 6px; padding: 10px; margin-bottom: 10px; transition: 0.2s;";
     let badgeHtml = "";
 
     if (isSelected) {
-      itemStyle = "border: 2px solid var(--accent-green, #4CAF50); background: rgba(76, 175, 80, 0.05); border-radius: 6px; padding: 10px; margin-bottom: 10px;";
-      let splitNote = currentSplitRule && currentSplitRule.length > 0 ? " (Часть)" : " (Целиком)";
+      itemStyle =
+        "border: 2px solid var(--accent-green, #4CAF50); background: rgba(76, 175, 80, 0.05); border-radius: 6px; padding: 10px; margin-bottom: 10px;";
+      let splitNote =
+        currentSplitRule && currentSplitRule.length > 0
+          ? " (Часть)"
+          : " (Целиком)";
       badgeHtml = `<div style="font-size: 10px; margin-bottom: 8px;"><span style="background: var(--accent-green, #4CAF50); color: #000; padding: 3px 8px; border-radius: 4px; font-weight: bold;">📌 ВЫБРАНО${splitNote.toUpperCase()}</span></div>`;
     } else if (isUsedByOther) {
-      itemStyle = "background: #151515; border: 1px solid #222; border-radius: 6px; padding: 10px; margin-bottom: 10px; opacity: 0.9;";
-      let usedLabel = isFullyTaken ? `⚠️ ${translations[currentLang].mapper_busy_full}` : `⚠️ ${translations[currentLang].mapper_busy_part}`;
+      itemStyle =
+        "background: #151515; border: 1px solid #222; border-radius: 6px; padding: 10px; margin-bottom: 10px; opacity: 0.9;";
+      // 2. Яркие оранжевые плашки для занятых полей
+      let usedLabel = isFullyTaken
+        ? `⚠️ ${translations[currentLang].mapper_busy_full}`
+        : `⚠️ ${translations[currentLang].mapper_busy_part}`;
       badgeHtml = `<div style="font-size: 10px; margin-bottom: 8px;"><span style="background: rgba(255, 152, 0, 0.15); border: 1px solid rgba(255, 152, 0, 0.4); color: #ff9800; padding: 3px 8px; border-radius: 4px; font-weight: bold;">${usedLabel}</span></div>`;
     }
 
@@ -925,26 +1050,11 @@ window.openColumnSelector = function (sysKey, reqName, isKaspi) {
   });
 
   document.getElementById("sheet-overlay").style.display = "block";
-  setTimeout(() => (document.getElementById("sheet-overlay").style.opacity = "1"), 10);
+  setTimeout(
+    () => (document.getElementById("sheet-overlay").style.opacity = "1"),
+    10,
+  );
   document.getElementById("bottom-sheet").style.transform = "translateY(0)";
-};
-
-window.setManualConstantValue = function(sysKey, reqName) {
-    let val = prompt(`Введите постоянное значение для поля "${reqName}"\n(Оно будет применено ко всем товарам в накладной):`);
-    if (val !== null && val.trim() !== "") {
-        window.mapper2State.dictValues = window.mapper2State.dictValues || {};
-        window.mapper2State.dictValues[sysKey] = val.trim();
-        
-        // Скрываем окно селектора колонок
-        document.getElementById('sheet-overlay').style.opacity = '0';
-        document.getElementById('bottom-sheet').style.transform = 'translateY(100%)';
-        setTimeout(() => { document.getElementById('sheet-overlay').style.display = 'none'; }, 300);
-        
-        // Обновляем интерфейс (поле станет зеленым, кнопка разблокируется)
-        if (typeof window.renderMapper2Cards === 'function') {
-            window.renderMapper2Cards();
-        }
-    }
 };
 
 window.selectMapper2Col = function (colIndex, colName) {
@@ -1462,302 +1572,312 @@ window.updateReqCardStatus = function (sysKey, text, className, previewText) {
 };
 
 // 6. ФИНАЛЬНАЯ СБОРКА JSON ДЛЯ СЕРВЕРА
-window.applyMapper2Logic = function (mode) {
-  const isFromTokenizer = (mode === true);
-  
-  // 🛡️ БЛОКИРУЕМ ФАНТОМНЫЕ ЗАПУСКИ от app.js или случайных кликов
-  if (isFromTokenizer !== true) {
-      const tokenizerUI = document.getElementById("smartMapperContainer");
-      if (tokenizerUI && tokenizerUI.style.display !== "none") {
-          console.log("👻 Заблокирован фантомный запуск во время работы Токенизатора");
-          return; 
-      }
+window.applyMapper2Logic = function () {
+  const state = window.mapper2State;
+
+  const qtyIdx = state.colMap["qty"];
+  const priceIdx = state.colMap["price"] !== undefined ? state.colMap["price"] : state.colMap["cost"];
+  const nameIdx = state.colMap["name"] !== undefined ? state.colMap["name"] : state.colMap["model"];
+
+  if (qtyIdx === undefined || priceIdx === undefined || nameIdx === undefined) {
+    const lang = window.currentLang || localStorage.getItem("pos_lang") || "ru";
+    const tr = typeof translations !== "undefined" && translations[lang] ? translations[lang] : {};
+    const errorMsg = tr.mapper_err_missing_cols || "⚠️ Обязательно привяжите колонки:\n1. Наименование (или model)\n2. Количество (qty)\n3. Цена (price)";
+    return alert(errorMsg);
   }
 
-  console.log("🚀 ЗАПУСК applyMapper2Logic", isFromTokenizer === true ? "(ТОКЕНИЗАТОР)" : "(КНОПКА)");
-
-  const state = window.mapper2State || {};
-  let colMap = state.colMap || {};
-  let dict = state.dictValues || {};
-
-  // 💾 ЖЕСТКИЙ ДИСК (Сохраняем привязки вне зоны досягаемости очистки)
-  if (isFromTokenizer === true) {
-      try {
-          let sc = localStorage.getItem("POS_BUNKER_COLMAP");
-          if (sc) colMap = JSON.parse(sc);
-          let sd = localStorage.getItem("POS_BUNKER_DICT");
-          if (sd) dict = JSON.parse(sd);
-      } catch (e) {}
-      state.colMap = colMap;
-      state.dictValues = dict;
-  } else {
-      if (Object.keys(colMap).length > 0) localStorage.setItem("POS_BUNKER_COLMAP", JSON.stringify(colMap));
-      if (Object.keys(dict).length > 0) localStorage.setItem("POS_BUNKER_DICT", JSON.stringify(dict));
-  }
-
-  // 🚦 ВАЛИДАЦИЯ (Пропускается для Токенизатора)
-  if (isFromTokenizer !== true) {
-      const hasQty = colMap["qty"] !== undefined || dict["qty"] !== undefined;
-      const hasPrice = colMap["price"] !== undefined || colMap["cost"] !== undefined || dict["price"] !== undefined || dict["cost"] !== undefined;
-      const hasName = colMap["name"] !== undefined || colMap["model"] !== undefined || dict["name"] !== undefined || dict["model"] !== undefined;
-
-      if (!hasQty || !hasPrice || !hasName) {
-          return alert("⚠️ Обязательно привяжите колонки:\n1. Наименование\n2. Количество\n3. Цена");
-      }
-
-      const reqCards = document.querySelectorAll('.req-card .req-title.required');
-      for (let i = 0; i < reqCards.length; i++) {
-          let card = reqCards[i].closest('.req-card');
-          if (card && !card.querySelector('.status-filled') && !card.querySelector('.status-dict')) {
-              return alert("⚠️ ВНИМАНИЕ: Заполнены не все обязательные поля Kaspi!");
-          }
-      }
-      
-      let mapperArea = document.getElementById("mapper2Area");
-      if (mapperArea) mapperArea.style.display = "flex";
-  }
-
-  // 🧠 ПАМЯТЬ KASPI
   if (window.currentImportMode === "kaspi") {
-      const templateSelect = document.getElementById("kaspiTemplateSelect");
-      const templateName = templateSelect ? templateSelect.value : "";
-      if (templateName) {
-          let currentMemory = {};
-          try { currentMemory = JSON.parse(window.mapper2State.rawMemoryJson || "{}"); } catch (e) {}
-          let memoryUpdated = false;
+    const templateSelect = document.getElementById("kaspiTemplateSelect");
+    const templateName = templateSelect ? templateSelect.value : "";
+    if (templateName) {
+      let currentMemory = {};
+      try { currentMemory = JSON.parse(window.mapper2State.rawMemoryJson || "{}"); } catch (e) {}
+      let memoryUpdated = false;
 
-          Object.keys(colMap).forEach((sysKey) => {
-              let colIndex = colMap[sysKey];
-              let headerText = state.invoiceHeaders ? state.invoiceHeaders[colIndex] : "";
-              if (headerText) {
-                  let cleanWord = String(headerText).trim().toLowerCase();
-                  if (!Array.isArray(currentMemory[sysKey])) currentMemory[sysKey] = [];
-                  if (!currentMemory[sysKey].includes(cleanWord)) {
-                      currentMemory[sysKey].push(cleanWord);
-                      memoryUpdated = true;
-                  }
-              }
-          });
-
-          if (state.splitRules && Object.keys(state.splitRules).length > 0) {
-              currentMemory._splitRules = state.splitRules;
-              memoryUpdated = true;
+      Object.keys(state.colMap).forEach((sysKey) => {
+        let colIndex = state.colMap[sysKey];
+        let headerText = state.invoiceHeaders[colIndex];
+        if (headerText) {
+          let cleanWord = String(headerText).trim().toLowerCase();
+          if (!Array.isArray(currentMemory[sysKey])) {
+            currentMemory[sysKey] = [];
           }
-
-          if (memoryUpdated) {
-              const payload = { action: "updateKaspiMemory", api_key: CLIENT_API_KEY, category: templateName, memoryJson: JSON.stringify(currentMemory) };
-              window.smartFetch(GATEWAY_URL, payload).catch(() => {});
+          if (!currentMemory[sysKey].includes(cleanWord)) {
+            currentMemory[sysKey].push(cleanWord);
+            memoryUpdated = true;
           }
-      }
-  }
-
-  console.log("⏳ Начинаем парсинг строк...");
-  window.parsedInvoiceData = [];
-  window.invoiceGroups = {};
-  window.invoiceGroups[state.docNo] = { supplier: state.supplier, items: [], originalFiles: [{ fileName: state.fileName, fileBase64: state.originalBase64 }] };
-
-  const regex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,]/g;
-  let mappedIndices = Object.values(colMap).filter((v) => v !== undefined);
-  window.mapper2State.quarantine = [];
-
-  if (!state.invoiceRows || !Array.isArray(state.invoiceRows) || state.invoiceRows.length === 0) {
-      return alert("⚠️ Ошибка: строки накладной пусты (массив invoiceRows стерт).");
-  }
-
-  // Переменные для дебаггера
-  let firstParsedPrice = null;
-  let firstParsedQty = null;
-
-  state.invoiceRows.forEach((row, index) => {
-      if (!row || row.length === 0) return;
-
-      const getValue = (primaryKey, kaspiKey) => {
-          if (dict[primaryKey]) return dict[primaryKey];
-          if (kaspiKey && dict[kaspiKey]) return dict[kaspiKey];
-
-          let colIdx = colMap[primaryKey];
-          if (colIdx === undefined && kaspiKey) colIdx = colMap[kaspiKey];
-          if (colIdx === undefined) return "";
-
-          let rawVal = String(row[colIdx] || "").trim();
-          if (state.splitRules && state.splitRules[primaryKey]) {
-              const tokens = rawVal.match(regex) || [];
-              const sig = tokens.map(t => {
-                  if (/\d/.test(t)) return 'D';
-                  if (/[a-zA-Zа-яА-ЯёЁ]/.test(t)) return 'L';
-                  return '.';
-              }).join('-');
-
-              const ruleData = state.splitRules[primaryKey];
-              let targetIndices = [];
-
-              if (Array.isArray(ruleData)) targetIndices = ruleData;
-              else if (ruleData[sig]) targetIndices = ruleData[sig];
-              else return rawVal;
-
-              let result = [];
-              targetIndices.forEach((idx) => { if (tokens[idx] !== undefined) result.push(tokens[idx]); });
-              return result.join("");
-          }
-          return rawVal;
-      };
-
-      let rawQty = getValue("qty");
-      let rawPrice = getValue("price", "cost");
-      let rawId = getValue("barcode", "merchant_sku");
-      let rawName = getValue("name", "model");
-
-      let qty = parseFloat(rawQty) || 0;
-      let price = parseFloat(String(rawPrice).replace(",", "."));
-
-      // Захватываем первую строку для диагностики
-      if (index === 0) {
-          firstParsedPrice = rawPrice;
-          firstParsedQty = rawQty;
-      }
-
-      if (isNaN(price) || price <= 0) return; 
-
-      let hasIdentifier = (rawId && String(rawId).trim() !== "") || (rawName && String(rawName).trim() !== "");
-      if (!hasIdentifier) return;
-
-      let barcode = /^\d{8,13}$/.test(rawId) ? rawId : "";
-      let name = rawName || rawId || "Без названия";
-      let rawLogisticsStr = "";
-      
-      row.forEach((cellVal, idx) => {
-          if (mappedIndices.includes(idx)) return;
-          let val = String(cellVal || "").trim();
-          if (val && val.length < 30 && !/^\d{8,15}$/.test(val)) rawLogisticsStr += " " + val;
+        }
       });
 
-      let rawCbm = getValue("cbm");
-      let cbm = rawCbm ? parseFloat(String(rawCbm).replace(",", ".")) : "";
-      let rawWeight = getValue("weight");
-      let weight = rawWeight ? parseFloat(String(rawWeight).replace(",", ".")) : "";
-
-      let attributesObj = {};
-      let itemHasCollisions = false;
-      let itemCollisionsList = [];
-
-      const processAttribute = (key) => {
-          let lowerKey = String(key).toLowerCase();
-          let rawValue = getValue(key);
-
-          if (["qty", "price", "cost", "name", "model", "barcode", "cbm", "weight"].includes(lowerKey)) return;
-          if (!rawValue) return;
-
-          let humanName = state.sysToHumanMap ? state.sysToHumanMap[key] : key;
-          let searchString = rawValue;
-
-          let dictMatch = window.kaspiDicts && window.kaspiDicts[humanName];
-          let hasDictionary = dictMatch && Array.isArray(dictMatch) && dictMatch.length > 0;
-          let foundMatch = false;
-          let matchedDictValue = searchString;
-
-          if (hasDictionary) {
-              for (let dv of dictMatch) {
-                  let strDv = String(dv).trim();
-                  let baseDv = strDv.split("(")[0].trim();
-                  let isStrictNumber = /^[\d\.]+$/.test(String(searchString).trim());
-
-                  if (strDv.toLowerCase() === String(searchString).trim().toLowerCase() ||
-                      baseDv.toLowerCase() === String(searchString).trim().toLowerCase() ||
-                      (isStrictNumber && !isNaN(parseFloat(baseDv)) && parseFloat(baseDv) === parseFloat(searchString))) {
-                      matchedDictValue = strDv;
-                      foundMatch = true;
-                      break;
-                  }
-              }
-          }
-
-          if (window.currentImportMode === "kaspi" && hasDictionary && !foundMatch) {
-              let colIdx = colMap[key];
-              let excelHeader = colIdx !== undefined && state.invoiceHeaders ? state.invoiceHeaders[colIdx] : "";
-              let isComplex = window.complexColumnsToTokenize && window.complexColumnsToTokenize.includes(excelHeader);
-              let ruleExists = state.splitRules && state.splitRules[key];
-
-              if (isComplex && !ruleExists) {
-                  itemHasCollisions = true;
-                  itemCollisionsList.push({ sysKey: key, humanName: humanName, rawString: rawValue, excelColumnName: excelHeader || "ДАННЫЕ ИЗ НАКЛАДНОЙ" });
-              } else {
-                  attributesObj[key] = rawValue;
-              }
-              return;
-          }
-          attributesObj[key] = matchedDictValue;
-      };
-
-      let allKeys = new Set(Object.keys(colMap));
-      Object.keys(dict).forEach((k) => allKeys.add(k));
-      if (state.splitRules) Object.keys(state.splitRules).forEach((k) => allKeys.add(k));
-
-      allKeys.forEach((key) => processAttribute(key));
-
-      let cleanAttributesObj = Object.assign({}, attributesObj);
-      delete cleanAttributesObj['Артикул'];
-      delete cleanAttributesObj['Название модели'];
-      delete cleanAttributesObj['sku'];
-      delete cleanAttributesObj['title'];
-
-      let finalAttributes = Object.keys(cleanAttributesObj).length > 0 ? JSON.stringify(cleanAttributesObj) : "";
-      const templateDropdown = document.getElementById("kaspiTemplateSelect");
-      const activeCategoryText = templateDropdown && templateDropdown.selectedIndex !== -1 ? templateDropdown.options[templateDropdown.selectedIndex].text.trim() : "Новые товары";
-
-      const itemData = {
-          doc_no: state.docNo, supplier: state.supplier, item_id: rawId, item_name: name, qty: qty, cost: price,
-          cbm: cbm, weight: weight, raw_logistics: rawLogisticsStr.trim(), staff_id: typeof currentUser !== "undefined" && currentUser ? currentUser.uid : "Auto-Import",
-          id: rawId, name: name, desc: name, description: name, barcode: barcode, category: activeCategoryText, sku: rawId, title: name, attributes: finalAttributes,
-          _hasCollisions: itemHasCollisions, _collisionsList: itemCollisionsList, _attributesObj: attributesObj,
-      };
-
-      window.parsedInvoiceData.push(itemData);
-      window.invoiceGroups[state.docNo].items.push(itemData);
-
-      if (itemHasCollisions) {
-          itemCollisionsList.forEach((collision) => {
-              const exists = window.mapper2State.quarantine.find((q) => q.rawString === collision.rawString && q.sysKey === collision.sysKey);
-              if (!exists) window.mapper2State.quarantine.push(collision);
-          });
+      if (state.splitRules && Object.keys(state.splitRules).length > 0) {
+        currentMemory._splitRules = state.splitRules;
+        memoryUpdated = true;
       }
+
+      if (memoryUpdated) {
+        const payload = {
+          action: "updateKaspiMemory",
+          api_key: CLIENT_API_KEY,
+          category: templateName,
+          memoryJson: JSON.stringify(currentMemory),
+        };
+        window.smartFetch(GATEWAY_URL, payload).catch((e) => console.error("Ошибка обновления словаря", e));
+      }
+    }
+  }
+
+  window.parsedInvoiceData = [];
+  window.invoiceGroups = {};
+  window.invoiceGroups[state.docNo] = {
+    supplier: state.supplier,
+    items: [],
+    originalFiles: [{ fileName: state.fileName, fileBase64: state.originalBase64 }],
+  };
+
+  const regex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,]/g;
+  let mappedIndices = Object.values(state.colMap).filter((v) => v !== undefined);
+
+  window.mapper2State.quarantine = [];
+
+  state.invoiceRows.forEach((row, index) => {
+    if (!row || row.length === 0) return;
+
+    const getValue = (primaryKey, kaspiKey) => {
+      if (state.dictValues && state.dictValues[primaryKey]) return state.dictValues[primaryKey];
+      if (kaspiKey && state.dictValues && state.dictValues[kaspiKey]) return state.dictValues[kaspiKey];
+
+      let colIdx = state.colMap[primaryKey];
+      if (colIdx === undefined && kaspiKey) colIdx = state.colMap[kaspiKey];
+      if (colIdx === undefined) return "";
+
+      let rawVal = String(row[colIdx] || "").trim();
+      if (state.splitRules && state.splitRules[primaryKey]) {
+        const tokens = rawVal.match(regex) || [];
+        
+        // Генерируем сигнатуру текущей ячейки
+        const sig = tokens.map(t => {
+          if (/\d/.test(t)) return 'D';
+          if (/[a-zA-Zа-яА-ЯёЁ]/.test(t)) return 'L';
+          return '.';
+        }).join('-');
+
+        const ruleData = state.splitRules[primaryKey];
+        let targetIndices = [];
+
+        if (Array.isArray(ruleData)) {
+           // Обратная совместимость со старыми правилами
+           targetIndices = ruleData;
+        } else if (ruleData[sig]) {
+           // Берем индексы именно для этой структуры текста
+           targetIndices = ruleData[sig];
+        } else {
+           // Если структура неизвестна, возвращаем сырой текст
+           return rawVal; 
+        }
+
+        let result = [];
+        targetIndices.forEach((idx) => {
+          if (tokens[idx] !== undefined) result.push(tokens[idx]);
+        });
+        return result.join("");
+      }
+      return rawVal;
+    };
+
+    let rawQty = getValue("qty");
+    let rawPrice = getValue("price", "cost");
+    let rawId = getValue("barcode", "merchant_sku");
+    let rawName = getValue("name", "model");
+
+    let qty = parseFloat(rawQty) || 0; // Если пустая или текст - будет 0
+    let price = parseFloat(String(rawPrice).replace(",", "."));
+
+    // 🔥 1. БАЗОВЫЙ ФИЛЬТР МУСОРА: Цена должна быть числом больше нуля
+    if (isNaN(price) || price <= 0) {
+        return; // Пропускаем строку (нет цены -> это шапка, подвал или разделитель)
+    }
+
+    // 🔥 2. ФИЛЬТР ТЕХНИЧЕСКИХ ПОДВАЛОВ: Должен быть хоть какой-то идентификатор
+    let hasIdentifier = (rawId && String(rawId).trim() !== "") || (rawName && String(rawName).trim() !== "");
+    if (!hasIdentifier) {
+        return; // Пропускаем строку (есть цифры, но нет ни названия, ни артикула -> это строка "Итого")
+    }
+
+    let barcode = /^\d{8,13}$/.test(rawId) ? rawId : "";
+    let name = rawName || rawId || "Без названия";
+
+    let rawLogisticsStr = "";
+    row.forEach((cellVal, idx) => {
+      if (mappedIndices.includes(idx)) return;
+      let val = String(cellVal || "").trim();
+      if (val && val.length < 30 && !/^\d{8,15}$/.test(val)) {
+        rawLogisticsStr += " " + val;
+      }
+    });
+
+    let rawCbm = getValue("cbm");
+    let cbm = rawCbm ? parseFloat(String(rawCbm).replace(",", ".")) : "";
+    let rawWeight = getValue("weight");
+    let weight = rawWeight ? parseFloat(String(rawWeight).replace(",", ".")) : "";
+
+    let attributesObj = {};
+    let itemHasCollisions = false;
+    let itemCollisionsList = [];
+
+    const processAttribute = (key) => {
+      let lowerKey = String(key).toLowerCase();
+      let rawValue = getValue(key);
+
+      // Пропускаем базовые системные поля (они уже обработаны выше)
+      if (["qty", "price", "cost", "name", "model", "barcode", "cbm", "weight"].includes(lowerKey)) return;
+      if (!rawValue) return;
+
+      let humanName = state.sysToHumanMap ? state.sysToHumanMap[key] : key;
+      let searchString = rawValue;
+
+      let dict = window.kaspiDicts && window.kaspiDicts[humanName];
+      let hasDictionary = dict && Array.isArray(dict) && dict.length > 0;
+      let foundMatch = false;
+      let matchedDictValue = searchString; // По умолчанию берем сырое значение
+
+      // 1. Ищем точное совпадение в справочнике Kaspi (если он есть)
+      if (hasDictionary) {
+        for (let dv of dict) {
+          let strDv = String(dv).trim();
+          let baseDv = strDv.split("(")[0].trim();
+          let isStrictNumber = /^[\d\.]+$/.test(String(searchString).trim());
+
+          if (
+            strDv.toLowerCase() === String(searchString).trim().toLowerCase() ||
+            baseDv.toLowerCase() === String(searchString).trim().toLowerCase() ||
+            (isStrictNumber && !isNaN(parseFloat(baseDv)) && parseFloat(baseDv) === parseFloat(searchString))
+          ) {
+            matchedDictValue = strDv;
+            foundMatch = true;
+            break;
+          }
+        }
+      }
+
+      // 2. Логика коллизий (есть словарь, но нет совпадения)
+      if (window.currentImportMode === "kaspi" && hasDictionary && !foundMatch) {
+        let colIdx = state.colMap[key];
+        let excelHeader = colIdx !== undefined && state.invoiceHeaders ? state.invoiceHeaders[colIdx] : "";
+
+        // 🔥 ПРОВЕРКА "БЕЛОГО СПИСКА": Отметил ли клиент эту колонку в интерфейсе?
+        let isComplex = window.complexColumnsToTokenize && window.complexColumnsToTokenize.includes(excelHeader);
+
+        if (isComplex) {
+          // Колонка сложная -> отправляем в карантин для Сита/Токенизатора
+          itemHasCollisions = true;
+          itemCollisionsList.push({
+            sysKey: key,
+            humanName: humanName,
+            rawString: rawValue,
+            excelColumnName: excelHeader || "ДАННЫЕ ИЗ НАКЛАДНОЙ",
+          });
+        } else {
+          // Колонка простая (не отмечена) -> принудительно сохраняем текст из Excel как есть
+          attributesObj[key] = rawValue;
+        }
+        return; // Завершаем обработку для этого поля
+      }
+
+      // 3. Сохраняем словарное значение (или оригинальное, если словаря не было)
+      attributesObj[key] = matchedDictValue;
+    };
+
+    let allKeys = new Set(Object.keys(state.colMap));
+    if (state.dictValues) Object.keys(state.dictValues).forEach((k) => allKeys.add(k));
+    if (state.splitRules) Object.keys(state.splitRules).forEach((k) => allKeys.add(k));
+
+    allKeys.forEach((key) => processAttribute(key));
+
+    // ⚡ 1. ИЗОЛИРУЕМ ДУБЛИ ДЛЯ ИНТЕРФЕЙСА (но сохраняем оригинальный маппинг)
+    let cleanAttributesObj = Object.assign({}, attributesObj);
+    delete cleanAttributesObj['Артикул'];
+    delete cleanAttributesObj['Название модели'];
+    delete cleanAttributesObj['sku'];
+    delete cleanAttributesObj['title'];
+
+    let finalAttributes = Object.keys(cleanAttributesObj).length > 0 ? JSON.stringify(cleanAttributesObj) : "";
+
+    const templateDropdown = document.getElementById("kaspiTemplateSelect");
+    const activeCategoryText = templateDropdown && templateDropdown.selectedIndex !== -1 
+      ? templateDropdown.options[templateDropdown.selectedIndex].text.trim() 
+      : "Новые товары";
+
+    // ⚡ 2. ГИБРИДНАЯ СБОРКА ТОВАРА (База + Каспи)
+    const itemData = {
+      doc_no: state.docNo,
+      supplier: state.supplier,
+      item_id: rawId,
+      item_name: name,
+      qty: qty,
+      cost: price, // База ждет закупочную цену именно тут
+      cbm: cbm,
+      weight: weight,
+      raw_logistics: rawLogisticsStr.trim(),
+      staff_id: typeof currentUser !== "undefined" && currentUser ? currentUser.uid : "Auto-Import",
+      id: rawId,
+      name: name,
+      desc: name,
+      description: name,
+      barcode: barcode, // 🔥 ИСПРАВЛЕНО: Убрали || rawId. Если штрихкода нет, отправляем пустоту!
+      category: activeCategoryText, // Динамическая категория (Текст)
+      sku: rawId, // Поле для выгрузки в Каспи
+      title: name, // Поле для выгрузки в Каспи
+      attributes: finalAttributes,
+      _hasCollisions: itemHasCollisions,
+      _collisionsList: itemCollisionsList,
+      _attributesObj: attributesObj,
+    };
+
+    window.parsedInvoiceData.push(itemData);
+    window.invoiceGroups[state.docNo].items.push(itemData);
+
+    if (itemHasCollisions) {
+      itemCollisionsList.forEach((collision) => {
+        const exists = window.mapper2State.quarantine.find(
+          (q) => q.rawString === collision.rawString && q.sysKey === collision.sysKey
+        );
+        if (!exists) {
+          window.mapper2State.quarantine.push(collision);
+        }
+      });
+    }
   });
 
-  // 🔁 ТОКЕНИЗАТОР
-  if (window.mapper2State.quarantine && window.mapper2State.quarantine.length > 0) {
-      if (typeof window.startTokenizerQueue === "function") window.startTokenizerQueue();
-      return;
-  }
-
-  // 🏁 ФИНАЛ И ОТЛАДКА
   if (window.parsedInvoiceData.length === 0) {
-      console.error("ОТЛАДКА:", { colMap, dict, invoiceRows: state.invoiceRows, firstParsedPrice, firstParsedQty });
-      let debugMsg = `Дебаг-инфо (покажи мне скрин или текст):\n\n`;
-      debugMsg += `Номер колонки цены: ${colMap["price"] ?? colMap["cost"] ?? 'Не найдена'}\n`;
-      debugMsg += `Сырая цена: '${firstParsedPrice}'\n`;
-      debugMsg += `Сырое кол-во: '${firstParsedQty}'\n`;
-      debugMsg += `Всего строк считано: ${state.invoiceRows.length}`;
-      return alert("Не удалось сформировать товары.\n\n" + debugMsg);
+    return alert("Не удалось сформировать товары. Убедитесь, что в колонках «Количество» и «Цена» находятся ТОЛЬКО цифры.");
   }
 
-  console.log("➡️ Переходим к таблице превью...");
-  if (typeof window.renderPreviewTable === "function") window.renderPreviewTable();
+  if (window.mapper2State.quarantine && window.mapper2State.quarantine.length > 0) {
+    if (typeof window.startTokenizerQueue === "function") {
+      window.startTokenizerQueue();
+    } else {
+      alert("Найдены сложные форматы, но модуль Токенизатора еще не загружен.");
+    }
+    return;
+  }
 
-  let mapperArea = document.getElementById("mapper2Area");
-  if (mapperArea) mapperArea.style.display = "none";
-  
-  let invoicePreviewArea = document.getElementById("invoicePreviewArea");
-  if (invoicePreviewArea) invoicePreviewArea.style.display = "flex";
+  window.renderPreviewTable();
+  document.getElementById("mapper2Area").style.display = "none";
+  document.getElementById("invoicePreviewArea").style.display = "flex";
 
   if (window.isKaspiExportMode) {
-      const sendBtn = document.getElementById("sendInvoiceBtn");
-      if (sendBtn) sendBtn.style.display = "none";
-      const exportBtns = document.getElementById("exportActionButtons");
-      if (exportBtns) exportBtns.style.display = "flex";
+    const sendBtn = document.getElementById("sendInvoiceBtn");
+    if (sendBtn) sendBtn.style.display = "none";
+
+    const exportBtns = document.getElementById("exportActionButtons");
+    if (exportBtns) exportBtns.style.display = "flex";
   } else {
-      const sendBtn = document.getElementById("sendInvoiceBtn");
-      if (sendBtn) sendBtn.style.display = "flex";
-      const exportBtns = document.getElementById("exportActionButtons");
-      if (exportBtns) exportBtns.style.display = "none";
+    // 🔥 ФИКС: Возвращаем зеленую кнопку при обычной приемке
+    const sendBtn = document.getElementById("sendInvoiceBtn");
+    if (sendBtn) sendBtn.style.display = "flex"; // или "block", в зависимости от твоей верстки
+
+    const exportBtns = document.getElementById("exportActionButtons");
+    if (exportBtns) exportBtns.style.display = "none";
   }
 };
 
