@@ -1462,37 +1462,47 @@ window.updateReqCardStatus = function (sysKey, text, className, previewText) {
 };
 
 // 6. ФИНАЛЬНАЯ СБОРКА JSON ДЛЯ СЕРВЕРА
-window.applyMapper2Logic = function (isFromTokenizer = false) {
-  console.log("🚀 ЗАПУСК applyMapper2Logic", isFromTokenizer === true ? "(ФОНОВАЯ ПЕРЕСБОРКА)" : "(ПЕРВЫЙ КЛИК)");
+window.applyMapper2Logic = function (mode) {
+  const isFromTokenizer = (mode === true);
+  
+  // 🛡️ БЛОКИРУЕМ ФАНТОМНЫЕ ЗАПУСКИ от app.js или случайных кликов
+  if (isFromTokenizer !== true) {
+      const tokenizerUI = document.getElementById("smartMapperContainer");
+      if (tokenizerUI && tokenizerUI.style.display !== "none") {
+          console.log("👻 Заблокирован фантомный запуск во время работы Токенизатора");
+          return; 
+      }
+  }
+
+  console.log("🚀 ЗАПУСК applyMapper2Logic", isFromTokenizer === true ? "(ТОКЕНИЗАТОР)" : "(КНОПКА)");
 
   const state = window.mapper2State || {};
   let colMap = state.colMap || {};
   let dict = state.dictValues || {};
 
-  // === 1. БУНКЕР (Защита от app.js) ===
+  // 💾 ЖЕСТКИЙ ДИСК (Сохраняем привязки вне зоны досягаемости очистки)
   if (isFromTokenizer === true) {
-      // При пересборке app.js уже всё стер. Достаем из диска!
       try {
-          if (localStorage.getItem("POS_BUNKER_COLMAP")) colMap = JSON.parse(localStorage.getItem("POS_BUNKER_COLMAP"));
-          if (localStorage.getItem("POS_BUNKER_DICT")) dict = JSON.parse(localStorage.getItem("POS_BUNKER_DICT"));
+          let sc = localStorage.getItem("POS_BUNKER_COLMAP");
+          if (sc) colMap = JSON.parse(sc);
+          let sd = localStorage.getItem("POS_BUNKER_DICT");
+          if (sd) dict = JSON.parse(sd);
       } catch (e) {}
-      
       state.colMap = colMap;
       state.dictValues = dict;
   } else {
-      // При первом клике сохраняем свежие данные на диск
       if (Object.keys(colMap).length > 0) localStorage.setItem("POS_BUNKER_COLMAP", JSON.stringify(colMap));
       if (Object.keys(dict).length > 0) localStorage.setItem("POS_BUNKER_DICT", JSON.stringify(dict));
   }
 
-  // === 2. ВАЛИДАЦИЯ (ТОЛЬКО ПРИ ПЕРВОМ КЛИКЕ) ===
+  // 🚦 ВАЛИДАЦИЯ (Пропускается для Токенизатора)
   if (isFromTokenizer !== true) {
       const hasQty = colMap["qty"] !== undefined || dict["qty"] !== undefined;
       const hasPrice = colMap["price"] !== undefined || colMap["cost"] !== undefined || dict["price"] !== undefined || dict["cost"] !== undefined;
       const hasName = colMap["name"] !== undefined || colMap["model"] !== undefined || dict["name"] !== undefined || dict["model"] !== undefined;
 
       if (!hasQty || !hasPrice || !hasName) {
-        return alert("⚠️ Обязательно привяжите колонки:\n1. Наименование\n2. Количество\n3. Цена");
+          return alert("⚠️ Обязательно привяжите колонки:\n1. Наименование\n2. Количество\n3. Цена");
       }
 
       const reqCards = document.querySelectorAll('.req-card .req-title.required');
@@ -1507,38 +1517,38 @@ window.applyMapper2Logic = function (isFromTokenizer = false) {
       if (mapperArea) mapperArea.style.display = "flex";
   }
 
-  // === 3. ПАРСИНГ СТРОК ===
+  // 🧠 ПАМЯТЬ KASPI
   if (window.currentImportMode === "kaspi") {
-    const templateSelect = document.getElementById("kaspiTemplateSelect");
-    const templateName = templateSelect ? templateSelect.value : "";
-    if (templateName) {
-      let currentMemory = {};
-      try { currentMemory = JSON.parse(window.mapper2State.rawMemoryJson || "{}"); } catch (e) {}
-      let memoryUpdated = false;
+      const templateSelect = document.getElementById("kaspiTemplateSelect");
+      const templateName = templateSelect ? templateSelect.value : "";
+      if (templateName) {
+          let currentMemory = {};
+          try { currentMemory = JSON.parse(window.mapper2State.rawMemoryJson || "{}"); } catch (e) {}
+          let memoryUpdated = false;
 
-      Object.keys(colMap).forEach((sysKey) => {
-        let colIndex = colMap[sysKey];
-        let headerText = state.invoiceHeaders ? state.invoiceHeaders[colIndex] : "";
-        if (headerText) {
-          let cleanWord = String(headerText).trim().toLowerCase();
-          if (!Array.isArray(currentMemory[sysKey])) currentMemory[sysKey] = [];
-          if (!currentMemory[sysKey].includes(cleanWord)) {
-            currentMemory[sysKey].push(cleanWord);
-            memoryUpdated = true;
+          Object.keys(colMap).forEach((sysKey) => {
+              let colIndex = colMap[sysKey];
+              let headerText = state.invoiceHeaders ? state.invoiceHeaders[colIndex] : "";
+              if (headerText) {
+                  let cleanWord = String(headerText).trim().toLowerCase();
+                  if (!Array.isArray(currentMemory[sysKey])) currentMemory[sysKey] = [];
+                  if (!currentMemory[sysKey].includes(cleanWord)) {
+                      currentMemory[sysKey].push(cleanWord);
+                      memoryUpdated = true;
+                  }
+              }
+          });
+
+          if (state.splitRules && Object.keys(state.splitRules).length > 0) {
+              currentMemory._splitRules = state.splitRules;
+              memoryUpdated = true;
           }
-        }
-      });
 
-      if (state.splitRules && Object.keys(state.splitRules).length > 0) {
-        currentMemory._splitRules = state.splitRules;
-        memoryUpdated = true;
+          if (memoryUpdated) {
+              const payload = { action: "updateKaspiMemory", api_key: CLIENT_API_KEY, category: templateName, memoryJson: JSON.stringify(currentMemory) };
+              window.smartFetch(GATEWAY_URL, payload).catch(() => {});
+          }
       }
-
-      if (memoryUpdated) {
-        const payload = { action: "updateKaspiMemory", api_key: CLIENT_API_KEY, category: templateName, memoryJson: JSON.stringify(currentMemory) };
-        window.smartFetch(GATEWAY_URL, payload).catch(() => {});
-      }
-    }
   }
 
   console.log("⏳ Начинаем парсинг строк...");
@@ -1550,165 +1560,183 @@ window.applyMapper2Logic = function (isFromTokenizer = false) {
   let mappedIndices = Object.values(colMap).filter((v) => v !== undefined);
   window.mapper2State.quarantine = [];
 
-  if (!state.invoiceRows || !Array.isArray(state.invoiceRows)) return;
-
-  state.invoiceRows.forEach((row, index) => {
-    if (!row || row.length === 0) return;
-
-    const getValue = (primaryKey, kaspiKey) => {
-      if (dict[primaryKey]) return dict[primaryKey];
-      if (kaspiKey && dict[kaspiKey]) return dict[kaspiKey];
-
-      let colIdx = colMap[primaryKey];
-      if (colIdx === undefined && kaspiKey) colIdx = colMap[kaspiKey];
-      if (colIdx === undefined) return "";
-
-      let rawVal = String(row[colIdx] || "").trim();
-      if (state.splitRules && state.splitRules[primaryKey]) {
-        const tokens = rawVal.match(regex) || [];
-        const sig = tokens.map(t => {
-          if (/\d/.test(t)) return 'D';
-          if (/[a-zA-Zа-яА-ЯёЁ]/.test(t)) return 'L';
-          return '.';
-        }).join('-');
-
-        const ruleData = state.splitRules[primaryKey];
-        let targetIndices = [];
-
-        if (Array.isArray(ruleData)) targetIndices = ruleData;
-        else if (ruleData[sig]) targetIndices = ruleData[sig];
-        else return rawVal;
-
-        let result = [];
-        targetIndices.forEach((idx) => { if (tokens[idx] !== undefined) result.push(tokens[idx]); });
-        return result.join("");
-      }
-      return rawVal;
-    };
-
-    let rawQty = getValue("qty");
-    let rawPrice = getValue("price", "cost");
-    let rawId = getValue("barcode", "merchant_sku");
-    let rawName = getValue("name", "model");
-
-    let qty = parseFloat(rawQty) || 0;
-    let price = parseFloat(String(rawPrice).replace(",", "."));
-
-    if (isNaN(price) || price <= 0) return; 
-
-    let hasIdentifier = (rawId && String(rawId).trim() !== "") || (rawName && String(rawName).trim() !== "");
-    if (!hasIdentifier) return;
-
-    let barcode = /^\d{8,13}$/.test(rawId) ? rawId : "";
-    let name = rawName || rawId || "Без названия";
-    let rawLogisticsStr = "";
-    
-    row.forEach((cellVal, idx) => {
-      if (mappedIndices.includes(idx)) return;
-      let val = String(cellVal || "").trim();
-      if (val && val.length < 30 && !/^\d{8,15}$/.test(val)) rawLogisticsStr += " " + val;
-    });
-
-    let rawCbm = getValue("cbm");
-    let cbm = rawCbm ? parseFloat(String(rawCbm).replace(",", ".")) : "";
-    let rawWeight = getValue("weight");
-    let weight = rawWeight ? parseFloat(String(rawWeight).replace(",", ".")) : "";
-
-    let attributesObj = {};
-    let itemHasCollisions = false;
-    let itemCollisionsList = [];
-
-    const processAttribute = (key) => {
-      let lowerKey = String(key).toLowerCase();
-      let rawValue = getValue(key);
-
-      if (["qty", "price", "cost", "name", "model", "barcode", "cbm", "weight"].includes(lowerKey)) return;
-      if (!rawValue) return;
-
-      let humanName = state.sysToHumanMap ? state.sysToHumanMap[key] : key;
-      let searchString = rawValue;
-
-      let dictMatch = window.kaspiDicts && window.kaspiDicts[humanName];
-      let hasDictionary = dictMatch && Array.isArray(dictMatch) && dictMatch.length > 0;
-      let foundMatch = false;
-      let matchedDictValue = searchString;
-
-      if (hasDictionary) {
-        for (let dv of dictMatch) {
-          let strDv = String(dv).trim();
-          let baseDv = strDv.split("(")[0].trim();
-          let isStrictNumber = /^[\d\.]+$/.test(String(searchString).trim());
-
-          if (strDv.toLowerCase() === String(searchString).trim().toLowerCase() ||
-              baseDv.toLowerCase() === String(searchString).trim().toLowerCase() ||
-              (isStrictNumber && !isNaN(parseFloat(baseDv)) && parseFloat(baseDv) === parseFloat(searchString))) {
-            matchedDictValue = strDv;
-            foundMatch = true;
-            break;
-          }
-        }
-      }
-
-      if (window.currentImportMode === "kaspi" && hasDictionary && !foundMatch) {
-        let colIdx = colMap[key];
-        let excelHeader = colIdx !== undefined && state.invoiceHeaders ? state.invoiceHeaders[colIdx] : "";
-        let isComplex = window.complexColumnsToTokenize && window.complexColumnsToTokenize.includes(excelHeader);
-        let ruleExists = state.splitRules && state.splitRules[key];
-
-        if (isComplex && !ruleExists) {
-          itemHasCollisions = true;
-          itemCollisionsList.push({ sysKey: key, humanName: humanName, rawString: rawValue, excelColumnName: excelHeader || "ДАННЫЕ ИЗ НАКЛАДНОЙ" });
-        } else {
-          attributesObj[key] = rawValue;
-        }
-        return;
-      }
-      attributesObj[key] = matchedDictValue;
-    };
-
-    let allKeys = new Set(Object.keys(colMap));
-    Object.keys(dict).forEach((k) => allKeys.add(k));
-    if (state.splitRules) Object.keys(state.splitRules).forEach((k) => allKeys.add(k));
-
-    allKeys.forEach((key) => processAttribute(key));
-
-    let cleanAttributesObj = Object.assign({}, attributesObj);
-    delete cleanAttributesObj['Артикул'];
-    delete cleanAttributesObj['Название модели'];
-    delete cleanAttributesObj['sku'];
-    delete cleanAttributesObj['title'];
-
-    let finalAttributes = Object.keys(cleanAttributesObj).length > 0 ? JSON.stringify(cleanAttributesObj) : "";
-    const templateDropdown = document.getElementById("kaspiTemplateSelect");
-    const activeCategoryText = templateDropdown && templateDropdown.selectedIndex !== -1 ? templateDropdown.options[templateDropdown.selectedIndex].text.trim() : "Новые товары";
-
-    const itemData = {
-      doc_no: state.docNo, supplier: state.supplier, item_id: rawId, item_name: name, qty: qty, cost: price,
-      cbm: cbm, weight: weight, raw_logistics: rawLogisticsStr.trim(), staff_id: typeof currentUser !== "undefined" && currentUser ? currentUser.uid : "Auto-Import",
-      id: rawId, name: name, desc: name, description: name, barcode: barcode, category: activeCategoryText, sku: rawId, title: name, attributes: finalAttributes,
-      _hasCollisions: itemHasCollisions, _collisionsList: itemCollisionsList, _attributesObj: attributesObj,
-    };
-
-    window.parsedInvoiceData.push(itemData);
-    window.invoiceGroups[state.docNo].items.push(itemData);
-
-    if (itemHasCollisions) {
-      itemCollisionsList.forEach((collision) => {
-        const exists = window.mapper2State.quarantine.find((q) => q.rawString === collision.rawString && q.sysKey === collision.sysKey);
-        if (!exists) window.mapper2State.quarantine.push(collision);
-      });
-    }
-  });
-
-  // === 4. ТОКЕНИЗАТОР ===
-  if (window.mapper2State.quarantine && window.mapper2State.quarantine.length > 0) {
-    if (typeof window.startTokenizerQueue === "function") window.startTokenizerQueue();
-    return;
+  if (!state.invoiceRows || !Array.isArray(state.invoiceRows) || state.invoiceRows.length === 0) {
+      return alert("⚠️ Ошибка: строки накладной пусты (массив invoiceRows стерт).");
   }
 
-  // === 5. ФИНАЛ ===
+  // Переменные для дебаггера
+  let firstParsedPrice = null;
+  let firstParsedQty = null;
+
+  state.invoiceRows.forEach((row, index) => {
+      if (!row || row.length === 0) return;
+
+      const getValue = (primaryKey, kaspiKey) => {
+          if (dict[primaryKey]) return dict[primaryKey];
+          if (kaspiKey && dict[kaspiKey]) return dict[kaspiKey];
+
+          let colIdx = colMap[primaryKey];
+          if (colIdx === undefined && kaspiKey) colIdx = colMap[kaspiKey];
+          if (colIdx === undefined) return "";
+
+          let rawVal = String(row[colIdx] || "").trim();
+          if (state.splitRules && state.splitRules[primaryKey]) {
+              const tokens = rawVal.match(regex) || [];
+              const sig = tokens.map(t => {
+                  if (/\d/.test(t)) return 'D';
+                  if (/[a-zA-Zа-яА-ЯёЁ]/.test(t)) return 'L';
+                  return '.';
+              }).join('-');
+
+              const ruleData = state.splitRules[primaryKey];
+              let targetIndices = [];
+
+              if (Array.isArray(ruleData)) targetIndices = ruleData;
+              else if (ruleData[sig]) targetIndices = ruleData[sig];
+              else return rawVal;
+
+              let result = [];
+              targetIndices.forEach((idx) => { if (tokens[idx] !== undefined) result.push(tokens[idx]); });
+              return result.join("");
+          }
+          return rawVal;
+      };
+
+      let rawQty = getValue("qty");
+      let rawPrice = getValue("price", "cost");
+      let rawId = getValue("barcode", "merchant_sku");
+      let rawName = getValue("name", "model");
+
+      let qty = parseFloat(rawQty) || 0;
+      let price = parseFloat(String(rawPrice).replace(",", "."));
+
+      // Захватываем первую строку для диагностики
+      if (index === 0) {
+          firstParsedPrice = rawPrice;
+          firstParsedQty = rawQty;
+      }
+
+      if (isNaN(price) || price <= 0) return; 
+
+      let hasIdentifier = (rawId && String(rawId).trim() !== "") || (rawName && String(rawName).trim() !== "");
+      if (!hasIdentifier) return;
+
+      let barcode = /^\d{8,13}$/.test(rawId) ? rawId : "";
+      let name = rawName || rawId || "Без названия";
+      let rawLogisticsStr = "";
+      
+      row.forEach((cellVal, idx) => {
+          if (mappedIndices.includes(idx)) return;
+          let val = String(cellVal || "").trim();
+          if (val && val.length < 30 && !/^\d{8,15}$/.test(val)) rawLogisticsStr += " " + val;
+      });
+
+      let rawCbm = getValue("cbm");
+      let cbm = rawCbm ? parseFloat(String(rawCbm).replace(",", ".")) : "";
+      let rawWeight = getValue("weight");
+      let weight = rawWeight ? parseFloat(String(rawWeight).replace(",", ".")) : "";
+
+      let attributesObj = {};
+      let itemHasCollisions = false;
+      let itemCollisionsList = [];
+
+      const processAttribute = (key) => {
+          let lowerKey = String(key).toLowerCase();
+          let rawValue = getValue(key);
+
+          if (["qty", "price", "cost", "name", "model", "barcode", "cbm", "weight"].includes(lowerKey)) return;
+          if (!rawValue) return;
+
+          let humanName = state.sysToHumanMap ? state.sysToHumanMap[key] : key;
+          let searchString = rawValue;
+
+          let dictMatch = window.kaspiDicts && window.kaspiDicts[humanName];
+          let hasDictionary = dictMatch && Array.isArray(dictMatch) && dictMatch.length > 0;
+          let foundMatch = false;
+          let matchedDictValue = searchString;
+
+          if (hasDictionary) {
+              for (let dv of dictMatch) {
+                  let strDv = String(dv).trim();
+                  let baseDv = strDv.split("(")[0].trim();
+                  let isStrictNumber = /^[\d\.]+$/.test(String(searchString).trim());
+
+                  if (strDv.toLowerCase() === String(searchString).trim().toLowerCase() ||
+                      baseDv.toLowerCase() === String(searchString).trim().toLowerCase() ||
+                      (isStrictNumber && !isNaN(parseFloat(baseDv)) && parseFloat(baseDv) === parseFloat(searchString))) {
+                      matchedDictValue = strDv;
+                      foundMatch = true;
+                      break;
+                  }
+              }
+          }
+
+          if (window.currentImportMode === "kaspi" && hasDictionary && !foundMatch) {
+              let colIdx = colMap[key];
+              let excelHeader = colIdx !== undefined && state.invoiceHeaders ? state.invoiceHeaders[colIdx] : "";
+              let isComplex = window.complexColumnsToTokenize && window.complexColumnsToTokenize.includes(excelHeader);
+              let ruleExists = state.splitRules && state.splitRules[key];
+
+              if (isComplex && !ruleExists) {
+                  itemHasCollisions = true;
+                  itemCollisionsList.push({ sysKey: key, humanName: humanName, rawString: rawValue, excelColumnName: excelHeader || "ДАННЫЕ ИЗ НАКЛАДНОЙ" });
+              } else {
+                  attributesObj[key] = rawValue;
+              }
+              return;
+          }
+          attributesObj[key] = matchedDictValue;
+      };
+
+      let allKeys = new Set(Object.keys(colMap));
+      Object.keys(dict).forEach((k) => allKeys.add(k));
+      if (state.splitRules) Object.keys(state.splitRules).forEach((k) => allKeys.add(k));
+
+      allKeys.forEach((key) => processAttribute(key));
+
+      let cleanAttributesObj = Object.assign({}, attributesObj);
+      delete cleanAttributesObj['Артикул'];
+      delete cleanAttributesObj['Название модели'];
+      delete cleanAttributesObj['sku'];
+      delete cleanAttributesObj['title'];
+
+      let finalAttributes = Object.keys(cleanAttributesObj).length > 0 ? JSON.stringify(cleanAttributesObj) : "";
+      const templateDropdown = document.getElementById("kaspiTemplateSelect");
+      const activeCategoryText = templateDropdown && templateDropdown.selectedIndex !== -1 ? templateDropdown.options[templateDropdown.selectedIndex].text.trim() : "Новые товары";
+
+      const itemData = {
+          doc_no: state.docNo, supplier: state.supplier, item_id: rawId, item_name: name, qty: qty, cost: price,
+          cbm: cbm, weight: weight, raw_logistics: rawLogisticsStr.trim(), staff_id: typeof currentUser !== "undefined" && currentUser ? currentUser.uid : "Auto-Import",
+          id: rawId, name: name, desc: name, description: name, barcode: barcode, category: activeCategoryText, sku: rawId, title: name, attributes: finalAttributes,
+          _hasCollisions: itemHasCollisions, _collisionsList: itemCollisionsList, _attributesObj: attributesObj,
+      };
+
+      window.parsedInvoiceData.push(itemData);
+      window.invoiceGroups[state.docNo].items.push(itemData);
+
+      if (itemHasCollisions) {
+          itemCollisionsList.forEach((collision) => {
+              const exists = window.mapper2State.quarantine.find((q) => q.rawString === collision.rawString && q.sysKey === collision.sysKey);
+              if (!exists) window.mapper2State.quarantine.push(collision);
+          });
+      }
+  });
+
+  // 🔁 ТОКЕНИЗАТОР
+  if (window.mapper2State.quarantine && window.mapper2State.quarantine.length > 0) {
+      if (typeof window.startTokenizerQueue === "function") window.startTokenizerQueue();
+      return;
+  }
+
+  // 🏁 ФИНАЛ И ОТЛАДКА
   if (window.parsedInvoiceData.length === 0) {
-    return alert("Не удалось сформировать товары. Убедитесь, что в колонках «Количество» и «Цена» находятся ТОЛЬКО цифры.");
+      console.error("ОТЛАДКА:", { colMap, dict, invoiceRows: state.invoiceRows, firstParsedPrice, firstParsedQty });
+      let debugMsg = `Дебаг-инфо (покажи мне скрин или текст):\n\n`;
+      debugMsg += `Номер колонки цены: ${colMap["price"] ?? colMap["cost"] ?? 'Не найдена'}\n`;
+      debugMsg += `Сырая цена: '${firstParsedPrice}'\n`;
+      debugMsg += `Сырое кол-во: '${firstParsedQty}'\n`;
+      debugMsg += `Всего строк считано: ${state.invoiceRows.length}`;
+      return alert("Не удалось сформировать товары.\n\n" + debugMsg);
   }
 
   console.log("➡️ Переходим к таблице превью...");
@@ -1721,15 +1749,15 @@ window.applyMapper2Logic = function (isFromTokenizer = false) {
   if (invoicePreviewArea) invoicePreviewArea.style.display = "flex";
 
   if (window.isKaspiExportMode) {
-    const sendBtn = document.getElementById("sendInvoiceBtn");
-    if (sendBtn) sendBtn.style.display = "none";
-    const exportBtns = document.getElementById("exportActionButtons");
-    if (exportBtns) exportBtns.style.display = "flex";
+      const sendBtn = document.getElementById("sendInvoiceBtn");
+      if (sendBtn) sendBtn.style.display = "none";
+      const exportBtns = document.getElementById("exportActionButtons");
+      if (exportBtns) exportBtns.style.display = "flex";
   } else {
-    const sendBtn = document.getElementById("sendInvoiceBtn");
-    if (sendBtn) sendBtn.style.display = "flex";
-    const exportBtns = document.getElementById("exportActionButtons");
-    if (exportBtns) exportBtns.style.display = "none";
+      const sendBtn = document.getElementById("sendInvoiceBtn");
+      if (sendBtn) sendBtn.style.display = "flex";
+      const exportBtns = document.getElementById("exportActionButtons");
+      if (exportBtns) exportBtns.style.display = "none";
   }
 };
 
