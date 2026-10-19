@@ -742,627 +742,202 @@ function parseAndMatchTokens(rawString, colName) {
     return processedTokens;
 }
 
-window.startTokenizerQueue = function () {
-  // ⚡ Жестко прячем Маппер на время работы Токенизатора, чтобы он не светился на фоне
-  const mapperArea = document.getElementById("mapper2Area");
-  if (mapperArea) mapperArea.style.display = "none";
-
-  const rawQueue = window.mapper2State.quarantine || [];
-
-  const filteredQueue = rawQueue.filter((pattern) => {
-    if (!pattern || !pattern.rawString) return false;
-    const tokens = pattern.rawString.match(
-      /\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g,
-    ) || [pattern.rawString];
-    const validTokens = tokens.filter(
-      (t) => t.trim().length > 0 && !/^[\s\-_]+$/.test(t),
-    );
-    return validTokens.length > 1;
-  });
-
-  // ИСПРАВЛЕНИЕ 2: Сортируем очередь так, чтобы самая длинная строка всегда была первой
-  filteredQueue.sort(
-    (a, b) => (b.rawString || "").length - (a.rawString || "").length,
-  );
-
-  function getPatternMask(str) {
-    const tokens = str.match(/\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g) || [str];
-    return tokens
-      .map((t) => {
-        if (/^\d+(\.\d+)?$/.test(t)) return "N";
-        if (/^[a-zA-Zа-яА-ЯёЁ]+$/.test(t)) return "A";
-        return "S";
-      })
-      .join("-");
-  }
-
-  const uniquePatternsMap = new Map();
-  filteredQueue.forEach((item) => {
-    const mask = getPatternMask(item.rawString);
-    // Берем только первый паттерн (благодаря сортировке выше, он гарантированно самый длинный)
-    if (!uniquePatternsMap.has(mask)) {
-      item.mask = mask;
-      uniquePatternsMap.set(mask, item);
-    }
-  });
-
-  const queue = Array.from(uniquePatternsMap.values());
-
-  if (queue.length === 0) {
-    finishAndGoToPreview();
-    return;
-  }
-
-  let currentQueueIndex = 0;
-  let mappedResults = {};
-
-  function processNext() {
-    if (currentQueueIndex >= queue.length) {
-      applyResultsToData();
-      return;
-    }
-
-    const pattern = queue[currentQueueIndex];
-    mappedResults = pattern.resolvedAttributes
-      ? JSON.parse(JSON.stringify(pattern.resolvedAttributes))
-      : {};
-
-    const currentTokens = pattern.rawString.match(
-      /\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g,
-    ) || [pattern.rawString];
-    const dicts = window.kaspiDicts || {};
-    let paramsList = [];
-
-    // Берем только те параметры, которые пользователь отметил галочками в Сите
-    const colName = pattern.excelColumnName;
-    const savedParams =
-      window.mapper2State.smartRules && window.mapper2State.smartRules[colName]
-        ? window.mapper2State.smartRules[colName]
-        : [];
-
-    if (savedParams.length > 0) {
-      savedParams.forEach((paramName) => {
-        paramsList.push({ name: paramName });
-      });
-    } else {
-      paramsList = [{ name: "Неизвестный параметр" }];
-    }
-
-    // Добавляем Мусорную корзину в конец
-    paramsList.push({ name: "Лишние символы" });
-
-    // ИСПРАВЛЕНИЕ: Приоритет отдается реальному названию колонки из Excel
-    const displayColName = pattern.excelColumnName || "Многосоставные данные";
-
-    window.showTokenizer(displayColName, currentTokens, paramsList);
-
-    const overlay = document.getElementById("tokenizer-overlay");
-    if (overlay) {
-      overlay.style.zIndex = "999999";
-      overlay.style.position = "fixed";
-      overlay.style.top = "0";
-      overlay.style.left = "0";
-      overlay.style.width = "100vw";
-      overlay.style.height = "100vh";
-      overlay.style.backgroundColor = "#121212";
-      overlay.style.display = "flex";
-    }
-    const lang = window.currentLang || localStorage.getItem("pos_lang") || "ru";
-    const tr =
-      typeof translations !== "undefined" && translations[lang]
-        ? translations[lang]
-        : {};
-
-    const titleEl = overlay.querySelector(".modal-title");
-    if (titleEl) {
-      // Используем шаблон, который сам знает, куда ставить цифры
-      let progressTemplate = tr.tok_progress || "Паттерн {current} из {total}";
-
-      titleEl.textContent = progressTemplate
-        .replace("{current}", currentQueueIndex + 1)
-        .replace("{total}", queue.length);
-    }
-
-    const btnDone = overlay.querySelector(".btn-done");
-    if (btnDone) {
-      const isLastStep = currentQueueIndex === queue.length - 1;
-      btnDone.textContent = isLastStep
-        ? tr.tok_finish || "ЗАВЕРШИТЬ"
-        : tr.tok_next || "ДАЛЕЕ";
-
-      // Глушим кнопку при открытии нового паттерна
-      btnDone.style.opacity = "0.5";
-      btnDone.style.pointerEvents = "none";
-    }
-
-    const backBtn = overlay.querySelector(".btn-back");
-    if (backBtn) {
-      if (currentQueueIndex === 0) {
-        backBtn.style.opacity = "0.5";
-        backBtn.style.pointerEvents = "none";
-      } else {
-        backBtn.style.opacity = "1";
-        backBtn.style.pointerEvents = "auto";
-      }
-    }
-
-    attachLogic(pattern, dicts, overlay);
-
-    if (Object.keys(mappedResults).length > 0) {
-      Object.keys(mappedResults).forEach((sysKey) => {
-        const rule = mappedResults[sysKey];
-        const humanName =
-          (window.mapper2State.sysToHumanMap &&
-            window.mapper2State.sysToHumanMap[sysKey]) ||
-          sysKey;
-
-        const row = Array.from(overlay.querySelectorAll(".param-row")).find(
-          (r) =>
-            r.dataset.paramName === humanName || r.dataset.paramName === sysKey,
-        );
-
-        if (row) {
-          const gluedText = rule.indexes
-            .map((idx) => currentTokens[idx])
-            .join("");
-          const displayVal = rule.value || gluedText;
-
-          row.classList.remove("active-target");
-          row.classList.add("disabled");
-          row.querySelector(".param-preview").style.display = "none";
-          row.querySelector(".btn-confirm-inline").style.display = "none";
-
-          const radio = row.querySelector('input[type="radio"]');
-          if (radio) radio.checked = true;
-
-          const oldBadge = row.querySelector(".param-badge");
-          if (oldBadge) oldBadge.remove();
-
-          const badgeHtml = `<span class="param-badge" style="background: var(--accent-green, #2ecc71); color: #000; padding: 4px 12px; border-radius: 6px; font-size: 13px; font-weight: bold; margin-left: auto; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">✓ ${displayVal}</span>`;
-          row.insertAdjacentHTML("beforeend", badgeHtml);
-        }
-
-        rule.indexes.forEach((idx) => {
-          const tokenBtn = overlay.querySelector(`.token[data-index="${idx}"]`);
-          if (tokenBtn) {
-            tokenBtn.classList.remove("selected");
-            tokenBtn.classList.add("disabled");
-          }
-        });
-      });
-
-      if (btnDone) {
-        btnDone.style.opacity = "1";
-        setTimeout(() => {
-          btnDone.style.pointerEvents = "auto";
-          btnDone.style.cursor = "pointer";
-        }, 300);
-      }
-    }
-  }
-
-  function attachLogic(pattern, dicts, overlay) {
-    const tokensBtns = overlay.querySelectorAll(".token");
-    const paramRows = overlay.querySelectorAll(".param-row");
-    const fallbackZone = overlay.querySelector(".fallback-zone");
-    const fallbackSelect = overlay.querySelector(".fallback-select");
-    const btnFallback = overlay.querySelector(".btn-fallback");
-    const btnClear = overlay.querySelector(".btn-clear");
-    const btnDone = overlay.querySelector(".btn-done");
-    const btnBack = overlay.querySelector(".btn-back");
-
-    const updatePreview = () => {
-      overlay
-        .querySelectorAll(".param-row:not(.disabled) .param-preview")
-        .forEach((el) => (el.innerHTML = ""));
-      const activeRow = overlay.querySelector(".param-row.active-target");
-      if (!activeRow) return;
-      const selectedText = Array.from(
-        overlay.querySelectorAll(".token.selected"),
-      )
-        .map((b) => b.textContent)
-        .join("");
-      activeRow.querySelector(".param-preview").textContent = selectedText;
-    };
-
-    // Обязательно добавляем параметр index в forEach
-    tokensBtns.forEach((btn, index) => {
-      btn.addEventListener("click", () => {
-        if (btn.classList.contains("disabled")) return;
-
-        // ⚡ УРОВЕНЬ 1: Защита от разрывов (проверка на соседство)
-        const isCurrentlySelected = btn.classList.contains("selected");
-        const selectedIndices = [];
-        tokensBtns.forEach((b, i) => {
-          if (b.classList.contains("selected")) selectedIndices.push(i);
-        });
-
-        // Узнаем, какое поле сейчас активно (нажато)
-        const activeRow = overlay.querySelector(".param-row.active-target");
-        const activeParamName = activeRow ? activeRow.querySelector('input[type="radio"]').value : "";
-        const isTrashActive = activeParamName === "Лишние символы";
-
-        // Проверяем соседство ТОЛЬКО если это не корзина
-        if (selectedIndices.length > 0 && !isTrashActive) {
-          const minIdx = Math.min(...selectedIndices);
-          const maxIdx = Math.max(...selectedIndices);
-
-          if (!isCurrentlySelected) {
-            // Пытаемся ВЫБРАТЬ новый токен: он должен быть строго слева или справа от группы
-            if (index !== minIdx - 1 && index !== maxIdx + 1) {
-              // Визуальный отказ (микро-тряска)
-              btn.style.transform = "translateX(2px)";
-              btn.style.backgroundColor = "rgba(255, 68, 68, 0.2)";
-              setTimeout(() => (btn.style.transform = "translateX(-2px)"), 50);
-              setTimeout(() => {
-                btn.style.transform = "translateX(0)";
-                btn.style.backgroundColor = "";
-              }, 100);
-              return; // Блокируем клик
-            }
-          } else {
-            // Пытаемся ОТЖАТЬ токен: запрещаем отжимать из середины, только с краев
-            if (
-              index !== minIdx &&
-              index !== maxIdx &&
-              selectedIndices.length > 2
-            ) {
-              btn.style.transform = "translateX(2px)";
-              btn.style.backgroundColor = "rgba(255, 68, 68, 0.2)";
-              setTimeout(() => (btn.style.transform = "translateX(-2px)"), 50);
-              setTimeout(() => {
-                btn.style.transform = "translateX(0)";
-                btn.style.backgroundColor = "";
-              }, 100);
-              return; // Блокируем клик
-            }
-          }
-        }
-
-        btn.classList.toggle("selected");
-        fallbackZone.style.display = "none";
-        updatePreview();
-      });
-    });
-
-    paramRows.forEach((row) => {
-      row.addEventListener("click", (e) => {
-        if (row.classList.contains("disabled")) return;
-        paramRows.forEach((r) => {
-          r.classList.remove("active-target");
-          r.querySelector(".btn-confirm-inline").style.display = "none";
-        });
-        row.classList.add("active-target");
-        row.querySelector('input[type="radio"]').checked = true;
-        row.querySelector(".btn-confirm-inline").style.display = "block";
-        updatePreview();
-      });
-    });
-
-    paramRows.forEach((row) => {
-      const confirmBtn = row.querySelector(".btn-confirm-inline");
-      confirmBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        const paramName = row.querySelector('input[type="radio"]').value;
-        const gluedText = row.querySelector(".param-preview").textContent;
-        if (!gluedText) return;
-
-        // Если это корзина - просто фиксируем и выходим, не ищем в словаре
-        if (paramName === "Лишние символы") {
-          lockParameter(row, paramName, gluedText, gluedText);
-          return;
-        }
-
-        let dictArray = dicts[paramName] || [];
-
-        // ⚡ 1. Идеальная нормализация
-        const normalize = (val) => {
-          return String(val ?? '')
-            .normalize('NFKC')
-            .replace(/[\s\u200B-\u200D\u2060\uFEFF]/g, '')
-            .trim()
-            .toUpperCase();
-        };
-
-        // Создаем Map для быстрого и точного поиска
-        const dictMap = new Map();
-        dictArray.forEach(val => {
-          if (val !== null && val !== undefined) {
-            dictMap.set(normalize(val), val); // Ключ - чистая строка, значение - оригинал из базы Kaspi
-          }
-        });
-
-        const cleanGlued = normalize(gluedText);
-
-        // ⚡ 2. Проверка точного совпадения (Если выбрано только "20")
-        if (dictMap.has(cleanGlued)) {
-          lockParameter(row, paramName, dictMap.get(cleanGlued), gluedText);
-          return; // Успешно сохраняем и выходим!
-        }
-
-        // ⚡ 3. Детектор лишнего токена (Если выбрано "R20")
-        // Обязательно исключаем контейнер валюты, чтобы USD не ломал массив
-        const selectedBtns = Array.from(document.querySelectorAll('.selected')).filter(b => 
-          (b.tagName === 'BUTTON' || b.tagName === 'DIV') && !b.closest('.currency-minimal-container')
-        );
+window.startTokenizerQueue = function() {
+    // 1. Блок завершения: когда очередь пуста - пересобираем накладную
+    if (!window.mapper2State.quarantine || window.mapper2State.quarantine.length === 0) {
+        const container = document.getElementById("smartMapperContainer");
+        if (container) container.style.display = "none";
         
-        let extraBtn = null;
-        let validOriginalValue = null;
-
-        if (selectedBtns.length > 1) {
-          const tokens = selectedBtns.map(btn => normalize(btn.textContent));
-          const candidates = [];
-
-          // Исключаем по одной кнопке и проверяем
-          for (let i = 0; i < tokens.length; i++) {
-            const candidateText = tokens.filter((_, index) => index !== i).join('');
-            
-            if (dictMap.has(candidateText)) {
-              candidates.push({
-                element: selectedBtns[i],
-                matchedValue: dictMap.get(candidateText)
-              });
-            }
-          }
-
-          // Принимаем решение только если нашлось РОВНО 1 совпадение
-          if (candidates.length === 1) {
-            extraBtn = candidates[0].element;
-            validOriginalValue = candidates[0].matchedValue;
-          }
+        console.log("✅ Токенизация завершена! Пересобираем накладную...");
+        if (typeof window.applyMapper2Logic === "function") {
+            window.applyMapper2Logic(true); // <--- Прямой запуск с флагом VIP-пропуска
         }
-
-        const previewEl = row.querySelector(".param-preview");
-        const okBtn = row.querySelector(".btn-confirm-inline");
-        if (okBtn) okBtn.style.display = "none";
-
-        if (extraBtn) {
-          // Нашли 1 лишний токен! Красим ТОЛЬКО ЕГО
-          if (previewEl) {
-            previewEl.innerHTML = `<span style="color:#ff4444; font-size:11px; line-height:1.2; display:inline-block; margin-top:2px;">
-              🚫 Фрагмент <b>${extraBtn.textContent}</b> лишний.<br>Значение <b>${validOriginalValue}</b> есть в базе. Отщелкните лишнее.
-            </span>`;
-          }
-          extraBtn.style.boxShadow = "0 0 0 2px #ff4444 inset";
-          extraBtn.style.backgroundColor = "rgba(255, 68, 68, 0.2)";
-          extraBtn.classList.add('error-token');
-        } else {
-          // Если кандидатов 0 или больше 1 — красим всё
-          if (previewEl) {
-            let displayGlued = gluedText.replace(/[\s\u200B-\u200D\uFEFF]/g, '');
-            previewEl.innerHTML = `<span style="color:#ff4444; font-size:11px; line-height:1.2; display:inline-block; margin-top:2px;">
-              🚫 <b>${displayGlued}</b> нет в Kaspi.<br>Отщелкните лишние фрагменты.
-            </span>`;
-          }
-          selectedBtns.forEach(btn => {
-            btn.style.boxShadow = "0 0 0 2px #ff4444 inset";
-            btn.style.backgroundColor = "rgba(255, 68, 68, 0.2)";
-            btn.classList.add('error-token');
-          });
-        }
-
-        // Функция сброса визуала
-        const resetError = () => {
-          document.querySelectorAll('.error-token').forEach(b => {
-            b.style.boxShadow = "";
-            b.style.backgroundColor = "";
-            b.classList.remove('error-token');
-          });
-          if (okBtn) okBtn.style.display = ""; 
-          document.removeEventListener('click', resetError);
-        };
-
-        // Ждем следующего клика для сброса ошибки
-        setTimeout(() => {
-          document.addEventListener('click', resetError, { once: true });
-        }, 100);
-      });
-    });
-
-    btnFallback.addEventListener("click", () => {
-      const activeRow = overlay.querySelector(".param-row.active-target");
-      const paramName = activeRow.querySelector('input[type="radio"]').value;
-      const gluedText = activeRow.querySelector(".param-preview").textContent;
-      const selectedVal = window.tempFallbackVal; // ИЗМЕНЕНО: берем из глобальной переменной
-      if (!selectedVal) return;
-
-      // Если чекбокс нажат, добавляем ключ в глобальный applyToAllMap
-      if (window.tempFallbackApplyAll) {
-        if (!window.applyToAllMap) window.applyToAllMap = {};
-        // Находим системный ключ для этого параметра
-        let sysKey =
-          Object.keys(window.mapper2State.sysToHumanMap || {}).find(
-            (k) => window.mapper2State.sysToHumanMap[k] === paramName,
-          ) || paramName;
-        window.applyToAllMap[sysKey] = true;
-      }
-
-      lockParameter(activeRow, paramName, selectedVal, gluedText);
-      fallbackZone.style.display = "none";
-    });
-
-    const lockParameter = (row, humanName, finalValue, tokenText) => {
-      let sysKey = Object.keys(window.mapper2State.sysToHumanMap || {}).find(
-        (k) => window.mapper2State.sysToHumanMap[k] === humanName,
-      );
-      if (!sysKey) sysKey = humanName;
-
-      const selectedTokens = Array.from(
-        overlay.querySelectorAll(".token.selected"),
-      );
-      const tokenIndexes = selectedTokens.map((t) => parseInt(t.dataset.index));
-
-      mappedResults[sysKey] = {
-        value: finalValue,
-        indexes: tokenIndexes,
-      };
-
-      pattern.resolvedAttributes = JSON.parse(JSON.stringify(mappedResults));
-
-      row.classList.remove("active-target");
-      row.classList.add("disabled");
-      row.querySelector(".param-preview").style.display = "none";
-      row.querySelector(".btn-confirm-inline").style.display = "none";
-
-      const oldBadge = row.querySelector(".param-badge");
-      if (oldBadge) oldBadge.remove();
-
-      const badgeHtml = `<span class="param-badge" style="background: var(--accent-green, #2ecc71); color: #000; padding: 4px 12px; border-radius: 6px; font-size: 13px; font-weight: bold; margin-left: auto; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">✓ ${finalValue || tokenText}</span>`;
-      row.insertAdjacentHTML("beforeend", badgeHtml);
-
-      overlay.querySelectorAll(".token.selected").forEach((t) => {
-        t.classList.remove("selected");
-        t.classList.add("disabled");
-      });
-
-      // Проверяем: если ВСЕ токены стали серыми (disabled), разблокируем кнопку
-      const allTokensCount = overlay.querySelectorAll(".token").length;
-      const disabledTokensCount =
-        overlay.querySelectorAll(".token.disabled").length;
-
-      if (disabledTokensCount >= allTokensCount) {
-        btnDone.style.opacity = "1";
-        setTimeout(() => {
-          btnDone.style.pointerEvents = "auto";
-          btnDone.style.cursor = "pointer";
-        }, 300);
-      }
-    };
-
-    btnClear.addEventListener("click", () => {
-      mappedResults = {};
-      if (pattern.resolvedAttributes) {
-        delete pattern.resolvedAttributes;
-      }
-      processNext();
-    });
-
-    if (btnBack) {
-      btnBack.addEventListener("click", () => {
-        // Очищаем текущие результаты при возврате назад
-        mappedResults = {};
-        if (pattern.resolvedAttributes) {
-          delete pattern.resolvedAttributes;
-        }
-        
-        if (currentQueueIndex > 0) {
-          currentQueueIndex--;
-          processNext();
-        } else {
-          // Если это первый паттерн и мы жмем назад — возвращаемся в Маппер
-          overlay.style.display = "none";
-          overlay.innerHTML = "";
-          if (typeof window.navigateIncomeStep === "function") {
-            window.navigateIncomeStep(2); 
-            if (typeof window.renderMapper2Cards === "function" && window.currentTemplateData) {
-              window.renderMapper2Cards(window.currentTemplateData);
-            }
-          }
-        }
-      });
-    }
-
-    btnDone.addEventListener("click", (e) => {
-      if (btnDone.disabled) return;
-      
-      if (!pattern.resolvedAttributes || Object.keys(pattern.resolvedAttributes).length === 0) {
-        btnDone.style.transform = "translateX(2px)";
-        setTimeout(() => (btnDone.style.transform = "translateX(-2px)"), 50);
-        setTimeout(() => (btnDone.style.transform = "translateX(0)"), 100);
         return;
-      }
-      
-      btnDone.disabled = true;
+    }
 
-      window.mapper2State = window.mapper2State || {};
-      window.mapper2State.splitRules = window.mapper2State.splitRules || {};
+    const currentItem = window.mapper2State.quarantine[0];
+    const colName = currentItem.excelColumnName;
+    const rawString = currentItem.rawString;
+    
+    const targetParams = window.mapper2State.smartRules[colName] || [];
 
-      window.mapper2State.smartTokens = window.mapper2State.smartTokens || {};
-      
-      // ⚡ ГЕНЕРАТОР СИГНАТУР (D = цифры, L = буквы, . = символы)
-      const getSignature = (text) => {
-        const tks = text.match(/\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g) || [];
-        return tks.map(t => {
-          if (/\d/.test(t)) return 'D';
-          if (/[a-zA-Zа-яА-ЯёЁ]/.test(t)) return 'L';
-          return '.'; 
-        }).join('-');
-      };
-      const currentSignature = getSignature(pattern.rawString);
+    // Автоматический фильтр: генерация активных/неактивных токенов через словарь
+    let tokens = [];
+    if (typeof parseAndMatchTokens === "function") {
+        tokens = parseAndMatchTokens(rawString, colName);
+    } else {
+        const regex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,]/g;
+        const rawTokens = rawString.match(regex) || [];
+        tokens = rawTokens.map(t => ({ text: t, cleanText: t, isActive: true, matchedParams: [] }));
+    }
 
-      Object.keys(pattern.resolvedAttributes).forEach(sysKey => {
-        // 1. Сохраняем чистый текст для кнопки
-        if (pattern.resolvedAttributes[sysKey].value) {
-          window.mapper2State.smartTokens[sysKey] = pattern.resolvedAttributes[sysKey].value;
+    const container = document.getElementById("smartMapperContainer");
+    if (!container) return;
+    
+    // ЖЕСТКО ЗАДАЕМ СТИЛИ
+    container.style.position = "fixed";
+    container.style.top = "0";
+    container.style.left = "0";
+    container.style.width = "100vw";
+    container.style.height = "100vh";
+    container.style.backgroundColor = "rgba(0,0,0,0.9)";
+    container.style.zIndex = "999999";
+    container.style.display = "flex";
+    container.style.justifyContent = "center";
+    container.style.alignItems = "center";
+    container.innerHTML = "";
+
+    const modal = document.createElement("div");
+    modal.style.background = "var(--bg-panel, #1e1e1e)";
+    modal.style.border = "1px solid var(--border-light, #333)";
+    modal.style.borderRadius = "12px";
+    modal.style.padding = "20px";
+    modal.style.width = "90%";
+    modal.style.maxWidth = "500px";
+    modal.style.color = "#fff";
+    modal.style.boxShadow = "0 10px 40px rgba(0,0,0,0.8)";
+    modal.style.fontFamily = "sans-serif";
+
+    const header = document.createElement("div");
+    header.style.fontSize = "16px";
+    header.style.fontWeight = "bold";
+    header.style.marginBottom = "15px";
+    header.innerHTML = `Связь данных: <span style="color: #4CAF50;">${colName.toUpperCase()}</span>`;
+    modal.appendChild(header);
+
+    const body = document.createElement("div");
+
+    // СЕКЦИЯ 1: Активные и пассивные токены
+    const tokensSection = document.createElement("div");
+    tokensSection.innerHTML = `<div style="margin-bottom: 10px; font-size: 13px; color: #aaa;">Найдено в накладной: <strong style="color:#fff;">${rawString}</strong></div>`;
+    
+    const tokensContainer = document.createElement("div");
+    tokensContainer.style.display = "flex";
+    tokensContainer.style.flexWrap = "wrap";
+    tokensContainer.style.gap = "8px";
+    tokensContainer.style.background = "rgba(255,255,255,0.05)";
+    tokensContainer.style.padding = "10px";
+    tokensContainer.style.borderRadius = "8px";
+
+    let activeTokensHtml = "";
+    tokens.forEach((tok, idx) => {
+        if (tok.isActive) {
+            activeTokensHtml += `<button class="token-btn active-token" data-idx="${idx}" style="padding: 6px 12px; border-radius: 6px; border: 1px solid #555; background: #2c2c2c; color: #fff; cursor: pointer; transition: 0.2s;">${tok.text}</button>`;
+        } else {
+            activeTokensHtml += `<span style="padding: 6px; color: #666; text-decoration: line-through;">${tok.text}</span>`;
         }
-        
-        // 2. Сохраняем индексы С ПРИВЯЗКОЙ К СИГНАТУРЕ
-        if (pattern.resolvedAttributes[sysKey].indexes) {
-          // Если правила еще нет или оно в старом формате (массив) — делаем объектом
-          if (!window.mapper2State.splitRules[sysKey] || Array.isArray(window.mapper2State.splitRules[sysKey])) {
-            window.mapper2State.splitRules[sysKey] = {};
-          }
-          // Сохраняем правило для конкретной структуры текста
-          if (!window.mapper2State.splitRules[sysKey][currentSignature]) {
-            window.mapper2State.splitRules[sysKey][currentSignature] = pattern.resolvedAttributes[sysKey].indexes;
-          }
-        }
-      });
-
-      currentQueueIndex++;
-      processNext();
     });
-  }
+    
+    tokensContainer.innerHTML = activeTokensHtml;
+    tokensSection.appendChild(tokensContainer);
+    body.appendChild(tokensSection);
 
-  function applyResultsToData() {
-    window.mapper2State.splitRules = window.mapper2State.splitRules || {};
+    // СЕКЦИЯ 2: Привязка
+    const paramsSection = document.createElement("div");
+    paramsSection.innerHTML = `<div style="margin-top: 20px; margin-bottom: 10px; font-size: 13px; color: #aaa;">Распределите значения по параметрам:</div>`;
+    
+    const paramsGrid = document.createElement("div");
+    paramsGrid.style.display = "flex";
+    paramsGrid.style.flexDirection = "column";
+    paramsGrid.style.gap = "10px";
 
-    queue.forEach((pattern) => {
-      if (pattern.resolvedAttributes) {
-        Object.keys(pattern.resolvedAttributes).forEach((paramName) => {
-          if (paramName !== "Лишние символы") {
-            const rule = pattern.resolvedAttributes[paramName];
-            if (rule && rule.indexes && rule.indexes.length > 0) {
-              
-              // ⚡ ФИКС: Сохраняем только если для этого параметра еще нет индексов
-              if (!window.mapper2State.splitRules[paramName]) {
-                window.mapper2State.splitRules[paramName] = rule.indexes;
-              }
+    targetParams.forEach(paramName => {
+        let suggestedToken = tokens.find(t => t.isActive && t.matchedParams && t.matchedParams.includes(paramName) && t.matchedParams.length === 1);
+        let defaultVal = suggestedToken ? suggestedToken.text : "";
+        let defaultIdx = suggestedToken ? tokens.indexOf(suggestedToken) : "";
 
-              // Дублируем по системному ключу (с той же защитой от перезаписи)
-              const tData = window.currentTemplateData || {};
-              if (tData.humanNames && tData.systemKeys) {
-                const idx = tData.humanNames.indexOf(paramName);
-                if (idx !== -1) {
-                  const sysKey = tData.systemKeys[idx];
-                  if (!window.mapper2State.splitRules[sysKey]) {
-                    window.mapper2State.splitRules[sysKey] = rule.indexes;
-                  }
-                }
-              }
-            }
-          }
+        paramsGrid.innerHTML += `
+            <div class="match-row" data-param="${paramName}" style="display: flex; justify-content: space-between; align-items: center; background: #2a2a2a; padding: 10px; border-radius: 6px;">
+                <div style="font-size: 13px; font-weight: bold; width: 45%;">${paramName}</div>
+                <div class="match-dropzone" data-assigned-idx="${defaultIdx}" style="width: 50%; padding: 8px; border: 1px dashed #666; border-radius: 6px; text-align: center; font-size: 12px; cursor: pointer; transition: 0.2s; background: ${defaultVal ? '#4CAF50' : 'transparent'}; color: ${defaultVal ? '#000' : '#888'};">
+                    ${defaultVal || "Кликните значение выше..."}
+                </div>
+            </div>
+        `;
+    });
+
+    paramsSection.appendChild(paramsGrid);
+    body.appendChild(paramsSection);
+
+    // ПОДВАЛ (Кнопка подтверждения)
+    const footer = document.createElement("div");
+    footer.style.marginTop = "20px";
+    footer.innerHTML = `<button id="btnNextToken" style="width: 100%; padding: 12px; font-weight: bold; border-radius: 8px; background: #4CAF50; color: #000; border: none; cursor: pointer; font-size: 14px; text-transform: uppercase;">ПОДТВЕРДИТЬ И ПРОДОЛЖИТЬ</button>`;
+    
+    body.appendChild(footer);
+    modal.appendChild(body);
+    container.appendChild(modal);
+
+    // === ЛОГИКА ИНТЕРАКТИВА ===
+    let selectedTokenBtn = null;
+
+    // Клик по токену
+    const tokenBtns = tokensContainer.querySelectorAll('.active-token');
+    tokenBtns.forEach(btn => {
+        btn.addEventListener('click', function() {
+            tokenBtns.forEach(b => { b.style.background = "#2c2c2c"; b.style.borderColor = "#555"; b.style.color = "#fff"; });
+            this.style.background = "#4CAF50";
+            this.style.borderColor = "#4CAF50";
+            this.style.color = "#000";
+            selectedTokenBtn = this;
         });
-      }
     });
 
-    window.mapper2State.quarantine = [];
-    finishAndGoToPreview();
-  }
+    // Клик по зоне параметра
+    const dropzones = paramsGrid.querySelectorAll('.match-dropzone');
+    dropzones.forEach(zone => {
+        zone.addEventListener('click', function() {
+            if (selectedTokenBtn) {
+                this.textContent = selectedTokenBtn.textContent;
+                this.dataset.assignedIdx = selectedTokenBtn.dataset.idx;
+                this.style.background = "#4CAF50";
+                this.style.color = "#000";
+                this.style.borderStyle = "solid";
+                
+                selectedTokenBtn.style.opacity = "0.3";
+                selectedTokenBtn = null;
+            } else {
+                this.textContent = "Кликните значение выше...";
+                this.dataset.assignedIdx = "";
+                this.style.background = "transparent";
+                this.style.color = "#888";
+                this.style.borderStyle = "dashed";
+            }
+        });
+    });
 
-  // 🔥 ЭТА ТА САМАЯ ИДЕАЛЬНАЯ КОНЦОВКА, КОТОРАЯ ЗАПУСКАЕТ КНОПКУ АВТОМАТИЧЕСКИ
-  function finishAndGoToPreview() {
-    const overlay = document.getElementById("tokenizer-overlay");
-    if (overlay) {
-      overlay.style.display = "none";
-      overlay.innerHTML = "";
-    }
+    // === СОХРАНЕНИЕ СТРУКТУРЫ ===
+    document.getElementById("btnNextToken").addEventListener("click", () => {
+        const regex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,]/g;
+        const rawMatch = rawString.match(regex) || [];
+        
+        // Генерация сигнатуры
+        const sig = rawMatch.map(t => {
+            if (/\d/.test(t)) return 'D';
+            if (/[a-zA-Zа-яА-ЯёЁ]/.test(t)) return 'L';
+            return '.';
+        }).join('-');
 
-    console.log("✅ Токенизация завершена! Пересобираем накладную...");
-    if (typeof window.applyMapper2Logic === "function") {
-      window.applyMapper2Logic(true);
-    }
-  }
+        window.mapper2State.splitRules = window.mapper2State.splitRules || {};
+        
+        dropzones.forEach(zone => {
+            const paramName = zone.closest('.match-row').dataset.param; 
+            const idx = zone.dataset.assignedIdx;
+            
+            if (idx !== "") {
+                // Ищем системный ключ Kaspi
+                let sysKeyToSave = Object.keys(window.mapper2State.sysToHumanMap || {}).find(k => window.mapper2State.sysToHumanMap[k] === paramName);
+                if (!sysKeyToSave) sysKeyToSave = paramName;
 
-  processNext();
+                if (sysKeyToSave) {
+                    window.mapper2State.splitRules[sysKeyToSave] = window.mapper2State.splitRules[sysKeyToSave] || {};
+                    window.mapper2State.splitRules[sysKeyToSave][sig] = [parseInt(idx)];
+                }
+            }
+        });
+
+        // Удаляем решенную строку из карантина и грузим следующую
+        window.mapper2State.quarantine.shift();
+        window.startTokenizerQueue();
+    });
 };
