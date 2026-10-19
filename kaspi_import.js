@@ -1464,65 +1464,60 @@ window.updateReqCardStatus = function (sysKey, text, className, previewText) {
 // 6. ФИНАЛЬНАЯ СБОРКА JSON ДЛЯ СЕРВЕРА
 window.applyMapper2Logic = function (mode) {
   const isFromTokenizer = (mode === true);
-  console.log("🚀 ЗАПУСК applyMapper2Logic", isFromTokenizer ? "(Фоновая пересборка)" : "(Первый запуск)");
+  console.log(`\n--- [1] 🚀 СТАРТ ФУНКЦИИ | Режим: ${isFromTokenizer ? "ФОНОВАЯ ПЕРЕСБОРКА" : "ПЕРВЫЙ КЛИК"} ---`);
 
   let mapperArea = document.getElementById("mapper2Area");
   if (mapperArea && !isFromTokenizer) mapperArea.style.display = "flex";
 
   const state = window.mapper2State || {};
-
   let colMap = state.colMap || {};
   let dict = state.dictValues || {};
 
-  // === 💾 АБСОЛЮТНЫЙ СЕЙФ: Записываем данные прямо в память устройства ===
-  if (isFromTokenizer) {
-      // Пытаемся восстановить из жесткого диска браузера
-      if (Object.keys(colMap).length === 0) {
-          let savedCols = localStorage.getItem("pos_backup_colMap");
-          if (savedCols) {
-              colMap = JSON.parse(savedCols);
-              console.log("💾 ВОССТАНОВЛЕНО ИЗ LOCALSTORAGE: colMap", colMap);
-          }
-      }
-      if (Object.keys(dict).length === 0) {
-          let savedDict = localStorage.getItem("pos_backup_dict");
-          if (savedDict) {
-              dict = JSON.parse(savedDict);
-              console.log("💾 ВОССТАНОВЛЕНО ИЗ LOCALSTORAGE: dictValues", dict);
-          }
-      }
-      // Восстанавливаем системную карту, если она тоже стерлась
-      let savedSysMap = localStorage.getItem("pos_backup_sysMap");
-      if (savedSysMap && (!state.sysToHumanMap || Object.keys(state.sysToHumanMap).length === 0)) {
-          state.sysToHumanMap = JSON.parse(savedSysMap);
-      }
-  } else {
-      // При первом запуске делаем жесткое сохранение на диск
+  console.log(`[2] 📥 Входящие данные (colMap):`, JSON.parse(JSON.stringify(colMap)));
+
+  // === 🛡️ ЗАЩИЩЕННЫЙ БУНКЕР ===
+  if (!isFromTokenizer) {
+      // СОХРАНЯЕМ ТОЛЬКО ЕСЛИ ЕСТЬ ЧТО СОХРАНЯТЬ (защита от фантомных перезаписей пустотой)
       if (Object.keys(colMap).length > 0) {
-          localStorage.setItem("pos_backup_colMap", JSON.stringify(colMap));
+          window.__SAFE_BUNKER_COLMAP__ = JSON.stringify(colMap);
+          console.log(`[3] 💾 УСПЕШНО СОХРАНЕНО В БУНКЕР:`, colMap);
+      } else {
+          console.log(`[3] ⚠️ ВНИМАНИЕ: Попытка запуска с пустой картой! Бункер НЕ перезаписан.`);
       }
+
       if (Object.keys(dict).length > 0) {
-          localStorage.setItem("pos_backup_dict", JSON.stringify(dict));
-      }
-      if (state.sysToHumanMap) {
-          localStorage.setItem("pos_backup_sysMap", JSON.stringify(state.sysToHumanMap));
+          window.__SAFE_BUNKER_DICT__ = JSON.stringify(dict);
       }
   }
 
+  // === 🔄 ВОССТАНОВЛЕНИЕ ИЗ БУНКЕРА ===
+  if (isFromTokenizer) {
+      if (window.__SAFE_BUNKER_COLMAP__) {
+          colMap = JSON.parse(window.__SAFE_BUNKER_COLMAP__);
+          console.log(`[4] ♻️ ДАННЫЕ ВОССТАНОВЛЕНЫ ИЗ БУНКЕРА:`, colMap);
+      } else {
+          console.log(`[4] ❌ ОШИБКА: БУНКЕР ПУСТ ПРИ ПЕРЕСБОРКЕ!`);
+      }
+
+      if (window.__SAFE_BUNKER_DICT__) {
+          dict = JSON.parse(window.__SAFE_BUNKER_DICT__);
+      }
+  }
+
+  // Обновляем state восстановленными данными, чтобы ничего не упало дальше
   state.colMap = colMap;
   state.dictValues = dict;
   state.splitRules = state.splitRules || {};
 
-  console.log("🔍 АКТУАЛЬНЫЕ ПРИВЯЗКИ:", colMap);
-
+  // === ВАЛИДАЦИЯ (Только на первом круге) ===
   if (!isFromTokenizer) {
       const hasQty = colMap["qty"] !== undefined || dict["qty"] !== undefined;
       const hasPrice = colMap["price"] !== undefined || colMap["cost"] !== undefined || dict["price"] !== undefined || dict["cost"] !== undefined;
       const hasName = colMap["name"] !== undefined || colMap["model"] !== undefined || dict["name"] !== undefined || dict["model"] !== undefined;
 
       if (!hasQty || !hasPrice || !hasName) {
-        const tr = typeof translations !== "undefined" && translations[window.currentLang || "ru"] ? translations[window.currentLang || "ru"] : {};
-        return alert(tr.mapper_err_missing_cols || "⚠️ Обязательно привяжите колонки:\n1. Наименование\n2. Количество\n3. Цена");
+        console.log(`[5] ⛔ БЛОКИРОВКА: Не привязаны базовые колонки.`);
+        return alert("⚠️ Обязательно привяжите колонки (или введите вручную):\n1. Наименование\n2. Количество\n3. Цена");
       }
 
       const reqCards = document.querySelectorAll('.req-card .req-title.required');
@@ -1567,22 +1562,18 @@ window.applyMapper2Logic = function (mode) {
     }
   }
 
-  console.log("⏳ Начинаем парсинг строк...");
+  console.log("[6] ⏳ Начинаем парсинг строк...");
   window.parsedInvoiceData = [];
   window.invoiceGroups = {};
-  window.invoiceGroups[state.docNo] = {
-    supplier: state.supplier,
-    items: [],
-    originalFiles: [{ fileName: state.fileName, fileBase64: state.originalBase64 }],
-  };
+  window.invoiceGroups[state.docNo] = { supplier: state.supplier, items: [], originalFiles: [{ fileName: state.fileName, fileBase64: state.originalBase64 }] };
 
   const regex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,]/g;
   let mappedIndices = Object.values(colMap).filter((v) => v !== undefined);
-
   window.mapper2State.quarantine = [];
 
   if (!state.invoiceRows || !Array.isArray(state.invoiceRows)) {
-     return alert("Ошибка: нет данных строк для обработки.");
+      console.log("[7] ❌ ОШИБКА: Нет данных invoiceRows!");
+      return alert("Ошибка: нет данных строк для обработки.");
   }
 
   let stats = { total: 0, noPrice: 0, noId: 0, success: 0 };
@@ -1616,9 +1607,7 @@ window.applyMapper2Logic = function (mode) {
         else return rawVal;
 
         let result = [];
-        targetIndices.forEach((idx) => {
-          if (tokens[idx] !== undefined) result.push(tokens[idx]);
-        });
+        targetIndices.forEach((idx) => { if (tokens[idx] !== undefined) result.push(tokens[idx]); });
         return result.join("");
       }
       return rawVal;
@@ -1632,30 +1621,20 @@ window.applyMapper2Logic = function (mode) {
     let qty = parseFloat(rawQty) || 0;
     let price = parseFloat(String(rawPrice).replace(",", "."));
 
-    if (isNaN(price) || price <= 0) {
-        stats.noPrice++;
-        if (stats.noPrice === 1) console.log(`⚠️ Пример пропуска (нет цены) строка ${index}: сырая цена='${rawPrice}'`);
-        return;
-    }
+    if (isNaN(price) || price <= 0) { stats.noPrice++; return; }
 
     let hasIdentifier = (rawId && String(rawId).trim() !== "") || (rawName && String(rawName).trim() !== "");
-    if (!hasIdentifier) {
-        stats.noId++;
-        return;
-    }
+    if (!hasIdentifier) { stats.noId++; return; }
 
     stats.success++;
 
     let barcode = /^\d{8,13}$/.test(rawId) ? rawId : "";
     let name = rawName || rawId || "Без названия";
-
     let rawLogisticsStr = "";
     row.forEach((cellVal, idx) => {
       if (mappedIndices.includes(idx)) return;
       let val = String(cellVal || "").trim();
-      if (val && val.length < 30 && !/^\d{8,15}$/.test(val)) {
-        rawLogisticsStr += " " + val;
-      }
+      if (val && val.length < 30 && !/^\d{8,15}$/.test(val)) rawLogisticsStr += " " + val;
     });
 
     let rawCbm = getValue("cbm");
@@ -1688,11 +1667,9 @@ window.applyMapper2Logic = function (mode) {
           let baseDv = strDv.split("(")[0].trim();
           let isStrictNumber = /^[\d\.]+$/.test(String(searchString).trim());
 
-          if (
-            strDv.toLowerCase() === String(searchString).trim().toLowerCase() ||
-            baseDv.toLowerCase() === String(searchString).trim().toLowerCase() ||
-            (isStrictNumber && !isNaN(parseFloat(baseDv)) && parseFloat(baseDv) === parseFloat(searchString))
-          ) {
+          if (strDv.toLowerCase() === String(searchString).trim().toLowerCase() ||
+              baseDv.toLowerCase() === String(searchString).trim().toLowerCase() ||
+              (isStrictNumber && !isNaN(parseFloat(baseDv)) && parseFloat(baseDv) === parseFloat(searchString))) {
             matchedDictValue = strDv;
             foundMatch = true;
             break;
@@ -1714,7 +1691,6 @@ window.applyMapper2Logic = function (mode) {
         }
         return;
       }
-
       attributesObj[key] = matchedDictValue;
     };
 
@@ -1731,7 +1707,6 @@ window.applyMapper2Logic = function (mode) {
     delete cleanAttributesObj['title'];
 
     let finalAttributes = Object.keys(cleanAttributesObj).length > 0 ? JSON.stringify(cleanAttributesObj) : "";
-
     const templateDropdown = document.getElementById("kaspiTemplateSelect");
     const activeCategoryText = templateDropdown && templateDropdown.selectedIndex !== -1 ? templateDropdown.options[templateDropdown.selectedIndex].text.trim() : "Новые товары";
 
@@ -1753,22 +1728,19 @@ window.applyMapper2Logic = function (mode) {
     }
   });
 
-  console.log("📊 СТАТИСТИКА ПАРСИНГА:", stats);
+  console.log("[8] 📊 СТАТИСТИКА:", stats);
 
   if (window.parsedInvoiceData.length === 0) {
     return alert("Не удалось сформировать товары. Убедитесь, что в колонках «Количество» и «Цена» находятся ТОЛЬКО цифры.");
   }
 
   if (window.mapper2State.quarantine && window.mapper2State.quarantine.length > 0) {
-    if (typeof window.startTokenizerQueue === "function") {
-      window.startTokenizerQueue();
-    } else {
-      alert("Модуль Токенизатора не загружен.");
-    }
+    if (typeof window.startTokenizerQueue === "function") window.startTokenizerQueue();
+    else alert("Модуль Токенизатора не загружен.");
     return;
   }
 
-  console.log("➡️ Переходим к таблице превью...");
+  console.log("[9] ➡️ Переходим к таблице превью...");
   if (typeof window.renderPreviewTable === "function") window.renderPreviewTable();
 
   if (mapperArea) mapperArea.style.display = "none";
