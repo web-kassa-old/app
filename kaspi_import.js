@@ -1768,11 +1768,16 @@ window.applyMapper2Logic = function () {
         // 🔥 ПРОВЕРКА "БЕЛОГО СПИСКА": Отметил ли клиент эту колонку в интерфейсе?
         let isComplex = window.complexColumnsToTokenize && window.complexColumnsToTokenize.includes(excelHeader);
 
-// ⚡ ПРОВЕРЯЕМ ОБА КЛЮЧА: и системный, и русский
-let isAlreadyProcessed = state.splitRules && (state.splitRules[key] || state.splitRules[humanName]);
+        // ⚡ БРОНЕЖИЛЕТ ОТ БЕСКОНЕЧНОГО ЦИКЛА (Проверяем оба ключа)
+        let hasSplitRule = false;
+        if (state.splitRules) {
+            if (state.splitRules[key]) hasSplitRule = true;
+            if (humanName && state.splitRules[humanName]) hasSplitRule = true;
+        }
 
-if (isComplex && !isAlreadyProcessed) {
-    itemHasCollisions = true;
+        // Если колонка сложная и еще НЕ прошла Токенизатор -> в карантин
+        if (isComplex && !hasSplitRule) {
+          itemHasCollisions = true;
           itemCollisionsList.push({
             sysKey: key,
             humanName: humanName,
@@ -1780,7 +1785,7 @@ if (isComplex && !isAlreadyProcessed) {
             excelColumnName: excelHeader || "ДАННЫЕ ИЗ НАКЛАДНОЙ",
           });
         } else {
-          // Колонка простая (не отмечена) -> принудительно сохраняем текст из Excel как есть
+          // Колонка простая (или УЖЕ прошла Токенизатор) -> принудительно сохраняем текст
           attributesObj[key] = rawValue;
         }
         return; // Завершаем обработку для этого поля
