@@ -1656,7 +1656,6 @@ window.applyMapper2Logic = function () {
 
       let rawVal = String(row[colIdx] || "").trim();
       
-      // ⚡ ФИКС 1: Ищем правило по всем возможным названиям
       let excelHeader = colIdx !== undefined && state.invoiceHeaders ? state.invoiceHeaders[colIdx] : "";
       let hName = state.sysToHumanMap ? state.sysToHumanMap[primaryKey] : null;
 
@@ -1670,25 +1669,31 @@ window.applyMapper2Logic = function () {
       if (ruleData) {
         const tokens = rawVal.match(regex) || [];
         
-        // Генерируем сигнатуру текущей ячейки
+        // ⚡ ФИКС 1: Сигнатура Токенизатора (N, A, S)
         const sig = tokens.map(t => {
-          if (/\d/.test(t)) return 'D';
-          if (/[a-zA-Zа-яА-ЯёЁ]/.test(t)) return 'L';
-          return '.';
+          if (/\d/.test(t)) return 'N';
+          if (/[a-zA-Zа-яА-ЯёЁ]/.test(t)) return 'A';
+          return 'S';
         }).join('-');
 
         let targetIndices = [];
+        let mappingObj = ruleData[sig];
 
         if (Array.isArray(ruleData)) {
-           // Обратная совместимость со старыми правилами
            targetIndices = ruleData;
-        } else if (ruleData[sig]) {
-           // Берем индексы именно для этой структуры текста
-           targetIndices = ruleData[sig];
+        } else if (mappingObj) {
+           if (Array.isArray(mappingObj)) {
+               targetIndices = mappingObj;
+           } else {
+               // ⚡ ФИКС 2: Достаем индексы строго для текущего параметра (ширина, профиль и т.д.)
+               targetIndices = mappingObj[primaryKey] || (hName ? mappingObj[hName] : null);
+               if (!targetIndices) return ""; 
+           }
         } else {
-           // Если структура неизвестна, возвращаем сырой текст
            return rawVal; 
         }
+
+        if (!Array.isArray(targetIndices)) return rawVal;
 
         let result = [];
         targetIndices.forEach((idx) => {
