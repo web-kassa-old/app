@@ -1568,11 +1568,19 @@ window.updateReqCardStatus = function (sysKey, text, className, previewText) {
 };
 
 // 6. ФИНАЛЬНАЯ СБОРКА JSON ДЛЯ СЕРВЕРА
+// 1. ОСНОВНАЯ ЛОГИКА СБОРКИ (АРХИТЕКТУРА 2.0)
 window.applyMapper2Logic = function (mode) {
   const state = window.mapper2State || {};
   const colMap = state.colMap || {};
   const dict = state.dictValues || {};
   const regex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,]/g;
+
+  let humanToSysMap = {};
+  if (state.sysToHumanMap) {
+     for (let key in state.sysToHumanMap) {
+        humanToSysMap[state.sysToHumanMap[key]] = key;
+     }
+  }
 
   window.parsedInvoiceData = [];
   window.invoiceGroups = {};
@@ -1585,48 +1593,10 @@ window.applyMapper2Logic = function (mode) {
     const getValue = (primaryKey, kaspiKey) => {
       if (dict && dict[primaryKey]) return dict[primaryKey];
       if (kaspiKey && dict && dict[kaspiKey]) return dict[kaspiKey];
-
       let colIdx = colMap[primaryKey];
       if (colIdx === undefined && kaspiKey) colIdx = colMap[kaspiKey];
       if (colIdx === undefined) return "";
-
-      let rawVal = String(row[colIdx] || "").trim();
-      let excelHeader = colIdx !== undefined && state.invoiceHeaders ? state.invoiceHeaders[colIdx] : "";
-      let hName = state.sysToHumanMap ? state.sysToHumanMap[primaryKey] : null;
-
-      let ruleData = null;
-      if (state.splitRules) {
-         if (state.splitRules[primaryKey]) ruleData = state.splitRules[primaryKey];
-         else if (hName && state.splitRules[hName]) ruleData = state.splitRules[hName];
-         else if (excelHeader && state.splitRules[excelHeader]) ruleData = state.splitRules[excelHeader];
-      }
-
-      if (ruleData) {
-        let processedTokens = typeof window.parseAndMatchTokens === "function" ? window.parseAndMatchTokens(rawVal, excelHeader) : (rawVal.match(regex) || []).map(t => ({ cleanText: t, isActive: true }));
-        let activeTokens = processedTokens.filter(t => t.isActive);
-        const sig = activeTokens.map(t => (/\d/.test(t.cleanText) ? 'N' : /[a-zA-Zа-яА-ЯёЁ]/.test(t.cleanText) ? 'A' : 'S')).join('-');
-
-        let targetIndices = [];
-        let mappingObj = ruleData[sig];
-
-        if (Array.isArray(ruleData)) targetIndices = ruleData;
-        else if (mappingObj) {
-           if (Array.isArray(mappingObj)) targetIndices = mappingObj;
-           else {
-               targetIndices = mappingObj[primaryKey] || (hName ? mappingObj[hName] : null);
-               if (!targetIndices) return ""; 
-           }
-        } else return rawVal;
-
-        if (!Array.isArray(targetIndices)) return rawVal;
-
-        let result = [];
-        targetIndices.forEach((idx) => {
-          if (activeTokens[idx] !== undefined) result.push(activeTokens[idx].cleanText);
-        });
-        return result.join("");
-      }
-      return rawVal;
+      return String(row[colIdx] || "").trim();
     };
 
     let rawQty = getValue("qty");
@@ -1646,41 +1616,69 @@ window.applyMapper2Logic = function (mode) {
     let allKeys = new Set([...Object.keys(colMap), ...(dict ? Object.keys(dict) : [])]);
     allKeys.forEach((key) => {
       if (["qty", "price", "cost", "name", "model", "barcode"].includes(String(key).toLowerCase())) return;
-      let rawValue = getValue(key);
-      if (!rawValue) return;
-
+      
       let humanName = state.sysToHumanMap ? state.sysToHumanMap[key] : key;
       let colIdx = colMap[key];
       let excelHeader = colIdx !== undefined && state.invoiceHeaders ? state.invoiceHeaders[colIdx] : "";
       let isComplex = window.complexColumnsToTokenize && window.complexColumnsToTokenize.includes(excelHeader);
-      
-      let isAlreadyProcessed = false;
-      let ruleForCol = null;
-      
-      if (state.splitRules) {
-          if (state.splitRules[key]) ruleForCol = state.splitRules[key];
-          else if (humanName && state.splitRules[humanName]) ruleForCol = state.splitRules[humanName];
-          else if (excelHeader && state.splitRules[excelHeader]) ruleForCol = state.splitRules[excelHeader];
-      }
 
-      if (ruleForCol) {
-          let rawRawVal = String(row[colMap[key]] || "").trim();
-          let processedT = typeof window.parseAndMatchTokens === "function" ? window.parseAndMatchTokens(rawRawVal, excelHeader) : (rawRawVal.match(regex) || []).map(t => ({ cleanText: t, isActive: true }));
-          let activeT = processedT.filter(t => t.isActive);
-          let sig = activeT.map(t => (/\d/.test(t.cleanText) ? 'N' : /[a-zA-Zа-яА-ЯёЁ]/.test(t.cleanText) ? 'A' : 'S')).join('-');
-          
-          if (Array.isArray(ruleForCol) || ruleForCol[sig]) {
-              isAlreadyProcessed = true;
+      let rawValue = getValue(key);
+
+      if (isComplex) {
+          let isAlreadyProcessed = false;
+          if (state.splitRules && state.splitRules[excelHeader]) {
+              let rawRawVal = String(row[colIdx] || "").trim();
+              let processedT = typeof window.parseAndMatchTokens === "function" ? window.parseAndMatchTokens(rawRawVal, excelHeader) : (rawRawVal.match(regex) || []).map(t => ({ cleanText: t, isActive: true }));
+              let activeT = processedT.filter(t => t.isActive);
+              let sig = activeT.map(t => (/\d/.test(t.cleanText) ? 'N' : /[a-zA-Zа-яА-ЯёЁ]/.test(t.cleanText) ? 'A' : 'S')).join('-');
+              
+              if (state.splitRules[excelHeader][sig]) {
+                  isAlreadyProcessed = true;
+              }
           }
-      }
 
-      if (isComplex && !isAlreadyProcessed) {
-        itemHasCollisions = true;
-        itemCollisionsList.push({ sysKey: key, humanName: humanName, rawString: rawValue, excelColumnName: excelHeader || "ДАННЫЕ ИЗ НАКЛАДНОЙ" });
+          if (!isAlreadyProcessed) {
+              let rawRawVal = String(row[colIdx] || "").trim();
+              if (rawRawVal) {
+                  itemHasCollisions = true;
+                  itemCollisionsList.push({ sysKey: key, humanName: humanName, rawString: rawRawVal, excelColumnName: excelHeader || "ДАННЫЕ ИЗ НАКЛАДНОЙ" });
+              }
+          }
       } else {
-        attributesObj[key] = rawValue;
+          if (rawValue) attributesObj[key] = rawValue;
       }
     });
+
+    if (window.complexColumnsToTokenize && state.invoiceHeaders) {
+        window.complexColumnsToTokenize.forEach(excelCol => {
+            let cIdx = state.invoiceHeaders.indexOf(excelCol);
+            if (cIdx === -1) return;
+            let rawVal = String(row[cIdx] || "").trim();
+            if (!rawVal) return;
+
+            let processedTokens = typeof window.parseAndMatchTokens === "function" ? window.parseAndMatchTokens(rawVal, excelCol) : (rawVal.match(regex) || []).map(t => ({ cleanText: t, isActive: true }));
+            let activeTokens = processedTokens.filter(t => t.isActive);
+            const sig = activeTokens.map(t => (/\d/.test(t.cleanText) ? 'N' : /[a-zA-Zа-яА-ЯёЁ]/.test(t.cleanText) ? 'A' : 'S')).join('-');
+
+            if (state.splitRules && state.splitRules[excelCol] && state.splitRules[excelCol][sig]) {
+                let ruleMap = state.splitRules[excelCol][sig];
+                for (let paramName in ruleMap) {
+                    let targetIndices = ruleMap[paramName];
+                    if (targetIndices && targetIndices.length > 0) {
+                        let result = [];
+                        targetIndices.forEach((idx) => {
+                            if (activeTokens[idx] !== undefined) result.push(activeTokens[idx].cleanText);
+                        });
+                        let finalStr = result.join("");
+                        if (finalStr) {
+                            let sysKey = humanToSysMap[paramName] || paramName;
+                            attributesObj[sysKey] = finalStr;
+                        }
+                    }
+                }
+            }
+        });
+    }
 
     window.parsedInvoiceData.push({
       item_name: rawName || rawId || "Без названия",
@@ -1691,21 +1689,175 @@ window.applyMapper2Logic = function (mode) {
       _hasCollisions: itemHasCollisions
     });
 
-    if (itemHasCollisions) state.quarantine.push(...itemCollisionsList);
+    if (itemHasCollisions) {
+        let uniqueCols = new Set();
+        itemCollisionsList.forEach(c => {
+            if (!uniqueCols.has(c.excelColumnName)) {
+                uniqueCols.add(c.excelColumnName);
+                state.quarantine.push(c);
+            }
+        });
+    }
   });
 
   if (state.quarantine && state.quarantine.length > 0) {
+    let modalOverlay = document.getElementById("smartMapperContainer");
+    if (modalOverlay) {
+        modalOverlay.style.display = "flex";
+        modalOverlay.style.zIndex = "999999"; 
+    }
     if (typeof window.startTokenizerQueue === "function") window.startTokenizerQueue();
     return;
   }
 
-  // 🔥 ФИКС: Очередь пуста, всё распределено. ПРИНУДИТЕЛЬНО ЗАКРЫВАЕМ ЧЕРНОЕ ОКНО!
   let container = document.getElementById("smartMapperContainer");
   if (container) container.style.display = "none";
 
   if (typeof window.renderPreviewTable === "function") window.renderPreviewTable();
   document.getElementById("mapper2Area").style.display = "none";
   document.getElementById("invoicePreviewArea").style.display = "flex";
+};
+
+// 2. ОБНОВЛЕННЫЙ ТОКЕНИЗАТОР (СОХРАНЯЕТ ЧИСТЫЕ СИГНАТУРЫ)
+window.startTokenizerQueue = function() {
+    let state = window.mapper2State;
+    if (!state.quarantine || state.quarantine.length === 0) {
+        let container = document.getElementById("smartMapperContainer");
+        if (container) container.style.display = "none";
+        if (typeof window.renderPreviewTable === "function") window.renderPreviewTable();
+        document.getElementById("mapper2Area").style.display = "none";
+        document.getElementById("invoicePreviewArea").style.display = "flex";
+        return;
+    }
+
+    const currentItem = state.quarantine[0];
+    const colName = currentItem.excelColumnName;
+    const rawString = currentItem.rawString;
+    const targetParams = state.smartRules[colName] || [];
+    const tokens = typeof window.parseAndMatchTokens === "function" ? window.parseAndMatchTokens(rawString, colName) : [];
+    
+    const activeTokens = tokens.filter(t => t.isActive);
+
+    const container = document.getElementById("smartMapperContainer");
+    if (!container) return;
+    container.innerHTML = "";
+    
+    container.style.display = "flex";
+    container.style.position = "fixed";
+    container.style.top = "0";
+    container.style.left = "0";
+    container.style.width = "100vw";
+    container.style.height = "100vh";
+    container.style.zIndex = "999999";
+    container.style.backgroundColor = "rgba(0,0,0,0.85)";
+
+    const modal = document.createElement("div");
+    modal.className = "smart-modal-content tokenizer-modal";
+
+    const header = document.createElement("div");
+    header.className = "smart-modal-header";
+    header.innerHTML = `Связь данных: <span style="color: var(--accent-blue);">${colName.toUpperCase()}</span>`;
+    modal.appendChild(header);
+
+    const body = document.createElement("div");
+    body.className = "smart-modal-body";
+
+    const tokensSection = document.createElement("div");
+    tokensSection.className = "tokenizer-section";
+    tokensSection.innerHTML = `<div class="smart-question">Найдено в накладной: <strong>${rawString}</strong></div>`;
+    
+    const tokensContainer = document.createElement("div");
+    tokensContainer.className = "tokens-visual-container";
+
+    let activeTokensHtml = "";
+    let activeCounter = 0;
+    tokens.forEach((tok) => {
+        if (tok.isActive) {
+            activeTokensHtml += `<button class="token-btn active-token" data-idx="${activeCounter}">${tok.text}</button>`;
+            activeCounter++;
+        } else {
+            activeTokensHtml += `<span class="token-text passive-token">${tok.text}</span>`;
+        }
+    });
+    
+    tokensContainer.innerHTML = activeTokensHtml;
+    tokensSection.appendChild(tokensContainer);
+    body.appendChild(tokensSection);
+
+    const paramsSection = document.createElement("div");
+    paramsSection.className = "tokenizer-section";
+    paramsSection.innerHTML = `<div class="smart-question" style="margin-top: 20px;">Распределите значения:</div>`;
+    
+    const paramsGrid = document.createElement("div");
+    paramsGrid.className = "params-match-grid";
+
+    targetParams.forEach(paramName => {
+        paramsGrid.innerHTML += `
+            <div class="match-row" data-param="${paramName}">
+                <div class="match-label">${paramName}</div>
+                <div class="match-dropzone" data-assigned-idx="">Кликните значение выше...</div>
+            </div>
+        `;
+    });
+
+    paramsSection.appendChild(paramsGrid);
+    body.appendChild(paramsSection);
+
+    const footer = document.createElement("div");
+    footer.className = "smart-modal-footer";
+    footer.innerHTML = `<button class="confirm-btn btn-primary green" id="btnNextToken" style="width: 100%; padding: 12px; font-weight: bold; border-radius: 8px;">ПОДТВЕРДИТЬ СТРУКТУРУ</button>`;
+    body.appendChild(footer);
+    modal.appendChild(body);
+    container.appendChild(modal);
+
+    let selectedTokenBtn = null;
+    const tokenBtns = tokensContainer.querySelectorAll('.active-token');
+    tokenBtns.forEach(btn => {
+        btn.addEventListener('click', function() {
+            tokenBtns.forEach(b => b.classList.remove('selected'));
+            this.classList.add('selected');
+            selectedTokenBtn = this;
+        });
+    });
+
+    const dropzones = paramsGrid.querySelectorAll('.match-dropzone');
+    dropzones.forEach(zone => {
+        zone.addEventListener('click', function() {
+            if (selectedTokenBtn) {
+                this.textContent = selectedTokenBtn.textContent;
+                this.dataset.assignedIdx = selectedTokenBtn.dataset.idx;
+                this.classList.add('filled');
+                selectedTokenBtn.classList.remove('selected');
+                selectedTokenBtn.classList.add('assigned');
+                selectedTokenBtn = null;
+            } else {
+                this.textContent = "Кликните значение выше...";
+                this.dataset.assignedIdx = "";
+                this.classList.remove('filled');
+            }
+        });
+    });
+
+    document.getElementById("btnNextToken").addEventListener("click", () => {
+        let ruleMap = {};
+        dropzones.forEach(zone => {
+            const param = zone.closest('.match-row').dataset.param;
+            const idx = zone.dataset.assignedIdx;
+            if (idx !== "") ruleMap[param] = [parseInt(idx)];
+        });
+
+        const sig = activeTokens.map(t => {
+            if (/\d/.test(t.cleanText)) return 'N';
+            if (/[a-zA-Zа-яА-ЯёЁ]/.test(t.cleanText)) return 'A';
+            return 'S';
+        }).join('-');
+
+        state.splitRules = state.splitRules || {};
+        state.splitRules[colName] = state.splitRules[colName] || {};
+        state.splitRules[colName][sig] = ruleMap;
+
+        window.applyMapper2Logic();
+    });
 };
 
 // === ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ РЕДАКТОРА ===
