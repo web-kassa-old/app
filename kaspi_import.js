@@ -873,6 +873,8 @@ window.renderMapper2Cards = function (templateData) {
 
   document.getElementById("mapper2Area").style.display = "flex";
   document.getElementById("applyMapper2Btn").style.display = "block";
+
+  window.checkMapperReadiness();
 };
 
 // 3. ОТКРЫТИЕ ШТОРКИ И ОТРИСОВКА КОЛОНОК
@@ -1562,6 +1564,7 @@ window.updateReqCardStatus = function (sysKey, text, className, previewText) {
       container.appendChild(card);
     }
   }
+  window.checkMapperReadiness();
 };
 
 // 6. ФИНАЛЬНАЯ СБОРКА JSON ДЛЯ СЕРВЕРА
@@ -1768,8 +1771,16 @@ window.applyMapper2Logic = function () {
         // 🔥 ПРОВЕРКА "БЕЛОГО СПИСКА": Отметил ли клиент эту колонку в интерфейсе?
         let isComplex = window.complexColumnsToTokenize && window.complexColumnsToTokenize.includes(excelHeader);
 
-        if (isComplex) {
-          // Колонка сложная -> отправляем в карантин для Сита/Токенизатора
+        // ⚡ ФИНАЛЬНЫЙ ФИКС: Проверяем правило по всем 3 возможным ключам (включая заголовок из Excel)
+        let isAlreadyProcessed = false;
+        if (state.splitRules) {
+            if (state.splitRules[key]) isAlreadyProcessed = true;
+            if (humanName && state.splitRules[humanName]) isAlreadyProcessed = true;
+            if (excelHeader && state.splitRules[excelHeader]) isAlreadyProcessed = true;
+        }
+
+        // Если колонка сложная и еще НЕ прошла Токенизатор -> в карантин
+        if (isComplex && !isAlreadyProcessed) {
           itemHasCollisions = true;
           itemCollisionsList.push({
             sysKey: key,
@@ -1778,7 +1789,7 @@ window.applyMapper2Logic = function () {
             excelColumnName: excelHeader || "ДАННЫЕ ИЗ НАКЛАДНОЙ",
           });
         } else {
-          // Колонка простая (не отмечена) -> принудительно сохраняем текст из Excel как есть
+          // Колонка простая (или УЖЕ прошла Токенизатор) -> принудительно сохраняем текст
           attributesObj[key] = rawValue;
         }
         return; // Завершаем обработку для этого поля
@@ -4178,3 +4189,27 @@ function selectCurrency(value) {
 
 // Глобальный объект для хранения словарей Каспи
 window.kaspiDicts = {};
+
+window.checkMapperReadiness = function() {
+    const st = window.mapper2State || {};
+    const cm = st.colMap || {};
+    const dv = st.dictValues || {};
+
+    const hasQty = cm["qty"] !== undefined || dv["qty"] !== undefined;
+    const hasPrice = cm["price"] !== undefined || cm["cost"] !== undefined || dv["price"] !== undefined || dv["cost"] !== undefined;
+    const hasName = cm["name"] !== undefined || cm["model"] !== undefined || dv["name"] !== undefined || dv["model"] !== undefined;
+
+    const btn = document.getElementById("applyMapper2Btn");
+    if (btn) {
+        if (hasQty && hasPrice && hasName) {
+            btn.style.backgroundColor = "var(--accent-green, #2ecc71)";
+            btn.style.color = "#000";
+            btn.style.opacity = "1";
+            btn.style.pointerEvents = "auto";
+        } else {
+            btn.style.backgroundColor = "";
+            btn.style.opacity = "0.5";
+            btn.style.pointerEvents = "none";
+        }
+    }
+};
