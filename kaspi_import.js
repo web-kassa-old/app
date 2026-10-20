@@ -1603,6 +1603,8 @@ window.applyMapper2Logic = function (mode) {
     let rawPrice = getValue("price", "cost");
     let qty = parseFloat(String(rawQty).replace(/[^\d,\.]/g, '').replace(',', '.')) || 0;
     let price = parseFloat(String(rawPrice).replace(/[^\d,\.]/g, '').replace(',', '.')) || 0;
+    
+    // Пропускаем строки без цены или количества (например, заголовки)
     if (isNaN(price) || price <= 0) return;
 
     let rawId = getValue("barcode", "merchant_sku");
@@ -1680,14 +1682,22 @@ window.applyMapper2Logic = function (mode) {
         });
     }
 
-    window.parsedInvoiceData.push({
+    // Формируем финальный товар
+    let finalItem = {
       item_name: rawName || rawId || "Без названия",
       qty: qty,
       cost: price,
       id: rawId,
       attributes: Object.keys(attributesObj).length > 0 ? JSON.stringify(attributesObj) : "",
       _hasCollisions: itemHasCollisions
-    });
+    };
+
+    window.parsedInvoiceData.push(finalItem);
+    
+    // 🔥 ФИКС: Обязательно добавляем товар в группу для отрисовки интерфейса!
+    if (window.invoiceGroups && state.docNo && window.invoiceGroups[state.docNo]) {
+        window.invoiceGroups[state.docNo].items.push(finalItem);
+    }
 
     if (itemHasCollisions) {
         let uniqueCols = new Set();
