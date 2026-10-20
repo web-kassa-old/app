@@ -1655,7 +1655,19 @@ window.applyMapper2Logic = function () {
       if (colIdx === undefined) return "";
 
       let rawVal = String(row[colIdx] || "").trim();
-      if (state.splitRules && state.splitRules[primaryKey]) {
+      
+      // ⚡ ФИКС 1: Ищем правило по всем возможным названиям
+      let excelHeader = colIdx !== undefined && state.invoiceHeaders ? state.invoiceHeaders[colIdx] : "";
+      let hName = state.sysToHumanMap ? state.sysToHumanMap[primaryKey] : null;
+
+      let ruleData = null;
+      if (state.splitRules) {
+        if (state.splitRules[primaryKey]) ruleData = state.splitRules[primaryKey];
+        else if (hName && state.splitRules[hName]) ruleData = state.splitRules[hName];
+        else if (excelHeader && state.splitRules[excelHeader]) ruleData = state.splitRules[excelHeader];
+      }
+
+      if (ruleData) {
         const tokens = rawVal.match(regex) || [];
         
         // Генерируем сигнатуру текущей ячейки
@@ -1693,8 +1705,9 @@ window.applyMapper2Logic = function () {
     let rawId = getValue("barcode", "merchant_sku");
     let rawName = getValue("name", "model");
 
-    let qty = parseFloat(rawQty) || 0; // Если пустая или текст - будет 0
-    let price = parseFloat(String(rawPrice).replace(",", "."));
+    // ⚡ ФИКС 2: Вычищаем пробелы и меняем запятую на точку железно
+    let qty = parseFloat(String(rawQty).replace(/\s/g, '').replace(',', '.')) || 0;
+    let price = parseFloat(String(rawPrice).replace(/\s/g, '').replace(',', '.')) || 0;
 
     // 🔥 1. БАЗОВЫЙ ФИЛЬТР МУСОРА: Цена должна быть числом больше нуля
     if (isNaN(price) || price <= 0) {
