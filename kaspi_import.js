@@ -1662,9 +1662,9 @@ window.applyMapper2Logic = function () {
 
       let ruleData = null;
       if (state.splitRules) {
-        if (state.splitRules[primaryKey]) ruleData = state.splitRules[primaryKey];
-        else if (hName && state.splitRules[hName]) ruleData = state.splitRules[hName];
-        else if (excelHeader && state.splitRules[excelHeader]) ruleData = state.splitRules[excelHeader];
+         if (state.splitRules[primaryKey]) ruleData = state.splitRules[primaryKey];
+         else if (hName && state.splitRules[hName]) ruleData = state.splitRules[hName];
+         else if (excelHeader && state.splitRules[excelHeader]) ruleData = state.splitRules[excelHeader];
       }
 
       if (ruleData) {
@@ -1677,7 +1677,6 @@ window.applyMapper2Logic = function () {
           return '.';
         }).join('-');
 
-        const ruleData = state.splitRules[primaryKey];
         let targetIndices = [];
 
         if (Array.isArray(ruleData)) {
