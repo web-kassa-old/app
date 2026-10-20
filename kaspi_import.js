@@ -873,8 +873,6 @@ window.renderMapper2Cards = function (templateData) {
 
   document.getElementById("mapper2Area").style.display = "flex";
   document.getElementById("applyMapper2Btn").style.display = "block";
-
-  window.checkMapperReadiness();
 };
 
 // 3. ОТКРЫТИЕ ШТОРКИ И ОТРИСОВКА КОЛОНОК
@@ -1564,7 +1562,6 @@ window.updateReqCardStatus = function (sysKey, text, className, previewText) {
       container.appendChild(card);
     }
   }
-  window.checkMapperReadiness();
 };
 
 // 6. ФИНАЛЬНАЯ СБОРКА JSON ДЛЯ СЕРВЕРА
@@ -1771,11 +1768,8 @@ window.applyMapper2Logic = function () {
         // 🔥 ПРОВЕРКА "БЕЛОГО СПИСКА": Отметил ли клиент эту колонку в интерфейсе?
         let isComplex = window.complexColumnsToTokenize && window.complexColumnsToTokenize.includes(excelHeader);
 
-        // ⚡ ФИКС: Проверяем, не создал ли Токенизатор уже правило для этой колонки
-        let isAlreadyProcessed = state.splitRules && (state.splitRules[key] || state.splitRules[humanName]);
-
-        if (isComplex && !isAlreadyProcessed) {
-          // Колонка сложная и еще не обработана -> отправляем в карантин
+        if (isComplex) {
+          // Колонка сложная -> отправляем в карантин для Сита/Токенизатора
           itemHasCollisions = true;
           itemCollisionsList.push({
             sysKey: key,
@@ -4184,27 +4178,3 @@ function selectCurrency(value) {
 
 // Глобальный объект для хранения словарей Каспи
 window.kaspiDicts = {};
-
-window.checkMapperReadiness = function() {
-    const st = window.mapper2State || {};
-    const cm = st.colMap || {};
-    const dv = st.dictValues || {};
-
-    const hasQty = cm["qty"] !== undefined || dv["qty"] !== undefined;
-    const hasPrice = cm["price"] !== undefined || cm["cost"] !== undefined || dv["price"] !== undefined || dv["cost"] !== undefined;
-    const hasName = cm["name"] !== undefined || cm["model"] !== undefined || dv["name"] !== undefined || dv["model"] !== undefined;
-
-    const btn = document.getElementById("applyMapper2Btn");
-    if (btn) {
-        if (hasQty && hasPrice && hasName) {
-            btn.style.backgroundColor = "var(--accent-green, #2ecc71)";
-            btn.style.color = "#000";
-            btn.style.opacity = "1";
-            btn.style.pointerEvents = "auto";
-        } else {
-            btn.style.backgroundColor = "";
-            btn.style.opacity = "0.5";
-            btn.style.pointerEvents = "none";
-        }
-    }
-};
