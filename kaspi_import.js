@@ -1660,42 +1660,20 @@ window.applyMapper2Logic = function () {
       if (state.splitRules) {
         const tokens = rawVal.match(regex) || [];
         
-        // 🔥 НОВАЯ ЛОГИКА: Ищем правило по Колонке Excel -> Сигнатура Токенизатора -> Технический ID (sysId)
-        if (state.splitRules[excelHeader]) {
-          // Генерируем сигнатуру точно как в Токенизаторе: N (числа), A (буквы), S (символы)
-          const sig = tokens.map(t => (/\d/.test(t) ? 'N' : /[a-zA-Zа-яА-ЯёЁ]/.test(t) ? 'A' : 'S')).join('-');
-          
-          if (state.splitRules[excelHeader][sig] && state.splitRules[excelHeader][sig][primaryKey]) {
+        // 🔥 СИНХРОНИЗАЦИЯ 1: Единый алфавит Токенизатора (N - числа, A - буквы, S - символы)
+        const sig = tokens.map(t => (/\d/.test(t) ? 'N' : /[a-zA-Zа-яА-ЯёЁ]/.test(t) ? 'A' : 'S')).join('-');
+        
+        // Ищем сохраненное правило строго по колонке и нашей единой сигнатуре
+        if (state.splitRules[excelHeader] && state.splitRules[excelHeader][sig] && state.splitRules[excelHeader][sig][primaryKey]) {
              let targetIndices = state.splitRules[excelHeader][sig][primaryKey];
              let result = [];
              targetIndices.forEach((idx) => {
                if (tokens[idx] !== undefined) result.push(tokens[idx]);
              });
-             return result.join(""); // Успешно вытащили нужное значение (например, 175)
-          }
-        }
-
-        // 🛡 Старая логика оставлена как предохранитель для обратной совместимости
-        if (state.splitRules[primaryKey]) {
-          const sig = tokens.map(t => {
-            if (/\d/.test(t)) return 'D';
-            if (/[a-zA-Zа-яА-ЯёЁ]/.test(t)) return 'L';
-            return '.';
-          }).join('-');
-
-          const ruleData = state.splitRules[primaryKey];
-          let targetIndices = Array.isArray(ruleData) ? ruleData : ruleData[sig];
-          
-          if (targetIndices) {
-             let result = [];
-             targetIndices.forEach((idx) => {
-               if (tokens[idx] !== undefined) result.push(tokens[idx]);
-             });
-             return result.join("");
-          }
+             return result.join(""); 
         }
       }
-      return rawVal;
+      return rawVal; 
     };
 
     let rawQty = getValue("qty");
@@ -1781,15 +1759,24 @@ window.applyMapper2Logic = function () {
         // 🔥 ПРОВЕРКА "БЕЛОГО СПИСКА": Отметил ли клиент эту колонку в интерфейсе?
         let isComplex = window.complexColumnsToTokenize && window.complexColumnsToTokenize.includes(excelHeader);
 
-        // ⚡ ФИНАЛЬНЫЙ ФИКС: Проверяем правило по всем 3 возможным ключам (включая заголовок из Excel)
+        // ⚡ СИНХРОНИЗАЦИЯ: Проверяем правило по колонке И СИГНАТУРЕ (структуре текста)
         let isAlreadyProcessed = false;
         if (state.splitRules) {
-            if (state.splitRules[key]) isAlreadyProcessed = true;
-            if (humanName && state.splitRules[humanName]) isAlreadyProcessed = true;
-            if (excelHeader && state.splitRules[excelHeader]) isAlreadyProcessed = true;
+            const regex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,]/g;
+            const tokens = String(rawValue).match(regex) || [];
+            // Генерируем сигнатуру в едином формате Токенизатора (N - числа, A - буквы, S - символы)
+            const sig = tokens.map(t => (/\d/.test(t) ? 'N' : /[a-zA-Zа-яА-ЯёЁ]/.test(t) ? 'A' : 'S')).join('-');
+
+            if (state.splitRules[excelHeader] && state.splitRules[excelHeader][sig]) {
+                isAlreadyProcessed = true;
+            } else if (state.splitRules[key] && state.splitRules[key][sig]) {
+                isAlreadyProcessed = true;
+            } else if (humanName && state.splitRules[humanName] && state.splitRules[humanName][sig]) {
+                isAlreadyProcessed = true;
+            }
         }
 
-        // Если колонка сложная и еще НЕ прошла Токенизатор -> в карантин
+        // Если колонка сложная и для ЭТОЙ СТРУКТУРЫ еще нет правила -> в карантин
         if (isComplex && !isAlreadyProcessed) {
           itemHasCollisions = true;
           itemCollisionsList.push({
@@ -1799,7 +1786,7 @@ window.applyMapper2Logic = function () {
             excelColumnName: excelHeader || "ДАННЫЕ ИЗ НАКЛАДНОЙ",
           });
         } else {
-          // Колонка простая (или УЖЕ прошла Токенизатор) -> принудительно сохраняем текст
+          // Колонка простая (или правило для этой структуры УЖЕ есть) -> принудительно сохраняем текст
           attributesObj[key] = rawValue;
         }
         return; // Завершаем обработку для этого поля
