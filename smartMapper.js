@@ -876,22 +876,28 @@ window.startTokenizerQueue = function() {
 
     // Сохранение и переход к следующей строке
     document.getElementById("btnNextToken").addEventListener("click", () => {
-        
-        // Строим словарь для обратного перевода (Русский -> Технический ID)
-        let humanToSysMap = {};
-        if (window.mapper2State.sysToHumanMap) {
-            for (let sysKey in window.mapper2State.sysToHumanMap) {
-                humanToSysMap[String(window.mapper2State.sysToHumanMap[sysKey]).trim()] = sysKey;
-            }
-        }
-
         let ruleMap = {};
         
         dropzones.forEach(zone => {
             const param = String(zone.closest('.match-row').dataset.param).trim();
             const idx = zone.dataset.assignedIdx;
+            
             if (idx !== "") {
-                const sysId = humanToSysMap[param] || param;
+                let sysId = param;
+                
+                // Жесткий поиск без учета пробелов и регистра
+                if (window.mapper2State.sysToHumanMap) {
+                    for (let key in window.mapper2State.sysToHumanMap) {
+                        let cleanDictVal = String(window.mapper2State.sysToHumanMap[key]).replace(/\s+/g, '').toLowerCase();
+                        let cleanParam = param.replace(/\s+/g, '').toLowerCase();
+                        
+                        if (cleanDictVal === cleanParam) {
+                            sysId = key;
+                            break;
+                        }
+                    }
+                }
+                
                 ruleMap[sysId] = [parseInt(idx)];
                 console.log(`[ТОКЕНИЗАТОР] Связка сохранена: "${param}" -> ID: "${sysId}"`);
             }
