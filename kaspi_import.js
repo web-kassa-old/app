@@ -1777,19 +1777,26 @@ window.applyMapper2Logic = function () {
       if (window.currentImportMode === "kaspi" && hasDictionary && !foundMatch) {
         let colIdx = state.colMap[key];
         let excelHeader = colIdx !== undefined && state.invoiceHeaders ? state.invoiceHeaders[colIdx] : "";
-
-        // 🔥 ПРОВЕРКА "БЕЛОГО СПИСКА": Отметил ли клиент эту колонку в интерфейсе?
         let isComplex = window.complexColumnsToTokenize && window.complexColumnsToTokenize.includes(excelHeader);
 
-        // ⚡ ФИНАЛЬНЫЙ ФИКС: Проверяем правило по всем 3 возможным ключам (включая заголовок из Excel)
         let isAlreadyProcessed = false;
         if (state.splitRules) {
-            if (state.splitRules[key]) isAlreadyProcessed = true;
-            if (humanName && state.splitRules[humanName]) isAlreadyProcessed = true;
-            if (excelHeader && state.splitRules[excelHeader]) isAlreadyProcessed = true;
+            // 🔥 ОБЯЗАТЕЛЬНО: задаем правило разбивки, чтобы код не сломался
+            const localRegex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,.]/g;
+            const tokens = String(rawValue).match(localRegex) || [];
+            
+            // Генерируем сигнатуру (N-A-S)
+            const sig = tokens.map(t => (/\d/.test(t) ? 'N' : /[a-zA-Zа-яА-ЯёЁ]/.test(t) ? 'A' : 'S')).join('-');
+
+            // 🔥 ПРОВЕРКА ПАТТЕРНА: есть ли в памяти правило именно для ЭТОЙ сигнатуры (например, N-A-N-A-N-A)?
+            if (state.splitRules[excelHeader] && state.splitRules[excelHeader][sig]) {
+                isAlreadyProcessed = true;
+            } else if (state.splitRules[key]) {
+                // Оставляем для старых правил
+                isAlreadyProcessed = true;
+            }
         }
 
-        // Если колонка сложная и еще НЕ прошла Токенизатор -> в карантин
         if (isComplex && !isAlreadyProcessed) {
           itemHasCollisions = true;
           itemCollisionsList.push({
@@ -1799,10 +1806,9 @@ window.applyMapper2Logic = function () {
             excelColumnName: excelHeader || "ДАННЫЕ ИЗ НАКЛАДНОЙ",
           });
         } else {
-          // Колонка простая (или УЖЕ прошла Токенизатор) -> принудительно сохраняем текст
           attributesObj[key] = rawValue;
         }
-        return; // Завершаем обработку для этого поля
+        return; 
       }
 
       // 3. Сохраняем словарное значение (или оригинальное, если словаря не было)
