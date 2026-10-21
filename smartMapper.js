@@ -876,13 +876,24 @@ window.startTokenizerQueue = function() {
 
     // Сохранение и переход к следующей строке
     document.getElementById("btnNextToken").addEventListener("click", () => {
+        
+        // Строим словарь для обратного перевода (Русский -> Технический ID)
+        let humanToSysMap = {};
+        if (window.mapper2State.sysToHumanMap) {
+            for (let sysKey in window.mapper2State.sysToHumanMap) {
+                humanToSysMap[String(window.mapper2State.sysToHumanMap[sysKey]).trim()] = sysKey;
+            }
+        }
+
         let ruleMap = {};
         
         dropzones.forEach(zone => {
-            const param = zone.closest('.match-row').dataset.param;
+            const param = String(zone.closest('.match-row').dataset.param).trim();
             const idx = zone.dataset.assignedIdx;
             if (idx !== "") {
-                ruleMap[param] = [parseInt(idx)];
+                const sysId = humanToSysMap[param] || param;
+                ruleMap[sysId] = [parseInt(idx)];
+                console.log(`[ТОКЕНИЗАТОР] Связка сохранена: "${param}" -> ID: "${sysId}"`);
             }
         });
 
