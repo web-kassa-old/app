@@ -1781,18 +1781,18 @@ window.applyMapper2Logic = function () {
 
         let isAlreadyProcessed = false;
         if (state.splitRules) {
-            // 🔥 ОБЯЗАТЕЛЬНО: задаем правило разбивки, чтобы код не сломался
-            const localRegex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,.]/g;
-            const tokens = String(rawValue).match(localRegex) || [];
+            // 🔥 ИСПРАВЛЕНИЕ: Берем оригинальную полную строку из ячейки Excel
+            let originalString = colIdx !== undefined && row[colIdx] !== undefined ? String(row[colIdx]).trim() : String(rawValue);
             
-            // Генерируем сигнатуру (N-A-S)
+            const localRegex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,.]/g;
+            const tokens = originalString.match(localRegex) || [];
+            
+            // Генерируем сигнатуру (N-A-S) из полной строки
             const sig = tokens.map(t => (/\d/.test(t) ? 'N' : /[a-zA-Zа-яА-ЯёЁ]/.test(t) ? 'A' : 'S')).join('-');
 
-            // 🔥 ПРОВЕРКА ПАТТЕРНА: есть ли в памяти правило именно для ЭТОЙ сигнатуры (например, N-A-N-A-N-A)?
             if (state.splitRules[excelHeader] && state.splitRules[excelHeader][sig]) {
                 isAlreadyProcessed = true;
             } else if (state.splitRules[key]) {
-                // Оставляем для старых правил
                 isAlreadyProcessed = true;
             }
         }
