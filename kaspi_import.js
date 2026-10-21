@@ -1784,6 +1784,8 @@ window.applyMapper2Logic = function () {
         // ⚡ СИНХРОНИЗАЦИЯ КАРАНТИНА: Проверяем наличие правила по Колонке + Сигнатуре
         let isAlreadyProcessed = false;
         if (state.splitRules) {
+            // 🔥 ИСПРАВЛЕНИЕ: Добавили объявление regex, чтобы скрипт знал, как резать строку
+            const regex = /\d+[,.]\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,.]/g;
             const tokens = String(rawValue).match(regex) || [];
             const sig = tokens.map(t => (/\d/.test(t) ? 'N' : /[a-zA-Zа-яА-ЯёЁ]/.test(t) ? 'A' : 'S')).join('-');
 
