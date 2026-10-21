@@ -1775,38 +1775,42 @@ window.applyMapper2Logic = function () {
 
       // 2. Логика коллизий (есть словарь, но нет совпадения)
       if (window.currentImportMode === "kaspi" && hasDictionary && !foundMatch) {
-        let colIdx = state.colMap[key];
-        let excelHeader = colIdx !== undefined && state.invoiceHeaders ? state.invoiceHeaders[colIdx] : "";
-        let isComplex = window.complexColumnsToTokenize && window.complexColumnsToTokenize.includes(excelHeader);
+        try {
+            let colIdx = state.colMap[key];
+            let excelHeader = colIdx !== undefined && state.invoiceHeaders ? state.invoiceHeaders[colIdx] : "";
+            let isComplex = window.complexColumnsToTokenize && window.complexColumnsToTokenize.includes(excelHeader);
 
-        let isAlreadyProcessed = false;
-        if (state.splitRules) {
-            // 🔥 ИСПРАВЛЕНИЕ: Берем оригинальную полную строку из ячейки Excel
-            let originalString = colIdx !== undefined && row[colIdx] !== undefined ? String(row[colIdx]).trim() : String(rawValue);
-            
-            const localRegex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,.]/g;
-            const tokens = originalString.match(localRegex) || [];
-            
-            // Генерируем сигнатуру (N-A-S) из полной строки
-            const sig = tokens.map(t => (/\d/.test(t) ? 'N' : /[a-zA-Zа-яА-ЯёЁ]/.test(t) ? 'A' : 'S')).join('-');
+            let isAlreadyProcessed = false;
+            if (state.splitRules) {
+                // Проверяем, доступна ли переменная row вообще
+                let originalString = (typeof row !== 'undefined' && colIdx !== undefined && row[colIdx] !== undefined) 
+                    ? String(row[colIdx]).trim() 
+                    : String(rawValue);
+                
+                const localRegex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,.]/g;
+                const tokens = originalString.match(localRegex) || [];
+                const sig = tokens.map(t => (/\d/.test(t) ? 'N' : /[a-zA-Zа-яА-ЯёЁ]/.test(t) ? 'A' : 'S')).join('-');
 
-            if (state.splitRules[excelHeader] && state.splitRules[excelHeader][sig]) {
-                isAlreadyProcessed = true;
-            } else if (state.splitRules[key]) {
-                isAlreadyProcessed = true;
+                if (state.splitRules[excelHeader] && state.splitRules[excelHeader][sig]) {
+                    isAlreadyProcessed = true;
+                } else if (state.splitRules[key]) {
+                    isAlreadyProcessed = true;
+                }
             }
-        }
 
-        if (isComplex && !isAlreadyProcessed) {
-          itemHasCollisions = true;
-          itemCollisionsList.push({
-            sysKey: key,
-            humanName: humanName,
-            rawString: rawValue,
-            excelColumnName: excelHeader || "ДАННЫЕ ИЗ НАКЛАДНОЙ",
-          });
-        } else {
-          attributesObj[key] = rawValue;
+            if (isComplex && !isAlreadyProcessed) {
+              itemHasCollisions = true;
+              itemCollisionsList.push({
+                sysKey: key,
+                humanName: humanName,
+                rawString: rawValue,
+                excelColumnName: excelHeader || "ДАННЫЕ ИЗ НАКЛАДНОЙ",
+              });
+            } else {
+              attributesObj[key] = rawValue;
+            }
+        } catch (error) {
+            console.error("🔥 ОШИБКА В КАРАНТИНЕ:", error);
         }
         return; 
       }
