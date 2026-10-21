@@ -3377,6 +3377,8 @@ window.handleCardSelectForExport = async function (
           const hName = res.templateConfig.humanNames[i];
           if (sKey && hName) window.mapper2State.sysToHumanMap[sKey] = hName;
         }
+        // 🔥 Спасаем словарь в глобальную память
+    window.GLOBAL_KASPI_DICT = window.mapper2State.sysToHumanMap;
       }
       // =========================================================
 

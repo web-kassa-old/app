@@ -876,10 +876,8 @@ window.startTokenizerQueue = function() {
 
     // Сохранение и переход к следующей строке
     document.getElementById("btnNextToken").addEventListener("click", () => {
-        const dict = window.mapper2State.sysToHumanMap;
-        console.log("--- ОТЛАДКА ПЕРЕВОДА ---");
-        console.log("Словарь доступен?", !!dict);
-        console.log("Количество записей в словаре:", dict ? Object.keys(dict).length : 0);
+        // Берем словарь из нашей надежной глобальной переменной
+        const dict = window.GLOBAL_KASPI_DICT;
         
         let ruleMap = {};
         
@@ -905,18 +903,12 @@ window.startTokenizerQueue = function() {
             }
         });
 
-        // Генерируем сигнатуру строки для сохранения правила
-        const sig = tokens.map(t => {
-            if (/\d/.test(t.cleanText)) return 'N';
-            if (/[a-zA-Zа-яА-ЯёЁ]/.test(t.cleanText)) return 'A';
-            return 'S';
-        }).join('-');
-
+        const sig = tokens.map(t => (/\d/.test(t.cleanText || t.text) ? 'N' : /[a-zA-Zа-яА-ЯёЁ]/.test(t.cleanText || t.text) ? 'A' : 'S')).join('-');
+        
         window.mapper2State.splitRules = window.mapper2State.splitRules || {};
         window.mapper2State.splitRules[colName] = window.mapper2State.splitRules[colName] || {};
         window.mapper2State.splitRules[colName][sig] = ruleMap;
 
-        // Удаляем обработанную строку и запускаем очередь заново
         window.mapper2State.quarantine.shift();
         window.startTokenizerQueue();
     });
