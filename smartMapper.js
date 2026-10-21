@@ -876,9 +876,6 @@ window.startTokenizerQueue = function() {
 
     // Сохранение и переход к следующей строке
     document.getElementById("btnNextToken").addEventListener("click", () => {
-        // Берем словарь из нашей надежной глобальной переменной
-        const dict = window.GLOBAL_KASPI_DICT;
-        
         let ruleMap = {};
         
         dropzones.forEach(zone => {
@@ -886,13 +883,17 @@ window.startTokenizerQueue = function() {
             const idx = zone.dataset.assignedIdx;
             
             if (idx !== "") {
-                let sysId = param;
+                let sysId = param; // По умолчанию оставляем русское название
                 
-                if (dict) {
-                    for (let key in dict) {
-                        let dictVal = String(dict[key]).trim();
-                        if (dictVal === param) {
-                            sysId = key;
+                // 🔥 Берем ID напрямую из железобетонного источника
+                if (window.currentTemplateData && window.currentTemplateData.humanNames && window.currentTemplateData.systemKeys) {
+                    const hNames = window.currentTemplateData.humanNames;
+                    const sKeys = window.currentTemplateData.systemKeys;
+                    
+                    for (let i = 0; i < hNames.length; i++) {
+                        // Сравниваем очищенные строки
+                        if (String(hNames[i]).trim() === param) {
+                            sysId = sKeys[i];
                             break;
                         }
                     }
@@ -903,6 +904,7 @@ window.startTokenizerQueue = function() {
             }
         });
 
+        // Формируем сигнатуру и сохраняем в память
         const sig = tokens.map(t => (/\d/.test(t.cleanText || t.text) ? 'N' : /[a-zA-Zа-яА-ЯёЁ]/.test(t.cleanText || t.text) ? 'A' : 'S')).join('-');
         
         window.mapper2State.splitRules = window.mapper2State.splitRules || {};
