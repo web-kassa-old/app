@@ -1625,7 +1625,7 @@ window.applyMapper2Logic = function () {
           category: templateName,
           memoryJson: JSON.stringify(currentMemory),
         };
-        // window.smartFetch(GATEWAY_URL, payload).catch((e) => console.error("Ошибка обновления словаря", e));
+        window.smartFetch(GATEWAY_URL, payload).catch((e) => console.error("Ошибка обновления словаря", e));
       }
     }
   }
@@ -1781,22 +1781,12 @@ window.applyMapper2Logic = function () {
         // 🔥 ПРОВЕРКА "БЕЛОГО СПИСКА": Отметил ли клиент эту колонку в интерфейсе?
         let isComplex = window.complexColumnsToTokenize && window.complexColumnsToTokenize.includes(excelHeader);
 
-        // ⚡ СИНХРОНИЗАЦИЯ КАРАНТИНА: Проверяем наличие правила по Колонке + Сигнатуре
+        // ⚡ ФИНАЛЬНЫЙ ФИКС: Проверяем правило по всем 3 возможным ключам (включая заголовок из Excel)
         let isAlreadyProcessed = false;
         if (state.splitRules) {
-            // 🔥 ИСПРАВЛЕНИЕ: Добавили объявление regex, чтобы скрипт знал, как резать строку
-            const regex = /\d+[,.]\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,.]/g;
-            const tokens = String(rawValue).match(regex) || [];
-            const sig = tokens.map(t => (/\d/.test(t) ? 'N' : /[a-zA-Zа-яА-ЯёЁ]/.test(t) ? 'A' : 'S')).join('-');
-
-            // Если для этой колонки и ЭТОЙ структуры уже есть правило — пропускаем
-            if (state.splitRules[excelHeader] && state.splitRules[excelHeader][sig]) {
-                isAlreadyProcessed = true;
-            } 
-            // Предохранитель для старой архитектуры
-            else if (state.splitRules[key]) {
-                isAlreadyProcessed = true;
-            }
+            if (state.splitRules[key]) isAlreadyProcessed = true;
+            if (humanName && state.splitRules[humanName]) isAlreadyProcessed = true;
+            if (excelHeader && state.splitRules[excelHeader]) isAlreadyProcessed = true;
         }
 
         // Если колонка сложная и еще НЕ прошла Токенизатор -> в карантин
