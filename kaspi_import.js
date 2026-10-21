@@ -1625,7 +1625,7 @@ window.applyMapper2Logic = function () {
           category: templateName,
           memoryJson: JSON.stringify(currentMemory),
         };
-        window.smartFetch(GATEWAY_URL, payload).catch((e) => console.error("Ошибка обновления словаря", e));
+        // window.smartFetch(GATEWAY_URL, payload).catch((e) => console.error("Ошибка обновления словаря", e));
       }
     }
   }
