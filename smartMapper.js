@@ -900,7 +900,6 @@ window.startTokenizerQueue = function() {
                 }
                 
                 ruleMap[sysId] = [parseInt(idx)];
-                console.log(`[ТОКЕНИЗАТОР] Связка сохранена: "${param}" -> ID: "${sysId}"`);
             }
         });
 

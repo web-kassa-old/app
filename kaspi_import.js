@@ -1655,35 +1655,45 @@ window.applyMapper2Logic = function () {
       if (colIdx === undefined) return "";
 
       let rawVal = String(row[colIdx] || "").trim();
-      if (state.splitRules && state.splitRules[primaryKey]) {
+      let excelHeader = state.invoiceHeaders ? state.invoiceHeaders[colIdx] : "";
+
+      if (state.splitRules) {
         const tokens = rawVal.match(regex) || [];
         
-        // Генерируем сигнатуру текущей ячейки
-        const sig = tokens.map(t => {
-          if (/\d/.test(t)) return 'D';
-          if (/[a-zA-Zа-яА-ЯёЁ]/.test(t)) return 'L';
-          return '.';
-        }).join('-');
-
-        const ruleData = state.splitRules[primaryKey];
-        let targetIndices = [];
-
-        if (Array.isArray(ruleData)) {
-           // Обратная совместимость со старыми правилами
-           targetIndices = ruleData;
-        } else if (ruleData[sig]) {
-           // Берем индексы именно для этой структуры текста
-           targetIndices = ruleData[sig];
-        } else {
-           // Если структура неизвестна, возвращаем сырой текст
-           return rawVal; 
+        // 🔥 НОВАЯ ЛОГИКА: Ищем правило по Колонке Excel -> Сигнатура Токенизатора -> Технический ID (sysId)
+        if (state.splitRules[excelHeader]) {
+          // Генерируем сигнатуру точно как в Токенизаторе: N (числа), A (буквы), S (символы)
+          const sig = tokens.map(t => (/\d/.test(t) ? 'N' : /[a-zA-Zа-яА-ЯёЁ]/.test(t) ? 'A' : 'S')).join('-');
+          
+          if (state.splitRules[excelHeader][sig] && state.splitRules[excelHeader][sig][primaryKey]) {
+             let targetIndices = state.splitRules[excelHeader][sig][primaryKey];
+             let result = [];
+             targetIndices.forEach((idx) => {
+               if (tokens[idx] !== undefined) result.push(tokens[idx]);
+             });
+             return result.join(""); // Успешно вытащили нужное значение (например, 175)
+          }
         }
 
-        let result = [];
-        targetIndices.forEach((idx) => {
-          if (tokens[idx] !== undefined) result.push(tokens[idx]);
-        });
-        return result.join("");
+        // 🛡 Старая логика оставлена как предохранитель для обратной совместимости
+        if (state.splitRules[primaryKey]) {
+          const sig = tokens.map(t => {
+            if (/\d/.test(t)) return 'D';
+            if (/[a-zA-Zа-яА-ЯёЁ]/.test(t)) return 'L';
+            return '.';
+          }).join('-');
+
+          const ruleData = state.splitRules[primaryKey];
+          let targetIndices = Array.isArray(ruleData) ? ruleData : ruleData[sig];
+          
+          if (targetIndices) {
+             let result = [];
+             targetIndices.forEach((idx) => {
+               if (tokens[idx] !== undefined) result.push(tokens[idx]);
+             });
+             return result.join("");
+          }
+        }
       }
       return rawVal;
     };
