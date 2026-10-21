@@ -876,6 +876,11 @@ window.startTokenizerQueue = function() {
 
     // Сохранение и переход к следующей строке
     document.getElementById("btnNextToken").addEventListener("click", () => {
+        const dict = window.mapper2State.sysToHumanMap;
+        console.log("--- ОТЛАДКА ПЕРЕВОДА ---");
+        console.log("Словарь доступен?", !!dict);
+        console.log("Количество записей в словаре:", dict ? Object.keys(dict).length : 0);
+        
         let ruleMap = {};
         
         dropzones.forEach(zone => {
@@ -885,13 +890,10 @@ window.startTokenizerQueue = function() {
             if (idx !== "") {
                 let sysId = param;
                 
-                // Жесткий поиск без учета пробелов и регистра
-                if (window.mapper2State.sysToHumanMap) {
-                    for (let key in window.mapper2State.sysToHumanMap) {
-                        let cleanDictVal = String(window.mapper2State.sysToHumanMap[key]).replace(/\s+/g, '').toLowerCase();
-                        let cleanParam = param.replace(/\s+/g, '').toLowerCase();
-                        
-                        if (cleanDictVal === cleanParam) {
+                if (dict) {
+                    for (let key in dict) {
+                        let dictVal = String(dict[key]).trim();
+                        if (dictVal === param) {
                             sysId = key;
                             break;
                         }
