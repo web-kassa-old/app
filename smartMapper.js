@@ -743,15 +743,14 @@ function parseAndMatchTokens(rawString, colName) {
 }
 
 window.startTokenizerQueue = function() {
+    // Если очередь пуста (все паттерны пройдены)
     if (!window.mapper2State.quarantine || window.mapper2State.quarantine.length === 0) {
         const container = document.getElementById("smartMapperContainer");
         if (container) container.style.display = "none";
         
-        // ⚡ Перезапускаем конвейер. Сборщик применит новые правила и сам откроет заполненную таблицу
-        if (typeof window.applyMapper2Logic === "function") {
-            window.applyMapper2Logic();
-        } else {
-            console.error("Сборщик applyMapper2Logic не найден!");
+        // ⚡ Передаем эстафету МАППЕРУ (Окно спаривания). Никакой финальной сборки здесь!
+        if (typeof window.navigateIncomeStep === "function") {
+            window.navigateIncomeStep(2); // Или тот индекс, который отвечает за окно Маппера
         }
         return;
     }
