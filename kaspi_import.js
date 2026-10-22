@@ -930,7 +930,7 @@ window.openColumnSelector = function (sysKey, reqName, isKaspi) {
     });
   }
 
-  const regex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,]/g;
+  const regex = /\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g;
 
   window.mapper2State.invoiceHeaders.forEach((rawColName, index) => {
     let colName = String(rawColName || "").trim();
@@ -1638,7 +1638,7 @@ window.applyMapper2Logic = function () {
     originalFiles: [{ fileName: state.fileName, fileBase64: state.originalBase64 }],
   };
 
-  const regex = /\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g;
+  const regex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,]/g;
   let mappedIndices = Object.values(state.colMap).filter((v) => v !== undefined);
 
   window.mapper2State.quarantine = [];
@@ -1781,18 +1781,12 @@ window.applyMapper2Logic = function () {
         // 🔥 ПРОВЕРКА "БЕЛОГО СПИСКА": Отметил ли клиент эту колонку в интерфейсе?
         let isComplex = window.complexColumnsToTokenize && window.complexColumnsToTokenize.includes(excelHeader);
 
-        // ⚡ Умная проверка коллизий: Ищем правило СТРОГО для текущей структуры (сигнатуры)
+        // ⚡ ФИНАЛЬНЫЙ ФИКС: Проверяем правило по всем 3 возможным ключам (включая заголовок из Excel)
         let isAlreadyProcessed = false;
         if (state.splitRules) {
-            const localRegex = /\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g;
-            const qTokens = String(rawValue).match(localRegex) || [];
-            const qSig = qTokens.map(t => (/\d/.test(t) ? 'N' : /[a-zA-Zа-яА-ЯёЁ]/.test(t) ? 'A' : 'S')).join('-');
-
-            if (excelHeader && state.splitRules[excelHeader] && state.splitRules[excelHeader][qSig]) {
-                isAlreadyProcessed = true;
-            } else if (state.splitRules[key] && state.splitRules[key][qSig]) {
-                isAlreadyProcessed = true;
-            }
+            if (state.splitRules[key]) isAlreadyProcessed = true;
+            if (humanName && state.splitRules[humanName]) isAlreadyProcessed = true;
+            if (excelHeader && state.splitRules[excelHeader]) isAlreadyProcessed = true;
         }
 
         // Если колонка сложная и еще НЕ прошла Токенизатор -> в карантин
