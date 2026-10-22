@@ -1781,7 +1781,7 @@ window.applyMapper2Logic = function () {
         // 🔥 ПРОВЕРКА "БЕЛОГО СПИСКА": Отметил ли клиент эту колонку в интерфейсе?
         let isComplex = window.complexColumnsToTokenize && window.complexColumnsToTokenize.includes(excelHeader);
 
-        // ⚡ ФИНАЛЬНЫЙ ФИКС: Проверяем правило по всем 3 возможным ключам (включая заголовок из Excel)
+        // ⚡ ФИНАЛЬНЫЙ ФИКС: Проверяем правило по всем 3 возможным ключам
         let isAlreadyProcessed = false;
         if (state.splitRules) {
             if (state.splitRules[key]) isAlreadyProcessed = true;
@@ -1789,7 +1789,7 @@ window.applyMapper2Logic = function () {
             if (excelHeader && state.splitRules[excelHeader]) isAlreadyProcessed = true;
         }
 
-        // Если колонка сложная и еще НЕ прошла Токенизатор -> в карантин
+        // Если колонка сложная и еще НЕ прошла Токенизатор (Оригинальная логика)
         if (isComplex && !isAlreadyProcessed) {
           itemHasCollisions = true;
           itemCollisionsList.push({
@@ -1798,8 +1798,29 @@ window.applyMapper2Logic = function () {
             rawString: rawValue,
             excelColumnName: excelHeader || "ДАННЫЕ ИЗ НАКЛАДНОЙ",
           });
-        } else {
-          // Колонка простая (или УЖЕ прошла Токенизатор) -> принудительно сохраняем текст
+        } 
+        // ⚡ ТЕСТ ГИПОТЕЗЫ №1: Колонка известна, но проверяем новую сигнатуру
+        else if (isComplex && isAlreadyProcessed && state.splitRules[excelHeader]) {
+            const localRegex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,.]/g;
+            const tokens = String(rawValue).match(localRegex) || [];
+            const sig = tokens.map(t => (/\d/.test(t) ? 'N' : /[a-zA-Zа-яА-ЯёЁ]/.test(t) ? 'A' : 'S')).join('-');
+            
+            // Если такой сигнатуры нет в памяти, отправляем в Карантин под "другим" именем
+            if (!state.splitRules[excelHeader][sig]) {
+                itemHasCollisions = true;
+                itemCollisionsList.push({
+                    sysKey: key,
+                    humanName: humanName,
+                    rawString: rawValue,
+                    // 🔥 Обманываем Токенизатор, меняя имя колонки
+                    excelColumnName: (excelHeader || "ДАННЫЕ ИЗ НАКЛАДНОЙ") + " (новый формат)",
+                });
+                return;
+            }
+            attributesObj[key] = rawValue;
+        } 
+        // Колонка простая или полностью знакомая
+        else {
           attributesObj[key] = rawValue;
         }
         return; // Завершаем обработку для этого поля
