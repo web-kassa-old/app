@@ -746,7 +746,6 @@ window.startTokenizerQueue = function() {
     if (!window.mapper2State.quarantine || window.mapper2State.quarantine.length === 0) {
         const container = document.getElementById("smartMapperContainer");
         if (container) container.style.display = "none";
-        if (typeof window.navigateIncomeStep === "function") window.navigateIncomeStep(2);
         return;
     }
 
@@ -759,7 +758,7 @@ window.startTokenizerQueue = function() {
     const rawMatches = String(rawString).match(localRegex) || [];
     const sig = rawMatches.map(t => (/\d/.test(t) ? 'N' : /[a-zA-Zа-яА-ЯёЁ]/.test(t) ? 'A' : 'S')).join('-');
 
-    // 2. ВОССТАНОВЛЕНИЕ ПАРАМЕТРОВ (Защита от "слепоты")
+    // 2. ВОССТАНОВЛЕНИЕ ПАРАМЕТРОВ
     let targetParams = window.mapper2State.smartRules[colName] || [];
     if (targetParams.length === 0 && window.mapper2State.splitRules && window.mapper2State.splitRules[colName]) {
         const existingSigs = Object.keys(window.mapper2State.splitRules[colName]);
@@ -777,23 +776,21 @@ window.startTokenizerQueue = function() {
         }
     }
 
-    // Подготовка словарей
     let validDicts = {};
     targetParams.forEach(param => {
         validDicts[param] = typeof getCleanDictValues === "function" ? getCleanDictValues(param) : [];
     });
 
-    // 3. ВИЗУАЛЬНАЯ ЛОГИКА (Твоя идея: склейка только для UI)
+    // 3. ВИЗУАЛЬНАЯ ЛОГИКА (Склейка дробей только для интерфейса)
     let uiElements = [];
     let i = 0;
     while (i < rawMatches.length) {
         let text = rawMatches[i];
         let isDecimal = false;
-        let mergedIndices = [i]; // Запоминаем реальные индексы токена(ов)
+        let mergedIndices = [i]; 
         let matchedParams = [];
         let displayText = text;
 
-        // Lookahead: проверяем дробь
         if (/\d/.test(text) && i + 2 < rawMatches.length) {
             let nextTok = rawMatches[i+1];
             let nextNextTok = rawMatches[i+2];
@@ -807,13 +804,12 @@ window.startTokenizerQueue = function() {
                 });
                 if (matchedParams.length > 0) {
                     isDecimal = true;
-                    mergedIndices = [i, i+1, i+2]; // Сохраняем индексы всех 3 частей!
-                    displayText = text + nextTok + nextNextTok; // Визуал для клиента (10.50)
+                    mergedIndices = [i, i+1, i+2]; 
+                    displayText = text + nextTok + nextNextTok; 
                 }
             }
         }
 
-        // Если это не часть найденной дроби, проверяем как обычный токен
         if (!isDecimal) {
             targetParams.forEach(param => {
                 let dict = validDicts[param] || [];
@@ -830,7 +826,7 @@ window.startTokenizerQueue = function() {
             matchedParams: matchedParams
         });
 
-        i += mergedIndices.length; // Шагаем вперед
+        i += mergedIndices.length; 
     }
 
     // 4. ОТРИСОВКА ИНТЕРФЕЙСА
@@ -865,7 +861,6 @@ window.startTokenizerQueue = function() {
     uiElements.forEach((tok, idx) => {
         if (tok.isActive) {
             let tooltip = tok.matchedParams.length > 0 ? `Подходит для: ${tok.matchedParams.join(', ')}` : "";
-            // Передаем массив индексов в HTML-атрибут (например "2,3,4")
             activeTokensHtml += `<button class="token-btn active-token" data-indices="${tok.indices.join(',')}" title="${tooltip}">${tok.text}</button>`;
         } else {
             activeTokensHtml += `<span class="token-text passive-token">${tok.text}</span>`;
@@ -919,6 +914,7 @@ window.startTokenizerQueue = function() {
         });
     });
 
+    // 5. ⚡ ГЛАВНЫЙ ПРОРЫВ: Логика кнопки "Подтвердить"
     document.getElementById("btnNextToken").addEventListener("click", () => {
         let ruleMap = {};
         dropzones.forEach(zone => {
@@ -933,22 +929,23 @@ window.startTokenizerQueue = function() {
                     const idx = hNames.findIndex(h => String(h).trim() === param);
                     if (idx !== -1) sysId = sKeys[idx];
                 }
-                // Разбиваем "2,3,4" обратно в массив [2, 3, 4]
                 ruleMap[sysId] = indicesStr.split(',').map(Number);
             }
         });
 
+        // Сохраняем правило жестко (даже если оно пустое, чтобы система больше не пыталась его парсить)
         window.mapper2State.splitRules = window.mapper2State.splitRules || {};
         window.mapper2State.splitRules[colName] = window.mapper2State.splitRules[colName] || {};
-        
-        if (Object.keys(ruleMap).length > 0) {
-            window.mapper2State.splitRules[colName][sig] = ruleMap;
-        }
+        window.mapper2State.splitRules[colName][sig] = ruleMap;
 
-        // Очищаем дубликаты из очереди за один проход
-        window.mapper2State.quarantine = window.mapper2State.quarantine.filter(
-            q => !(q.rawString === currentItem.rawString && q.excelColumnName === currentItem.excelColumnName)
-        );
-        window.startTokenizerQueue();
+        // ПЕРЕЗАПУСК КОНВЕЙЕРА: Очищаем всю очередь, прячем окно и запускаем Сборщик заново
+        window.mapper2State.quarantine = [];
+        container.style.display = "none";
+        
+        if (typeof window.applyMapper2Logic === "function") {
+            window.applyMapper2Logic();
+        } else {
+            console.error("Сборщик applyMapper2Logic не найден!");
+        }
     });
 };
