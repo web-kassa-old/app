@@ -672,9 +672,9 @@ function getCleanDictValues(sysKey) {
 
 // Главная функция пре-матчинга: режет строку, склеивает дроби и ищет совпадения
 function parseAndMatchTokens(rawString, colName) {
-    const regex = /\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g;
+    // Та самая идеальная регулярка (дроби неразделимы)
+    const regex = /\d+[\.,]\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g;
     let rawTokens = String(rawString).match(regex) || [];
-    
     let processedTokens = [];
     let selectedParams = window.mapper2State.smartRules[colName] || [];
 
@@ -683,55 +683,26 @@ function parseAndMatchTokens(rawString, colName) {
         validDicts[param] = typeof getCleanDictValues === 'function' ? getCleanDictValues(param) : [];
     });
 
-    let i = 0;
-    while (i < rawTokens.length) {
+    for (let i = 0; i < rawTokens.length; i++) {
         let currentRaw = rawTokens[i];
-        let isDecimal = false;
-        let mergedRaw = currentRaw;
         let matchValue = currentRaw.toUpperCase(); 
-        let atomicIndices = [i]; // Запоминаем атомарный индекс
-
-        if (/\d/.test(currentRaw) && i + 2 < rawTokens.length) {
-            let nextTok = rawTokens[i + 1];
-            let nextNextTok = rawTokens[i + 2];
-            
-            if ((nextTok === '.' || nextTok === ',') && /\d/.test(nextNextTok)) {
-                isDecimal = true;
-                mergedRaw = currentRaw + nextTok + nextNextTok; 
-                matchValue = (currentRaw + '.' + nextNextTok).toUpperCase(); 
-                atomicIndices = [i, i + 1, i + 2]; // Запоминаем все 3 атомарных индекса дроби
-            }
-        }
 
         let foundInParams = [];
         Object.keys(validDicts).forEach(param => {
+            // Ищем совпадение (строгое или числовое)
             if (validDicts[param].includes(matchValue) || 
-               (isDecimal && validDicts[param].some(v => Number(v) === Number(matchValue)))) {
+               (!isNaN(parseFloat(matchValue)) && validDicts[param].some(v => Number(v) === Number(matchValue)))) {
                 foundInParams.push(param);
             }
         });
 
-        if (foundInParams.length > 0) {
-            processedTokens.push({
-                text: mergedRaw,
-                cleanText: matchValue,
-                isActive: true,
-                matchedParams: foundInParams,
-                atomicIndices: atomicIndices // Передаем индексы для сохранения правильного правила
-            });
-            i += isDecimal ? 3 : 1;
-        } else {
-            processedTokens.push({
-                text: currentRaw,
-                cleanText: currentRaw,
-                isActive: false,
-                matchedParams: [],
-                atomicIndices: [i]
-            });
-            i += 1;
-        }
+        processedTokens.push({
+            text: currentRaw,
+            cleanText: matchValue,
+            isActive: foundInParams.length > 0,
+            matchedParams: foundInParams
+        });
     }
-    
     return processedTokens;
 }
 

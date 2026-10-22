@@ -1875,12 +1875,10 @@ window.applyMapper2Logic = function () {
     return alert("Не удалось сформировать товары. Убедитесь, что в колонках «Количество» и «Цена» находятся ТОЛЬКО цифры.");
   }
 
-  console.log("Осталось в карантине:", window.mapper2State.quarantine);
   if (window.mapper2State.quarantine && window.mapper2State.quarantine.length > 0) {
-    // 🔥 3. ПРИНУДИТЕЛЬНЫЙ ВОЗВРАТ В ТОКЕНИЗАТОР
-    if (typeof window.navigateIncomeStep === "function") {
-        window.navigateIncomeStep(1); 
-    }
+    // 🔥 Принудительно прячем Маппер, чтобы Токенизатор не открылся "в фоне"
+    const mapperArea = document.getElementById("mapper2Area");
+    if (mapperArea) mapperArea.style.display = "none";
     
     if (typeof window.startTokenizerQueue === "function") {
       window.startTokenizerQueue();
