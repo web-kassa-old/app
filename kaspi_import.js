@@ -1891,7 +1891,7 @@ window.applyMapper2Logic = function () {
 
   window.renderPreviewTable();
   document.getElementById("mapper2Area").style.display = "none";
-  document.getElementById("income-modal").style.display = "none"; // Скрываем зависшее окно
+  document.getElementById("modalContainer").style.display = "none"; // Скрываем окно Маппера
   document.getElementById("invoicePreviewArea").style.display = "flex";
 
   if (window.isKaspiExportMode) {
