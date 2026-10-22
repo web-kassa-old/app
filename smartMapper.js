@@ -850,7 +850,7 @@ window.startTokenizerQueue = function() {
                 <div class="params-match-grid" id="paramsGridUI"></div>
             </div>
             <div class="smart-modal-footer">
-                <button type="button" class="confirm-btn btn-primary green" id="btnNextToken" style="width: 100%; padding: 12px; font-weight: bold; border-radius: 8px;">ПОДТВЕРДИТЬ СТРУКТУРУ</button>
+                <button type="button" class="tokenizer-special-btn" id="btnConfirmPatternLocal" style="width: 100%; padding: 12px; font-weight: bold; border-radius: 8px; background-color: var(--accent-green, #28a745); color: white; border: none; cursor: pointer;">ПОДТВЕРДИТЬ СТРУКТУРУ</button>
             </div>
         </div>
     `;
@@ -915,9 +915,10 @@ window.startTokenizerQueue = function() {
     });
 
     // 5. ⚡ ГЛАВНЫЙ ПРОРЫВ: Логика кнопки "Подтвердить"
-    document.getElementById("btnNextToken").addEventListener("click", (e) => {
-        e.preventDefault(); // Блокируем отправку формы
-        e.stopPropagation(); // Блокируем всплытие клика
+    document.getElementById("btnConfirmPatternLocal").addEventListener("click", (e) => {
+        e.preventDefault(); // Блокируем сабмит формы
+        e.stopImmediatePropagation(); // Жестко блокируем всплытие клика к главному приложению
+
         let ruleMap = {};
         dropzones.forEach(zone => {
             const param = String(zone.closest('.match-row').dataset.param).trim();
@@ -935,19 +936,23 @@ window.startTokenizerQueue = function() {
             }
         });
 
-        // Сохраняем правило жестко (даже если оно пустое, чтобы система больше не пыталась его парсить)
+        // Сохраняем правило
         window.mapper2State.splitRules = window.mapper2State.splitRules || {};
         window.mapper2State.splitRules[colName] = window.mapper2State.splitRules[colName] || {};
         window.mapper2State.splitRules[colName][sig] = ruleMap;
 
-        // ПЕРЕЗАПУСК КОНВЕЙЕРА: Очищаем всю очередь, прячем окно и запускаем Сборщик заново
-        window.mapper2State.quarantine = [];
-        container.style.display = "none";
-        
-        if (typeof window.applyMapper2Logic === "function") {
-            window.applyMapper2Logic();
-        } else {
-            console.error("Сборщик applyMapper2Logic не найден!");
-        }
+        // Удаляем из очереди ВСЕ строки с ТАКОЙ ЖЕ сигнатурой
+        window.mapper2State.quarantine = window.mapper2State.quarantine.filter(q => {
+            if (q.excelColumnName !== colName) return true;
+            
+            const localRegex = /\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g;
+            const qTokens = String(q.rawString).match(localRegex) || [];
+            const qSig = qTokens.map(t => (/\d/.test(t) ? 'N' : /[a-zA-Zа-яА-ЯёЁ]/.test(t) ? 'A' : 'S')).join('-');
+            
+            return qSig !== sig; // Оставляем только те, у которых другая структура (следующий паттерн)
+        });
+
+        // Переходим к следующему паттерну
+        window.startTokenizerQueue();
     });
 };
