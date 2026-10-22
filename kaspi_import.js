@@ -1777,43 +1777,42 @@ window.applyMapper2Logic = function () {
       if (window.currentImportMode === "kaspi" && hasDictionary && !foundMatch) {
         let colIdx = state.colMap[key];
         let excelHeader = colIdx !== undefined && state.invoiceHeaders ? state.invoiceHeaders[colIdx] : "";
-
-        // 🔥 ПРОВЕРКА "БЕЛОГО СПИСКА": Отметил ли клиент эту колонку в интерфейсе?
         let isComplex = window.complexColumnsToTokenize && window.complexColumnsToTokenize.includes(excelHeader);
 
         let isAlreadyProcessed = false;
-        let originalString = (colIdx !== undefined && row[colIdx] !== undefined) ? String(row[colIdx]).trim() : String(rawValue);
-
-        // ⚡ ВНЕДРЯЕМ ПРОВЕРКУ ПО СИГНАТУРЕ (N-A-S)
         if (state.splitRules) {
-            const localRegex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,.]/g;
-            const tokens = originalString.match(localRegex) || [];
-            const sig = tokens.map(t => (/\d/.test(t) ? 'N' : /[a-zA-Zа-яА-ЯёЁ]/.test(t) ? 'A' : 'S')).join('-');
-
-            // Проверяем по новой логике (Колонка -> Сигнатура)
-            if (excelHeader && state.splitRules[excelHeader] && state.splitRules[excelHeader][sig]) {
-                isAlreadyProcessed = true;
-            } 
-            // Предохранитель для старых правил
-            else if (state.splitRules[key]) isAlreadyProcessed = true;
-            else if (humanName && state.splitRules[humanName]) isAlreadyProcessed = true;
+            // Родные проверки как предохранитель
+            if (state.splitRules[key]) isAlreadyProcessed = true;
+            if (humanName && state.splitRules[humanName]) isAlreadyProcessed = true;
+            
+            // ⚡ ТОЧЕЧНАЯ ПРОВЕРКА СИГНАТУРЫ
+            if (excelHeader && state.splitRules[excelHeader]) {
+                const localRegex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,.]/g;
+                const tokens = String(rawValue).match(localRegex) || [];
+                const sig = tokens.map(t => (/\d/.test(t) ? 'N' : /[a-zA-Zа-яА-ЯёЁ]/.test(t) ? 'A' : 'S')).join('-');
+                
+                // Если правило для ЭТОЙ сигнатуры есть — пропускаем
+                if (state.splitRules[excelHeader][sig]) {
+                    isAlreadyProcessed = true;
+                } else {
+                    // Сигнатура новая -> отправляем в карантин
+                    isAlreadyProcessed = false;
+                }
+            }
         }
 
-        // Если колонка сложная и еще НЕ прошла Токенизатор -> в карантин
         if (isComplex && !isAlreadyProcessed) {
           itemHasCollisions = true;
           itemCollisionsList.push({
             sysKey: key,
             humanName: humanName,
-            // 🔥 ВАЖНО: Передаем в Токенизатор полную строку, а не обрезанный rawValue
-            rawString: originalString, 
+            rawString: rawValue, // 🛡 ВЕРНУЛИ ТВОЙ РОДНОЙ rawValue (никаких originalString)
             excelColumnName: excelHeader || "ДАННЫЕ ИЗ НАКЛАДНОЙ",
           });
         } else {
-          // Колонка простая (или УЖЕ прошла Токенизатор) -> принудительно сохраняем текст
           attributesObj[key] = rawValue;
         }
-        return; // Завершаем обработку для этого поля
+        return; 
       }
 
       // 3. Сохраняем словарное значение (или оригинальное, если словаря не было)
