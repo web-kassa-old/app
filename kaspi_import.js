@@ -1775,44 +1775,45 @@ window.applyMapper2Logic = function () {
 
       // 2. Логика коллизий (есть словарь, но нет совпадения)
       if (window.currentImportMode === "kaspi" && hasDictionary && !foundMatch) {
-        try {
-            let colIdx = state.colMap[key];
-            let excelHeader = colIdx !== undefined && state.invoiceHeaders ? state.invoiceHeaders[colIdx] : "";
-            let isComplex = window.complexColumnsToTokenize && window.complexColumnsToTokenize.includes(excelHeader);
+        let colIdx = state.colMap[key];
+        let excelHeader = colIdx !== undefined && state.invoiceHeaders ? state.invoiceHeaders[colIdx] : "";
 
-            let isAlreadyProcessed = false;
-            if (state.splitRules) {
-                // Проверяем, доступна ли переменная row вообще
-                let originalString = (typeof row !== 'undefined' && colIdx !== undefined && row[colIdx] !== undefined) 
-                    ? String(row[colIdx]).trim() 
-                    : String(rawValue);
-                
-                const localRegex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,.]/g;
-                const tokens = originalString.match(localRegex) || [];
-                const sig = tokens.map(t => (/\d/.test(t) ? 'N' : /[a-zA-Zа-яА-ЯёЁ]/.test(t) ? 'A' : 'S')).join('-');
+        // 🔥 ПРОВЕРКА "БЕЛОГО СПИСКА": Отметил ли клиент эту колонку в интерфейсе?
+        let isComplex = window.complexColumnsToTokenize && window.complexColumnsToTokenize.includes(excelHeader);
 
-                if (state.splitRules[excelHeader] && state.splitRules[excelHeader][sig]) {
-                    isAlreadyProcessed = true;
-                } else if (state.splitRules[key]) {
-                    isAlreadyProcessed = true;
-                }
-            }
+        let isAlreadyProcessed = false;
+        let originalString = (colIdx !== undefined && row[colIdx] !== undefined) ? String(row[colIdx]).trim() : String(rawValue);
 
-            if (isComplex && !isAlreadyProcessed) {
-              itemHasCollisions = true;
-              itemCollisionsList.push({
-                sysKey: key,
-                humanName: humanName,
-                rawString: rawValue,
-                excelColumnName: excelHeader || "ДАННЫЕ ИЗ НАКЛАДНОЙ",
-              });
-            } else {
-              attributesObj[key] = rawValue;
-            }
-        } catch (error) {
-            console.error("🔥 ОШИБКА В КАРАНТИНЕ:", error);
+        // ⚡ ВНЕДРЯЕМ ПРОВЕРКУ ПО СИГНАТУРЕ (N-A-S)
+        if (state.splitRules) {
+            const localRegex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,.]/g;
+            const tokens = originalString.match(localRegex) || [];
+            const sig = tokens.map(t => (/\d/.test(t) ? 'N' : /[a-zA-Zа-яА-ЯёЁ]/.test(t) ? 'A' : 'S')).join('-');
+
+            // Проверяем по новой логике (Колонка -> Сигнатура)
+            if (excelHeader && state.splitRules[excelHeader] && state.splitRules[excelHeader][sig]) {
+                isAlreadyProcessed = true;
+            } 
+            // Предохранитель для старых правил
+            else if (state.splitRules[key]) isAlreadyProcessed = true;
+            else if (humanName && state.splitRules[humanName]) isAlreadyProcessed = true;
         }
-        return; 
+
+        // Если колонка сложная и еще НЕ прошла Токенизатор -> в карантин
+        if (isComplex && !isAlreadyProcessed) {
+          itemHasCollisions = true;
+          itemCollisionsList.push({
+            sysKey: key,
+            humanName: humanName,
+            // 🔥 ВАЖНО: Передаем в Токенизатор полную строку, а не обрезанный rawValue
+            rawString: originalString, 
+            excelColumnName: excelHeader || "ДАННЫЕ ИЗ НАКЛАДНОЙ",
+          });
+        } else {
+          // Колонка простая (или УЖЕ прошла Токенизатор) -> принудительно сохраняем текст
+          attributesObj[key] = rawValue;
+        }
+        return; // Завершаем обработку для этого поля
       }
 
       // 3. Сохраняем словарное значение (или оригинальное, если словаря не было)
