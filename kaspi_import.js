@@ -1658,33 +1658,43 @@ window.applyMapper2Logic = function () {
       let excelHeader = state.invoiceHeaders ? state.invoiceHeaders[colIdx] : "";
 
       if (state.splitRules) {
-        const tokens = rawVal.match(regex) || [];
+        // 🔥 ЕДИНЫЙ СТАНДАРТ: Используем умный парсер, как в интерфейсе Токенизатора
+        let tokens = [];
+        let sig = "";
         
-        // 🔥 НОВАЯ ЛОГИКА: Ищем правило по Колонке Excel -> Сигнатура Токенизатора -> Технический ID (sysId)
+        if (typeof parseAndMatchTokens === "function") {
+            const tokenObjs = parseAndMatchTokens(rawVal, excelHeader);
+            tokens = tokenObjs.map(t => t.text);
+            sig = tokenObjs.map(t => (/\d/.test(t.cleanText || t.text) ? 'N' : /[a-zA-Zа-яА-ЯёЁ]/.test(t.cleanText || t.text) ? 'A' : 'S')).join('-');
+        } else {
+            // Фолбэк, если функция недоступна
+            const localRegex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,.]/g;
+            tokens = rawVal.match(localRegex) || [];
+            sig = tokens.map(t => (/\d/.test(t) ? 'N' : /[a-zA-Zа-яА-ЯёЁ]/.test(t) ? 'A' : 'S')).join('-');
+        }
+
+        // Ищем правило по Колонке Excel -> Сигнатура Токенизатора -> Технический ID (sysId)
         if (state.splitRules[excelHeader]) {
-          // Генерируем сигнатуру точно как в Токенизаторе: N (числа), A (буквы), S (символы)
-          const sig = tokens.map(t => (/\d/.test(t) ? 'N' : /[a-zA-Zа-яА-ЯёЁ]/.test(t) ? 'A' : 'S')).join('-');
-          
           if (state.splitRules[excelHeader][sig] && state.splitRules[excelHeader][sig][primaryKey]) {
              let targetIndices = state.splitRules[excelHeader][sig][primaryKey];
              let result = [];
              targetIndices.forEach((idx) => {
                if (tokens[idx] !== undefined) result.push(tokens[idx]);
              });
-             return result.join(""); // Успешно вытащили нужное значение (например, 175)
+             return result.join(""); 
           }
         }
 
-        // 🛡 Старая логика оставлена как предохранитель для обратной совместимости
+        // 🛡 Старая логика оставлена как предохранитель
         if (state.splitRules[primaryKey]) {
-          const sig = tokens.map(t => {
+          const oldSig = tokens.map(t => {
             if (/\d/.test(t)) return 'D';
             if (/[a-zA-Zа-яА-ЯёЁ]/.test(t)) return 'L';
             return '.';
           }).join('-');
 
           const ruleData = state.splitRules[primaryKey];
-          let targetIndices = Array.isArray(ruleData) ? ruleData : ruleData[sig];
+          let targetIndices = Array.isArray(ruleData) ? ruleData : ruleData[oldSig];
           
           if (targetIndices) {
              let result = [];
@@ -1781,15 +1791,22 @@ window.applyMapper2Logic = function () {
 
         let isAlreadyProcessed = false;
         if (state.splitRules) {
-            const localRegex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,.]/g;
-            const tokens = String(rawValue).match(localRegex) || [];
-            const sig = tokens.map(t => (/\d/.test(t) ? 'N' : /[a-zA-Zа-яА-ЯёЁ]/.test(t) ? 'A' : 'S')).join('-');
+            // 🔥 ЕДИНЫЙ СТАНДАРТ ДЛЯ КАРАНТИНА
+            let sig = "";
+            if (typeof parseAndMatchTokens === "function") {
+                const tokenObjs = parseAndMatchTokens(String(rawValue), excelHeader);
+                sig = tokenObjs.map(t => (/\d/.test(t.cleanText || t.text) ? 'N' : /[a-zA-Zа-яА-ЯёЁ]/.test(t.cleanText || t.text) ? 'A' : 'S')).join('-');
+            } else {
+                const localRegex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,.]/g;
+                const tokens = String(rawValue).match(localRegex) || [];
+                sig = tokens.map(t => (/\d/.test(t) ? 'N' : /[a-zA-Zа-яА-ЯёЁ]/.test(t) ? 'A' : 'S')).join('-');
+            }
 
-            // Ищем ИМЕННО эту сигнатуру в правилах этой колонки
+            // Ищем ИМЕННО эту сигнатуру
             if (excelHeader && state.splitRules[excelHeader] && state.splitRules[excelHeader][sig]) {
                 isAlreadyProcessed = true;
             } else if (state.splitRules[key]) {
-                isAlreadyProcessed = true; // Предохранитель для старых записей
+                isAlreadyProcessed = true;
             }
         }
 
