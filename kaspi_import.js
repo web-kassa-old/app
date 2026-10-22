@@ -1777,11 +1777,8 @@ window.applyMapper2Logic = function () {
       if (window.currentImportMode === "kaspi" && hasDictionary && !foundMatch) {
         let colIdx = state.colMap[key];
         let excelHeader = colIdx !== undefined && state.invoiceHeaders ? state.invoiceHeaders[colIdx] : "";
-
-        // 🔥 ПРОВЕРКА "БЕЛОГО СПИСКА": Отметил ли клиент эту колонку в интерфейсе?
         let isComplex = window.complexColumnsToTokenize && window.complexColumnsToTokenize.includes(excelHeader);
 
-        // ⚡ ФИНАЛЬНЫЙ ФИКС: Проверяем правило по всем 3 возможным ключам
         let isAlreadyProcessed = false;
         if (state.splitRules) {
             if (state.splitRules[key]) isAlreadyProcessed = true;
@@ -1789,8 +1786,10 @@ window.applyMapper2Logic = function () {
             if (excelHeader && state.splitRules[excelHeader]) isAlreadyProcessed = true;
         }
 
-        // Если колонка сложная и еще НЕ прошла Токенизатор (Оригинальная логика)
+        console.log(`[ЛОГ 1: Старт коллизии] Колонка: "${excelHeader}", isComplex: ${isComplex}, isAlreadyProcessed: ${isAlreadyProcessed}, rawValue:`, rawValue);
+
         if (isComplex && !isAlreadyProcessed) {
+          console.log(`[ЛОГ 2: Ушло в чистый Карантин]`);
           itemHasCollisions = true;
           itemCollisionsList.push({
             sysKey: key,
@@ -1799,31 +1798,32 @@ window.applyMapper2Logic = function () {
             excelColumnName: excelHeader || "ДАННЫЕ ИЗ НАКЛАДНОЙ",
           });
         } 
-        // ⚡ ТЕСТ ГИПОТЕЗЫ №1: Колонка известна, но проверяем новую сигнатуру
         else if (isComplex && isAlreadyProcessed && state.splitRules[excelHeader]) {
             const localRegex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,.]/g;
             const tokens = String(rawValue).match(localRegex) || [];
             const sig = tokens.map(t => (/\d/.test(t) ? 'N' : /[a-zA-Zа-яА-ЯёЁ]/.test(t) ? 'A' : 'S')).join('-');
             
-            // Если такой сигнатуры нет в памяти, отправляем в Карантин под "другим" именем
+            console.log(`[ЛОГ 3: Генерация сигнатуры] string: "${String(rawValue)}", tokens:`, tokens, `sig: "${sig}"`);
+            
             if (!state.splitRules[excelHeader][sig]) {
+                console.log(`[ЛОГ 4: Сигнатуры "${sig}" НЕТ в правилах! Отправка в Токенизатор (обманка)]`);
                 itemHasCollisions = true;
                 itemCollisionsList.push({
                     sysKey: key,
                     humanName: humanName,
                     rawString: rawValue,
-                    // 🔥 Обманываем Токенизатор, меняя имя колонки
                     excelColumnName: (excelHeader || "ДАННЫЕ ИЗ НАКЛАДНОЙ") + " (новый формат)",
                 });
                 return;
             }
+            console.log(`[ЛОГ 5: Сигнатура "${sig}" УЖЕ ИЗВЕСТНА. Пропускаем]`);
             attributesObj[key] = rawValue;
         } 
-        // Колонка простая или полностью знакомая
         else {
+          console.log(`[ЛОГ 6: Простая колонка. Пропускаем]`);
           attributesObj[key] = rawValue;
         }
-        return; // Завершаем обработку для этого поля
+        return; 
       }
 
       // 3. Сохраняем словарное значение (или оригинальное, если словаря не было)
