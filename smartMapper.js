@@ -746,10 +746,7 @@ window.startTokenizerQueue = function() {
     if (!window.mapper2State.quarantine || window.mapper2State.quarantine.length === 0) {
         const container = document.getElementById("smartMapperContainer");
         if (container) container.style.display = "none";
-        
-        if (typeof window.navigateIncomeStep === "function") {
-            window.navigateIncomeStep(2);
-        }
+        if (typeof window.navigateIncomeStep === "function") window.navigateIncomeStep(2);
         return;
     }
 
@@ -757,9 +754,13 @@ window.startTokenizerQueue = function() {
     const colName = currentItem.excelColumnName;
     const rawString = currentItem.rawString;
     
-    let targetParams = window.mapper2State.smartRules[colName] || [];
+    // 1. ФУНДАМЕНТ: Атомарная разбивка и генерация сигнатуры
+    const localRegex = /\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g;
+    const rawMatches = String(rawString).match(localRegex) || [];
+    const sig = rawMatches.map(t => (/\d/.test(t) ? 'N' : /[a-zA-Zа-яА-ЯёЁ]/.test(t) ? 'A' : 'S')).join('-');
 
-    // ФОЛБЭК: Восстанавливаем параметры, если система их потеряла
+    // 2. ВОССТАНОВЛЕНИЕ ПАРАМЕТРОВ (Защита от "слепоты")
+    let targetParams = window.mapper2State.smartRules[colName] || [];
     if (targetParams.length === 0 && window.mapper2State.splitRules && window.mapper2State.splitRules[colName]) {
         const existingSigs = Object.keys(window.mapper2State.splitRules[colName]);
         if (existingSigs.length > 0) {
@@ -769,24 +770,70 @@ window.startTokenizerQueue = function() {
             const sKeys = window.currentTemplateData && window.currentTemplateData.systemKeys ? window.currentTemplateData.systemKeys : [];
             
             Object.keys(savedRule).forEach(sysId => {
-                let human = sysId;
                 const idx = sKeys.indexOf(sysId);
-                if (idx !== -1) human = hNames[idx];
-                humanParams.push(human);
+                humanParams.push(idx !== -1 ? hNames[idx] : sysId);
             });
             targetParams = humanParams;
         }
     }
 
-    let tokens = [];
-    if (typeof parseAndMatchTokens === "function") {
-        tokens = parseAndMatchTokens(rawString, colName);
-    } else {
-        const localRegex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g;
-        const rawMatches = String(rawString).match(localRegex) || [];
-        tokens = rawMatches.map(text => ({ text: text, cleanText: text, isActive: true, matchedParams: [] }));
+    // Подготовка словарей
+    let validDicts = {};
+    targetParams.forEach(param => {
+        validDicts[param] = typeof getCleanDictValues === "function" ? getCleanDictValues(param) : [];
+    });
+
+    // 3. ВИЗУАЛЬНАЯ ЛОГИКА (Твоя идея: склейка только для UI)
+    let uiElements = [];
+    let i = 0;
+    while (i < rawMatches.length) {
+        let text = rawMatches[i];
+        let isDecimal = false;
+        let mergedIndices = [i]; // Запоминаем реальные индексы токена(ов)
+        let matchedParams = [];
+        let displayText = text;
+
+        // Lookahead: проверяем дробь
+        if (/\d/.test(text) && i + 2 < rawMatches.length) {
+            let nextTok = rawMatches[i+1];
+            let nextNextTok = rawMatches[i+2];
+            if (nextTok === '.' || nextTok === ',') {
+                let mergedVal = (text + '.' + nextNextTok).toUpperCase();
+                targetParams.forEach(param => {
+                    let dict = validDicts[param] || [];
+                    if (dict.includes(mergedVal) || dict.some(v => Number(v) === Number(mergedVal))) {
+                        if (!matchedParams.includes(param)) matchedParams.push(param);
+                    }
+                });
+                if (matchedParams.length > 0) {
+                    isDecimal = true;
+                    mergedIndices = [i, i+1, i+2]; // Сохраняем индексы всех 3 частей!
+                    displayText = text + nextTok + nextNextTok; // Визуал для клиента (10.50)
+                }
+            }
+        }
+
+        // Если это не часть найденной дроби, проверяем как обычный токен
+        if (!isDecimal) {
+            targetParams.forEach(param => {
+                let dict = validDicts[param] || [];
+                if (dict.includes(text.toUpperCase())) {
+                    if (!matchedParams.includes(param)) matchedParams.push(param);
+                }
+            });
+        }
+
+        uiElements.push({
+            indices: mergedIndices,
+            text: displayText,
+            isActive: matchedParams.length > 0,
+            matchedParams: matchedParams
+        });
+
+        i += mergedIndices.length; // Шагаем вперед
     }
 
+    // 4. ОТРИСОВКА ИНТЕРФЕЙСА
     const container = document.getElementById("smartMapperContainer");
     if (!container) return;
     container.innerHTML = "";
@@ -794,71 +841,55 @@ window.startTokenizerQueue = function() {
 
     const modal = document.createElement("div");
     modal.className = "smart-modal-content tokenizer-modal";
-
-    const header = document.createElement("div");
-    header.className = "smart-modal-header";
-    header.innerHTML = `Связь данных: <span style="color: var(--accent-blue);">${colName.toUpperCase()}</span>`;
-    modal.appendChild(header);
-
-    const body = document.createElement("div");
-    body.className = "smart-modal-body";
-
-    const tokensSection = document.createElement("div");
-    tokensSection.className = "tokenizer-section";
-    tokensSection.innerHTML = `<div class="smart-question">Найдено в накладной: <strong>${rawString}</strong></div>`;
     
-    const tokensContainer = document.createElement("div");
-    tokensContainer.className = "tokens-visual-container";
+    modal.innerHTML = `
+        <div class="smart-modal-header">Связь данных: <span style="color: var(--accent-blue);">${colName.toUpperCase()}</span></div>
+        <div class="smart-modal-body">
+            <div class="tokenizer-section">
+                <div class="smart-question">Найдено в накладной: <strong>${rawString}</strong></div>
+                <div class="tokens-visual-container" id="tokensContainerUI"></div>
+            </div>
+            <div class="tokenizer-section">
+                <div class="smart-question" style="margin-top: 20px;">Распределите значения:</div>
+                <div class="params-match-grid" id="paramsGridUI"></div>
+            </div>
+            <div class="smart-modal-footer">
+                <button class="confirm-btn btn-primary green" id="btnNextToken" style="width: 100%; padding: 12px; font-weight: bold; border-radius: 8px;">ПОДТВЕРДИТЬ СТРУКТУРУ</button>
+            </div>
+        </div>
+    `;
+    container.appendChild(modal);
 
+    const tokensContainer = document.getElementById("tokensContainerUI");
     let activeTokensHtml = "";
-    tokens.forEach((tok, idx) => {
+    uiElements.forEach((tok, idx) => {
         if (tok.isActive) {
-            let tooltip = tok.matchedParams && tok.matchedParams.length > 0 ? `Подходит для: ${tok.matchedParams.join(', ')}` : "";
-            activeTokensHtml += `<button class="token-btn active-token" data-idx="${idx}" title="${tooltip}">${tok.text}</button>`;
+            let tooltip = tok.matchedParams.length > 0 ? `Подходит для: ${tok.matchedParams.join(', ')}` : "";
+            // Передаем массив индексов в HTML-атрибут (например "2,3,4")
+            activeTokensHtml += `<button class="token-btn active-token" data-indices="${tok.indices.join(',')}" title="${tooltip}">${tok.text}</button>`;
         } else {
             activeTokensHtml += `<span class="token-text passive-token">${tok.text}</span>`;
         }
     });
-    
     tokensContainer.innerHTML = activeTokensHtml;
-    tokensSection.appendChild(tokensContainer);
-    body.appendChild(tokensSection);
 
-    const paramsSection = document.createElement("div");
-    paramsSection.className = "tokenizer-section";
-    paramsSection.innerHTML = `<div class="smart-question" style="margin-top: 20px;">Распределите значения:</div>`;
-    
-    const paramsGrid = document.createElement("div");
-    paramsGrid.className = "params-match-grid";
-
+    const paramsGrid = document.getElementById("paramsGridUI");
     if (targetParams.length === 0) {
-        paramsGrid.innerHTML = `<div style="color: red; padding: 10px;">⚠️ Целевые параметры не найдены. Просто нажмите "Подтвердить", чтобы пропустить.</div>`;
+        paramsGrid.innerHTML = `<div style="color: red; padding: 10px;">⚠️ Целевые параметры не найдены. Нажмите "Подтвердить", чтобы пропустить.</div>`;
     }
-
+    
     targetParams.forEach(paramName => {
-        let suggestedToken = tokens.find(t => t.isActive && t.matchedParams && t.matchedParams.includes(paramName) && t.matchedParams.length === 1);
-        let defaultVal = suggestedToken ? suggestedToken.text : "";
-        let defaultIdx = suggestedToken ? tokens.indexOf(suggestedToken) : "";
+        let suggestedTok = uiElements.find(t => t.isActive && t.matchedParams.includes(paramName) && t.matchedParams.length === 1);
+        let defaultVal = suggestedTok ? suggestedTok.text : "";
+        let defaultIndices = suggestedTok ? suggestedTok.indices.join(',') : "";
 
         paramsGrid.innerHTML += `
             <div class="match-row" data-param="${paramName}">
                 <div class="match-label">${paramName}</div>
-                <div class="match-dropzone" data-assigned-idx="${defaultIdx}">${defaultVal || "Кликните значение выше..."}</div>
+                <div class="match-dropzone" data-assigned-indices="${defaultIndices}">${defaultVal || "Кликните значение выше..."}</div>
             </div>
         `;
     });
-
-    paramsSection.appendChild(paramsGrid);
-    body.appendChild(paramsSection);
-
-    const footer = document.createElement("div");
-    footer.className = "smart-modal-footer";
-    footer.innerHTML = `
-        <button class="confirm-btn btn-primary green" id="btnNextToken" style="width: 100%; padding: 12px; font-weight: bold; border-radius: 8px;">ПОДТВЕРДИТЬ СТРУКТУРУ</button>
-    `;
-    body.appendChild(footer);
-    modal.appendChild(body);
-    container.appendChild(modal);
 
     let selectedTokenBtn = null;
     const tokenBtns = tokensContainer.querySelectorAll('.active-token');
@@ -875,15 +906,14 @@ window.startTokenizerQueue = function() {
         zone.addEventListener('click', function() {
             if (selectedTokenBtn) {
                 this.textContent = selectedTokenBtn.textContent;
-                this.dataset.assignedIdx = selectedTokenBtn.dataset.idx;
+                this.dataset.assignedIndices = selectedTokenBtn.dataset.indices;
                 this.classList.add('filled');
-                
                 selectedTokenBtn.classList.remove('selected');
                 selectedTokenBtn.classList.add('assigned');
                 selectedTokenBtn = null;
             } else {
                 this.textContent = "Кликните значение выше...";
-                this.dataset.assignedIdx = "";
+                this.dataset.assignedIndices = "";
                 this.classList.remove('filled');
             }
         });
@@ -891,31 +921,23 @@ window.startTokenizerQueue = function() {
 
     document.getElementById("btnNextToken").addEventListener("click", () => {
         let ruleMap = {};
-        
         dropzones.forEach(zone => {
-            const paramElement = zone.closest('.match-row');
-            if (!paramElement) return;
-            const param = String(paramElement.dataset.param).trim();
-            const idx = zone.dataset.assignedIdx;
+            const param = String(zone.closest('.match-row').dataset.param).trim();
+            const indicesStr = zone.dataset.assignedIndices;
             
-            if (idx !== "") {
+            if (indicesStr) {
                 let sysId = param;
                 if (window.currentTemplateData && window.currentTemplateData.humanNames && window.currentTemplateData.systemKeys) {
                     const hNames = window.currentTemplateData.humanNames;
                     const sKeys = window.currentTemplateData.systemKeys;
-                    for (let i = 0; i < hNames.length; i++) {
-                        if (String(hNames[i]).trim() === param) {
-                            sysId = sKeys[i];
-                            break;
-                        }
-                    }
+                    const idx = hNames.findIndex(h => String(h).trim() === param);
+                    if (idx !== -1) sysId = sKeys[idx];
                 }
-                ruleMap[sysId] = [parseInt(idx)];
+                // Разбиваем "2,3,4" обратно в массив [2, 3, 4]
+                ruleMap[sysId] = indicesStr.split(',').map(Number);
             }
         });
 
-        const sig = tokens.map(t => (/\d/.test(t.cleanText || t.text) ? 'N' : /[a-zA-Zа-яА-ЯёЁ]/.test(t.cleanText || t.text) ? 'A' : 'S')).join('-');
-        
         window.mapper2State.splitRules = window.mapper2State.splitRules || {};
         window.mapper2State.splitRules[colName] = window.mapper2State.splitRules[colName] || {};
         
@@ -923,11 +945,10 @@ window.startTokenizerQueue = function() {
             window.mapper2State.splitRules[colName][sig] = ruleMap;
         }
 
-        // Очищаем из очереди ВСЕ параметры для текущей строки
+        // Очищаем дубликаты из очереди за один проход
         window.mapper2State.quarantine = window.mapper2State.quarantine.filter(
             q => !(q.rawString === currentItem.rawString && q.excelColumnName === currentItem.excelColumnName)
         );
-
         window.startTokenizerQueue();
     });
 };

@@ -1658,25 +1658,16 @@ window.applyMapper2Logic = function () {
       let excelHeader = state.invoiceHeaders ? state.invoiceHeaders[colIdx] : "";
 
       if (state.splitRules) {
-        let tokens = [];
-        let sig = "";
-        
-        // Используем единый парсер
-        if (typeof parseAndMatchTokens === "function") {
-            const tokenObjs = parseAndMatchTokens(rawVal, excelHeader);
-            tokens = tokenObjs.map(t => t.text);
-            sig = tokenObjs.map(t => (/\d/.test(t.cleanText || t.text) ? 'N' : /[a-zA-Zа-яА-ЯёЁ]/.test(t.cleanText || t.text) ? 'A' : 'S')).join('-');
-        } else {
-            // Резервный вариант, если функции нет (точка не удаляется из регулярки)
-            const localRegex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g; 
-            tokens = rawVal.match(localRegex) || [];
-            sig = tokens.map(t => (/\d/.test(t) ? 'N' : /[a-zA-Zа-яА-ЯёЁ]/.test(t) ? 'A' : 'S')).join('-');
-        }
+        // 🔥 ЯДРО: Жесткое атомарное разбиение. Точка всегда отдельный токен.
+        const localRegex = /\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g;
+        const tokens = String(rawVal).match(localRegex) || [];
+        const sig = tokens.map(t => (/\d/.test(t) ? 'N' : /[a-zA-Zа-яА-ЯёЁ]/.test(t) ? 'A' : 'S')).join('-');
 
         if (state.splitRules[excelHeader]) {
           if (state.splitRules[excelHeader][sig] && state.splitRules[excelHeader][sig][primaryKey]) {
              let targetIndices = state.splitRules[excelHeader][sig][primaryKey];
              let result = [];
+             // Сборщик берет массив индексов (например [2,3,4]) и склеивает "10" + "." + "50"
              targetIndices.forEach((idx) => {
                if (tokens[idx] !== undefined) result.push(tokens[idx]);
              });
@@ -1762,7 +1753,7 @@ window.applyMapper2Logic = function () {
         }
       }
 
-      // 2. Логика коллизий (есть словарь, но нет совпадения)
+      // 2. Логика коллизий
       if (window.currentImportMode === "kaspi" && hasDictionary && !foundMatch) {
         let colIdx = state.colMap[key];
         let excelHeader = colIdx !== undefined && state.invoiceHeaders ? state.invoiceHeaders[colIdx] : "";
@@ -1770,15 +1761,10 @@ window.applyMapper2Logic = function () {
 
         let isAlreadyProcessed = false;
         if (state.splitRules) {
-            let sig = "";
-            if (typeof parseAndMatchTokens === "function") {
-                const tokenObjs = parseAndMatchTokens(String(rawValue), excelHeader);
-                sig = tokenObjs.map(t => (/\d/.test(t.cleanText || t.text) ? 'N' : /[a-zA-Zа-яА-ЯёЁ]/.test(t.cleanText || t.text) ? 'A' : 'S')).join('-');
-            } else {
-                const localRegex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g;
-                const tokens = String(rawValue).match(localRegex) || [];
-                sig = tokens.map(t => (/\d/.test(t) ? 'N' : /[a-zA-Zа-яА-ЯёЁ]/.test(t) ? 'A' : 'S')).join('-');
-            }
+            // 🔥 ЯДРО: Та же самая регулярка, та же сигнатура
+            const localRegex = /\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g;
+            const tokens = String(rawValue).match(localRegex) || [];
+            const sig = tokens.map(t => (/\d/.test(t) ? 'N' : /[a-zA-Zа-яА-ЯёЁ]/.test(t) ? 'A' : 'S')).join('-');
 
             if (excelHeader && state.splitRules[excelHeader] && state.splitRules[excelHeader][sig]) {
                 isAlreadyProcessed = true;
