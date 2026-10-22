@@ -743,8 +743,11 @@ function parseAndMatchTokens(rawString, colName) {
 }
 
 window.startTokenizerQueue = function() {
+    console.log("▶️ СТАРТ ТОКЕНИЗАТОРА: Очередь =", window.mapper2State.quarantine);
+
     // Если карантин пуст, идем дальше к классическому маппингу
     if (!window.mapper2State.quarantine || window.mapper2State.quarantine.length === 0) {
+        console.log("⏹ Очередь пуста, идем дальше");
         const container = document.getElementById("smartMapperContainer");
         if (container) container.style.display = "none";
         
@@ -758,16 +761,23 @@ window.startTokenizerQueue = function() {
     const currentItem = window.mapper2State.quarantine[0];
     const colName = currentItem.excelColumnName;
     const rawString = currentItem.rawString;
+    console.log(`⏳ Берем элемент: [${colName}] -> ${rawString}`);
     
     // Получаем список параметров, которые клиент выбрал на предыдущем шаге для этой колонки
     const targetParams = window.mapper2State.smartRules[colName] || [];
+    console.log("🎯 Целевые параметры (smartRules):", targetParams);
 
     // 🔥 Прогоняем строку через наш умный анализатор
     const tokens = parseAndMatchTokens(rawString, colName);
 
     // Отрисовываем интерфейс
     const container = document.getElementById("smartMapperContainer");
-    if (!container) return;
+    if (!container) {
+        console.error("❌ ОШИБКА: Не найден контейнер 'smartMapperContainer' в HTML!");
+        return;
+    }
+    console.log("✅ Контейнер найден, начинаем отрисовку...");
+
     container.innerHTML = "";
     container.style.display = "flex";
 

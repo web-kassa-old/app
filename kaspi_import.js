@@ -1781,15 +1781,19 @@ window.applyMapper2Logic = function () {
 
         let isAlreadyProcessed = false;
         if (state.splitRules) {
-            if (state.splitRules[key]) isAlreadyProcessed = true;
-            if (humanName && state.splitRules[humanName]) isAlreadyProcessed = true;
-            if (excelHeader && state.splitRules[excelHeader]) isAlreadyProcessed = true;
+            const localRegex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,.]/g;
+            const tokens = String(rawValue).match(localRegex) || [];
+            const sig = tokens.map(t => (/\d/.test(t) ? 'N' : /[a-zA-Zа-яА-ЯёЁ]/.test(t) ? 'A' : 'S')).join('-');
+
+            // Ищем ИМЕННО эту сигнатуру в правилах этой колонки
+            if (excelHeader && state.splitRules[excelHeader] && state.splitRules[excelHeader][sig]) {
+                isAlreadyProcessed = true;
+            } else if (state.splitRules[key]) {
+                isAlreadyProcessed = true; // Предохранитель для старых записей
+            }
         }
 
-        console.log(`[ЛОГ 1: Старт коллизии] Колонка: "${excelHeader}", isComplex: ${isComplex}, isAlreadyProcessed: ${isAlreadyProcessed}, rawValue:`, rawValue);
-
         if (isComplex && !isAlreadyProcessed) {
-          console.log(`[ЛОГ 2: Ушло в чистый Карантин]`);
           itemHasCollisions = true;
           itemCollisionsList.push({
             sysKey: key,
@@ -1797,30 +1801,7 @@ window.applyMapper2Logic = function () {
             rawString: rawValue,
             excelColumnName: excelHeader || "ДАННЫЕ ИЗ НАКЛАДНОЙ",
           });
-        } 
-        else if (isComplex && isAlreadyProcessed && state.splitRules[excelHeader]) {
-            const localRegex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,.]/g;
-            const tokens = String(rawValue).match(localRegex) || [];
-            const sig = tokens.map(t => (/\d/.test(t) ? 'N' : /[a-zA-Zа-яА-ЯёЁ]/.test(t) ? 'A' : 'S')).join('-');
-            
-            console.log(`[ЛОГ 3: Генерация сигнатуры] string: "${String(rawValue)}", tokens:`, tokens, `sig: "${sig}"`);
-            
-            if (!state.splitRules[excelHeader][sig]) {
-                console.log(`[ЛОГ 4: Сигнатуры "${sig}" НЕТ в правилах! Отправка в Токенизатор (обманка)]`);
-                itemHasCollisions = true;
-                itemCollisionsList.push({
-                    sysKey: key,
-                    humanName: humanName,
-                    rawString: rawValue,
-                    excelColumnName: (excelHeader || "ДАННЫЕ ИЗ НАКЛАДНОЙ") + " (новый формат)",
-                });
-                return;
-            }
-            console.log(`[ЛОГ 5: Сигнатура "${sig}" УЖЕ ИЗВЕСТНА. Пропускаем]`);
-            attributesObj[key] = rawValue;
-        } 
-        else {
-          console.log(`[ЛОГ 6: Простая колонка. Пропускаем]`);
+        } else {
           attributesObj[key] = rawValue;
         }
         return; 
