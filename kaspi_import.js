@@ -1875,6 +1875,7 @@ window.applyMapper2Logic = function () {
     return alert("Не удалось сформировать товары. Убедитесь, что в колонках «Количество» и «Цена» находятся ТОЛЬКО цифры.");
   }
 
+  console.log("Осталось в карантине:", window.mapper2State.quarantine);
   if (window.mapper2State.quarantine && window.mapper2State.quarantine.length > 0) {
     // 🔥 3. ПРИНУДИТЕЛЬНЫЙ ВОЗВРАТ В ТОКЕНИЗАТОР
     if (typeof window.navigateIncomeStep === "function") {
@@ -1891,7 +1892,6 @@ window.applyMapper2Logic = function () {
 
   window.renderPreviewTable();
   document.getElementById("mapper2Area").style.display = "none";
-  document.getElementById("modalContainer").style.display = "none"; // Скрываем окно Маппера
   document.getElementById("invoicePreviewArea").style.display = "flex";
 
   if (window.isKaspiExportMode) {
