@@ -1658,20 +1658,40 @@ window.applyMapper2Logic = function () {
       let excelHeader = state.invoiceHeaders ? state.invoiceHeaders[colIdx] : "";
 
       if (state.splitRules) {
-        // 🔥 ЯДРО: Жесткое атомарное разбиение. Точка всегда отдельный токен.
-        const localRegex = /\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g;
-        const tokens = String(rawVal).match(localRegex) || [];
-        const sig = tokens.map(t => (/\d/.test(t) ? 'N' : /[a-zA-Zа-яА-ЯёЁ]/.test(t) ? 'A' : 'S')).join('-');
-
+        const tokens = rawVal.match(regex) || [];
+        
+        // 🔥 НОВАЯ ЛОГИКА: Ищем правило по Колонке Excel -> Сигнатура Токенизатора -> Технический ID (sysId)
         if (state.splitRules[excelHeader]) {
+          // Генерируем сигнатуру точно как в Токенизаторе: N (числа), A (буквы), S (символы)
+          const sig = tokens.map(t => (/\d/.test(t) ? 'N' : /[a-zA-Zа-яА-ЯёЁ]/.test(t) ? 'A' : 'S')).join('-');
+          
           if (state.splitRules[excelHeader][sig] && state.splitRules[excelHeader][sig][primaryKey]) {
              let targetIndices = state.splitRules[excelHeader][sig][primaryKey];
              let result = [];
-             // Сборщик берет массив индексов (например [2,3,4]) и склеивает "10" + "." + "50"
              targetIndices.forEach((idx) => {
                if (tokens[idx] !== undefined) result.push(tokens[idx]);
              });
-             return result.join(""); 
+             return result.join(""); // Успешно вытащили нужное значение (например, 175)
+          }
+        }
+
+        // 🛡 Старая логика оставлена как предохранитель для обратной совместимости
+        if (state.splitRules[primaryKey]) {
+          const sig = tokens.map(t => {
+            if (/\d/.test(t)) return 'D';
+            if (/[a-zA-Zа-яА-ЯёЁ]/.test(t)) return 'L';
+            return '.';
+          }).join('-');
+
+          const ruleData = state.splitRules[primaryKey];
+          let targetIndices = Array.isArray(ruleData) ? ruleData : ruleData[sig];
+          
+          if (targetIndices) {
+             let result = [];
+             targetIndices.forEach((idx) => {
+               if (tokens[idx] !== undefined) result.push(tokens[idx]);
+             });
+             return result.join("");
           }
         }
       }
@@ -1753,26 +1773,23 @@ window.applyMapper2Logic = function () {
         }
       }
 
-      // 2. Логика коллизий
+      // 2. Логика коллизий (есть словарь, но нет совпадения)
       if (window.currentImportMode === "kaspi" && hasDictionary && !foundMatch) {
         let colIdx = state.colMap[key];
         let excelHeader = colIdx !== undefined && state.invoiceHeaders ? state.invoiceHeaders[colIdx] : "";
+
+        // 🔥 ПРОВЕРКА "БЕЛОГО СПИСКА": Отметил ли клиент эту колонку в интерфейсе?
         let isComplex = window.complexColumnsToTokenize && window.complexColumnsToTokenize.includes(excelHeader);
 
+        // ⚡ ФИНАЛЬНЫЙ ФИКС: Проверяем правило по всем 3 возможным ключам (включая заголовок из Excel)
         let isAlreadyProcessed = false;
         if (state.splitRules) {
-            // 🔥 ЯДРО: Та же самая регулярка, та же сигнатура
-            const localRegex = /\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g;
-            const tokens = String(rawValue).match(localRegex) || [];
-            const sig = tokens.map(t => (/\d/.test(t) ? 'N' : /[a-zA-Zа-яА-ЯёЁ]/.test(t) ? 'A' : 'S')).join('-');
-
-            if (excelHeader && state.splitRules[excelHeader] && state.splitRules[excelHeader][sig]) {
-                isAlreadyProcessed = true;
-            } else if (state.splitRules[key]) {
-                isAlreadyProcessed = true;
-            }
+            if (state.splitRules[key]) isAlreadyProcessed = true;
+            if (humanName && state.splitRules[humanName]) isAlreadyProcessed = true;
+            if (excelHeader && state.splitRules[excelHeader]) isAlreadyProcessed = true;
         }
 
+        // Если колонка сложная и еще НЕ прошла Токенизатор -> в карантин
         if (isComplex && !isAlreadyProcessed) {
           itemHasCollisions = true;
           itemCollisionsList.push({
@@ -1782,9 +1799,10 @@ window.applyMapper2Logic = function () {
             excelColumnName: excelHeader || "ДАННЫЕ ИЗ НАКЛАДНОЙ",
           });
         } else {
+          // Колонка простая (или УЖЕ прошла Токенизатор) -> принудительно сохраняем текст
           attributesObj[key] = rawValue;
         }
-        return; 
+        return; // Завершаем обработку для этого поля
       }
 
       // 3. Сохраняем словарное значение (или оригинальное, если словаря не было)
