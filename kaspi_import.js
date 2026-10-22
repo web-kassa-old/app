@@ -1573,12 +1573,20 @@ window.applyMapper2Logic = function () {
   const colMap = state.colMap || {};
   const dict = state.dictValues || {};
 
+  // Проверяем: есть ли привязка к Excel ИЛИ ручной ввод для каждого обязательного поля
   const hasQty = colMap["qty"] !== undefined || dict["qty"] !== undefined;
-  const hasPrice = colMap["price"] !== undefined || colMap["cost"] !== undefined || dict["price"] !== undefined || dict["cost"] !== undefined;
-  const hasName = colMap["name"] !== undefined || colMap["model"] !== undefined || dict["name"] !== undefined || dict["model"] !== undefined;
+  
+  const hasPrice = colMap["price"] !== undefined || colMap["cost"] !== undefined || 
+                   dict["price"] !== undefined || dict["cost"] !== undefined;
+                   
+  const hasName = colMap["name"] !== undefined || colMap["model"] !== undefined || 
+                  dict["name"] !== undefined || dict["model"] !== undefined;
 
+  // Если хотя бы одно обязательное поле вообще никак не заполнено — блокируем
   if (!hasQty || !hasPrice || !hasName) {
-    const errorMsg = "⚠️ Обязательно привяжите колонки (или введите вручную):\n1. Наименование (или model)\n2. Количество (qty)\n3. Цена (price/cost)";
+    const lang = window.currentLang || localStorage.getItem("pos_lang") || "ru";
+    const tr = typeof translations !== "undefined" && translations[lang] ? translations[lang] : {};
+    const errorMsg = tr.mapper_err_missing_cols || "⚠️ Обязательно привяжите колонки (или введите вручную):\n1. Наименование (или model)\n2. Количество (qty)\n3. Цена (price/cost)";
     return alert(errorMsg);
   }
 
@@ -1595,7 +1603,9 @@ window.applyMapper2Logic = function () {
         let headerText = state.invoiceHeaders[colIndex];
         if (headerText) {
           let cleanWord = String(headerText).trim().toLowerCase();
-          if (!Array.isArray(currentMemory[sysKey])) currentMemory[sysKey] = [];
+          if (!Array.isArray(currentMemory[sysKey])) {
+            currentMemory[sysKey] = [];
+          }
           if (!currentMemory[sysKey].includes(cleanWord)) {
             currentMemory[sysKey].push(cleanWord);
             memoryUpdated = true;
@@ -1609,8 +1619,13 @@ window.applyMapper2Logic = function () {
       }
 
       if (memoryUpdated) {
-        const payload = { action: "updateKaspiMemory", api_key: CLIENT_API_KEY, category: templateName, memoryJson: JSON.stringify(currentMemory) };
-        window.smartFetch(GATEWAY_URL, payload).catch((e) => console.error("Ошибка словаря", e));
+        const payload = {
+          action: "updateKaspiMemory",
+          api_key: CLIENT_API_KEY,
+          category: templateName,
+          memoryJson: JSON.stringify(currentMemory),
+        };
+        window.smartFetch(GATEWAY_URL, payload).catch((e) => console.error("Ошибка обновления словаря", e));
       }
     }
   }
@@ -1623,8 +1638,10 @@ window.applyMapper2Logic = function () {
     originalFiles: [{ fileName: state.fileName, fileBase64: state.originalBase64 }],
   };
 
+  // 🔥 1. НОВАЯ РЕГУЛЯРКА: Точка и запятая всегда отдельные символы
   const regex = /\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g;
   let mappedIndices = Object.values(state.colMap).filter((v) => v !== undefined);
+
   window.mapper2State.quarantine = [];
 
   state.invoiceRows.forEach((row, index) => {
@@ -1643,8 +1660,10 @@ window.applyMapper2Logic = function () {
 
       if (state.splitRules) {
         const tokens = rawVal.match(regex) || [];
+        
         if (state.splitRules[excelHeader]) {
           const sig = tokens.map(t => (/\d/.test(t) ? 'N' : /[a-zA-Zа-яА-ЯёЁ]/.test(t) ? 'A' : 'S')).join('-');
+          
           if (state.splitRules[excelHeader][sig] && state.splitRules[excelHeader][sig][primaryKey]) {
              let targetIndices = state.splitRules[excelHeader][sig][primaryKey];
              let result = [];
@@ -1652,6 +1671,25 @@ window.applyMapper2Logic = function () {
                if (tokens[idx] !== undefined) result.push(tokens[idx]);
              });
              return result.join(""); 
+          }
+        }
+
+        if (state.splitRules[primaryKey]) {
+          const sig = tokens.map(t => {
+            if (/\d/.test(t)) return 'D';
+            if (/[a-zA-Zа-яА-ЯёЁ]/.test(t)) return 'L';
+            return '.';
+          }).join('-');
+
+          const ruleData = state.splitRules[primaryKey];
+          let targetIndices = Array.isArray(ruleData) ? ruleData : ruleData[sig];
+          
+          if (targetIndices) {
+             let result = [];
+             targetIndices.forEach((idx) => {
+               if (tokens[idx] !== undefined) result.push(tokens[idx]);
+             });
+             return result.join("");
           }
         }
       }
@@ -1666,15 +1704,19 @@ window.applyMapper2Logic = function () {
     let qty = parseFloat(rawQty) || 0; 
     let price = parseFloat(String(rawPrice).replace(",", "."));
 
-    if (isNaN(price) || price <= 0) return; 
+    if (isNaN(price) || price <= 0) {
+        return; 
+    }
 
     let hasIdentifier = (rawId && String(rawId).trim() !== "") || (rawName && String(rawName).trim() !== "");
-    if (!hasIdentifier) return; 
+    if (!hasIdentifier) {
+        return; 
+    }
 
     let barcode = /^\d{8,13}$/.test(rawId) ? rawId : "";
     let name = rawName || rawId || "Без названия";
+
     let rawLogisticsStr = "";
-    
     row.forEach((cellVal, idx) => {
       if (mappedIndices.includes(idx)) return;
       let val = String(cellVal || "").trim();
@@ -1701,10 +1743,11 @@ window.applyMapper2Logic = function () {
 
       let humanName = state.sysToHumanMap ? state.sysToHumanMap[key] : key;
       let searchString = rawValue;
+
       let dict = window.kaspiDicts && window.kaspiDicts[humanName];
       let hasDictionary = dict && Array.isArray(dict) && dict.length > 0;
       let foundMatch = false;
-      let matchedDictValue = searchString;
+      let matchedDictValue = searchString; 
 
       if (hasDictionary) {
         for (let dv of dict) {
@@ -1712,9 +1755,11 @@ window.applyMapper2Logic = function () {
           let baseDv = strDv.split("(")[0].trim();
           let isStrictNumber = /^[\d\.]+$/.test(String(searchString).trim());
 
-          if (strDv.toLowerCase() === String(searchString).trim().toLowerCase() ||
-              baseDv.toLowerCase() === String(searchString).trim().toLowerCase() ||
-              (isStrictNumber && !isNaN(parseFloat(baseDv)) && parseFloat(baseDv) === parseFloat(searchString))) {
+          if (
+            strDv.toLowerCase() === String(searchString).trim().toLowerCase() ||
+            baseDv.toLowerCase() === String(searchString).trim().toLowerCase() ||
+            (isStrictNumber && !isNaN(parseFloat(baseDv)) && parseFloat(baseDv) === parseFloat(searchString))
+          ) {
             matchedDictValue = strDv;
             foundMatch = true;
             break;
@@ -1725,19 +1770,29 @@ window.applyMapper2Logic = function () {
       if (window.currentImportMode === "kaspi" && hasDictionary && !foundMatch) {
         let colIdx = state.colMap[key];
         let excelHeader = colIdx !== undefined && state.invoiceHeaders ? state.invoiceHeaders[colIdx] : "";
+
         let isComplex = window.complexColumnsToTokenize && window.complexColumnsToTokenize.includes(excelHeader);
 
+        // 🔥 2. УМНАЯ И БЕЗОПАСНАЯ ПРОВЕРКА КОЛЛИЗИЙ (Бронебойная версия)
         let isAlreadyProcessed = false;
-        if (state.splitRules) {
-            const localRegex = /\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g;
-            const qTokens = String(rawValue).match(localRegex) || [];
-            const qSig = qTokens.map(t => (/\d/.test(t) ? 'N' : /[a-zA-Zа-яА-ЯёЁ]/.test(t) ? 'A' : 'S')).join('-');
+        try {
+            if (state.splitRules) {
+                const localRegex = /\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g;
+                const qTokens = String(rawValue).match(localRegex) || [];
+                const qSig = qTokens.map(t => (/\d/.test(t) ? 'N' : /[a-zA-Zа-яА-ЯёЁ]/.test(t) ? 'A' : 'S')).join('-');
 
-            if (excelHeader && state.splitRules[excelHeader] && state.splitRules[excelHeader][qSig]) {
-                isAlreadyProcessed = true;
-            } else if (state.splitRules[key] && state.splitRules[key][qSig]) {
-                isAlreadyProcessed = true;
+                let hRule = excelHeader ? state.splitRules[excelHeader] : null;
+                if (hRule && typeof hRule === 'object' && !Array.isArray(hRule) && hRule[qSig]) {
+                    isAlreadyProcessed = true;
+                }
+                
+                let kRule = state.splitRules[key];
+                if (!isAlreadyProcessed && kRule && typeof kRule === 'object' && !Array.isArray(kRule) && kRule[qSig]) {
+                    isAlreadyProcessed = true;
+                }
             }
+        } catch (e) {
+            console.warn("Ошибка при проверке сигнатуры подавлена:", e);
         }
 
         if (isComplex && !isAlreadyProcessed) {
@@ -1751,7 +1806,7 @@ window.applyMapper2Logic = function () {
         } else {
           attributesObj[key] = rawValue;
         }
-        return;
+        return; 
       }
 
       attributesObj[key] = matchedDictValue;
@@ -1770,8 +1825,11 @@ window.applyMapper2Logic = function () {
     delete cleanAttributesObj['title'];
 
     let finalAttributes = Object.keys(cleanAttributesObj).length > 0 ? JSON.stringify(cleanAttributesObj) : "";
+
     const templateDropdown = document.getElementById("kaspiTemplateSelect");
-    const activeCategoryText = templateDropdown && templateDropdown.selectedIndex !== -1 ? templateDropdown.options[templateDropdown.selectedIndex].text.trim() : "Новые товары";
+    const activeCategoryText = templateDropdown && templateDropdown.selectedIndex !== -1 
+      ? templateDropdown.options[templateDropdown.selectedIndex].text.trim() 
+      : "Новые товары";
 
     const itemData = {
       doc_no: state.docNo,
@@ -1779,7 +1837,7 @@ window.applyMapper2Logic = function () {
       item_id: rawId,
       item_name: name,
       qty: qty,
-      cost: price,
+      cost: price, 
       cbm: cbm,
       weight: weight,
       raw_logistics: rawLogisticsStr.trim(),
@@ -1788,10 +1846,10 @@ window.applyMapper2Logic = function () {
       name: name,
       desc: name,
       description: name,
-      barcode: barcode,
-      category: activeCategoryText,
-      sku: rawId,
-      title: name,
+      barcode: barcode, 
+      category: activeCategoryText, 
+      sku: rawId, 
+      title: name, 
       attributes: finalAttributes,
       _hasCollisions: itemHasCollisions,
       _collisionsList: itemCollisionsList,
@@ -1818,24 +1876,34 @@ window.applyMapper2Logic = function () {
   }
 
   if (window.mapper2State.quarantine && window.mapper2State.quarantine.length > 0) {
+    // 🔥 3. ПРИНУДИТЕЛЬНЫЙ ВОЗВРАТ В ТОКЕНИЗАТОР
+    if (typeof window.navigateIncomeStep === "function") {
+        window.navigateIncomeStep(1); 
+    }
+    
     if (typeof window.startTokenizerQueue === "function") {
       window.startTokenizerQueue();
+    } else {
+      alert("Найдены сложные форматы, но модуль Токенизатора еще не загружен.");
     }
     return;
   }
 
   window.renderPreviewTable();
   document.getElementById("mapper2Area").style.display = "none";
+  document.getElementById("income-modal").style.display = "none"; // Скрываем зависшее окно
   document.getElementById("invoicePreviewArea").style.display = "flex";
 
   if (window.isKaspiExportMode) {
     const sendBtn = document.getElementById("sendInvoiceBtn");
     if (sendBtn) sendBtn.style.display = "none";
+
     const exportBtns = document.getElementById("exportActionButtons");
     if (exportBtns) exportBtns.style.display = "flex";
   } else {
     const sendBtn = document.getElementById("sendInvoiceBtn");
     if (sendBtn) sendBtn.style.display = "flex"; 
+
     const exportBtns = document.getElementById("exportActionButtons");
     if (exportBtns) exportBtns.style.display = "none";
   }
