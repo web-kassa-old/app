@@ -673,15 +673,14 @@ function getCleanDictValues(sysKey) {
 // Главная функция пре-матчинга: режет строку, склеивает дроби и ищет совпадения
 function parseAndMatchTokens(rawString, colName) {
     const regex = /\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g;
-    let rawTokens = rawString.match(regex) || [];
+    let rawTokens = String(rawString).match(regex) || [];
     
     let processedTokens = [];
     let selectedParams = window.mapper2State.smartRules[colName] || [];
 
-    // Собираем все допустимые значения для выбранных параметров (уже очищенные от скобок)
     let validDicts = {};
     selectedParams.forEach(param => {
-        validDicts[param] = getCleanDictValues(param);
+        validDicts[param] = typeof getCleanDictValues === 'function' ? getCleanDictValues(param) : [];
     });
 
     let i = 0;
@@ -689,29 +688,23 @@ function parseAndMatchTokens(rawString, colName) {
         let currentRaw = rawTokens[i];
         let isDecimal = false;
         let mergedRaw = currentRaw;
-        let matchValue = currentRaw.toUpperCase(); // То, что будем искать в базе
+        let matchValue = currentRaw.toUpperCase(); 
+        let atomicIndices = [i]; // Запоминаем атомарный индекс
 
-        // 🔥 Lookahead: Проверяем, не дробь ли это (Цифра + Точка/Запятая + Цифра)
         if (/\d/.test(currentRaw) && i + 2 < rawTokens.length) {
             let nextTok = rawTokens[i + 1];
             let nextNextTok = rawTokens[i + 2];
             
             if ((nextTok === '.' || nextTok === ',') && /\d/.test(nextNextTok)) {
                 isDecimal = true;
-                mergedRaw = currentRaw + nextTok + nextNextTok; // Как покажем клиенту (напр. 10,50)
-                matchValue = currentRaw + '.' + nextNextTok;    // Как ищем в словаре (строго 10.50)
-                
-                // Нормализация математики: отсекаем незначащие нули на конце дроби для поиска (10.50 -> 10.5)
-                // Но оставляем исходный вариант, если вдруг в Каспи зашито именно 10.50
-                matchValue = matchValue.toUpperCase();
+                mergedRaw = currentRaw + nextTok + nextNextTok; 
+                matchValue = (currentRaw + '.' + nextNextTok).toUpperCase(); 
+                atomicIndices = [i, i + 1, i + 2]; // Запоминаем все 3 атомарных индекса дроби
             }
         }
 
-        // Проверяем, есть ли matchValue в наших словарях
         let foundInParams = [];
         Object.keys(validDicts).forEach(param => {
-            // Ищем точное совпадение (например, "115" совпадет со словарным "115" после отсечения скобок)
-            // Дополнительно можно добавить проверку Number(matchValue) === Number(dictVal) для гибкости дробей
             if (validDicts[param].includes(matchValue) || 
                (isDecimal && validDicts[param].some(v => Number(v) === Number(matchValue)))) {
                 foundInParams.push(param);
@@ -719,21 +712,21 @@ function parseAndMatchTokens(rawString, colName) {
         });
 
         if (foundInParams.length > 0) {
-            // ТОКЕН АКТИВЕН (Найден в словаре)
             processedTokens.push({
-                text: mergedRaw,        // Покажем клиенту (10,50)
-                cleanText: matchValue,  // Отправим в систему (10.50)
+                text: mergedRaw,
+                cleanText: matchValue,
                 isActive: true,
-                matchedParams: foundInParams // Подсказка, куда он подходит
+                matchedParams: foundInParams,
+                atomicIndices: atomicIndices // Передаем индексы для сохранения правильного правила
             });
-            if (isDecimal) i += 3; else i += 1;
+            i += isDecimal ? 3 : 1;
         } else {
-            // ТОКЕН ПАССИВЕН (Мусор: LT, W, /, и т.д.)
             processedTokens.push({
                 text: currentRaw,
                 cleanText: currentRaw,
                 isActive: false,
-                matchedParams: []
+                matchedParams: [],
+                atomicIndices: [i]
             });
             i += 1;
         }
