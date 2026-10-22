@@ -1777,42 +1777,32 @@ window.applyMapper2Logic = function () {
       if (window.currentImportMode === "kaspi" && hasDictionary && !foundMatch) {
         let colIdx = state.colMap[key];
         let excelHeader = colIdx !== undefined && state.invoiceHeaders ? state.invoiceHeaders[colIdx] : "";
+
+        // 🔥 ПРОВЕРКА "БЕЛОГО СПИСКА": Отметил ли клиент эту колонку в интерфейсе?
         let isComplex = window.complexColumnsToTokenize && window.complexColumnsToTokenize.includes(excelHeader);
 
+        // ⚡ ФИНАЛЬНЫЙ ФИКС: Проверяем правило по всем 3 возможным ключам (включая заголовок из Excel)
         let isAlreadyProcessed = false;
         if (state.splitRules) {
-            // Родные проверки как предохранитель
             if (state.splitRules[key]) isAlreadyProcessed = true;
             if (humanName && state.splitRules[humanName]) isAlreadyProcessed = true;
-            
-            // ⚡ ТОЧЕЧНАЯ ПРОВЕРКА СИГНАТУРЫ
-            if (excelHeader && state.splitRules[excelHeader]) {
-                const localRegex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,.]/g;
-                const tokens = String(rawValue).match(localRegex) || [];
-                const sig = tokens.map(t => (/\d/.test(t) ? 'N' : /[a-zA-Zа-яА-ЯёЁ]/.test(t) ? 'A' : 'S')).join('-');
-                
-                // Если правило для ЭТОЙ сигнатуры есть — пропускаем
-                if (state.splitRules[excelHeader][sig]) {
-                    isAlreadyProcessed = true;
-                } else {
-                    // Сигнатура новая -> отправляем в карантин
-                    isAlreadyProcessed = false;
-                }
-            }
+            if (excelHeader && state.splitRules[excelHeader]) isAlreadyProcessed = true;
         }
 
+        // Если колонка сложная и еще НЕ прошла Токенизатор -> в карантин
         if (isComplex && !isAlreadyProcessed) {
           itemHasCollisions = true;
           itemCollisionsList.push({
             sysKey: key,
             humanName: humanName,
-            rawString: rawValue, // 🛡 ВЕРНУЛИ ТВОЙ РОДНОЙ rawValue (никаких originalString)
+            rawString: rawValue,
             excelColumnName: excelHeader || "ДАННЫЕ ИЗ НАКЛАДНОЙ",
           });
         } else {
+          // Колонка простая (или УЖЕ прошла Токенизатор) -> принудительно сохраняем текст
           attributesObj[key] = rawValue;
         }
-        return; 
+        return; // Завершаем обработку для этого поля
       }
 
       // 3. Сохраняем словарное значение (или оригинальное, если словаря не было)
