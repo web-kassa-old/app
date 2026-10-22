@@ -759,7 +759,7 @@ window.startTokenizerQueue = function() {
     
     let targetParams = window.mapper2State.smartRules[colName] || [];
 
-    // 🔥 ФОЛБЭК: Если система потеряла параметры (на Шаге 2), восстанавливаем их из памяти
+    // ФОЛБЭК: Восстанавливаем параметры, если система их потеряла
     if (targetParams.length === 0 && window.mapper2State.splitRules && window.mapper2State.splitRules[colName]) {
         const existingSigs = Object.keys(window.mapper2State.splitRules[colName]);
         if (existingSigs.length > 0) {
@@ -778,12 +778,11 @@ window.startTokenizerQueue = function() {
         }
     }
 
-    // Прогоняем строку через анализатор
     let tokens = [];
     if (typeof parseAndMatchTokens === "function") {
         tokens = parseAndMatchTokens(rawString, colName);
     } else {
-        const localRegex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,.]/g;
+        const localRegex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g;
         const rawMatches = String(rawString).match(localRegex) || [];
         tokens = rawMatches.map(text => ({ text: text, cleanText: text, isActive: true, matchedParams: [] }));
     }
@@ -804,7 +803,6 @@ window.startTokenizerQueue = function() {
     const body = document.createElement("div");
     body.className = "smart-modal-body";
 
-    // Секция 1: Токены
     const tokensSection = document.createElement("div");
     tokensSection.className = "tokenizer-section";
     tokensSection.innerHTML = `<div class="smart-question">Найдено в накладной: <strong>${rawString}</strong></div>`;
@@ -826,7 +824,6 @@ window.startTokenizerQueue = function() {
     tokensSection.appendChild(tokensContainer);
     body.appendChild(tokensSection);
 
-    // Секция 2: Целевые параметры
     const paramsSection = document.createElement("div");
     paramsSection.className = "tokenizer-section";
     paramsSection.innerHTML = `<div class="smart-question" style="margin-top: 20px;">Распределите значения:</div>`;
@@ -834,9 +831,8 @@ window.startTokenizerQueue = function() {
     const paramsGrid = document.createElement("div");
     paramsGrid.className = "params-match-grid";
 
-    // Если всё равно пусто (страховка)
     if (targetParams.length === 0) {
-        paramsGrid.innerHTML = `<div style="color: red; padding: 10px;">⚠️ Целевые параметры не найдены. Просто нажмите "Подтвердить", чтобы пропустить эту строку.</div>`;
+        paramsGrid.innerHTML = `<div style="color: red; padding: 10px;">⚠️ Целевые параметры не найдены. Просто нажмите "Подтвердить", чтобы пропустить.</div>`;
     }
 
     targetParams.forEach(paramName => {
@@ -864,7 +860,6 @@ window.startTokenizerQueue = function() {
     modal.appendChild(body);
     container.appendChild(modal);
 
-    // Логика кликов
     let selectedTokenBtn = null;
     const tokenBtns = tokensContainer.querySelectorAll('.active-token');
     tokenBtns.forEach(btn => {
@@ -894,7 +889,6 @@ window.startTokenizerQueue = function() {
         });
     });
 
-    // Сохранение
     document.getElementById("btnNextToken").addEventListener("click", () => {
         let ruleMap = {};
         
@@ -929,7 +923,7 @@ window.startTokenizerQueue = function() {
             window.mapper2State.splitRules[colName][sig] = ruleMap;
         }
 
-        // ⚡️ ГЛАВНЫЙ ФИКС: Очищаем из очереди ВСЕ параметры (Ширину, Высоту, Радиус) для этой строки разом
+        // Очищаем из очереди ВСЕ параметры для текущей строки
         window.mapper2State.quarantine = window.mapper2State.quarantine.filter(
             q => !(q.rawString === currentItem.rawString && q.excelColumnName === currentItem.excelColumnName)
         );

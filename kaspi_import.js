@@ -1658,22 +1658,21 @@ window.applyMapper2Logic = function () {
       let excelHeader = state.invoiceHeaders ? state.invoiceHeaders[colIdx] : "";
 
       if (state.splitRules) {
-        // 🔥 ЕДИНЫЙ СТАНДАРТ: Используем умный парсер, как в интерфейсе Токенизатора
         let tokens = [];
         let sig = "";
         
+        // Используем единый парсер
         if (typeof parseAndMatchTokens === "function") {
             const tokenObjs = parseAndMatchTokens(rawVal, excelHeader);
             tokens = tokenObjs.map(t => t.text);
             sig = tokenObjs.map(t => (/\d/.test(t.cleanText || t.text) ? 'N' : /[a-zA-Zа-яА-ЯёЁ]/.test(t.cleanText || t.text) ? 'A' : 'S')).join('-');
         } else {
-            // Фолбэк, если функция недоступна
-            const localRegex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,.]/g;
+            // Резервный вариант, если функции нет (точка не удаляется из регулярки)
+            const localRegex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g; 
             tokens = rawVal.match(localRegex) || [];
             sig = tokens.map(t => (/\d/.test(t) ? 'N' : /[a-zA-Zа-яА-ЯёЁ]/.test(t) ? 'A' : 'S')).join('-');
         }
 
-        // Ищем правило по Колонке Excel -> Сигнатура Токенизатора -> Технический ID (sysId)
         if (state.splitRules[excelHeader]) {
           if (state.splitRules[excelHeader][sig] && state.splitRules[excelHeader][sig][primaryKey]) {
              let targetIndices = state.splitRules[excelHeader][sig][primaryKey];
@@ -1682,26 +1681,6 @@ window.applyMapper2Logic = function () {
                if (tokens[idx] !== undefined) result.push(tokens[idx]);
              });
              return result.join(""); 
-          }
-        }
-
-        // 🛡 Старая логика оставлена как предохранитель
-        if (state.splitRules[primaryKey]) {
-          const oldSig = tokens.map(t => {
-            if (/\d/.test(t)) return 'D';
-            if (/[a-zA-Zа-яА-ЯёЁ]/.test(t)) return 'L';
-            return '.';
-          }).join('-');
-
-          const ruleData = state.splitRules[primaryKey];
-          let targetIndices = Array.isArray(ruleData) ? ruleData : ruleData[oldSig];
-          
-          if (targetIndices) {
-             let result = [];
-             targetIndices.forEach((idx) => {
-               if (tokens[idx] !== undefined) result.push(tokens[idx]);
-             });
-             return result.join("");
           }
         }
       }
@@ -1791,18 +1770,16 @@ window.applyMapper2Logic = function () {
 
         let isAlreadyProcessed = false;
         if (state.splitRules) {
-            // 🔥 ЕДИНЫЙ СТАНДАРТ ДЛЯ КАРАНТИНА
             let sig = "";
             if (typeof parseAndMatchTokens === "function") {
                 const tokenObjs = parseAndMatchTokens(String(rawValue), excelHeader);
                 sig = tokenObjs.map(t => (/\d/.test(t.cleanText || t.text) ? 'N' : /[a-zA-Zа-яА-ЯёЁ]/.test(t.cleanText || t.text) ? 'A' : 'S')).join('-');
             } else {
-                const localRegex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,.]/g;
+                const localRegex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g;
                 const tokens = String(rawValue).match(localRegex) || [];
                 sig = tokens.map(t => (/\d/.test(t) ? 'N' : /[a-zA-Zа-яА-ЯёЁ]/.test(t) ? 'A' : 'S')).join('-');
             }
 
-            // Ищем ИМЕННО эту сигнатуру
             if (excelHeader && state.splitRules[excelHeader] && state.splitRules[excelHeader][sig]) {
                 isAlreadyProcessed = true;
             } else if (state.splitRules[key]) {
