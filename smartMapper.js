@@ -850,7 +850,7 @@ window.startTokenizerQueue = function() {
                 <div class="params-match-grid" id="paramsGridUI"></div>
             </div>
             <div class="smart-modal-footer">
-                <button class="confirm-btn btn-primary green" id="btnNextToken" style="width: 100%; padding: 12px; font-weight: bold; border-radius: 8px;">ПОДТВЕРДИТЬ СТРУКТУРУ</button>
+                <button type="button" class="confirm-btn btn-primary green" id="btnNextToken" style="width: 100%; padding: 12px; font-weight: bold; border-radius: 8px;">ПОДТВЕРДИТЬ СТРУКТУРУ</button>
             </div>
         </div>
     `;
@@ -915,7 +915,9 @@ window.startTokenizerQueue = function() {
     });
 
     // 5. ⚡ ГЛАВНЫЙ ПРОРЫВ: Логика кнопки "Подтвердить"
-    document.getElementById("btnNextToken").addEventListener("click", () => {
+    document.getElementById("btnNextToken").addEventListener("click", (e) => {
+        e.preventDefault(); // Блокируем отправку формы
+        e.stopPropagation(); // Блокируем всплытие клика
         let ruleMap = {};
         dropzones.forEach(zone => {
             const param = String(zone.closest('.match-row').dataset.param).trim();
