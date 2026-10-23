@@ -1680,8 +1680,12 @@ window.applyMapper2Logic = function () {
               targetIndices = state.splitRules[excelHeader][sig][primaryKey];
           }
           // Фоллбэк: проверяем по системному ключу (для обратной совместимости)
-          if (!targetIndices && state.splitRules[primaryKey] && state.splitRules[primaryKey][sig]) {
-              targetIndices = state.splitRules[primaryKey][sig];
+          if (!targetIndices && state.splitRules[primaryKey]) {
+              if (Array.isArray(state.splitRules[primaryKey])) {
+                  targetIndices = state.splitRules[primaryKey];
+              } else if (state.splitRules[primaryKey][sig]) {
+                  targetIndices = state.splitRules[primaryKey][sig];
+              }
           }
 
           // 5. Если правило найдено, собираем результат по универсальным индексам

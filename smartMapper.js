@@ -688,7 +688,8 @@ function parseAndMatchTokens(rawString, colName) {
     let rawTokens = cleanString.match(regex) || [];
 
     let processedTokens = [];
-    let selectedParams = window.mapper2State.smartRules[colName] || [];
+    let smartRules = window.mapper2State.smartRules || {};
+    let selectedParams = smartRules[colName] || [];
 
     // Подготовка словарей (очищенных от скобок)
     let validDicts = {};
