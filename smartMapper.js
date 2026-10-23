@@ -792,15 +792,16 @@ function parseAndMatchTokens(rawString, colName) {
 }
 
 window.startTokenizerQueue = function() {
-    console.log("=== СТАРТ ТОКЕНИЗАТОРА ===");
-    
+    // 🔥 ГЛАВНЫЙ ФИКС: Если карантин пуст, Токенизатор САМ запускает итоговую сборку
     if (!window.mapper2State.quarantine || window.mapper2State.quarantine.length === 0) {
-        console.log("✅ Карантин пуст, завершаем токенизацию.");
         const container = document.getElementById("smartMapperContainer");
         if (container) container.style.display = "none";
         
-        if (typeof window.navigateIncomeStep === "function") {
-            window.navigateIncomeStep(2);
+        console.log("✅ Все паттерны размечены. Автоматически запускаем итоговую таблицу...");
+        
+        if (typeof window.applyMapper2Logic === "function") {
+            // Запускаем сборщик, который теперь увидит все правила и сразу выдаст результат
+            window.applyMapper2Logic();
         }
         return;
     }
@@ -808,7 +809,6 @@ window.startTokenizerQueue = function() {
     const currentItem = window.mapper2State.quarantine[0];
     const colName = currentItem.excelColumnName || currentItem.sysKey;
     const rawString = currentItem.rawString;
-    console.log("1. Проверяем строку:", rawString);
     
     let smartRules = window.mapper2State.smartRules || {};
     const targetParams = smartRules[currentItem.excelColumnName] || 
@@ -834,7 +834,7 @@ window.startTokenizerQueue = function() {
 
     const sig = tokens.map(t => /\d/.test(t.cleanText) ? 'N' : 'G').join('-');
 
-    // 🔥 ИСПРАВЛЕННЫЙ УМНЫЙ СКИП (Без крашей!)
+    // Умный скип дублей (максимально строгий)
     let isAlreadySaved = false;
     let rules = window.mapper2State.splitRules || {};
     
@@ -844,25 +844,38 @@ window.startTokenizerQueue = function() {
         isAlreadySaved = true;
     } else if (currentItem.humanName && rules[currentItem.humanName] && rules[currentItem.humanName][sig]) {
         isAlreadySaved = true;
+    } else if (currentItem.excelColumnName && rules[currentItem.excelColumnName] && rules[currentItem.excelColumnName][sig]) {
+        isAlreadySaved = true;
     }
 
     if (isAlreadySaved) {
-        console.log(`⏩ Скип дубля: ${rawString} (структура ${sig} уже настроена)`);
-        window.mapper2State.quarantine.shift(); // Удаляем из очереди
-        window.startTokenizerQueue(); // Запускаем следующую
+        window.mapper2State.quarantine.shift(); 
+        window.startTokenizerQueue(); 
         return; 
     }
-
-    console.log("2. Отрисовываем интерфейс для уникального паттерна:", sig);
 
     const container = document.getElementById("smartMapperContainer");
     if (!container) return;
 
-    container.innerHTML = "";
+    // Выносим контейнер поверх всех скрытых блоков, чтобы окно 100% было видно
+    document.body.appendChild(container); 
+    container.style.position = "fixed";
+    container.style.top = "0";
+    container.style.left = "0";
+    container.style.width = "100vw";
+    container.style.height = "100vh";
+    container.style.zIndex = "999999";
+    container.style.backgroundColor = "rgba(0,0,0,0.6)";
     container.style.display = "flex";
+    container.style.alignItems = "center";
+    container.style.justifyContent = "center";
+    container.innerHTML = "";
 
     const modal = document.createElement("div");
     modal.className = "smart-modal-content tokenizer-modal";
+    modal.style.maxHeight = "90vh";
+    modal.style.overflowY = "auto";
+    modal.style.position = "relative";
 
     const header = document.createElement("div");
     header.className = "smart-modal-header";
@@ -967,7 +980,6 @@ window.startTokenizerQueue = function() {
                 if (window.currentTemplateData && window.currentTemplateData.humanNames && window.currentTemplateData.systemKeys) {
                     const hNames = window.currentTemplateData.humanNames;
                     const sKeys = window.currentTemplateData.systemKeys;
-                    
                     for (let i = 0; i < hNames.length; i++) {
                         if (String(hNames[i]).trim() === param) {
                             sysId = sKeys[i];
@@ -975,7 +987,6 @@ window.startTokenizerQueue = function() {
                         }
                     }
                 }
-                
                 ruleMap[sysId] = indicesStr.split(',').map(Number);
             }
         });
@@ -984,6 +995,7 @@ window.startTokenizerQueue = function() {
         window.mapper2State.splitRules[colName] = window.mapper2State.splitRules[colName] || {};
         window.mapper2State.splitRules[colName][sig] = ruleMap;
 
+        // Удаляем сохраненную строку из очереди и запускаем следующую
         window.mapper2State.quarantine.shift();
         window.startTokenizerQueue();
     });
