@@ -432,43 +432,41 @@ function updateSmartChips(checkbox, cardIndex) {
 /**
  * Сохранение выбранных параметров и переход к стандартному маппингу
  */
-window.saveSmartRules = function() {
-    const cards = document.querySelectorAll(".smart-mapper-card");
-    const smartRules = {};
+function saveSmartRules() {
+  const cards = document.querySelectorAll(".smart-mapper-card");
+  const smartRules = {};
 
-    cards.forEach((card) => {
-        const colName = card.getAttribute("data-col-name");
-        const checkedBoxes = card.querySelectorAll('input[type="checkbox"]:checked');
-        if (checkedBoxes.length > 0) {
-            smartRules[colName] = Array.from(checkedBoxes).map((box) => box.value);
-        }
-    });
+  cards.forEach((card) => {
+    const colName = card.getAttribute("data-col-name");
+    const checkedBoxes = card.querySelectorAll(
+      'input[type="checkbox"]:checked',
+    );
 
-    window.mapper2State = window.mapper2State || {};
-    window.mapper2State.smartRules = smartRules;
-    window.posSmartRules = smartRules;
-
-    const container = document.getElementById("smartMapperContainer");
-    if (container) {
-        container.style.display = "none";
-        container.innerHTML = "";
-        container.style.zIndex = "-1";
+    if (checkedBoxes.length > 0) {
+      // Собираем системные ключи выбранных параметров
+      const selectedParams = Array.from(checkedBoxes).map((box) => box.value);
+      smartRules[colName] = selectedParams;
     }
+  });
 
-    // 🔥 ПРИНУДИТЕЛЬНО возвращаем стандартный маппер (Flexbox)
-    const mapperArea = document.getElementById("mapper2Area");
-    if (mapperArea) {
-        mapperArea.style.display = "flex"; 
-        mapperArea.style.visibility = "visible";
-        mapperArea.style.opacity = "1";
-    }
-    const previewArea = document.getElementById("invoicePreviewArea");
-    if (previewArea) previewArea.style.display = "none";
+  console.log("Сохраненные правила Smart Mapper:", smartRules);
 
-    if (typeof window.renderMapper2Cards === "function") {
-        window.renderMapper2Cards(window.currentTemplateData);
-    }
-};
+  // Сохраняем правила в глобальный объект, чтобы бэкенд или парсер могли их забрать
+  window.posSmartRules = smartRules;
+
+  // Прячем Умное сито (очищаем контейнер)
+  const container = document.getElementById("smartMapperContainer");
+  if (container) {
+    container.innerHTML = "";
+  }
+
+  // Запускаем старый интерфейс маппинга, передавая ему сохраненные данные шаблона
+  if (typeof window.renderMapper2Cards === "function") {
+    window.renderMapper2Cards(window.currentTemplateData);
+  } else {
+    console.error("Функция renderMapper2Cards не найдена");
+  }
+}
 
 window.showTokenizer = function (columnName, tokensArray, paramsList) {
   const overlay = document.getElementById("tokenizer-overlay");
@@ -690,8 +688,7 @@ function parseAndMatchTokens(rawString, colName) {
     let rawTokens = cleanString.match(regex) || [];
 
     let processedTokens = [];
-    let smartRules = window.mapper2State.smartRules || {};
-    let selectedParams = smartRules[colName] || [];
+    let selectedParams = window.mapper2State.smartRules[colName] || [];
 
     // Подготовка словарей (очищенных от скобок)
     let validDicts = {};
@@ -794,26 +791,27 @@ function parseAndMatchTokens(rawString, colName) {
 }
 
 window.startTokenizerQueue = function() {
+    // Если карантин пуст, идем дальше
     if (!window.mapper2State.quarantine || window.mapper2State.quarantine.length === 0) {
         const container = document.getElementById("smartMapperContainer");
-        if (container) {
-            container.style.display = "none";
-            container.style.zIndex = "-1"; 
-        }
-        if (typeof window.applyMapper2Logic === "function") {
-            setTimeout(() => { window.applyMapper2Logic(); }, 150);
+        if (container) container.style.display = "none";
+        
+        if (typeof window.navigateIncomeStep === "function") {
+            window.navigateIncomeStep(2);
         }
         return;
     }
 
+    // Берем первую проблемную строку
     const currentItem = window.mapper2State.quarantine[0];
-    const colName = currentItem.excelColumnName || currentItem.sysKey;
+    const colName = currentItem.excelColumnName;
     const rawString = currentItem.rawString;
-    
-    let smartRules = window.mapper2State.smartRules || {};
-    const targetParams = smartRules[currentItem.excelColumnName] || smartRules[currentItem.sysKey] || smartRules[currentItem.humanName] || [];
+    const targetParams = window.mapper2State.smartRules[colName] || [];
 
-    let tokens = typeof parseAndMatchTokens === "function" ? parseAndMatchTokens(rawString, colName) : [];
+    // 🔥 ШАГ 4.1: Вызываем наше новое умное ядро! (Никакого дублирования кода)
+    let tokens = typeof parseAndMatchTokens === "function" 
+        ? parseAndMatchTokens(rawString, colName) 
+        : [];
 
     if (tokens.length === 0) {
         window.mapper2State.quarantine.shift();
@@ -821,54 +819,26 @@ window.startTokenizerQueue = function() {
         return;
     }
 
+    // 🔥 ШАГ 4.2: Индексация "Smart Skeleton" относительно якоря (первого числа)
     let anchorIndex = tokens.findIndex(t => /\d/.test(t.cleanText));
-    if (anchorIndex === -1) anchorIndex = 0;
-    
-    tokens.forEach((tok, idx) => { tok.universalIndex = 100 + (idx - anchorIndex); });
+    if (anchorIndex === -1) anchorIndex = 0; // Если чисел вообще нет (редкость), якорем будет первый элемент
 
-    // Чистая сигнатура по факту токенов, без искусственных добавок
-    const sig = tokens.map(t => {
-        if (/\d/.test(t.cleanText)) return 'N';
-        let val = String(t.cleanText).trim().toUpperCase();
-        if (val === 'X' || val === '/') return val;
-        return 'G';
-    }).join('-');
+    // Присваиваем универсальный индекс (Якорь = 100)
+    tokens.forEach((tok, idx) => {
+        tok.universalIndex = 100 + (idx - anchorIndex);
+    });
 
-    let isAlreadySaved = false;
-    let rules = window.mapper2State.splitRules || {};
-    
-    if (rules[colName] && rules[colName][sig]) isAlreadySaved = true;
-    else if (currentItem.sysKey && rules[currentItem.sysKey] && rules[currentItem.sysKey][sig]) isAlreadySaved = true;
-    else if (currentItem.humanName && rules[currentItem.humanName] && rules[currentItem.humanName][sig]) isAlreadySaved = true;
-    else if (currentItem.excelColumnName && rules[currentItem.excelColumnName] && rules[currentItem.excelColumnName][sig]) isAlreadySaved = true;
+    // 🔥 ШАГ 4.3: Новая гибкая сигнатура (N - число, G - мусор/текст)
+    const sig = tokens.map(t => /\d/.test(t.cleanText) ? 'N' : 'G').join('-');
 
-    if (isAlreadySaved) {
-        window.mapper2State.quarantine.shift(); 
-        window.startTokenizerQueue(); 
-        return; 
-    }
-
+    // Отрисовываем интерфейс (Твоя верстка, адаптированная под новые индексы)
     const container = document.getElementById("smartMapperContainer");
     if (!container) return;
-
-    if (container.parentNode !== document.body) document.body.appendChild(container); 
-    container.style.position = "fixed";
-    container.style.top = "0";
-    container.style.left = "0";
-    container.style.width = "100vw";
-    container.style.height = "100vh";
-    container.style.zIndex = "999999";
-    container.style.backgroundColor = "rgba(0,0,0,0.6)";
-    container.style.display = "flex";
-    container.style.alignItems = "center";
-    container.style.justifyContent = "center";
     container.innerHTML = "";
+    container.style.display = "flex";
 
     const modal = document.createElement("div");
     modal.className = "smart-modal-content tokenizer-modal";
-    modal.style.maxHeight = "90vh";
-    modal.style.overflowY = "auto";
-    modal.style.position = "relative";
 
     const header = document.createElement("div");
     header.className = "smart-modal-header";
@@ -889,8 +859,9 @@ window.startTokenizerQueue = function() {
     tokens.forEach((tok) => {
         if (tok.isActive) {
             let tooltip = tok.matchedParams.length > 0 ? `Подходит для: ${tok.matchedParams.join(', ')}` : "";
+            // Используем новый универсальный индекс!
             activeTokensHtml += `<button class="token-btn active-token" data-indices="${tok.universalIndex}" title="${tooltip}">${tok.text}</button>`;
-        } else if (tok.text !== "") { 
+        } else {
             activeTokensHtml += `<span class="token-text passive-token">${tok.text}</span>`;
         }
     });
@@ -907,6 +878,7 @@ window.startTokenizerQueue = function() {
     paramsGrid.className = "params-match-grid";
 
     targetParams.forEach(paramName => {
+        // Ищем токен, который подходит
         let suggestedToken = tokens.find(t => t.isActive && t.matchedParams.includes(paramName) && t.matchedParams.length === 1);
         let defaultVal = suggestedToken ? suggestedToken.text : "";
         let defaultIndices = suggestedToken ? suggestedToken.universalIndex : "";
@@ -962,15 +934,18 @@ window.startTokenizerQueue = function() {
 
     document.getElementById("btnNextToken").addEventListener("click", () => {
         let ruleMap = {};
+        
         dropzones.forEach(zone => {
             const param = String(zone.closest('.match-row').dataset.param).trim();
             const indicesStr = zone.dataset.assignedIndices;
             
             if (indicesStr !== "") {
                 let sysId = param; 
+                
                 if (window.currentTemplateData && window.currentTemplateData.humanNames && window.currentTemplateData.systemKeys) {
                     const hNames = window.currentTemplateData.humanNames;
                     const sKeys = window.currentTemplateData.systemKeys;
+                    
                     for (let i = 0; i < hNames.length; i++) {
                         if (String(hNames[i]).trim() === param) {
                             sysId = sKeys[i];
@@ -978,6 +953,8 @@ window.startTokenizerQueue = function() {
                         }
                     }
                 }
+                
+                // Сохраняем универсальный индекс или массив индексов (если мультивыделение)
                 ruleMap[sysId] = indicesStr.split(',').map(Number);
             }
         });
@@ -985,6 +962,7 @@ window.startTokenizerQueue = function() {
         window.mapper2State.splitRules = window.mapper2State.splitRules || {};
         window.mapper2State.splitRules[colName] = window.mapper2State.splitRules[colName] || {};
         window.mapper2State.splitRules[colName][sig] = ruleMap;
+
         window.mapper2State.quarantine.shift();
         window.startTokenizerQueue();
     });
