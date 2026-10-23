@@ -1583,9 +1583,18 @@ window.applyMapper2Logic = function () {
                   state.dictValues["name"] !== undefined || state.dictValues["model"] !== undefined;
 
   if (!hasQty || !hasPrice || !hasName) {
+      const previewArea = document.getElementById("invoicePreviewArea");
+      if (previewArea) previewArea.style.display = "none";
+      
+      const mapperArea = document.getElementById("mapper2Area");
+      if (mapperArea) {
+          mapperArea.style.display = "flex"; // Окно маппера больше не пропадет
+          mapperArea.style.opacity = "1";
+          mapperArea.style.visibility = "visible";
+      }
       return alert("⚠️ Обязательно привяжите колонки:\n1. Наименование\n2. Количество\n3. Цена");
   }
-
+  
   window.mapper2State.quarantine = [];
   let foundSignatures = new Set();
   

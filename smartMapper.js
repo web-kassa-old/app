@@ -821,7 +821,7 @@ window.startTokenizerQueue = function() {
         return;
     }
 
-    // 🔥 ИДЕАЛЬНЫЙ УНИВЕРСАЛЬНЫЙ СКЕЛЕТ (Без slice)
+    // 🔥 ВОЗВРАЩЕНА ТВОЯ ЛОГИКА: Добиваем пустые токены для синхронизации индексов
     if (/\d/.test(tokens[0].cleanText)) {
         tokens.unshift({ text: "", cleanText: "", isActive: false, matchedParams: [] });
     }
@@ -834,6 +834,7 @@ window.startTokenizerQueue = function() {
     
     tokens.forEach((tok, idx) => { tok.universalIndex = 100 + (idx - anchorIndex); });
 
+    // Скелет учитывает X и /, а все остальные буквы и пустые добивки превращает в G
     const sig = tokens.map(t => {
         if (/\d/.test(t.cleanText)) return 'N';
         let val = String(t.cleanText).trim().toUpperCase();
