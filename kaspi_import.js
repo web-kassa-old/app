@@ -1876,9 +1876,12 @@ window.applyMapper2Logic = function () {
   }
 
   if (window.mapper2State.quarantine && window.mapper2State.quarantine.length > 0) {
-    // 🔥 Принудительно прячем Маппер, чтобы Токенизатор не открылся "в фоне"
     const mapperArea = document.getElementById("mapper2Area");
     if (mapperArea) mapperArea.style.display = "none";
+    
+    if (typeof window.navigateIncomeStep === "function") {
+        window.navigateIncomeStep(1); 
+    }
     
     if (typeof window.startTokenizerQueue === "function") {
       window.startTokenizerQueue();
