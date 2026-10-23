@@ -798,8 +798,6 @@ window.startTokenizerQueue = function() {
             container.style.display = "none";
             if (container.parentNode === document.body) container.remove();
         }
-        
-        console.log("✅ Все паттерны размечены. Автоматически запускаем итоговую таблицу...");
         if (typeof window.applyMapper2Logic === "function") {
             setTimeout(() => { window.applyMapper2Logic(); }, 150);
         }
@@ -824,7 +822,6 @@ window.startTokenizerQueue = function() {
     let anchorIndex = tokens.findIndex(t => /\d/.test(t.cleanText));
     if (anchorIndex === -1) anchorIndex = 0;
 
-    // 🔥 ИДЕАЛЬНАЯ НОРМАЛИЗАЦИЯ: Добиваем пустые G-токены по краям
     if (anchorIndex === 0) {
         tokens.unshift({ text: "", cleanText: "", isActive: false, matchedParams: [] });
         anchorIndex = 1;
@@ -833,11 +830,15 @@ window.startTokenizerQueue = function() {
         tokens.push({ text: "", cleanText: "", isActive: false, matchedParams: [] });
     }
 
-    tokens.forEach((tok, idx) => {
-        tok.universalIndex = 100 + (idx - anchorIndex);
-    });
+    tokens.forEach((tok, idx) => { tok.universalIndex = 100 + (idx - anchorIndex); });
 
-    const sig = tokens.map(t => /\d/.test(t.cleanText) ? 'N' : 'G').join('-');
+    // 🔥 ИСПРАВЛЕНИЕ: Умная генерация сигнатуры с учетом X и /
+    const sig = tokens.map(t => {
+        if (/\d/.test(t.cleanText)) return 'N';
+        let val = String(t.cleanText).trim().toUpperCase();
+        if (val === 'X' || val === '/') return val;
+        return 'G';
+    }).join('-');
 
     let isAlreadySaved = false;
     let rules = window.mapper2State.splitRules || {};
@@ -895,7 +896,7 @@ window.startTokenizerQueue = function() {
         if (tok.isActive) {
             let tooltip = tok.matchedParams.length > 0 ? `Подходит для: ${tok.matchedParams.join(', ')}` : "";
             activeTokensHtml += `<button class="token-btn active-token" data-indices="${tok.universalIndex}" title="${tooltip}">${tok.text}</button>`;
-        } else if (tok.text !== "") { // Пустые добивки не рисуем
+        } else if (tok.text !== "") { 
             activeTokensHtml += `<span class="token-text passive-token">${tok.text}</span>`;
         }
     });
@@ -974,7 +975,6 @@ window.startTokenizerQueue = function() {
             
             if (indicesStr !== "") {
                 let sysId = param; 
-                
                 if (window.currentTemplateData && window.currentTemplateData.humanNames && window.currentTemplateData.systemKeys) {
                     const hNames = window.currentTemplateData.humanNames;
                     const sKeys = window.currentTemplateData.systemKeys;

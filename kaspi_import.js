@@ -1569,20 +1569,9 @@ window.updateReqCardStatus = function (sysKey, text, className, previewText) {
 
 // 6. ФИНАЛЬНАЯ СБОРКА JSON ДЛЯ СЕРВЕРА
 window.applyMapper2Logic = function () {
-  console.log("=== СТАРТ СБОРКИ НАКЛАДНОЙ ===");
   const state = window.mapper2State || {};
-  const colMap = state.colMap || {};
-  const dict = state.dictValues || {};
-
-  const hasQty = colMap["qty"] !== undefined || dict["qty"] !== undefined;
-  const hasPrice = colMap["price"] !== undefined || colMap["cost"] !== undefined || dict["price"] !== undefined || dict["cost"] !== undefined;
-  const hasName = colMap["name"] !== undefined || colMap["model"] !== undefined || dict["name"] !== undefined || dict["model"] !== undefined;
-
-  if (!state.validationPassed) {
-      if (!hasQty || !hasPrice || !hasName) return alert("⚠️ Обязательно привяжите колонки:\n1. Наименование\n2. Количество\n3. Цена");
-      state.validationPassed = true; 
-  }
-
+  
+  // ЭТАП 1: ПРЕДВАРИТЕЛЬНЫЙ СКАНЕР
   window.mapper2State.quarantine = [];
   let foundSignatures = new Set();
   let smartRules = state.smartRules || {};
@@ -1603,13 +1592,11 @@ window.applyMapper2Logic = function () {
                   if (!rawVal) return;
 
                   let tokenObjects = parseAndMatchTokens(rawVal, colKey);
-                  let originalLength = tokenObjects.length; // Считаем до нормализации
                   
-                  if (originalLength > 1) {
+                  if (tokenObjects.length > 1) {
                       let anchorIndex = tokenObjects.findIndex(t => /\d/.test(t.cleanText));
                       if (anchorIndex === -1) anchorIndex = 0;
                       
-                      // 🔥 Нормализуем так же, как в Токенизаторе
                       if (anchorIndex === 0) {
                           tokenObjects.unshift({ text: "", cleanText: "", isActive: false, matchedParams: [] });
                           anchorIndex = 1;
@@ -1618,7 +1605,17 @@ window.applyMapper2Logic = function () {
                           tokenObjects.push({ text: "", cleanText: "", isActive: false, matchedParams: [] });
                       }
                       
-                      const sig = tokenObjects.map(t => /\d/.test(t.cleanText) ? 'N' : 'G').join('-');
+                      // 🔥 ИСПРАВЛЕНИЕ: Та же умная сигнатура
+                      let lastN = anchorIndex;
+                      for (let i = tokenObjects.length - 1; i >= 0; i--) {
+                          if (/\d/.test(tokenObjects[i].cleanText)) { lastN = i; break; }
+                      }
+                      const sig = tokenObjects.slice(anchorIndex, lastN + 1).map(t => {
+                          if (/\d/.test(t.cleanText)) return 'N';
+                          let val = String(t.cleanText).trim().toUpperCase();
+                          if (val === 'X' || val === '/') return val;
+                          return 'G';
+                      }).join('-');
                       
                       let isSaved = rules[colKey] && rules[colKey][sig];
                       if (!isSaved && !foundSignatures.has(colKey + "_" + sig)) {
@@ -1635,9 +1632,8 @@ window.applyMapper2Logic = function () {
       if (typeof window.startTokenizerQueue === "function") window.startTokenizerQueue();
       return; 
   }
-  
-  state.validationPassed = false; 
 
+  // ЭТАП 2: СТАНДАРТНАЯ СБОРКА ТАБЛИЦЫ
   if (window.currentImportMode === "kaspi") {
     const templateSelect = document.getElementById("kaspiTemplateSelect");
     const templateName = templateSelect ? templateSelect.value : "";
@@ -1690,7 +1686,6 @@ window.applyMapper2Logic = function () {
           let anchorIndex = tokenObjects.findIndex(t => /\d/.test(t.cleanText));
           if (anchorIndex === -1) anchorIndex = 0;
           
-          // 🔥 Нормализуем перед сборкой
           if (anchorIndex === 0) {
               tokenObjects.unshift({ text: "", cleanText: "", isActive: false, matchedParams: [] });
               anchorIndex = 1;
@@ -1700,7 +1695,18 @@ window.applyMapper2Logic = function () {
           }
           
           tokenObjects.forEach((tok, idx) => { tok.universalIndex = 100 + (idx - anchorIndex); });
-          const sig = tokenObjects.map(t => /\d/.test(t.cleanText) ? 'N' : 'G').join('-');
+          
+          // 🔥 ИСПРАВЛЕНИЕ: Умная сигнатура в сборщике
+          let lastN = anchorIndex;
+          for (let i = tokenObjects.length - 1; i >= 0; i--) {
+              if (/\d/.test(tokenObjects[i].cleanText)) { lastN = i; break; }
+          }
+          const sig = tokenObjects.slice(anchorIndex, lastN + 1).map(t => {
+              if (/\d/.test(t.cleanText)) return 'N';
+              let val = String(t.cleanText).trim().toUpperCase();
+              if (val === 'X' || val === '/') return val;
+              return 'G';
+          }).join('-');
 
           let targetIndices = null;
           if (state.splitRules[excelHeader] && state.splitRules[excelHeader][sig]) targetIndices = state.splitRules[excelHeader][sig][primaryKey];
