@@ -1573,14 +1573,20 @@ window.applyMapper2Logic = function () {
   const colMap = state.colMap || {};
   const dict = state.dictValues || {};
 
+  // Проверяем: есть ли привязка к Excel ИЛИ ручной ввод для каждого обязательного поля
   const hasQty = colMap["qty"] !== undefined || dict["qty"] !== undefined;
-  const hasPrice = colMap["price"] !== undefined || colMap["cost"] !== undefined || dict["price"] !== undefined || dict["cost"] !== undefined;
-  const hasName = colMap["name"] !== undefined || colMap["model"] !== undefined || dict["name"] !== undefined || dict["model"] !== undefined;
+  
+  const hasPrice = colMap["price"] !== undefined || colMap["cost"] !== undefined || 
+                   dict["price"] !== undefined || dict["cost"] !== undefined;
+                   
+  const hasName = colMap["name"] !== undefined || colMap["model"] !== undefined || 
+                  dict["name"] !== undefined || dict["model"] !== undefined;
 
+  // Если хотя бы одно обязательное поле вообще никак не заполнено — блокируем
   if (!hasQty || !hasPrice || !hasName) {
     const lang = window.currentLang || localStorage.getItem("pos_lang") || "ru";
     const tr = typeof translations !== "undefined" && translations[lang] ? translations[lang] : {};
-    const errorMsg = tr.mapper_err_missing_cols || "⚠️ Обязательно привяжите колонки (или введите вручную):\n1. Наименование\n2. Количество\n3. Цена";
+    const errorMsg = tr.mapper_err_missing_cols || "⚠️ Обязательно привяжите колонки (или введите вручную):\n1. Наименование (или model)\n2. Количество (qty)\n3. Цена (price/cost)";
     return alert(errorMsg);
   }
 
@@ -1597,8 +1603,13 @@ window.applyMapper2Logic = function () {
         let headerText = state.invoiceHeaders[colIndex];
         if (headerText) {
           let cleanWord = String(headerText).trim().toLowerCase();
-          if (!Array.isArray(currentMemory[sysKey])) currentMemory[sysKey] = [];
-          if (!currentMemory[sysKey].includes(cleanWord)) { currentMemory[sysKey].push(cleanWord); memoryUpdated = true; }
+          if (!Array.isArray(currentMemory[sysKey])) {
+            currentMemory[sysKey] = [];
+          }
+          if (!currentMemory[sysKey].includes(cleanWord)) {
+            currentMemory[sysKey].push(cleanWord);
+            memoryUpdated = true;
+          }
         }
       });
 
@@ -1606,8 +1617,14 @@ window.applyMapper2Logic = function () {
         currentMemory._splitRules = state.splitRules;
         memoryUpdated = true;
       }
+
       if (memoryUpdated) {
-        const payload = { action: "updateKaspiMemory", api_key: CLIENT_API_KEY, category: templateName, memoryJson: JSON.stringify(currentMemory) };
+        const payload = {
+          action: "updateKaspiMemory",
+          api_key: CLIENT_API_KEY,
+          category: templateName,
+          memoryJson: JSON.stringify(currentMemory),
+        };
         window.smartFetch(GATEWAY_URL, payload).catch((e) => console.error("Ошибка обновления словаря", e));
       }
     }
@@ -1615,9 +1632,14 @@ window.applyMapper2Logic = function () {
 
   window.parsedInvoiceData = [];
   window.invoiceGroups = {};
-  window.invoiceGroups[state.docNo] = { supplier: state.supplier, items: [], originalFiles: [{ fileName: state.fileName, fileBase64: state.originalBase64 }] };
+  window.invoiceGroups[state.docNo] = {
+    supplier: state.supplier,
+    items: [],
+    originalFiles: [{ fileName: state.fileName, fileBase64: state.originalBase64 }],
+  };
 
   let mappedIndices = Object.values(state.colMap).filter((v) => v !== undefined);
+
   window.mapper2State.quarantine = [];
 
   state.invoiceRows.forEach((row, index) => {
@@ -1637,8 +1659,9 @@ window.applyMapper2Logic = function () {
       if (state.splitRules && typeof parseAndMatchTokens === "function") {
         let tokenObjects = parseAndMatchTokens(rawVal, excelHeader || primaryKey);
 
-        // Применяем парсинг только к сложным строкам (>1 токена)
+        // Работаем только со сложными строками (защита от "82")
         if (tokenObjects.length > 1) {
+          // 🔥 ПРАВКА 3.1: Те же пустые токены для выравнивания индексов
           if (/\d/.test(tokenObjects[0].cleanText)) {
               tokenObjects.unshift({ text: "", cleanText: "", isActive: false, matchedParams: [] });
           }
@@ -1649,8 +1672,11 @@ window.applyMapper2Logic = function () {
           let anchorIndex = tokenObjects.findIndex(t => /\d/.test(t.cleanText));
           if (anchorIndex === -1) anchorIndex = 0;
 
-          tokenObjects.forEach((tok, idx) => { tok.universalIndex = 100 + (idx - anchorIndex); });
+          tokenObjects.forEach((tok, idx) => {
+              tok.universalIndex = 100 + (idx - anchorIndex);
+          });
 
+          // 🔥 ПРАВКА 3.2: Та же точная сигнатура
           const sig = tokenObjects.map(t => {
               if (/\d/.test(t.cleanText)) return 'N';
               let val = String(t.cleanText).trim().toUpperCase();
@@ -1658,14 +1684,25 @@ window.applyMapper2Logic = function () {
               return 'G';
           }).join('-');
 
+          // 4. Ищем правило по новой сигнатуре
           let targetIndices = null;
-          if (state.splitRules[excelHeader] && state.splitRules[excelHeader][sig]) targetIndices = state.splitRules[excelHeader][sig][primaryKey];
-          if (!targetIndices && state.splitRules[primaryKey] && state.splitRules[primaryKey][sig]) targetIndices = state.splitRules[primaryKey][sig];
+          
+          // Проверяем по заголовку колонки Excel
+          if (state.splitRules[excelHeader] && state.splitRules[excelHeader][sig]) {
+              targetIndices = state.splitRules[excelHeader][sig][primaryKey];
+          }
+          // Фоллбэк: проверяем по системному ключу (для обратной совместимости)
+          if (!targetIndices && state.splitRules[primaryKey] && state.splitRules[primaryKey][sig]) {
+              targetIndices = state.splitRules[primaryKey][sig];
+          }
 
+          // 5. Если правило найдено, собираем результат по универсальным индексам
           if (targetIndices) {
              let resultArr = [];
              let indicesArray = Array.isArray(targetIndices) ? targetIndices : [targetIndices];
+             
              indicesArray.forEach((targetIdx) => {
+               // Ищем токен с нужным универсальным индексом
                let matchedTok = tokenObjects.find(t => t.universalIndex === targetIdx);
                if (matchedTok) resultArr.push(matchedTok.text);
              });
@@ -1681,13 +1718,19 @@ window.applyMapper2Logic = function () {
     let rawId = getValue("barcode", "merchant_sku");
     let rawName = getValue("name", "model");
 
-    let qty = parseFloat(rawQty) || 0;
+    let qty = parseFloat(rawQty) || 0; // Если пустая или текст - будет 0
     let price = parseFloat(String(rawPrice).replace(",", "."));
 
-    if (isNaN(price) || price <= 0) return; 
+    // 🔥 1. БАЗОВЫЙ ФИЛЬТР МУСОРА: Цена должна быть числом больше нуля
+    if (isNaN(price) || price <= 0) {
+        return; // Пропускаем строку (нет цены -> это шапка, подвал или разделитель)
+    }
 
+    // 🔥 2. ФИЛЬТР ТЕХНИЧЕСКИХ ПОДВАЛОВ: Должен быть хоть какой-то идентификатор
     let hasIdentifier = (rawId && String(rawId).trim() !== "") || (rawName && String(rawName).trim() !== "");
-    if (!hasIdentifier) return; 
+    if (!hasIdentifier) {
+        return; // Пропускаем строку (есть цифры, но нет ни названия, ни артикула -> это строка "Итого")
+    }
 
     let barcode = /^\d{8,13}$/.test(rawId) ? rawId : "";
     let name = rawName || rawId || "Без названия";
@@ -1696,7 +1739,9 @@ window.applyMapper2Logic = function () {
     row.forEach((cellVal, idx) => {
       if (mappedIndices.includes(idx)) return;
       let val = String(cellVal || "").trim();
-      if (val && val.length < 30 && !/^\d{8,15}$/.test(val)) rawLogisticsStr += " " + val;
+      if (val && val.length < 30 && !/^\d{8,15}$/.test(val)) {
+        rawLogisticsStr += " " + val;
+      }
     });
 
     let rawCbm = getValue("cbm");
@@ -1712,25 +1757,30 @@ window.applyMapper2Logic = function () {
       let lowerKey = String(key).toLowerCase();
       let rawValue = getValue(key);
 
+      // Пропускаем базовые системные поля (они уже обработаны выше)
       if (["qty", "price", "cost", "name", "model", "barcode", "cbm", "weight"].includes(lowerKey)) return;
       if (!rawValue) return;
 
       let humanName = state.sysToHumanMap ? state.sysToHumanMap[key] : key;
       let searchString = rawValue;
+
       let dict = window.kaspiDicts && window.kaspiDicts[humanName];
       let hasDictionary = dict && Array.isArray(dict) && dict.length > 0;
       let foundMatch = false;
-      let matchedDictValue = searchString;
+      let matchedDictValue = searchString; // По умолчанию берем сырое значение
 
+      // 1. Ищем точное совпадение в справочнике Kaspi (если он есть)
       if (hasDictionary) {
         for (let dv of dict) {
           let strDv = String(dv).trim();
           let baseDv = strDv.split("(")[0].trim();
           let isStrictNumber = /^[\d\.]+$/.test(String(searchString).trim());
 
-          if (strDv.toLowerCase() === String(searchString).trim().toLowerCase() ||
-              baseDv.toLowerCase() === String(searchString).trim().toLowerCase() ||
-              (isStrictNumber && !isNaN(parseFloat(baseDv)) && parseFloat(baseDv) === parseFloat(searchString))) {
+          if (
+            strDv.toLowerCase() === String(searchString).trim().toLowerCase() ||
+            baseDv.toLowerCase() === String(searchString).trim().toLowerCase() ||
+            (isStrictNumber && !isNaN(parseFloat(baseDv)) && parseFloat(baseDv) === parseFloat(searchString))
+          ) {
             matchedDictValue = strDv;
             foundMatch = true;
             break;
@@ -1738,43 +1788,52 @@ window.applyMapper2Logic = function () {
         }
       }
 
+      // 2. Логика коллизий (есть словарь, но нет совпадения)
       if (window.currentImportMode === "kaspi" && hasDictionary && !foundMatch) {
         let colIdx = state.colMap[key];
         let excelHeader = colIdx !== undefined && state.invoiceHeaders ? state.invoiceHeaders[colIdx] : "";
+
+        // 🔥 ПРОВЕРКА "БЕЛОГО СПИСКА": Отметил ли клиент эту колонку в интерфейсе?
         let isComplex = window.complexColumnsToTokenize && window.complexColumnsToTokenize.includes(excelHeader);
 
+        // 🔥 ПРАВКА 4: Ищем правило СТРОГО ПО СИГНАТУРЕ (чтобы не пропускать разные паттерны в одной колонке)
         let isAlreadyProcessed = false;
-        
-        // 🔥 ФИКС: Для проверки коллизий генерируем сигнатуру конкретного значения
         if (state.splitRules) {
             let sigForCheck = "";
-            if (typeof parseAndMatchTokens === "function") {
-                let tempTokens = parseAndMatchTokens(rawValue, excelHeader || key);
-                if (tempTokens.length > 1) {
-                    if (/\d/.test(tempTokens[0].cleanText)) tempTokens.unshift({ text: "", cleanText: "" });
-                    if (/\d/.test(tempTokens[tempTokens.length - 1].cleanText)) tempTokens.push({ text: "", cleanText: "" });
-                    sigForCheck = tempTokens.map(t => {
-                        if (/\d/.test(t.cleanText)) return 'N';
-                        let val = String(t.cleanText).trim().toUpperCase();
-                        if (val === 'X' || val === '/') return val;
-                        return 'G';
-                    }).join('-');
-                }
+            let tempTokens = parseAndMatchTokens(rawValue, excelHeader || key);
+            if (tempTokens.length > 1) {
+                if (/\d/.test(tempTokens[0].cleanText)) tempTokens.unshift({ text: "", cleanText: "" });
+                if (/\d/.test(tempTokens[tempTokens.length - 1].cleanText)) tempTokens.push({ text: "", cleanText: "" });
+                sigForCheck = tempTokens.map(t => {
+                    if (/\d/.test(t.cleanText)) return 'N';
+                    let val = String(t.cleanText).trim().toUpperCase();
+                    if (val === 'X' || val === '/') return val;
+                    return 'G';
+                }).join('-');
             }
-            // Проверяем наличие правила СТРОГО ПО СИГНАТУРЕ, а не просто по колонке
+
             if (state.splitRules[key] && state.splitRules[key][sigForCheck]) isAlreadyProcessed = true;
             else if (humanName && state.splitRules[humanName] && state.splitRules[humanName][sigForCheck]) isAlreadyProcessed = true;
             else if (excelHeader && state.splitRules[excelHeader] && state.splitRules[excelHeader][sigForCheck]) isAlreadyProcessed = true;
         }
 
+        // Если колонка сложная и еще НЕ прошла Токенизатор -> в карантин
         if (isComplex && !isAlreadyProcessed) {
           itemHasCollisions = true;
-          itemCollisionsList.push({ sysKey: key, humanName: humanName, rawString: rawValue, excelColumnName: excelHeader || "ДАННЫЕ ИЗ НАКЛАДНОЙ" });
+          itemCollisionsList.push({
+            sysKey: key,
+            humanName: humanName,
+            rawString: rawValue,
+            excelColumnName: excelHeader || "ДАННЫЕ ИЗ НАКЛАДНОЙ",
+          });
         } else {
+          // Колонка простая (или УЖЕ прошла Токенизатор) -> принудительно сохраняем текст
           attributesObj[key] = rawValue;
         }
-        return; 
+        return; // Завершаем обработку для этого поля
       }
+
+      // 3. Сохраняем словарное значение (или оригинальное, если словаря не было)
       attributesObj[key] = matchedDictValue;
     };
 
@@ -1784,6 +1843,7 @@ window.applyMapper2Logic = function () {
 
     allKeys.forEach((key) => processAttribute(key));
 
+    // ⚡ 1. ИЗОЛИРУЕМ ДУБЛИ ДЛЯ ИНТЕРФЕЙСА (но сохраняем оригинальный маппинг)
     let cleanAttributesObj = Object.assign({}, attributesObj);
     delete cleanAttributesObj['Артикул'];
     delete cleanAttributesObj['Название модели'];
@@ -1791,14 +1851,36 @@ window.applyMapper2Logic = function () {
     delete cleanAttributesObj['title'];
 
     let finalAttributes = Object.keys(cleanAttributesObj).length > 0 ? JSON.stringify(cleanAttributesObj) : "";
-    const templateDropdown = document.getElementById("kaspiTemplateSelect");
-    const activeCategoryText = templateDropdown && templateDropdown.selectedIndex !== -1 ? templateDropdown.options[templateDropdown.selectedIndex].text.trim() : "Новые товары";
 
+    const templateDropdown = document.getElementById("kaspiTemplateSelect");
+    const activeCategoryText = templateDropdown && templateDropdown.selectedIndex !== -1 
+      ? templateDropdown.options[templateDropdown.selectedIndex].text.trim() 
+      : "Новые товары";
+
+    // ⚡ 2. ГИБРИДНАЯ СБОРКА ТОВАРА (База + Каспи)
     const itemData = {
-      doc_no: state.docNo, supplier: state.supplier, item_id: rawId, item_name: name, qty: qty, cost: price,
-      cbm: cbm, weight: weight, raw_logistics: rawLogisticsStr.trim(), staff_id: typeof currentUser !== "undefined" && currentUser ? currentUser.uid : "Auto-Import",
-      id: rawId, name: name, desc: name, description: name, barcode: barcode, category: activeCategoryText, sku: rawId, title: name,
-      attributes: finalAttributes, _hasCollisions: itemHasCollisions, _collisionsList: itemCollisionsList, _attributesObj: attributesObj,
+      doc_no: state.docNo,
+      supplier: state.supplier,
+      item_id: rawId,
+      item_name: name,
+      qty: qty,
+      cost: price, // База ждет закупочную цену именно тут
+      cbm: cbm,
+      weight: weight,
+      raw_logistics: rawLogisticsStr.trim(),
+      staff_id: typeof currentUser !== "undefined" && currentUser ? currentUser.uid : "Auto-Import",
+      id: rawId,
+      name: name,
+      desc: name,
+      description: name,
+      barcode: barcode, // 🔥 ИСПРАВЛЕНО: Убрали || rawId. Если штрихкода нет, отправляем пустоту!
+      category: activeCategoryText, // Динамическая категория (Текст)
+      sku: rawId, // Поле для выгрузки в Каспи
+      title: name, // Поле для выгрузки в Каспи
+      attributes: finalAttributes,
+      _hasCollisions: itemHasCollisions,
+      _collisionsList: itemCollisionsList,
+      _attributesObj: attributesObj,
     };
 
     window.parsedInvoiceData.push(itemData);
@@ -1806,8 +1888,12 @@ window.applyMapper2Logic = function () {
 
     if (itemHasCollisions) {
       itemCollisionsList.forEach((collision) => {
-        const exists = window.mapper2State.quarantine.find((q) => q.rawString === collision.rawString && q.sysKey === collision.sysKey);
-        if (!exists) window.mapper2State.quarantine.push(collision);
+        const exists = window.mapper2State.quarantine.find(
+          (q) => q.rawString === collision.rawString && q.sysKey === collision.sysKey
+        );
+        if (!exists) {
+          window.mapper2State.quarantine.push(collision);
+        }
       });
     }
   });
@@ -1817,8 +1903,11 @@ window.applyMapper2Logic = function () {
   }
 
   if (window.mapper2State.quarantine && window.mapper2State.quarantine.length > 0) {
-    if (typeof window.startTokenizerQueue === "function") window.startTokenizerQueue();
-    else alert("Найдены сложные форматы, но модуль Токенизатора еще не загружен.");
+    if (typeof window.startTokenizerQueue === "function") {
+      window.startTokenizerQueue();
+    } else {
+      alert("Найдены сложные форматы, но модуль Токенизатора еще не загружен.");
+    }
     return;
   }
 
@@ -1829,11 +1918,14 @@ window.applyMapper2Logic = function () {
   if (window.isKaspiExportMode) {
     const sendBtn = document.getElementById("sendInvoiceBtn");
     if (sendBtn) sendBtn.style.display = "none";
+
     const exportBtns = document.getElementById("exportActionButtons");
     if (exportBtns) exportBtns.style.display = "flex";
   } else {
+    // 🔥 ФИКС: Возвращаем зеленую кнопку при обычной приемке
     const sendBtn = document.getElementById("sendInvoiceBtn");
-    if (sendBtn) sendBtn.style.display = "flex";
+    if (sendBtn) sendBtn.style.display = "flex"; // или "block", в зависимости от твоей верстки
+
     const exportBtns = document.getElementById("exportActionButtons");
     if (exportBtns) exportBtns.style.display = "none";
   }

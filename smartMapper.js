@@ -791,22 +791,28 @@ function parseAndMatchTokens(rawString, colName) {
 }
 
 window.startTokenizerQueue = function() {
+    // Если карантин пуст, идем дальше
     if (!window.mapper2State.quarantine || window.mapper2State.quarantine.length === 0) {
         const container = document.getElementById("smartMapperContainer");
         if (container) container.style.display = "none";
         
-        if (typeof window.navigateIncomeStep === "function") {
-            window.navigateIncomeStep(2);
+        // 🔥 ПРАВКА 1: Автоматический перезапуск сборщика вместо зависания кнопки
+        if (typeof window.applyMapper2Logic === "function") {
+            setTimeout(() => window.applyMapper2Logic(), 150);
         }
         return;
     }
 
+    // Берем первую проблемную строку
     const currentItem = window.mapper2State.quarantine[0];
-    const colName = currentItem.excelColumnName || currentItem.sysKey;
+    const colName = currentItem.excelColumnName;
     const rawString = currentItem.rawString;
     const targetParams = window.mapper2State.smartRules[colName] || [];
 
-    let tokens = typeof parseAndMatchTokens === "function" ? parseAndMatchTokens(rawString, colName) : [];
+    // 🔥 ШАГ 4.1: Вызываем наше новое умное ядро! (Никакого дублирования кода)
+    let tokens = typeof parseAndMatchTokens === "function" 
+        ? parseAndMatchTokens(rawString, colName) 
+        : [];
 
     if (tokens.length === 0) {
         window.mapper2State.quarantine.shift();
@@ -814,7 +820,7 @@ window.startTokenizerQueue = function() {
         return;
     }
 
-    // 🔥 УМНЫЙ СКЕЛЕТ: Добиваем пустые G-токены по краям, если там числа
+    // 🔥 ПРАВКА 2.1: Добиваем пустые токены по краям
     if (tokens.length > 1) {
         if (/\d/.test(tokens[0].cleanText)) {
             tokens.unshift({ text: "", cleanText: "", isActive: false, matchedParams: [] });
@@ -825,11 +831,13 @@ window.startTokenizerQueue = function() {
     }
 
     let anchorIndex = tokens.findIndex(t => /\d/.test(t.cleanText));
-    if (anchorIndex === -1) anchorIndex = 0;
+    if (anchorIndex === -1) anchorIndex = 0; 
 
-    tokens.forEach((tok, idx) => { tok.universalIndex = 100 + (idx - anchorIndex); });
+    tokens.forEach((tok, idx) => {
+        tok.universalIndex = 100 + (idx - anchorIndex);
+    });
 
-    // 🔥 ТОЧНАЯ СИГНАТУРА: N - цифра, X и / сохраняем, остальное - G (мусор)
+    // 🔥 ПРАВКА 2.2: Точная сигнатура (N - цифра, X и / сохраняем, остальное - G)
     const sig = tokens.map(t => {
         if (/\d/.test(t.cleanText)) return 'N';
         let val = String(t.cleanText).trim().toUpperCase();
@@ -837,18 +845,7 @@ window.startTokenizerQueue = function() {
         return 'G';
     }).join('-');
 
-    // Дополнительная проверка на случай, если паттерн уже разметили
-    let isAlreadySaved = false;
-    let rules = window.mapper2State.splitRules || {};
-    if (rules[colName] && rules[colName][sig]) isAlreadySaved = true;
-    else if (currentItem.sysKey && rules[currentItem.sysKey] && rules[currentItem.sysKey][sig]) isAlreadySaved = true;
-
-    if (isAlreadySaved) {
-        window.mapper2State.quarantine.shift();
-        window.startTokenizerQueue();
-        return;
-    }
-
+    // Отрисовываем интерфейс (Твоя верстка, адаптированная под новые индексы)
     const container = document.getElementById("smartMapperContainer");
     if (!container) return;
     container.innerHTML = "";
@@ -876,8 +873,9 @@ window.startTokenizerQueue = function() {
     tokens.forEach((tok) => {
         if (tok.isActive) {
             let tooltip = tok.matchedParams.length > 0 ? `Подходит для: ${tok.matchedParams.join(', ')}` : "";
+            // Используем новый универсальный индекс!
             activeTokensHtml += `<button class="token-btn active-token" data-indices="${tok.universalIndex}" title="${tooltip}">${tok.text}</button>`;
-        } else if (tok.text !== "") { // Не рисуем пустые добивочные токены
+        } else {
             activeTokensHtml += `<span class="token-text passive-token">${tok.text}</span>`;
         }
     });
@@ -894,6 +892,7 @@ window.startTokenizerQueue = function() {
     paramsGrid.className = "params-match-grid";
 
     targetParams.forEach(paramName => {
+        // Ищем токен, который подходит
         let suggestedToken = tokens.find(t => t.isActive && t.matchedParams.includes(paramName) && t.matchedParams.length === 1);
         let defaultVal = suggestedToken ? suggestedToken.text : "";
         let defaultIndices = suggestedToken ? suggestedToken.universalIndex : "";
@@ -935,6 +934,7 @@ window.startTokenizerQueue = function() {
                 this.textContent = selectedTokenBtn.textContent;
                 this.dataset.assignedIndices = selectedTokenBtn.dataset.indices;
                 this.classList.add('filled');
+                
                 selectedTokenBtn.classList.remove('selected');
                 selectedTokenBtn.classList.add('assigned');
                 selectedTokenBtn = null;
@@ -948,18 +948,27 @@ window.startTokenizerQueue = function() {
 
     document.getElementById("btnNextToken").addEventListener("click", () => {
         let ruleMap = {};
+        
         dropzones.forEach(zone => {
             const param = String(zone.closest('.match-row').dataset.param).trim();
             const indicesStr = zone.dataset.assignedIndices;
+            
             if (indicesStr !== "") {
                 let sysId = param; 
+                
                 if (window.currentTemplateData && window.currentTemplateData.humanNames && window.currentTemplateData.systemKeys) {
                     const hNames = window.currentTemplateData.humanNames;
                     const sKeys = window.currentTemplateData.systemKeys;
+                    
                     for (let i = 0; i < hNames.length; i++) {
-                        if (String(hNames[i]).trim() === param) { sysId = sKeys[i]; break; }
+                        if (String(hNames[i]).trim() === param) {
+                            sysId = sKeys[i];
+                            break;
+                        }
                     }
                 }
+                
+                // Сохраняем универсальный индекс или массив индексов (если мультивыделение)
                 ruleMap[sysId] = indicesStr.split(',').map(Number);
             }
         });
