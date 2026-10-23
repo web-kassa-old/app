@@ -1876,17 +1876,19 @@ window.applyMapper2Logic = function () {
   }
 
   if (window.mapper2State.quarantine && window.mapper2State.quarantine.length > 0) {
+    // 1. Скрываем только таблицу предпросмотра (чтобы она не просвечивала на фоне)
+    const previewArea = document.getElementById("invoicePreviewArea");
+    if (previewArea) previewArea.style.display = "none";
+    
+    // 2. ГАРАНТИРУЕМ, что контейнер Маппера открыт (ведь внутри него живет Токенизатор)
     const mapperArea = document.getElementById("mapper2Area");
-    if (mapperArea) mapperArea.style.display = "none";
+    if (mapperArea) mapperArea.style.display = "block";
     
-    if (typeof window.navigateIncomeStep === "function") {
-        window.navigateIncomeStep(1); 
-    }
-    
+    // 3. Вызываем Токенизатор напрямую (без navigateIncomeStep)
     if (typeof window.startTokenizerQueue === "function") {
       window.startTokenizerQueue();
     } else {
-      alert("Найдены сложные форматы, но модуль Токенизатора еще не загружен.");
+      alert("Модуль Токенизатора еще не загружен.");
     }
     return;
   }
