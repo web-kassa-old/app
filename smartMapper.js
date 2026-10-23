@@ -791,7 +791,7 @@ function parseAndMatchTokens(rawString, colName) {
 }
 
 window.startTokenizerQueue = function() {
-    // Если карантин пуст, идем дальше к классическому маппингу
+    // Если карантин пуст, идем дальше
     if (!window.mapper2State.quarantine || window.mapper2State.quarantine.length === 0) {
         const container = document.getElementById("smartMapperContainer");
         if (container) container.style.display = "none";
@@ -802,74 +802,36 @@ window.startTokenizerQueue = function() {
         return;
     }
 
-    // Берем первую проблемную строку из очереди
+    // Берем первую проблемную строку
     const currentItem = window.mapper2State.quarantine[0];
     const colName = currentItem.excelColumnName;
     const rawString = currentItem.rawString;
-    
-    // Получаем список параметров
     const targetParams = window.mapper2State.smartRules[colName] || [];
 
-    // 🔥 ШАГ 2.1: Атомарное разбиение (Ядро - как в Сборщике)
-    const atomicRegex = /\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g;
-    const rawMatches = String(rawString).match(atomicRegex) || [];
-    
-    // 🔥 ШАГ 2.2: Железобетонная сигнатура из атомарных кусков
-    const sig = rawMatches.map(t => (/\d/.test(t) ? 'N' : /[a-zA-Zа-яА-ЯёЁ]/.test(t) ? 'A' : 'S')).join('-');
+    // 🔥 ШАГ 4.1: Вызываем наше новое умное ядро! (Никакого дублирования кода)
+    let tokens = typeof parseAndMatchTokens === "function" 
+        ? parseAndMatchTokens(rawString, colName) 
+        : [];
 
-    let validDicts = {};
-    targetParams.forEach(param => {
-        validDicts[param] = typeof getCleanDictValues === "function" ? getCleanDictValues(param) : [];
-    });
-
-    // 🔥 ШАГ 2.3: Визуальная склейка (MVC)
-    let tokens = [];
-    let i = 0;
-    while (i < rawMatches.length) {
-        let text = rawMatches[i];
-        let isDecimal = false;
-        let mergedIndices = [i]; // Запоминаем массив индексов
-        let matchedParams = [];
-        let displayText = text;
-
-        if (/\d/.test(text) && i + 2 < rawMatches.length) {
-            let nextTok = rawMatches[i+1];
-            let nextNextTok = rawMatches[i+2];
-            if (nextTok === '.' || nextTok === ',') {
-                let mergedVal = (text + '.' + nextNextTok).toUpperCase();
-                targetParams.forEach(param => {
-                    let dict = validDicts[param] || [];
-                    if (dict.includes(mergedVal) || dict.some(v => Number(v) === Number(mergedVal))) {
-                        if (!matchedParams.includes(param)) matchedParams.push(param);
-                    }
-                });
-                if (matchedParams.length > 0) {
-                    isDecimal = true;
-                    mergedIndices = [i, i+1, i+2]; // Сохраняем все 3 индекса!
-                    displayText = text + nextTok + nextNextTok;
-                }
-            }
-        }
-
-        if (!isDecimal) {
-            targetParams.forEach(param => {
-                let dict = validDicts[param] || [];
-                if (dict.includes(text.toUpperCase())) {
-                    if (!matchedParams.includes(param)) matchedParams.push(param);
-                }
-            });
-        }
-
-        tokens.push({
-            indices: mergedIndices,
-            text: displayText,
-            isActive: matchedParams.length > 0,
-            matchedParams: matchedParams
-        });
-        i += mergedIndices.length;
+    if (tokens.length === 0) {
+        window.mapper2State.quarantine.shift();
+        window.startTokenizerQueue();
+        return;
     }
 
-    // Отрисовываем интерфейс
+    // 🔥 ШАГ 4.2: Индексация "Smart Skeleton" относительно якоря (первого числа)
+    let anchorIndex = tokens.findIndex(t => /\d/.test(t.cleanText));
+    if (anchorIndex === -1) anchorIndex = 0; // Если чисел вообще нет (редкость), якорем будет первый элемент
+
+    // Присваиваем универсальный индекс (Якорь = 100)
+    tokens.forEach((tok, idx) => {
+        tok.universalIndex = 100 + (idx - anchorIndex);
+    });
+
+    // 🔥 ШАГ 4.3: Новая гибкая сигнатура (N - число, G - мусор/текст)
+    const sig = tokens.map(t => /\d/.test(t.cleanText) ? 'N' : 'G').join('-');
+
+    // Отрисовываем интерфейс (Твоя верстка, адаптированная под новые индексы)
     const container = document.getElementById("smartMapperContainer");
     if (!container) return;
     container.innerHTML = "";
@@ -897,8 +859,8 @@ window.startTokenizerQueue = function() {
     tokens.forEach((tok) => {
         if (tok.isActive) {
             let tooltip = tok.matchedParams.length > 0 ? `Подходит для: ${tok.matchedParams.join(', ')}` : "";
-            // Записываем массив индексов в HTML
-            activeTokensHtml += `<button class="token-btn active-token" data-indices="${tok.indices.join(',')}" title="${tooltip}">${tok.text}</button>`;
+            // Используем новый универсальный индекс!
+            activeTokensHtml += `<button class="token-btn active-token" data-indices="${tok.universalIndex}" title="${tooltip}">${tok.text}</button>`;
         } else {
             activeTokensHtml += `<span class="token-text passive-token">${tok.text}</span>`;
         }
@@ -916,9 +878,10 @@ window.startTokenizerQueue = function() {
     paramsGrid.className = "params-match-grid";
 
     targetParams.forEach(paramName => {
+        // Ищем токен, который подходит
         let suggestedToken = tokens.find(t => t.isActive && t.matchedParams.includes(paramName) && t.matchedParams.length === 1);
         let defaultVal = suggestedToken ? suggestedToken.text : "";
-        let defaultIndices = suggestedToken ? suggestedToken.indices.join(',') : "";
+        let defaultIndices = suggestedToken ? suggestedToken.universalIndex : "";
 
         paramsGrid.innerHTML += `
             <div class="match-row" data-param="${paramName}">
@@ -991,7 +954,7 @@ window.startTokenizerQueue = function() {
                     }
                 }
                 
-                // 🔥 Конвертируем строку "2,3,4" обратно в массив [2, 3, 4]
+                // Сохраняем универсальный индекс или массив индексов (если мультивыделение)
                 ruleMap[sysId] = indicesStr.split(',').map(Number);
             }
         });
@@ -1000,7 +963,6 @@ window.startTokenizerQueue = function() {
         window.mapper2State.splitRules[colName] = window.mapper2State.splitRules[colName] || {};
         window.mapper2State.splitRules[colName][sig] = ruleMap;
 
-        // Пока оставляем старую очистку (по одной строке), чтобы не сломать кнопку
         window.mapper2State.quarantine.shift();
         window.startTokenizerQueue();
     });
