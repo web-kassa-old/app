@@ -1572,20 +1572,25 @@ window.applyMapper2Logic = function () {
   console.log("=== СТАРТ СБОРКИ НАКЛАДНОЙ ===");
   const state = window.mapper2State || {};
   
+  // 🔥 ВОЗВРАЩЕНЫ ПРЕДОХРАНИТЕЛИ ОТ ПАДЕНИЙ (Object.keys)
+  state.colMap = state.colMap || {};
+  state.dictValues = state.dictValues || {};
+  state.smartRules = state.smartRules || {};
+  state.splitRules = state.splitRules || {};
+  
   window.mapper2State.quarantine = [];
   let foundSignatures = new Set();
-  let smartRules = state.smartRules || {};
-  let rules = state.splitRules || {};
   
-  if (Object.keys(smartRules).length > 0 && typeof parseAndMatchTokens === "function") {
+  // ЭТАП 1: ПРЕДВАРИТЕЛЬНЫЙ СКАНЕР
+  if (Object.keys(state.smartRules).length > 0 && typeof parseAndMatchTokens === "function") {
       let headers = state.invoiceHeaders || [];
       
       state.invoiceRows.forEach(row => {
           if (!row || row.length === 0) return;
           
-          Object.keys(smartRules).forEach(colKey => {
+          Object.keys(state.smartRules).forEach(colKey => {
               let colIdx = headers.indexOf(colKey);
-              if (colIdx === -1 && state.colMap && state.colMap[colKey] !== undefined) colIdx = state.colMap[colKey];
+              if (colIdx === -1 && state.colMap[colKey] !== undefined) colIdx = state.colMap[colKey];
               
               if (colIdx !== -1 && row[colIdx]) {
                   let rawVal = String(row[colIdx]).trim();
@@ -1616,7 +1621,7 @@ window.applyMapper2Logic = function () {
                           return 'G';
                       }).join('-');
                       
-                      let isSaved = rules[colKey] && rules[colKey][sig];
+                      let isSaved = state.splitRules[colKey] && state.splitRules[colKey][sig];
                       if (!isSaved && !foundSignatures.has(colKey + "_" + sig)) {
                           foundSignatures.add(colKey + "_" + sig);
                           window.mapper2State.quarantine.push({ rawString: rawVal, excelColumnName: colKey, sysKey: colKey });
@@ -1651,7 +1656,7 @@ window.applyMapper2Logic = function () {
         }
       });
 
-      if (state.splitRules && Object.keys(state.splitRules).length > 0) { currentMemory._splitRules = state.splitRules; memoryUpdated = true; }
+      if (Object.keys(state.splitRules).length > 0) { currentMemory._splitRules = state.splitRules; memoryUpdated = true; }
       if (memoryUpdated) {
         const payload = { action: "updateKaspiMemory", api_key: CLIENT_API_KEY, category: templateName, memoryJson: JSON.stringify(currentMemory) };
         window.smartFetch(GATEWAY_URL, payload).catch((e) => console.error("Ошибка обновления словаря", e));
@@ -1669,8 +1674,8 @@ window.applyMapper2Logic = function () {
     if (!row || row.length === 0) return;
 
     const getValue = (primaryKey, kaspiKey) => {
-      if (state.dictValues && state.dictValues[primaryKey]) return state.dictValues[primaryKey];
-      if (kaspiKey && state.dictValues && state.dictValues[kaspiKey]) return state.dictValues[kaspiKey];
+      if (state.dictValues[primaryKey]) return state.dictValues[primaryKey];
+      if (kaspiKey && state.dictValues[kaspiKey]) return state.dictValues[kaspiKey];
 
       let colIdx = state.colMap[primaryKey];
       if (colIdx === undefined && kaspiKey) colIdx = state.colMap[kaspiKey];
@@ -1679,7 +1684,7 @@ window.applyMapper2Logic = function () {
       let rawVal = String(row[colIdx] || "").trim();
       let excelHeader = state.invoiceHeaders ? state.invoiceHeaders[colIdx] : "";
 
-      if (state.splitRules && typeof parseAndMatchTokens === "function") {
+      if (typeof parseAndMatchTokens === "function") {
         let tokenObjects = parseAndMatchTokens(rawVal, excelHeader || primaryKey);
         if (tokenObjects.length > 1) { 
           let anchorIndex = tokenObjects.findIndex(t => /\d/.test(t.cleanText));
@@ -1794,8 +1799,8 @@ window.applyMapper2Logic = function () {
     };
 
     let allKeys = new Set(Object.keys(state.colMap));
-    if (state.dictValues) Object.keys(state.dictValues).forEach((k) => allKeys.add(k));
-    if (state.splitRules) Object.keys(state.splitRules).forEach((k) => allKeys.add(k));
+    Object.keys(state.dictValues).forEach((k) => allKeys.add(k));
+    Object.keys(state.splitRules).forEach((k) => allKeys.add(k));
     allKeys.forEach((key) => processAttribute(key));
 
     let cleanAttributesObj = Object.assign({}, attributesObj);
