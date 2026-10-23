@@ -1657,18 +1657,11 @@ window.applyMapper2Logic = function () {
       let excelHeader = state.invoiceHeaders ? state.invoiceHeaders[colIdx] : "";
 
       if (state.splitRules && typeof parseAndMatchTokens === "function") {
+        // 1. Прогоняем строку через наше умное ядро (с очисткой пробелов и слиянием мусора)
         let tokenObjects = parseAndMatchTokens(rawVal, excelHeader || primaryKey);
 
-        // Работаем только со сложными строками (защита от "82")
-        if (tokenObjects.length > 1) {
-          // 🔥 ПРАВКА 3.1: Те же пустые токены для выравнивания индексов
-          if (/\d/.test(tokenObjects[0].cleanText)) {
-              tokenObjects.unshift({ text: "", cleanText: "", isActive: false, matchedParams: [] });
-          }
-          if (/\d/.test(tokenObjects[tokenObjects.length - 1].cleanText)) {
-              tokenObjects.push({ text: "", cleanText: "", isActive: false, matchedParams: [] });
-          }
-
+        if (tokenObjects.length > 0) {
+          // 2. Находим Якорь (первое число = индекс 100)
           let anchorIndex = tokenObjects.findIndex(t => /\d/.test(t.cleanText));
           if (anchorIndex === -1) anchorIndex = 0;
 
@@ -1676,13 +1669,13 @@ window.applyMapper2Logic = function () {
               tok.universalIndex = 100 + (idx - anchorIndex);
           });
 
-          // 🔥 ПРАВКА 3.2: Та же точная сигнатура
-          const sig = tokenObjects.map(t => {
-              if (/\d/.test(t.cleanText)) return 'N';
-              let val = String(t.cleanText).trim().toUpperCase();
-              if (val === 'X' || val === '/') return val;
-              return 'G';
-          }).join('-');
+          // 3. Генерируем новую сигнатуру (N - число, G - мусор)
+          const sig = (typeof tokenObjects !== 'undefined' ? tokenObjects : tokens).map(t => {
+    if (/\d/.test(t.cleanText)) return 'N';
+    let val = String(t.cleanText).trim().toUpperCase();
+    if (val === 'X' || val === '/') return val;
+    return 'G';
+}).join('-');
 
           // 4. Ищем правило по новой сигнатуре
           let targetIndices = null;
@@ -1796,25 +1789,12 @@ window.applyMapper2Logic = function () {
         // 🔥 ПРОВЕРКА "БЕЛОГО СПИСКА": Отметил ли клиент эту колонку в интерфейсе?
         let isComplex = window.complexColumnsToTokenize && window.complexColumnsToTokenize.includes(excelHeader);
 
-        // 🔥 ПРАВКА 4: Ищем правило СТРОГО ПО СИГНАТУРЕ (чтобы не пропускать разные паттерны в одной колонке)
+        // ⚡ ФИНАЛЬНЫЙ ФИКС: Проверяем правило по всем 3 возможным ключам (включая заголовок из Excel)
         let isAlreadyProcessed = false;
         if (state.splitRules) {
-            let sigForCheck = "";
-            let tempTokens = parseAndMatchTokens(rawValue, excelHeader || key);
-            if (tempTokens.length > 1) {
-                if (/\d/.test(tempTokens[0].cleanText)) tempTokens.unshift({ text: "", cleanText: "" });
-                if (/\d/.test(tempTokens[tempTokens.length - 1].cleanText)) tempTokens.push({ text: "", cleanText: "" });
-                sigForCheck = tempTokens.map(t => {
-                    if (/\d/.test(t.cleanText)) return 'N';
-                    let val = String(t.cleanText).trim().toUpperCase();
-                    if (val === 'X' || val === '/') return val;
-                    return 'G';
-                }).join('-');
-            }
-
-            if (state.splitRules[key] && state.splitRules[key][sigForCheck]) isAlreadyProcessed = true;
-            else if (humanName && state.splitRules[humanName] && state.splitRules[humanName][sigForCheck]) isAlreadyProcessed = true;
-            else if (excelHeader && state.splitRules[excelHeader] && state.splitRules[excelHeader][sigForCheck]) isAlreadyProcessed = true;
+            if (state.splitRules[key]) isAlreadyProcessed = true;
+            if (humanName && state.splitRules[humanName]) isAlreadyProcessed = true;
+            if (excelHeader && state.splitRules[excelHeader]) isAlreadyProcessed = true;
         }
 
         // Если колонка сложная и еще НЕ прошла Токенизатор -> в карантин

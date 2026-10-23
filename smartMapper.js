@@ -796,9 +796,8 @@ window.startTokenizerQueue = function() {
         const container = document.getElementById("smartMapperContainer");
         if (container) container.style.display = "none";
         
-        // 🔥 ПРАВКА 1: Автоматический перезапуск сборщика вместо зависания кнопки
-        if (typeof window.applyMapper2Logic === "function") {
-            setTimeout(() => window.applyMapper2Logic(), 150);
+        if (typeof window.navigateIncomeStep === "function") {
+            window.navigateIncomeStep(2);
         }
         return;
     }
@@ -820,30 +819,22 @@ window.startTokenizerQueue = function() {
         return;
     }
 
-    // 🔥 ПРАВКА 2.1: Добиваем пустые токены по краям
-    if (tokens.length > 1) {
-        if (/\d/.test(tokens[0].cleanText)) {
-            tokens.unshift({ text: "", cleanText: "", isActive: false, matchedParams: [] });
-        }
-        if (/\d/.test(tokens[tokens.length - 1].cleanText)) {
-            tokens.push({ text: "", cleanText: "", isActive: false, matchedParams: [] });
-        }
-    }
-
+    // 🔥 ШАГ 4.2: Индексация "Smart Skeleton" относительно якоря (первого числа)
     let anchorIndex = tokens.findIndex(t => /\d/.test(t.cleanText));
-    if (anchorIndex === -1) anchorIndex = 0; 
+    if (anchorIndex === -1) anchorIndex = 0; // Если чисел вообще нет (редкость), якорем будет первый элемент
 
+    // Присваиваем универсальный индекс (Якорь = 100)
     tokens.forEach((tok, idx) => {
         tok.universalIndex = 100 + (idx - anchorIndex);
     });
 
-    // 🔥 ПРАВКА 2.2: Точная сигнатура (N - цифра, X и / сохраняем, остальное - G)
-    const sig = tokens.map(t => {
-        if (/\d/.test(t.cleanText)) return 'N';
-        let val = String(t.cleanText).trim().toUpperCase();
-        if (val === 'X' || val === '/') return val;
-        return 'G';
-    }).join('-');
+    // 🔥 ШАГ 4.3: Новая гибкая сигнатура (N - число, G - мусор/текст)
+    const sig = (typeof tokenObjects !== 'undefined' ? tokenObjects : tokens).map(t => {
+    if (/\d/.test(t.cleanText)) return 'N';
+    let val = String(t.cleanText).trim().toUpperCase();
+    if (val === 'X' || val === '/') return val;
+    return 'G';
+}).join('-');
 
     // Отрисовываем интерфейс (Твоя верстка, адаптированная под новые индексы)
     const container = document.getElementById("smartMapperContainer");
