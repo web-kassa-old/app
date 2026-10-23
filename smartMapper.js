@@ -432,41 +432,35 @@ function updateSmartChips(checkbox, cardIndex) {
 /**
  * Сохранение выбранных параметров и переход к стандартному маппингу
  */
-function saveSmartRules() {
-  const cards = document.querySelectorAll(".smart-mapper-card");
-  const smartRules = {};
+window.saveSmartRules = function() {
+    const cards = document.querySelectorAll(".smart-mapper-card");
+    const smartRules = {};
 
-  cards.forEach((card) => {
-    const colName = card.getAttribute("data-col-name");
-    const checkedBoxes = card.querySelectorAll(
-      'input[type="checkbox"]:checked',
-    );
+    cards.forEach((card) => {
+        const colName = card.getAttribute("data-col-name");
+        const checkedBoxes = card.querySelectorAll('input[type="checkbox"]:checked');
+        if (checkedBoxes.length > 0) {
+            smartRules[colName] = Array.from(checkedBoxes).map((box) => box.value);
+        }
+    });
 
-    if (checkedBoxes.length > 0) {
-      // Собираем системные ключи выбранных параметров
-      const selectedParams = Array.from(checkedBoxes).map((box) => box.value);
-      smartRules[colName] = selectedParams;
+    window.mapper2State = window.mapper2State || {};
+    window.mapper2State.smartRules = smartRules;
+    window.posSmartRules = smartRules;
+
+    const container = document.getElementById("smartMapperContainer");
+    if (container) {
+        container.style.display = "none";
+        container.innerHTML = "";
     }
-  });
 
-  console.log("Сохраненные правила Smart Mapper:", smartRules);
-
-  // Сохраняем правила в глобальный объект, чтобы бэкенд или парсер могли их забрать
-  window.posSmartRules = smartRules;
-
-  // Прячем Умное сито (очищаем контейнер)
-  const container = document.getElementById("smartMapperContainer");
-  if (container) {
-    container.innerHTML = "";
-  }
-
-  // Запускаем старый интерфейс маппинга, передавая ему сохраненные данные шаблона
-  if (typeof window.renderMapper2Cards === "function") {
-    window.renderMapper2Cards(window.currentTemplateData);
-  } else {
-    console.error("Функция renderMapper2Cards не найдена");
-  }
-}
+    // 🔥 ПРЯМОЙ ЗАПУСК СТАНДАРТНОГО МАППЕРА (Никаких Токенизаторов здесь!)
+    if (typeof window.renderMapper2Cards === "function") {
+        window.renderMapper2Cards(window.currentTemplateData);
+    } else {
+        console.error("Функция renderMapper2Cards не найдена");
+    }
+};
 
 window.showTokenizer = function (columnName, tokensArray, paramsList) {
   const overlay = document.getElementById("tokenizer-overlay");
