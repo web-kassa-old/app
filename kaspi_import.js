@@ -1789,12 +1789,20 @@ window.applyMapper2Logic = function () {
         // 🔥 ПРОВЕРКА "БЕЛОГО СПИСКА": Отметил ли клиент эту колонку в интерфейсе?
         let isComplex = window.complexColumnsToTokenize && window.complexColumnsToTokenize.includes(excelHeader);
 
-        // ⚡ ФИНАЛЬНЫЙ ФИКС: Проверяем правило по всем 3 возможным ключам (включая заголовок из Excel)
+        // 🔥 ШАГ 1: Проверяем наличие правила СТРОГО ПО СИГНАТУРЕ, а не целиком для колонки
         let isAlreadyProcessed = false;
         if (state.splitRules) {
-            if (state.splitRules[key]) isAlreadyProcessed = true;
-            if (humanName && state.splitRules[humanName]) isAlreadyProcessed = true;
-            if (excelHeader && state.splitRules[excelHeader]) isAlreadyProcessed = true;
+            let sigForCheck = "";
+            if (typeof parseAndMatchTokens === "function") {
+                let tempTokens = parseAndMatchTokens(rawValue, excelHeader || key);
+                if (tempTokens.length > 0) {
+                    sigForCheck = tempTokens.map(t => /\d/.test(t.cleanText) ? 'N' : 'G').join('-');
+                }
+            }
+            
+            if (state.splitRules[key] && state.splitRules[key][sigForCheck]) isAlreadyProcessed = true;
+            else if (humanName && state.splitRules[humanName] && state.splitRules[humanName][sigForCheck]) isAlreadyProcessed = true;
+            else if (excelHeader && state.splitRules[excelHeader] && state.splitRules[excelHeader][sigForCheck]) isAlreadyProcessed = true;
         }
 
         // Если колонка сложная и еще НЕ прошла Токенизатор -> в карантин
