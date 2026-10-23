@@ -1638,7 +1638,6 @@ window.applyMapper2Logic = function () {
     originalFiles: [{ fileName: state.fileName, fileBase64: state.originalBase64 }],
   };
 
-  const regex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,]/g;
   let mappedIndices = Object.values(state.colMap).filter((v) => v !== undefined);
 
   window.mapper2State.quarantine = [];
@@ -1657,41 +1656,45 @@ window.applyMapper2Logic = function () {
       let rawVal = String(row[colIdx] || "").trim();
       let excelHeader = state.invoiceHeaders ? state.invoiceHeaders[colIdx] : "";
 
-      if (state.splitRules) {
-        const tokens = rawVal.match(regex) || [];
-        
-        // 🔥 НОВАЯ ЛОГИКА: Ищем правило по Колонке Excel -> Сигнатура Токенизатора -> Технический ID (sysId)
-        if (state.splitRules[excelHeader]) {
-          // Генерируем сигнатуру точно как в Токенизаторе: N (числа), A (буквы), S (символы)
-          const sig = tokens.map(t => (/\d/.test(t) ? 'N' : /[a-zA-Zа-яА-ЯёЁ]/.test(t) ? 'A' : 'S')).join('-');
+      if (state.splitRules && typeof parseAndMatchTokens === "function") {
+        // 1. Прогоняем строку через наше умное ядро (с очисткой пробелов и слиянием мусора)
+        let tokenObjects = parseAndMatchTokens(rawVal, excelHeader || primaryKey);
+
+        if (tokenObjects.length > 0) {
+          // 2. Находим Якорь (первое число = индекс 100)
+          let anchorIndex = tokenObjects.findIndex(t => /\d/.test(t.cleanText));
+          if (anchorIndex === -1) anchorIndex = 0;
+
+          tokenObjects.forEach((tok, idx) => {
+              tok.universalIndex = 100 + (idx - anchorIndex);
+          });
+
+          // 3. Генерируем новую сигнатуру (N - число, G - мусор)
+          const sig = tokenObjects.map(t => /\d/.test(t.cleanText) ? 'N' : 'G').join('-');
+
+          // 4. Ищем правило по новой сигнатуре
+          let targetIndices = null;
           
-          if (state.splitRules[excelHeader][sig] && state.splitRules[excelHeader][sig][primaryKey]) {
-             let targetIndices = state.splitRules[excelHeader][sig][primaryKey];
-             let result = [];
-             targetIndices.forEach((idx) => {
-               if (tokens[idx] !== undefined) result.push(tokens[idx]);
-             });
-             return result.join(""); // Успешно вытащили нужное значение (например, 175)
+          // Проверяем по заголовку колонки Excel
+          if (state.splitRules[excelHeader] && state.splitRules[excelHeader][sig]) {
+              targetIndices = state.splitRules[excelHeader][sig][primaryKey];
           }
-        }
+          // Фоллбэк: проверяем по системному ключу (для обратной совместимости)
+          if (!targetIndices && state.splitRules[primaryKey] && state.splitRules[primaryKey][sig]) {
+              targetIndices = state.splitRules[primaryKey][sig];
+          }
 
-        // 🛡 Старая логика оставлена как предохранитель для обратной совместимости
-        if (state.splitRules[primaryKey]) {
-          const sig = tokens.map(t => {
-            if (/\d/.test(t)) return 'D';
-            if (/[a-zA-Zа-яА-ЯёЁ]/.test(t)) return 'L';
-            return '.';
-          }).join('-');
-
-          const ruleData = state.splitRules[primaryKey];
-          let targetIndices = Array.isArray(ruleData) ? ruleData : ruleData[sig];
-          
+          // 5. Если правило найдено, собираем результат по универсальным индексам
           if (targetIndices) {
-             let result = [];
-             targetIndices.forEach((idx) => {
-               if (tokens[idx] !== undefined) result.push(tokens[idx]);
+             let resultArr = [];
+             let indicesArray = Array.isArray(targetIndices) ? targetIndices : [targetIndices];
+             
+             indicesArray.forEach((targetIdx) => {
+               // Ищем токен с нужным универсальным индексом
+               let matchedTok = tokenObjects.find(t => t.universalIndex === targetIdx);
+               if (matchedTok) resultArr.push(matchedTok.text);
              });
-             return result.join("");
+             return resultArr.join(""); 
           }
         }
       }
