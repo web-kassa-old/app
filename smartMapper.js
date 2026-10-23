@@ -792,13 +792,10 @@ function parseAndMatchTokens(rawString, colName) {
 }
 
 window.startTokenizerQueue = function() {
-    // 🔥 1. ЗАЩИТА ИНТЕРФЕЙСА: Принудительно показываем экран маппинга, чтобы окно не было невидимым
-    const mapperArea = document.getElementById("mapper2Area");
-    const previewArea = document.getElementById("invoicePreviewArea");
-    if (mapperArea) mapperArea.style.display = "block";
-    if (previewArea) previewArea.style.display = "none";
-
+    console.log("=== СТАРТ ТОКЕНИЗАТОРА ===");
+    
     if (!window.mapper2State.quarantine || window.mapper2State.quarantine.length === 0) {
+        console.log("✅ Карантин пуст, завершаем токенизацию.");
         const container = document.getElementById("smartMapperContainer");
         if (container) container.style.display = "none";
         
@@ -811,6 +808,7 @@ window.startTokenizerQueue = function() {
     const currentItem = window.mapper2State.quarantine[0];
     const colName = currentItem.excelColumnName || currentItem.sysKey;
     const rawString = currentItem.rawString;
+    console.log("1. Проверяем строку:", rawString);
     
     let smartRules = window.mapper2State.smartRules || {};
     const targetParams = smartRules[currentItem.excelColumnName] || 
@@ -836,20 +834,26 @@ window.startTokenizerQueue = function() {
 
     const sig = tokens.map(t => /\d/.test(t.cleanText) ? 'N' : 'G').join('-');
 
-    // 🔥 2. УМНЫЙ СКИП (ГРУППИРОВКА): Проверяем, не сохранял ли клиент эту структуру секунду назад
+    // 🔥 ИСПРАВЛЕННЫЙ УМНЫЙ СКИП (Без крашей!)
     let isAlreadySaved = false;
     let rules = window.mapper2State.splitRules || {};
     
-    if (rules[colName] && rules[colName][sig]) isAlreadySaved = true;
-    else if (rules[currentItem.sysKey] && rules[currentItem.sysKey][sig]) isAlreadySaved = true;
-    else if (rules[currentItem.humanName] && rules[currentItem.humanName][sig]) isAlreadySaved = true;
+    if (rules[colName] && rules[colName][sig]) {
+        isAlreadySaved = true;
+    } else if (currentItem.sysKey && rules[currentItem.sysKey] && rules[currentItem.sysKey][sig]) {
+        isAlreadySaved = true;
+    } else if (currentItem.humanName && rules[currentItem.humanName] && rules[currentItem.humanName][sig]) {
+        isAlreadySaved = true;
+    }
 
     if (isAlreadySaved) {
-        console.log(`⏩ Пропускаем дубль: ${rawString} (структура ${sig} уже настроена)`);
-        window.mapper2State.quarantine.shift(); // Молча удаляем из очереди
-        window.startTokenizerQueue(); // Берем следующую строку
+        console.log(`⏩ Скип дубля: ${rawString} (структура ${sig} уже настроена)`);
+        window.mapper2State.quarantine.shift(); // Удаляем из очереди
+        window.startTokenizerQueue(); // Запускаем следующую
         return; 
     }
+
+    console.log("2. Отрисовываем интерфейс для уникального паттерна:", sig);
 
     const container = document.getElementById("smartMapperContainer");
     if (!container) return;
@@ -980,7 +984,6 @@ window.startTokenizerQueue = function() {
         window.mapper2State.splitRules[colName] = window.mapper2State.splitRules[colName] || {};
         window.mapper2State.splitRules[colName][sig] = ruleMap;
 
-        // Удаляем сохраненную строку из очереди и запускаем следующую
         window.mapper2State.quarantine.shift();
         window.startTokenizerQueue();
     });
