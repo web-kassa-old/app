@@ -1588,11 +1588,16 @@ window.applyMapper2Logic = function () {
       
       const mapperArea = document.getElementById("mapper2Area");
       if (mapperArea) {
-          mapperArea.style.display = "flex"; // Окно маппера больше не пропадет
+          mapperArea.style.display = "block";
           mapperArea.style.opacity = "1";
           mapperArea.style.visibility = "visible";
       }
-      return alert("⚠️ Обязательно привяжите колонки:\n1. Наименование\n2. Количество\n3. Цена");
+      
+      // Микро-пауза, чтобы браузер успел отрисовать интерфейс маппера до блокировки алерта
+      setTimeout(() => {
+          alert("⚠️ Обязательно привяжите колонки:\n1. Наименование\n2. Количество\n3. Цена");
+      }, 50);
+      return;
   }
   
   window.mapper2State.quarantine = [];
@@ -1611,13 +1616,6 @@ window.applyMapper2Logic = function () {
                   let tokenObjects = parseAndMatchTokens(rawVal, colKey);
                   
                   if (tokenObjects.length > 1) {
-                      if (/\d/.test(tokenObjects[0].cleanText)) {
-                          tokenObjects.unshift({ text: "", cleanText: "", isActive: false, matchedParams: [] });
-                      }
-                      if (/\d/.test(tokenObjects[tokenObjects.length - 1].cleanText)) {
-                          tokenObjects.push({ text: "", cleanText: "", isActive: false, matchedParams: [] });
-                      }
-                      
                       let anchorIndex = tokenObjects.findIndex(t => /\d/.test(t.cleanText));
                       if (anchorIndex === -1) anchorIndex = 0;
                       
@@ -1694,13 +1692,6 @@ window.applyMapper2Logic = function () {
       if (typeof parseAndMatchTokens === "function") {
         let tokenObjects = parseAndMatchTokens(rawVal, excelHeader || primaryKey);
         if (tokenObjects.length > 1) { 
-          if (/\d/.test(tokenObjects[0].cleanText)) {
-              tokenObjects.unshift({ text: "", cleanText: "", isActive: false, matchedParams: [] });
-          }
-          if (/\d/.test(tokenObjects[tokenObjects.length - 1].cleanText)) {
-              tokenObjects.push({ text: "", cleanText: "", isActive: false, matchedParams: [] });
-          }
-          
           let anchorIndex = tokenObjects.findIndex(t => /\d/.test(t.cleanText));
           if (anchorIndex === -1) anchorIndex = 0;
           

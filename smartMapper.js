@@ -821,20 +821,12 @@ window.startTokenizerQueue = function() {
         return;
     }
 
-    // 🔥 ВОЗВРАЩЕНА ТВОЯ ЛОГИКА: Добиваем пустые токены для синхронизации индексов
-    if (/\d/.test(tokens[0].cleanText)) {
-        tokens.unshift({ text: "", cleanText: "", isActive: false, matchedParams: [] });
-    }
-    if (/\d/.test(tokens[tokens.length - 1].cleanText)) {
-        tokens.push({ text: "", cleanText: "", isActive: false, matchedParams: [] });
-    }
-
     let anchorIndex = tokens.findIndex(t => /\d/.test(t.cleanText));
     if (anchorIndex === -1) anchorIndex = 0;
     
     tokens.forEach((tok, idx) => { tok.universalIndex = 100 + (idx - anchorIndex); });
 
-    // Скелет учитывает X и /, а все остальные буквы и пустые добивки превращает в G
+    // Чистая сигнатура по факту токенов, без искусственных добавок
     const sig = tokens.map(t => {
         if (/\d/.test(t.cleanText)) return 'N';
         let val = String(t.cleanText).trim().toUpperCase();
