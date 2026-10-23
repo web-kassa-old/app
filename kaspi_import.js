@@ -1569,7 +1569,6 @@ window.updateReqCardStatus = function (sysKey, text, className, previewText) {
 
 // 6. ФИНАЛЬНАЯ СБОРКА JSON ДЛЯ СЕРВЕРА
 window.applyMapper2Logic = function () {
-  console.log("=== СТАРТ СБОРКИ НАКЛАДНОЙ ===");
   const state = window.mapper2State || {};
   
   state.colMap = state.colMap || {};
@@ -1577,7 +1576,6 @@ window.applyMapper2Logic = function () {
   state.smartRules = state.smartRules || {};
   state.splitRules = state.splitRules || {};
 
-  // 🔥 ЖЕСТКАЯ ПРОВЕРКА (Скрипт не пойдет дальше, пока ты не привяжешь базу)
   const hasQty = state.colMap["qty"] !== undefined || state.dictValues["qty"] !== undefined;
   const hasPrice = state.colMap["price"] !== undefined || state.colMap["cost"] !== undefined || 
                    state.dictValues["price"] !== undefined || state.dictValues["cost"] !== undefined;
@@ -1587,11 +1585,10 @@ window.applyMapper2Logic = function () {
   if (!hasQty || !hasPrice || !hasName) {
       return alert("⚠️ Обязательно привяжите колонки:\n1. Наименование\n2. Количество\n3. Цена");
   }
-  
+
   window.mapper2State.quarantine = [];
   let foundSignatures = new Set();
   
-  // ЭТАП 1: ПРЕДВАРИТЕЛЬНЫЙ СКАНЕР
   if (Object.keys(state.smartRules).length > 0 && typeof parseAndMatchTokens === "function") {
       let headers = state.invoiceHeaders || [];
       state.invoiceRows.forEach(row => {
@@ -1605,20 +1602,19 @@ window.applyMapper2Logic = function () {
                   let tokenObjects = parseAndMatchTokens(rawVal, colKey);
                   
                   if (tokenObjects.length > 1) {
-                      let anchorIndex = tokenObjects.findIndex(t => /\d/.test(t.cleanText));
-                      if (anchorIndex === -1) anchorIndex = 0;
-                      if (anchorIndex === 0) {
+                      if (/\d/.test(tokenObjects[0].cleanText)) {
                           tokenObjects.unshift({ text: "", cleanText: "", isActive: false, matchedParams: [] });
-                          anchorIndex = 1;
                       }
                       if (/\d/.test(tokenObjects[tokenObjects.length - 1].cleanText)) {
                           tokenObjects.push({ text: "", cleanText: "", isActive: false, matchedParams: [] });
                       }
-                      let lastN = anchorIndex;
-                      for (let i = tokenObjects.length - 1; i >= 0; i--) {
-                          if (/\d/.test(tokenObjects[i].cleanText)) { lastN = i; break; }
-                      }
-                      const sig = tokenObjects.slice(anchorIndex, lastN + 1).map(t => {
+                      
+                      let anchorIndex = tokenObjects.findIndex(t => /\d/.test(t.cleanText));
+                      if (anchorIndex === -1) anchorIndex = 0;
+                      
+                      tokenObjects.forEach((tok, idx) => { tok.universalIndex = 100 + (idx - anchorIndex); });
+                      
+                      const sig = tokenObjects.map(t => {
                           if (/\d/.test(t.cleanText)) return 'N';
                           let val = String(t.cleanText).trim().toUpperCase();
                           if (val === 'X' || val === '/') return val;
@@ -1641,7 +1637,6 @@ window.applyMapper2Logic = function () {
       return; 
   }
 
-  // ЭТАП 2: СТАНДАРТНАЯ СБОРКА ТАБЛИЦЫ
   if (window.currentImportMode === "kaspi") {
     const templateSelect = document.getElementById("kaspiTemplateSelect");
     const templateName = templateSelect ? templateSelect.value : "";
@@ -1690,21 +1685,19 @@ window.applyMapper2Logic = function () {
       if (typeof parseAndMatchTokens === "function") {
         let tokenObjects = parseAndMatchTokens(rawVal, excelHeader || primaryKey);
         if (tokenObjects.length > 1) { 
-          let anchorIndex = tokenObjects.findIndex(t => /\d/.test(t.cleanText));
-          if (anchorIndex === -1) anchorIndex = 0;
-          if (anchorIndex === 0) {
+          if (/\d/.test(tokenObjects[0].cleanText)) {
               tokenObjects.unshift({ text: "", cleanText: "", isActive: false, matchedParams: [] });
-              anchorIndex = 1;
           }
           if (/\d/.test(tokenObjects[tokenObjects.length - 1].cleanText)) {
               tokenObjects.push({ text: "", cleanText: "", isActive: false, matchedParams: [] });
           }
+          
+          let anchorIndex = tokenObjects.findIndex(t => /\d/.test(t.cleanText));
+          if (anchorIndex === -1) anchorIndex = 0;
+          
           tokenObjects.forEach((tok, idx) => { tok.universalIndex = 100 + (idx - anchorIndex); });
-          let lastN = anchorIndex;
-          for (let i = tokenObjects.length - 1; i >= 0; i--) {
-              if (/\d/.test(tokenObjects[i].cleanText)) { lastN = i; break; }
-          }
-          const sig = tokenObjects.slice(anchorIndex, lastN + 1).map(t => {
+          
+          const sig = tokenObjects.map(t => {
               if (/\d/.test(t.cleanText)) return 'N';
               let val = String(t.cleanText).trim().toUpperCase();
               if (val === 'X' || val === '/') return val;
@@ -1741,7 +1734,6 @@ window.applyMapper2Logic = function () {
     let price = parseFloat(String(rawPrice).replace(",", "."));
 
     if (isNaN(price) || price <= 0) return; 
-
     let hasIdentifier = (rawId && String(rawId).trim() !== "") || (rawName && String(rawName).trim() !== "");
     if (!hasIdentifier) return; 
 

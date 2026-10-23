@@ -452,13 +452,21 @@ window.saveSmartRules = function() {
     if (container) {
         container.style.display = "none";
         container.innerHTML = "";
+        container.style.zIndex = "-1";
     }
 
-    // 🔥 ПРЯМОЙ ЗАПУСК СТАНДАРТНОГО МАППЕРА (Никаких Токенизаторов здесь!)
+    // 🔥 ПРИНУДИТЕЛЬНО возвращаем стандартный маппер (Flexbox)
+    const mapperArea = document.getElementById("mapper2Area");
+    if (mapperArea) {
+        mapperArea.style.display = "flex"; 
+        mapperArea.style.visibility = "visible";
+        mapperArea.style.opacity = "1";
+    }
+    const previewArea = document.getElementById("invoicePreviewArea");
+    if (previewArea) previewArea.style.display = "none";
+
     if (typeof window.renderMapper2Cards === "function") {
         window.renderMapper2Cards(window.currentTemplateData);
-    } else {
-        console.error("Функция renderMapper2Cards не найдена");
     }
 };
 
@@ -792,8 +800,6 @@ window.startTokenizerQueue = function() {
             container.style.display = "none";
             container.style.zIndex = "-1"; 
         }
-        
-        console.log("✅ Все паттерны размечены. Автоматически запускаем итоговую таблицу...");
         if (typeof window.applyMapper2Logic === "function") {
             setTimeout(() => { window.applyMapper2Logic(); }, 150);
         }
@@ -815,25 +821,20 @@ window.startTokenizerQueue = function() {
         return;
     }
 
-    let anchorIndex = tokens.findIndex(t => /\d/.test(t.cleanText));
-    if (anchorIndex === -1) anchorIndex = 0;
-
-    if (anchorIndex === 0) {
+    // 🔥 ИДЕАЛЬНЫЙ УНИВЕРСАЛЬНЫЙ СКЕЛЕТ (Без slice)
+    if (/\d/.test(tokens[0].cleanText)) {
         tokens.unshift({ text: "", cleanText: "", isActive: false, matchedParams: [] });
-        anchorIndex = 1;
     }
     if (/\d/.test(tokens[tokens.length - 1].cleanText)) {
         tokens.push({ text: "", cleanText: "", isActive: false, matchedParams: [] });
     }
 
+    let anchorIndex = tokens.findIndex(t => /\d/.test(t.cleanText));
+    if (anchorIndex === -1) anchorIndex = 0;
+    
     tokens.forEach((tok, idx) => { tok.universalIndex = 100 + (idx - anchorIndex); });
 
-    // 🔥 ИСПРАВЛЕНИЕ БЕСКОНЕЧНОГО ЦИКЛА: Добавлена обрезка (slice) как в Сборщике
-    let lastN = anchorIndex;
-    for (let i = tokens.length - 1; i >= 0; i--) {
-        if (/\d/.test(tokens[i].cleanText)) { lastN = i; break; }
-    }
-    const sig = tokens.slice(anchorIndex, lastN + 1).map(t => {
+    const sig = tokens.map(t => {
         if (/\d/.test(t.cleanText)) return 'N';
         let val = String(t.cleanText).trim().toUpperCase();
         if (val === 'X' || val === '/') return val;
@@ -857,10 +858,7 @@ window.startTokenizerQueue = function() {
     const container = document.getElementById("smartMapperContainer");
     if (!container) return;
 
-    if (container.parentNode !== document.body) {
-        document.body.appendChild(container); 
-    }
-    
+    if (container.parentNode !== document.body) document.body.appendChild(container); 
     container.style.position = "fixed";
     container.style.top = "0";
     container.style.left = "0";
@@ -971,7 +969,6 @@ window.startTokenizerQueue = function() {
 
     document.getElementById("btnNextToken").addEventListener("click", () => {
         let ruleMap = {};
-        
         dropzones.forEach(zone => {
             const param = String(zone.closest('.match-row').dataset.param).trim();
             const indicesStr = zone.dataset.assignedIndices;
@@ -995,7 +992,6 @@ window.startTokenizerQueue = function() {
         window.mapper2State.splitRules = window.mapper2State.splitRules || {};
         window.mapper2State.splitRules[colName] = window.mapper2State.splitRules[colName] || {};
         window.mapper2State.splitRules[colName][sig] = ruleMap;
-
         window.mapper2State.quarantine.shift();
         window.startTokenizerQueue();
     });
