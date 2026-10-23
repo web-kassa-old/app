@@ -670,75 +670,123 @@ function getCleanDictValues(sysKey) {
     });
 }
 
-// Главная функция пре-матчинга: режет строку, склеивает дроби и ищет совпадения
+// Главная функция пре-матчинга: режет строку, сверяет с базой и склеивает мусор
 function parseAndMatchTokens(rawString, colName) {
-    const regex = /\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g;
-    let rawTokens = rawString.match(regex) || [];
-    
+    // ШАГ 1: Очистка пробелов (оставляем только между цифрами)
+    let cleanString = String(rawString).replace(/\s+/g, (match, offset, string) => {
+        const prev = string[offset - 1];
+        const next = string[offset + match.length];
+        if (prev && next && /\d/.test(prev) && /\d/.test(next)) {
+            return ' '; // сохраняем пробел как защитный разделитель
+        }
+        return ''; // удаляем весь остальной мусор
+    });
+
+    // ШАГ 2: Нарезка на сырые атомарные токены
+    // Режет по буквам, цифрам, спецсимволам и оставшимся пробелам
+    const regex = /\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]|\s/g;
+    let rawTokens = cleanString.match(regex) || [];
+
     let processedTokens = [];
     let selectedParams = window.mapper2State.smartRules[colName] || [];
 
-    // Собираем все допустимые значения для выбранных параметров (уже очищенные от скобок)
+    // Подготовка словарей (очищенных от скобок)
     let validDicts = {};
     selectedParams.forEach(param => {
-        validDicts[param] = getCleanDictValues(param);
+        validDicts[param] = typeof getCleanDictValues === "function" ? getCleanDictValues(param) : [];
     });
 
-    let i = 0;
-    while (i < rawTokens.length) {
-        let currentRaw = rawTokens[i];
-        let isDecimal = false;
-        let mergedRaw = currentRaw;
-        let matchValue = currentRaw.toUpperCase(); // То, что будем искать в базе
+    // Вспомогательная функция поиска в словарях
+    const findInDicts = (val, isDec = false) => {
+        let found = [];
+        Object.keys(validDicts).forEach(param => {
+            if (validDicts[param].includes(val) || (isDec && validDicts[param].some(v => Number(v) === Number(val)))) {
+                found.push(param);
+            }
+        });
+        return found;
+    };
 
-        // 🔥 Lookahead: Проверяем, не дробь ли это (Цифра + Точка/Запятая + Цифра)
-        if (/\d/.test(currentRaw) && i + 2 < rawTokens.length) {
+    // ШАГ 3: Сверка и слияние
+    let i = 0;
+    let currentGarbage = null; // Накопитель для мусорных токенов
+
+    // Функция сброса накопленного мусора в итоговый массив
+    const pushGarbage = () => {
+        if (currentGarbage !== null) {
+            processedTokens.push({
+                text: currentGarbage,
+                cleanText: currentGarbage,
+                isActive: false, // Всегда неактивен
+                matchedParams: []
+            });
+            currentGarbage = null;
+        }
+    };
+
+    while (i < rawTokens.length) {
+        let text = rawTokens[i];
+        let isDecimal = false;
+        let matchedParams = [];
+        let skip = 1;
+        let mergedDisplay = text;
+        let matchValue = text.toUpperCase();
+
+        // Проверка на дробь (Lookahead)
+        if (/\d/.test(text) && i + 2 < rawTokens.length) {
             let nextTok = rawTokens[i + 1];
             let nextNextTok = rawTokens[i + 2];
             
             if ((nextTok === '.' || nextTok === ',') && /\d/.test(nextNextTok)) {
-                isDecimal = true;
-                mergedRaw = currentRaw + nextTok + nextNextTok; // Как покажем клиенту (напр. 10,50)
-                matchValue = currentRaw + '.' + nextNextTok;    // Как ищем в словаре (строго 10.50)
+                let potentialMatch = (text + '.' + nextNextTok).toUpperCase();
+                let found = findInDicts(potentialMatch, true);
                 
-                // Нормализация математики: отсекаем незначащие нули на конце дроби для поиска (10.50 -> 10.5)
-                // Но оставляем исходный вариант, если вдруг в Каспи зашито именно 10.50
-                matchValue = matchValue.toUpperCase();
+                if (found.length > 0) {
+                    // Дробь ЕСТЬ в словаре -> склеиваем в ОДИН активный токен
+                    isDecimal = true;
+                    matchedParams = found;
+                    mergedDisplay = text + nextTok + nextNextTok;
+                    matchValue = potentialMatch;
+                    skip = 3;
+                }
+                // Если дроби НЕТ в словаре, isDecimal остается false,
+                // и скрипт обработает 10, точку и 50 как три отдельных токена.
             }
         }
 
-        // Проверяем, есть ли matchValue в наших словарях
-        let foundInParams = [];
-        Object.keys(validDicts).forEach(param => {
-            // Ищем точное совпадение (например, "115" совпадет со словарным "115" после отсечения скобок)
-            // Дополнительно можно добавить проверку Number(matchValue) === Number(dictVal) для гибкости дробей
-            if (validDicts[param].includes(matchValue) || 
-               (isDecimal && validDicts[param].some(v => Number(v) === Number(matchValue)))) {
-                foundInParams.push(param);
+        // Если это не цельная словарная дробь, проверяем текущий токен
+        if (!isDecimal) {
+            // Пробел игнорируем при поиске, он просто пойдет в мусор
+            if (text.trim() !== "") {
+                 matchedParams = findInDicts(matchValue);
             }
-        });
+        }
 
-        if (foundInParams.length > 0) {
-            // ТОКЕН АКТИВЕН (Найден в словаре)
+        if (matchedParams.length > 0) {
+            // ТОКЕН НАЙДЕН -> АКТИВЕН
+            pushGarbage(); // Сначала скидываем весь мусор, который накопился слева
+            
             processedTokens.push({
-                text: mergedRaw,        // Покажем клиенту (10,50)
-                cleanText: matchValue,  // Отправим в систему (10.50)
+                text: mergedDisplay,
+                cleanText: matchValue,
                 isActive: true,
-                matchedParams: foundInParams // Подсказка, куда он подходит
+                matchedParams: matchedParams
             });
-            if (isDecimal) i += 3; else i += 1;
+            i += skip;
         } else {
-            // ТОКЕН ПАССИВЕН (Мусор: LT, W, /, и т.д.)
-            processedTokens.push({
-                text: currentRaw,
-                cleanText: currentRaw,
-                isActive: false,
-                matchedParams: []
-            });
-            i += 1;
+            // ТОКЕН НЕ НАЙДЕН -> МУСОР
+            // Плюсуем его к накопителю (склеиваем неизвестные подряд)
+            if (currentGarbage === null) {
+                currentGarbage = text;
+            } else {
+                currentGarbage += text;
+            }
+            i += 1; // Шагаем по одному, чтобы следующая часть разорванной дроби проверилась отдельно
         }
     }
     
+    pushGarbage(); // Скидываем хвост мусора, если он остался в конце строки
+
     return processedTokens;
 }
 
