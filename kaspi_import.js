@@ -1569,9 +1569,9 @@ window.updateReqCardStatus = function (sysKey, text, className, previewText) {
 
 // 6. ФИНАЛЬНАЯ СБОРКА JSON ДЛЯ СЕРВЕРА
 window.applyMapper2Logic = function () {
+  console.log("=== СТАРТ СБОРКИ НАКЛАДНОЙ ===");
   const state = window.mapper2State || {};
   
-  // ЭТАП 1: ПРЕДВАРИТЕЛЬНЫЙ СКАНЕР
   window.mapper2State.quarantine = [];
   let foundSignatures = new Set();
   let smartRules = state.smartRules || {};
@@ -1605,7 +1605,6 @@ window.applyMapper2Logic = function () {
                           tokenObjects.push({ text: "", cleanText: "", isActive: false, matchedParams: [] });
                       }
                       
-                      // 🔥 ИСПРАВЛЕНИЕ: Та же умная сигнатура
                       let lastN = anchorIndex;
                       for (let i = tokenObjects.length - 1; i >= 0; i--) {
                           if (/\d/.test(tokenObjects[i].cleanText)) { lastN = i; break; }
@@ -1696,7 +1695,6 @@ window.applyMapper2Logic = function () {
           
           tokenObjects.forEach((tok, idx) => { tok.universalIndex = 100 + (idx - anchorIndex); });
           
-          // 🔥 ИСПРАВЛЕНИЕ: Умная сигнатура в сборщике
           let lastN = anchorIndex;
           for (let i = tokenObjects.length - 1; i >= 0; i--) {
               if (/\d/.test(tokenObjects[i].cleanText)) { lastN = i; break; }

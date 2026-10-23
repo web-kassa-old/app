@@ -795,7 +795,7 @@ window.startTokenizerQueue = function() {
     if (!window.mapper2State.quarantine || window.mapper2State.quarantine.length === 0) {
         const container = document.getElementById("smartMapperContainer");
         if (container) {
-            container.style.display = "none"; // Просто прячем, НИКАКОГО remove()
+            container.style.display = "none";
             container.style.zIndex = "-1"; 
         }
         
@@ -834,8 +834,12 @@ window.startTokenizerQueue = function() {
 
     tokens.forEach((tok, idx) => { tok.universalIndex = 100 + (idx - anchorIndex); });
 
-    // Умная сигнатура: теперь она еще и считает длину, чтобы на 100% исключить ложные совпадения!
-    const sig = tokens.map(t => {
+    // 🔥 ИСПРАВЛЕНИЕ БЕСКОНЕЧНОГО ЦИКЛА: Добавлена обрезка (slice) как в Сборщике
+    let lastN = anchorIndex;
+    for (let i = tokens.length - 1; i >= 0; i--) {
+        if (/\d/.test(tokens[i].cleanText)) { lastN = i; break; }
+    }
+    const sig = tokens.slice(anchorIndex, lastN + 1).map(t => {
         if (/\d/.test(t.cleanText)) return 'N';
         let val = String(t.cleanText).trim().toUpperCase();
         if (val === 'X' || val === '/') return val;
@@ -859,7 +863,6 @@ window.startTokenizerQueue = function() {
     const container = document.getElementById("smartMapperContainer");
     if (!container) return;
 
-    // Перемещаем безопасно
     if (container.parentNode !== document.body) {
         document.body.appendChild(container); 
     }
