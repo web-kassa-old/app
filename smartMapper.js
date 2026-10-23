@@ -792,10 +792,13 @@ function parseAndMatchTokens(rawString, colName) {
 }
 
 window.startTokenizerQueue = function() {
-    console.log("=== СТАРТ ТОКЕНИЗАТОРА (startTokenizerQueue) ===");
-    
+    // 🔥 1. ЗАЩИТА ИНТЕРФЕЙСА: Принудительно показываем экран маппинга, чтобы окно не было невидимым
+    const mapperArea = document.getElementById("mapper2Area");
+    const previewArea = document.getElementById("invoicePreviewArea");
+    if (mapperArea) mapperArea.style.display = "block";
+    if (previewArea) previewArea.style.display = "none";
+
     if (!window.mapper2State.quarantine || window.mapper2State.quarantine.length === 0) {
-        console.log("✅ Карантин пуст, завершаем токенизацию. Переходим к таблице.");
         const container = document.getElementById("smartMapperContainer");
         if (container) container.style.display = "none";
         
@@ -806,27 +809,19 @@ window.startTokenizerQueue = function() {
     }
 
     const currentItem = window.mapper2State.quarantine[0];
-    console.log("1. Строка из карантина:", currentItem);
-
     const colName = currentItem.excelColumnName || currentItem.sysKey;
     const rawString = currentItem.rawString;
     
-    // Безопасный поиск параметров по всем ключам
     let smartRules = window.mapper2State.smartRules || {};
     const targetParams = smartRules[currentItem.excelColumnName] || 
                          smartRules[currentItem.sysKey] || 
                          smartRules[currentItem.humanName] || [];
-                         
-    console.log("2. Целевые параметры (targetParams):", targetParams);
 
     let tokens = typeof parseAndMatchTokens === "function" 
         ? parseAndMatchTokens(rawString, colName) 
         : [];
-        
-    console.log("3. Результат нарезки токенов:", tokens);
 
     if (tokens.length === 0) {
-        console.warn("⚠️ Строка пустая, пропускаем...");
         window.mapper2State.quarantine.shift();
         window.startTokenizerQueue();
         return;
@@ -840,15 +835,24 @@ window.startTokenizerQueue = function() {
     });
 
     const sig = tokens.map(t => /\d/.test(t.cleanText) ? 'N' : 'G').join('-');
-    console.log("4. Сгенерирована сигнатура:", sig);
+
+    // 🔥 2. УМНЫЙ СКИП (ГРУППИРОВКА): Проверяем, не сохранял ли клиент эту структуру секунду назад
+    let isAlreadySaved = false;
+    let rules = window.mapper2State.splitRules || {};
+    
+    if (rules[colName] && rules[colName][sig]) isAlreadySaved = true;
+    else if (rules[currentItem.sysKey] && rules[currentItem.sysKey][sig]) isAlreadySaved = true;
+    else if (rules[currentItem.humanName] && rules[currentItem.humanName][sig]) isAlreadySaved = true;
+
+    if (isAlreadySaved) {
+        console.log(`⏩ Пропускаем дубль: ${rawString} (структура ${sig} уже настроена)`);
+        window.mapper2State.quarantine.shift(); // Молча удаляем из очереди
+        window.startTokenizerQueue(); // Берем следующую строку
+        return; 
+    }
 
     const container = document.getElementById("smartMapperContainer");
-    if (!container) {
-        console.error("❌ ОШИБКА: HTML-элемент 'smartMapperContainer' не найден на странице!");
-        return;
-    }
-    
-    console.log("5. Контейнер найден, начинаем отрисовку...");
+    if (!container) return;
 
     container.innerHTML = "";
     container.style.display = "flex";
@@ -976,9 +980,8 @@ window.startTokenizerQueue = function() {
         window.mapper2State.splitRules[colName] = window.mapper2State.splitRules[colName] || {};
         window.mapper2State.splitRules[colName][sig] = ruleMap;
 
+        // Удаляем сохраненную строку из очереди и запускаем следующую
         window.mapper2State.quarantine.shift();
         window.startTokenizerQueue();
     });
-
-    console.log("6. Окно токенизатора успешно отрисовано.");
 };
