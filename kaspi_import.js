@@ -1571,16 +1571,23 @@ window.updateReqCardStatus = function (sysKey, text, className, previewText) {
 window.applyMapper2Logic = function () {
   console.log("=== СТАРТ СБОРКИ НАКЛАДНОЙ ===");
   const state = window.mapper2State || {};
-  
-  // =========================================================
-  // 🔥 ЭТАП 1: ПРЕДВАРИТЕЛЬНЫЙ СКАНЕР ВСЕХ ПАТТЕРНОВ
-  // =========================================================
+  const colMap = state.colMap || {};
+  const dict = state.dictValues || {};
+
+  const hasQty = colMap["qty"] !== undefined || dict["qty"] !== undefined;
+  const hasPrice = colMap["price"] !== undefined || colMap["cost"] !== undefined || dict["price"] !== undefined || dict["cost"] !== undefined;
+  const hasName = colMap["name"] !== undefined || colMap["model"] !== undefined || dict["name"] !== undefined || dict["model"] !== undefined;
+
+  if (!state.validationPassed) {
+      if (!hasQty || !hasPrice || !hasName) return alert("⚠️ Обязательно привяжите колонки:\n1. Наименование\n2. Количество\n3. Цена");
+      state.validationPassed = true; 
+  }
+
   window.mapper2State.quarantine = [];
   let foundSignatures = new Set();
   let smartRules = state.smartRules || {};
   let rules = state.splitRules || {};
   
-  // Если у нас есть настроенные сложные колонки, ищем в них новые паттерны
   if (Object.keys(smartRules).length > 0 && typeof parseAndMatchTokens === "function") {
       let headers = state.invoiceHeaders || [];
       
@@ -1588,30 +1595,35 @@ window.applyMapper2Logic = function () {
           if (!row || row.length === 0) return;
           
           Object.keys(smartRules).forEach(colKey => {
-              // Ищем индекс нужной колонки
               let colIdx = headers.indexOf(colKey);
-              if (colIdx === -1 && state.colMap && state.colMap[colKey] !== undefined) {
-                  colIdx = state.colMap[colKey];
-              }
+              if (colIdx === -1 && state.colMap && state.colMap[colKey] !== undefined) colIdx = state.colMap[colKey];
               
               if (colIdx !== -1 && row[colIdx]) {
                   let rawVal = String(row[colIdx]).trim();
                   if (!rawVal) return;
 
-                  // Прогоняем через ядро
                   let tokenObjects = parseAndMatchTokens(rawVal, colKey);
-                  if (tokenObjects.length > 0) {
-                      const sig = tokenObjects.map(t => /\d/.test(t.cleanText) ? 'N' : 'G').join('-');
-                      let isSaved = rules[colKey] && rules[colKey][sig];
+                  let originalLength = tokenObjects.length; // Считаем до нормализации
+                  
+                  if (originalLength > 1) {
+                      let anchorIndex = tokenObjects.findIndex(t => /\d/.test(t.cleanText));
+                      if (anchorIndex === -1) anchorIndex = 0;
                       
-                      // Если паттерн неизвестный и мы его еще не закинули в очередь
+                      // 🔥 Нормализуем так же, как в Токенизаторе
+                      if (anchorIndex === 0) {
+                          tokenObjects.unshift({ text: "", cleanText: "", isActive: false, matchedParams: [] });
+                          anchorIndex = 1;
+                      }
+                      if (/\d/.test(tokenObjects[tokenObjects.length - 1].cleanText)) {
+                          tokenObjects.push({ text: "", cleanText: "", isActive: false, matchedParams: [] });
+                      }
+                      
+                      const sig = tokenObjects.map(t => /\d/.test(t.cleanText) ? 'N' : 'G').join('-');
+                      
+                      let isSaved = rules[colKey] && rules[colKey][sig];
                       if (!isSaved && !foundSignatures.has(colKey + "_" + sig)) {
                           foundSignatures.add(colKey + "_" + sig);
-                          window.mapper2State.quarantine.push({
-                              rawString: rawVal,
-                              excelColumnName: colKey,
-                              sysKey: colKey
-                          });
+                          window.mapper2State.quarantine.push({ rawString: rawVal, excelColumnName: colKey, sysKey: colKey });
                       }
                   }
               }
@@ -1619,33 +1631,12 @@ window.applyMapper2Logic = function () {
       });
   }
 
-  // Если нашли хоть один неизвестный паттерн - стопаем сборку и запускаем Токенизатор!
   if (window.mapper2State.quarantine.length > 0) {
-      console.log(`Найдено ${window.mapper2State.quarantine.length} новых паттернов. Запуск Токенизатора.`);
-      if (typeof window.startTokenizerQueue === "function") {
-          window.startTokenizerQueue();
-      }
-      return; // ⛔ ПРЕРЫВАЕМ СБОРКУ! Финальная таблица не начнет строиться.
+      if (typeof window.startTokenizerQueue === "function") window.startTokenizerQueue();
+      return; 
   }
   
-  console.log("✅ Все паттерны известны. Собираем товары.");
-
-  // =========================================================
-  // 🔥 ЭТАП 2: СТАНДАРТНАЯ СБОРКА ТАБЛИЦЫ
-  // =========================================================
-  const colMap = state.colMap || {};
-  const dict = state.dictValues || {};
-
-  const hasQty = colMap["qty"] !== undefined || dict["qty"] !== undefined;
-  const hasPrice = colMap["price"] !== undefined || colMap["cost"] !== undefined || 
-                   dict["price"] !== undefined || dict["cost"] !== undefined;
-  const hasName = colMap["name"] !== undefined || colMap["model"] !== undefined || 
-                  dict["name"] !== undefined || dict["model"] !== undefined;
-
-  // Теперь эта проверка сработает только тогда, когда Токенизатор закончит свою работу
-  if (!hasQty || !hasPrice || !hasName) {
-    return alert("⚠️ Обязательно привяжите колонки:\n1. Наименование\n2. Количество\n3. Цена");
-  }
+  state.validationPassed = false; 
 
   if (window.currentImportMode === "kaspi") {
     const templateSelect = document.getElementById("kaspiTemplateSelect");
@@ -1661,18 +1652,11 @@ window.applyMapper2Logic = function () {
         if (headerText) {
           let cleanWord = String(headerText).trim().toLowerCase();
           if (!Array.isArray(currentMemory[sysKey])) currentMemory[sysKey] = [];
-          if (!currentMemory[sysKey].includes(cleanWord)) {
-            currentMemory[sysKey].push(cleanWord);
-            memoryUpdated = true;
-          }
+          if (!currentMemory[sysKey].includes(cleanWord)) { currentMemory[sysKey].push(cleanWord); memoryUpdated = true; }
         }
       });
 
-      if (state.splitRules && Object.keys(state.splitRules).length > 0) {
-        currentMemory._splitRules = state.splitRules;
-        memoryUpdated = true;
-      }
-
+      if (state.splitRules && Object.keys(state.splitRules).length > 0) { currentMemory._splitRules = state.splitRules; memoryUpdated = true; }
       if (memoryUpdated) {
         const payload = { action: "updateKaspiMemory", api_key: CLIENT_API_KEY, category: templateName, memoryJson: JSON.stringify(currentMemory) };
         window.smartFetch(GATEWAY_URL, payload).catch((e) => console.error("Ошибка обновления словаря", e));
@@ -1702,9 +1686,19 @@ window.applyMapper2Logic = function () {
 
       if (state.splitRules && typeof parseAndMatchTokens === "function") {
         let tokenObjects = parseAndMatchTokens(rawVal, excelHeader || primaryKey);
-        if (tokenObjects.length > 0) {
+        if (tokenObjects.length > 1) { 
           let anchorIndex = tokenObjects.findIndex(t => /\d/.test(t.cleanText));
           if (anchorIndex === -1) anchorIndex = 0;
+          
+          // 🔥 Нормализуем перед сборкой
+          if (anchorIndex === 0) {
+              tokenObjects.unshift({ text: "", cleanText: "", isActive: false, matchedParams: [] });
+              anchorIndex = 1;
+          }
+          if (/\d/.test(tokenObjects[tokenObjects.length - 1].cleanText)) {
+              tokenObjects.push({ text: "", cleanText: "", isActive: false, matchedParams: [] });
+          }
+          
           tokenObjects.forEach((tok, idx) => { tok.universalIndex = 100 + (idx - anchorIndex); });
           const sig = tokenObjects.map(t => /\d/.test(t.cleanText) ? 'N' : 'G').join('-');
 
@@ -1756,7 +1750,6 @@ window.applyMapper2Logic = function () {
     let cbm = rawCbm ? parseFloat(String(rawCbm).replace(",", ".")) : "";
     let rawWeight = getValue("weight");
     let weight = rawWeight ? parseFloat(String(rawWeight).replace(",", ".")) : "";
-
     let attributesObj = {};
 
     const processAttribute = (key) => {
@@ -1789,20 +1782,16 @@ window.applyMapper2Logic = function () {
         }
       }
       
-      // Поскольку Токенизатор уже обучен на Фазе 1, мы просто сохраняем сырое значение, 
-      // если оно не нашлось в словаре. Мусор из Сборщика удален.
       if (window.currentImportMode === "kaspi" && hasDictionary && !foundMatch) {
           attributesObj[key] = rawValue;
           return;
       }
-
       attributesObj[key] = matchedDictValue;
     };
 
     let allKeys = new Set(Object.keys(state.colMap));
     if (state.dictValues) Object.keys(state.dictValues).forEach((k) => allKeys.add(k));
     if (state.splitRules) Object.keys(state.splitRules).forEach((k) => allKeys.add(k));
-
     allKeys.forEach((key) => processAttribute(key));
 
     let cleanAttributesObj = Object.assign({}, attributesObj);

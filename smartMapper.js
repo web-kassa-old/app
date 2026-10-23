@@ -792,16 +792,16 @@ function parseAndMatchTokens(rawString, colName) {
 }
 
 window.startTokenizerQueue = function() {
-    // 🔥 ГЛАВНЫЙ ФИКС: Если карантин пуст, Токенизатор САМ запускает итоговую сборку
     if (!window.mapper2State.quarantine || window.mapper2State.quarantine.length === 0) {
         const container = document.getElementById("smartMapperContainer");
-        if (container) container.style.display = "none";
+        if (container) {
+            container.style.display = "none";
+            if (container.parentNode === document.body) container.remove();
+        }
         
         console.log("✅ Все паттерны размечены. Автоматически запускаем итоговую таблицу...");
-        
         if (typeof window.applyMapper2Logic === "function") {
-            // Запускаем сборщик, который теперь увидит все правила и сразу выдаст результат
-            window.applyMapper2Logic();
+            setTimeout(() => { window.applyMapper2Logic(); }, 150);
         }
         return;
     }
@@ -811,13 +811,9 @@ window.startTokenizerQueue = function() {
     const rawString = currentItem.rawString;
     
     let smartRules = window.mapper2State.smartRules || {};
-    const targetParams = smartRules[currentItem.excelColumnName] || 
-                         smartRules[currentItem.sysKey] || 
-                         smartRules[currentItem.humanName] || [];
+    const targetParams = smartRules[currentItem.excelColumnName] || smartRules[currentItem.sysKey] || smartRules[currentItem.humanName] || [];
 
-    let tokens = typeof parseAndMatchTokens === "function" 
-        ? parseAndMatchTokens(rawString, colName) 
-        : [];
+    let tokens = typeof parseAndMatchTokens === "function" ? parseAndMatchTokens(rawString, colName) : [];
 
     if (tokens.length === 0) {
         window.mapper2State.quarantine.shift();
@@ -828,25 +824,28 @@ window.startTokenizerQueue = function() {
     let anchorIndex = tokens.findIndex(t => /\d/.test(t.cleanText));
     if (anchorIndex === -1) anchorIndex = 0;
 
+    // 🔥 ИДЕАЛЬНАЯ НОРМАЛИЗАЦИЯ: Добиваем пустые G-токены по краям
+    if (anchorIndex === 0) {
+        tokens.unshift({ text: "", cleanText: "", isActive: false, matchedParams: [] });
+        anchorIndex = 1;
+    }
+    if (/\d/.test(tokens[tokens.length - 1].cleanText)) {
+        tokens.push({ text: "", cleanText: "", isActive: false, matchedParams: [] });
+    }
+
     tokens.forEach((tok, idx) => {
         tok.universalIndex = 100 + (idx - anchorIndex);
     });
 
     const sig = tokens.map(t => /\d/.test(t.cleanText) ? 'N' : 'G').join('-');
 
-    // Умный скип дублей (максимально строгий)
     let isAlreadySaved = false;
     let rules = window.mapper2State.splitRules || {};
     
-    if (rules[colName] && rules[colName][sig]) {
-        isAlreadySaved = true;
-    } else if (currentItem.sysKey && rules[currentItem.sysKey] && rules[currentItem.sysKey][sig]) {
-        isAlreadySaved = true;
-    } else if (currentItem.humanName && rules[currentItem.humanName] && rules[currentItem.humanName][sig]) {
-        isAlreadySaved = true;
-    } else if (currentItem.excelColumnName && rules[currentItem.excelColumnName] && rules[currentItem.excelColumnName][sig]) {
-        isAlreadySaved = true;
-    }
+    if (rules[colName] && rules[colName][sig]) isAlreadySaved = true;
+    else if (currentItem.sysKey && rules[currentItem.sysKey] && rules[currentItem.sysKey][sig]) isAlreadySaved = true;
+    else if (currentItem.humanName && rules[currentItem.humanName] && rules[currentItem.humanName][sig]) isAlreadySaved = true;
+    else if (currentItem.excelColumnName && rules[currentItem.excelColumnName] && rules[currentItem.excelColumnName][sig]) isAlreadySaved = true;
 
     if (isAlreadySaved) {
         window.mapper2State.quarantine.shift(); 
@@ -857,7 +856,6 @@ window.startTokenizerQueue = function() {
     const container = document.getElementById("smartMapperContainer");
     if (!container) return;
 
-    // Выносим контейнер поверх всех скрытых блоков, чтобы окно 100% было видно
     document.body.appendChild(container); 
     container.style.position = "fixed";
     container.style.top = "0";
@@ -897,7 +895,7 @@ window.startTokenizerQueue = function() {
         if (tok.isActive) {
             let tooltip = tok.matchedParams.length > 0 ? `Подходит для: ${tok.matchedParams.join(', ')}` : "";
             activeTokensHtml += `<button class="token-btn active-token" data-indices="${tok.universalIndex}" title="${tooltip}">${tok.text}</button>`;
-        } else {
+        } else if (tok.text !== "") { // Пустые добивки не рисуем
             activeTokensHtml += `<span class="token-text passive-token">${tok.text}</span>`;
         }
     });
@@ -995,7 +993,6 @@ window.startTokenizerQueue = function() {
         window.mapper2State.splitRules[colName] = window.mapper2State.splitRules[colName] || {};
         window.mapper2State.splitRules[colName][sig] = ruleMap;
 
-        // Удаляем сохраненную строку из очереди и запускаем следующую
         window.mapper2State.quarantine.shift();
         window.startTokenizerQueue();
     });
