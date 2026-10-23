@@ -1784,11 +1784,19 @@ window.applyMapper2Logic = function () {
         // 🔥 ПРОВЕРКА "БЕЛОГО СПИСКА": Отметил ли клиент эту колонку в интерфейсе?
         let isComplex = window.complexColumnsToTokenize && window.complexColumnsToTokenize.includes(excelHeader);
 
-        // ⚡ ФИНАЛЬНЫЙ ФИКС: Проверяем правило по всем 3 возможным ключам (включая заголовок из Excel)
+        // ⚡ ФИНАЛЬНЫЙ ФИКС: Проверяем правило для КОНКРЕТНОЙ сигнатуры
         let isAlreadyProcessed = false;
-        if (state.splitRules) {
+        if (state.splitRules && typeof parseAndMatchTokens === "function") {
+            // Генерируем сигнатуру текущей строки, чтобы проверить, учили ли мы её
+            let tokenObjects = parseAndMatchTokens(rawValue, excelHeader || key);
+            const sig = tokenObjects.map(t => /\d/.test(t.cleanText) ? 'N' : 'G').join('-');
+            
+            if (state.splitRules[excelHeader] && state.splitRules[excelHeader][sig]) isAlreadyProcessed = true;
+            else if (state.splitRules[humanName] && state.splitRules[humanName][sig]) isAlreadyProcessed = true;
+            else if (state.splitRules[key] && state.splitRules[key][sig]) isAlreadyProcessed = true;
+        } else if (state.splitRules) {
+            // Фоллбэк на всякий случай
             if (state.splitRules[key]) isAlreadyProcessed = true;
-            if (humanName && state.splitRules[humanName]) isAlreadyProcessed = true;
             if (excelHeader && state.splitRules[excelHeader]) isAlreadyProcessed = true;
         }
 
