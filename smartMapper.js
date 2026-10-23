@@ -792,8 +792,10 @@ function parseAndMatchTokens(rawString, colName) {
 }
 
 window.startTokenizerQueue = function() {
-    // Если карантин пуст, идем дальше
+    console.log("=== СТАРТ ТОКЕНИЗАТОРА (startTokenizerQueue) ===");
+    
     if (!window.mapper2State.quarantine || window.mapper2State.quarantine.length === 0) {
+        console.log("✅ Карантин пуст, завершаем токенизацию. Переходим к таблице.");
         const container = document.getElementById("smartMapperContainer");
         if (container) container.style.display = "none";
         
@@ -803,38 +805,51 @@ window.startTokenizerQueue = function() {
         return;
     }
 
-    // Берем первую проблемную строку
     const currentItem = window.mapper2State.quarantine[0];
-    const colName = currentItem.excelColumnName;
-    const rawString = currentItem.rawString;
-    const targetParams = window.mapper2State.smartRules[colName] || [];
+    console.log("1. Строка из карантина:", currentItem);
 
-    // 🔥 ШАГ 4.1: Вызываем наше новое умное ядро! (Никакого дублирования кода)
+    const colName = currentItem.excelColumnName || currentItem.sysKey;
+    const rawString = currentItem.rawString;
+    
+    // Безопасный поиск параметров по всем ключам
+    let smartRules = window.mapper2State.smartRules || {};
+    const targetParams = smartRules[currentItem.excelColumnName] || 
+                         smartRules[currentItem.sysKey] || 
+                         smartRules[currentItem.humanName] || [];
+                         
+    console.log("2. Целевые параметры (targetParams):", targetParams);
+
     let tokens = typeof parseAndMatchTokens === "function" 
         ? parseAndMatchTokens(rawString, colName) 
         : [];
+        
+    console.log("3. Результат нарезки токенов:", tokens);
 
     if (tokens.length === 0) {
+        console.warn("⚠️ Строка пустая, пропускаем...");
         window.mapper2State.quarantine.shift();
         window.startTokenizerQueue();
         return;
     }
 
-    // 🔥 ШАГ 4.2: Индексация "Smart Skeleton" относительно якоря (первого числа)
     let anchorIndex = tokens.findIndex(t => /\d/.test(t.cleanText));
-    if (anchorIndex === -1) anchorIndex = 0; // Если чисел вообще нет (редкость), якорем будет первый элемент
+    if (anchorIndex === -1) anchorIndex = 0;
 
-    // Присваиваем универсальный индекс (Якорь = 100)
     tokens.forEach((tok, idx) => {
         tok.universalIndex = 100 + (idx - anchorIndex);
     });
 
-    // 🔥 ШАГ 4.3: Новая гибкая сигнатура (N - число, G - мусор/текст)
     const sig = tokens.map(t => /\d/.test(t.cleanText) ? 'N' : 'G').join('-');
+    console.log("4. Сгенерирована сигнатура:", sig);
 
-    // Отрисовываем интерфейс (Твоя верстка, адаптированная под новые индексы)
     const container = document.getElementById("smartMapperContainer");
-    if (!container) return;
+    if (!container) {
+        console.error("❌ ОШИБКА: HTML-элемент 'smartMapperContainer' не найден на странице!");
+        return;
+    }
+    
+    console.log("5. Контейнер найден, начинаем отрисовку...");
+
     container.innerHTML = "";
     container.style.display = "flex";
 
@@ -860,7 +875,6 @@ window.startTokenizerQueue = function() {
     tokens.forEach((tok) => {
         if (tok.isActive) {
             let tooltip = tok.matchedParams.length > 0 ? `Подходит для: ${tok.matchedParams.join(', ')}` : "";
-            // Используем новый универсальный индекс!
             activeTokensHtml += `<button class="token-btn active-token" data-indices="${tok.universalIndex}" title="${tooltip}">${tok.text}</button>`;
         } else {
             activeTokensHtml += `<span class="token-text passive-token">${tok.text}</span>`;
@@ -879,7 +893,6 @@ window.startTokenizerQueue = function() {
     paramsGrid.className = "params-match-grid";
 
     targetParams.forEach(paramName => {
-        // Ищем токен, который подходит
         let suggestedToken = tokens.find(t => t.isActive && t.matchedParams.includes(paramName) && t.matchedParams.length === 1);
         let defaultVal = suggestedToken ? suggestedToken.text : "";
         let defaultIndices = suggestedToken ? suggestedToken.universalIndex : "";
@@ -955,7 +968,6 @@ window.startTokenizerQueue = function() {
                     }
                 }
                 
-                // Сохраняем универсальный индекс или массив индексов (если мультивыделение)
                 ruleMap[sysId] = indicesStr.split(',').map(Number);
             }
         });
@@ -967,4 +979,6 @@ window.startTokenizerQueue = function() {
         window.mapper2State.quarantine.shift();
         window.startTokenizerQueue();
     });
+
+    console.log("6. Окно токенизатора успешно отрисовано.");
 };
