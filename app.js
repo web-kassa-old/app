@@ -172,6 +172,12 @@ function initGoogleAuth() {
   }
 }
 
+function loginWithGoogle() {
+    if (tokenClient) {
+        tokenClient.requestAccessToken();
+    }
+}
+
 // Флаг, который усыпляет шпиона во время ручного переключения
 window.isAutoTranslating = false;
 
