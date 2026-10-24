@@ -1569,6 +1569,7 @@ window.updateReqCardStatus = function (sysKey, text, className, previewText) {
 
 // 6. ФИНАЛЬНАЯ СБОРКА JSON ДЛЯ СЕРВЕРА
 window.applyMapper2Logic = function () {
+  console.log("📍 [TRACE] Старт applyMapper2Logic");
   const state = window.mapper2State || {};
   const colMap = state.colMap || {};
   const dict = state.dictValues || {};
@@ -1641,6 +1642,8 @@ window.applyMapper2Logic = function () {
   let mappedIndices = Object.values(state.colMap).filter((v) => v !== undefined);
 
   window.mapper2State.quarantine = [];
+
+  console.log(`📍 [TRACE] Начинаем перебор строк. Всего строк: ${state.invoiceRows ? state.invoiceRows.length : 0}`);
 
   state.invoiceRows.forEach((row, index) => {
     if (!row || row.length === 0) return;
@@ -1878,6 +1881,8 @@ window.applyMapper2Logic = function () {
     // return alert("Не удалось сформировать товары. Убедитесь, что в колонках «Количество» и «Цена» находятся ТОЛЬКО цифры.");
   }
 
+  console.log(`📍 [TRACE] Цикл завершен. Товаров собрано: ${window.parsedInvoiceData.length}. В карантине: ${window.mapper2State.quarantine.length}`);
+
   if (window.mapper2State.quarantine && window.mapper2State.quarantine.length > 0) {
     if (typeof window.startTokenizerQueue === "function") {
       window.startTokenizerQueue();
@@ -1886,6 +1891,8 @@ window.applyMapper2Logic = function () {
     }
     return;
   }
+
+  console.log("📍 [TRACE] Финиш! Открываем таблицу предпросмотра."); // <--- Маячок 4
 
   window.renderPreviewTable();
   document.getElementById("mapper2Area").style.display = "none";
