@@ -1670,7 +1670,13 @@ window.applyMapper2Logic = function () {
           });
 
           // 3. Генерируем новую сигнатуру (N - число, G - мусор)
-          const sig = tokenObjects.map(t => /\d/.test(t.cleanText) ? 'N' : 'G').join('-');
+          const sig = tokenObjects.map(t => {
+              if (/\d/.test(t.cleanText)) return 'N';
+              let val = String(t.cleanText).trim().toUpperCase();
+              if (val === 'X') return 'X';
+              if (/[A-ZА-ЯЁ]/i.test(val)) return 'G';
+              return val;
+          }).join('-');
 
           // 4. Ищем правило по новой сигнатуре
           let targetIndices = null;
@@ -1784,7 +1790,7 @@ window.applyMapper2Logic = function () {
         // 🔥 ПРОВЕРКА "БЕЛОГО СПИСКА": Отметил ли клиент эту колонку в интерфейсе?
         let isComplex = window.complexColumnsToTokenize && window.complexColumnsToTokenize.includes(excelHeader);
 
-        // 🔥 ШАГ 1: Проверка правила СТРОГО по сигнатуре конкретной ячейки
+        // 🔥 ШАГ 1: Проверяем наличие правила СТРОГО ПО СИГНАТУРЕ (чтобы ловить все паттерны колонки)
         let isAlreadyProcessed = false;
         if (state.splitRules) {
             let sigForCheck = "";
@@ -1793,9 +1799,10 @@ window.applyMapper2Logic = function () {
                 if (tempTokens.length > 0) {
                     sigForCheck = tempTokens.map(t => {
                         if (/\d/.test(t.cleanText)) return 'N';
-                        // Буквы превращаем в мусор (G), а спецсимволы оставляем как есть
-                        if (/[a-zA-Zа-яА-ЯёЁ]/.test(t.cleanText)) return 'G';
-                        return String(t.cleanText).trim().toUpperCase(); 
+                        let val = String(t.cleanText).trim().toUpperCase();
+                        if (val === 'X') return 'X';
+                        if (/[A-ZА-ЯЁ]/i.test(val)) return 'G';
+                        return val;
                     }).join('-');
                 }
             }
