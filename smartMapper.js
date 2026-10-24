@@ -895,9 +895,12 @@ window.startTokenizerQueue = function() {
         btn.addEventListener('click', function() {
             if (this.classList.contains('selected')) {
                 this.classList.remove('selected');
+                this.style.outline = ''; // Убираем рамку
                 selectedTokenBtns = selectedTokenBtns.filter(b => b !== this);
             } else {
                 this.classList.add('selected');
+                this.style.outline = '2px dashed #00ff00'; // Явная зеленая рамка для ВСЕХ кнопок
+                this.style.outlineOffset = '2px';
                 selectedTokenBtns.push(this);
             }
         });
@@ -908,7 +911,6 @@ window.startTokenizerQueue = function() {
     dropzones.forEach(zone => {
         zone.addEventListener('click', function() {
             if (selectedTokenBtns.length > 0) {
-                // Сортируем выбранные кнопки по их индексу, чтобы порядок текста был правильным
                 selectedTokenBtns.sort((a, b) => Number(a.dataset.indices) - Number(b.dataset.indices));
                 
                 const combinedText = selectedTokenBtns.map(b => b.textContent).join('');
@@ -921,6 +923,9 @@ window.startTokenizerQueue = function() {
                 selectedTokenBtns.forEach(b => {
                     b.classList.remove('selected');
                     b.classList.add('assigned');
+                    b.style.outline = ''; // Сбрасываем зеленую рамку
+                    b.style.border = '1px solid #555';
+                    b.style.opacity = '0.5'; // Делаем визуально использованным
                 });
                 selectedTokenBtns = [];
             } else {

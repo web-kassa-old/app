@@ -1797,12 +1797,25 @@ window.applyMapper2Logic = function () {
         // 🔥 ПРОВЕРКА "БЕЛОГО СПИСКА": Отметил ли клиент эту колонку в интерфейсе?
         let isComplex = window.complexColumnsToTokenize && window.complexColumnsToTokenize.includes(excelHeader);
 
-        // ⚡ ФИНАЛЬНЫЙ ФИКС: Проверяем правило по всем 3 возможным ключам (включая заголовок из Excel)
+        // ⚡ ФИНАЛЬНЫЙ ФИКС: Проверяем правило СТРОГО по текущей сигнатуре
         let isAlreadyProcessed = false;
-        if (state.splitRules) {
-            if (state.splitRules[key]) isAlreadyProcessed = true;
-            if (humanName && state.splitRules[humanName]) isAlreadyProcessed = true;
-            if (excelHeader && state.splitRules[excelHeader]) isAlreadyProcessed = true;
+        if (state.splitRules && typeof parseAndMatchTokens === "function") {
+            // Берем оригинальную сырую строку прямо из ячейки Excel
+            let originalColIdx = state.colMap[key];
+            let originalRawString = originalColIdx !== undefined ? String(row[originalColIdx] || "").trim() : rawValue;
+            
+            // Нарезаем её и генерируем сигнатуру
+            let tokens = parseAndMatchTokens(originalRawString, new Set());
+            if (tokens.length > 0) {
+                const sig = tokens.map(t => /\d/.test(t.text) ? 'N' : 'G').join('-');
+                
+                // Пропускаем мимо карантина ТОЛЬКО если есть правило для конкретной сигнатуры
+                if (excelHeader && state.splitRules[excelHeader] && state.splitRules[excelHeader][sig]) {
+                    isAlreadyProcessed = true;
+                } else if (state.splitRules[key] && state.splitRules[key][sig]) {
+                    isAlreadyProcessed = true;
+                }
+            }
         }
 
         // Если колонка сложная и еще НЕ прошла Токенизатор -> в карантин
