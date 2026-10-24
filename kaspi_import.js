@@ -1656,6 +1656,17 @@ window.applyMapper2Logic = function () {
       let rawVal = String(row[colIdx] || "").trim();
       let excelHeader = state.invoiceHeaders ? state.invoiceHeaders[colIdx] : "";
 
+      // --- ТЕСТОВЫЙ ЗАПУСК ШАГА 2 (Работает всегда) ---
+      if (typeof parseAndMatchTokens === "function" && rawVal !== "") {
+          let hName = state.sysToHumanMap ? state.sysToHumanMap[primaryKey] : primaryKey;
+          let aDict = window.kaspiDicts && window.kaspiDicts[hName] ? window.kaspiDicts[hName] : [];
+          let aSet = new Set(aDict.map(v => String(v).split("(")[0].trim().toLowerCase()));
+          
+          console.log(`[Шаг 2] Нарезка строки: "${rawVal}"`);
+          console.table(parseAndMatchTokens(rawVal, aSet)); 
+      }
+      // ------------------------------------------------
+
       if (state.splitRules && typeof parseAndMatchTokens === "function") {
         // 1. Прогоняем строку через наше умное ядро (с очисткой пробелов и слиянием мусора)
         
