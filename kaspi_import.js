@@ -1669,8 +1669,13 @@ window.applyMapper2Logic = function () {
               tok.universalIndex = 100 + (idx - anchorIndex);
           });
 
-          // 3. Генерируем новую сигнатуру (N - число, G - мусор)
-          const sig = tokenObjects.map(t => /\d/.test(t.cleanText) ? 'N' : 'G').join('-');
+          // 🔥 Единая сигнатура для финальной сборки
+          const sig = tokenObjects.map(t => {
+              if (/\d/.test(t.cleanText)) return 'N';
+              let val = String(t.cleanText).trim().toUpperCase();
+              if (val === 'X' || val === '/' || val === '.') return val;
+              return 'G';
+          }).join('-');
 
           // 4. Ищем правило по новой сигнатуре
           let targetIndices = null;
@@ -1784,35 +1789,21 @@ window.applyMapper2Logic = function () {
         // 🔥 ПРОВЕРКА "БЕЛОГО СПИСКА": Отметил ли клиент эту колонку в интерфейсе?
         let isComplex = window.complexColumnsToTokenize && window.complexColumnsToTokenize.includes(excelHeader);
 
-        // 🔥 ШАГ 1: Охранник проверяет наличие правила СТРОГО ПО СИГНАТУРЕ + ЛОГИРОВАНИЕ
+        // 🔥 Единая сигнатура для Охранника
         let isAlreadyProcessed = false;
         if (state.splitRules) {
             let sigForCheck = "";
             if (typeof parseAndMatchTokens === "function") {
                 let tempTokens = parseAndMatchTokens(rawValue, excelHeader || key);
-                
-                // Нас интересуют только сложные строки (где токенов больше 1)
-                if (tempTokens.length > 1) {
-                    sigForCheck = tempTokens.map(t => /\d/.test(t.cleanText) ? 'N' : 'G').join('-');
-                    
-                    // === НАЧАЛО ЛОГИРОВАНИЯ ===
-                    console.group(`🔍 [ОХРАННИК] Анализ ячейки: "${rawValue}"`);
-                    console.log(`Сигнатура:`, sigForCheck);
-                    console.log(`Токены:`, tempTokens.map(t => t.text));
-                    
-                    let ruleMatched = false;
-                    let matchedBy = "";
-                    
-                    if (state.splitRules[key] && state.splitRules[key][sigForCheck]) { ruleMatched = true; matchedBy = "по системному ключу (" + key + ")"; }
-                    else if (humanName && state.splitRules[humanName] && state.splitRules[humanName][sigForCheck]) { ruleMatched = true; matchedBy = "по имени (" + humanName + ")"; }
-                    else if (excelHeader && state.splitRules[excelHeader] && state.splitRules[excelHeader][sigForCheck]) { ruleMatched = true; matchedBy = "по заголовку Excel (" + excelHeader + ")"; }
-                    
-                    console.log(`Охранник блокирует (isAlreadyProcessed):`, ruleMatched, ruleMatched ? `(Совпадение ${matchedBy})` : "");
-                    console.groupEnd();
-                    // === КОНЕЦ ЛОГИРОВАНИЯ ===
+                if (tempTokens.length > 0) {
+                    sigForCheck = tempTokens.map(t => {
+                        if (/\d/.test(t.cleanText)) return 'N';
+                        let val = String(t.cleanText).trim().toUpperCase();
+                        if (val === 'X' || val === '/' || val === '.') return val;
+                        return 'G';
+                    }).join('-');
                 }
             }
-            
             if (state.splitRules[key] && state.splitRules[key][sigForCheck]) isAlreadyProcessed = true;
             else if (humanName && state.splitRules[humanName] && state.splitRules[humanName][sigForCheck]) isAlreadyProcessed = true;
             else if (excelHeader && state.splitRules[excelHeader] && state.splitRules[excelHeader][sigForCheck]) isAlreadyProcessed = true;
