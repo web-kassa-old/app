@@ -1673,9 +1673,8 @@ window.applyMapper2Logic = function () {
           const sig = tokenObjects.map(t => {
               if (/\d/.test(t.cleanText)) return 'N';
               let val = String(t.cleanText).trim().toUpperCase();
-              if (val === 'X') return 'X';
-              if (/[A-ZА-ЯЁ]/i.test(val)) return 'G';
-              return val;
+              if (val === 'X' || val === '/') return val;
+              return 'G';
           }).join('-');
 
           // 4. Ищем правило по новой сигнатуре
@@ -1790,23 +1789,21 @@ window.applyMapper2Logic = function () {
         // 🔥 ПРОВЕРКА "БЕЛОГО СПИСКА": Отметил ли клиент эту колонку в интерфейсе?
         let isComplex = window.complexColumnsToTokenize && window.complexColumnsToTokenize.includes(excelHeader);
 
-        // 🔥 ШАГ 1: Проверяем наличие правила СТРОГО ПО СИГНАТУРЕ (чтобы ловить все паттерны колонки)
+        // 🔥 Проверяем правило СТРОГО ПО СИГНАТУРЕ
         let isAlreadyProcessed = false;
         if (state.splitRules) {
             let sigForCheck = "";
             if (typeof parseAndMatchTokens === "function") {
                 let tempTokens = parseAndMatchTokens(rawValue, excelHeader || key);
-                if (tempTokens.length > 0) {
+                if (tempTokens.length > 1) {
                     sigForCheck = tempTokens.map(t => {
                         if (/\d/.test(t.cleanText)) return 'N';
                         let val = String(t.cleanText).trim().toUpperCase();
-                        if (val === 'X') return 'X';
-                        if (/[A-ZА-ЯЁ]/i.test(val)) return 'G';
-                        return val;
+                        if (val === 'X' || val === '/') return val;
+                        return 'G';
                     }).join('-');
                 }
             }
-            
             if (state.splitRules[key] && state.splitRules[key][sigForCheck]) isAlreadyProcessed = true;
             else if (humanName && state.splitRules[humanName] && state.splitRules[humanName][sigForCheck]) isAlreadyProcessed = true;
             else if (excelHeader && state.splitRules[excelHeader] && state.splitRules[excelHeader][sigForCheck]) isAlreadyProcessed = true;

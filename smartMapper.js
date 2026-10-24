@@ -828,13 +828,12 @@ window.startTokenizerQueue = function() {
         tok.universalIndex = 100 + (idx - anchorIndex);
     });
 
-    // 🔥 ШАГ 4.3: Точная сигнатура (N - цифра, X и спецсимволы сохраняем, буквы в G)
+    // 🔥 ШАГ 4.3: Новая гибкая сигнатура (N - число, G - мусор/текст)
     const sig = tokens.map(t => {
         if (/\d/.test(t.cleanText)) return 'N';
         let val = String(t.cleanText).trim().toUpperCase();
-        if (val === 'X') return 'X'; // Жестко спасаем X от превращения в мусор
-        if (/[A-ZА-ЯЁ]/i.test(val)) return 'G'; // Остальные буквы - мусор
-        return val; // Слэши, точки и дефисы остаются как есть
+        if (val === 'X' || val === '/') return val;
+        return 'G';
     }).join('-');
 
     // Отрисовываем интерфейс (Твоя верстка, адаптированная под новые индексы)
