@@ -1658,8 +1658,22 @@ window.applyMapper2Logic = function () {
 
       if (state.splitRules && typeof parseAndMatchTokens === "function") {
         // 1. Прогоняем строку через наше умное ядро (с очисткой пробелов и слиянием мусора)
-        let tokenObjects = parseAndMatchTokens(rawVal, excelHeader || primaryKey);
-
+        
+        // --- ТЕСТОВЫЙ ЗАПУСК ШАГА 2 ---
+        // Получаем словари Каспи для текущего поля (если они есть)
+        let humanName = state.sysToHumanMap ? state.sysToHumanMap[primaryKey] : primaryKey;
+        let activeDictArray = window.kaspiDicts && window.kaspiDicts[humanName] ? window.kaspiDicts[humanName] : [];
+        let activeDictSet = new Set(activeDictArray.map(v => String(v).split("(")[0].trim().toLowerCase()));
+        
+        // Запускаем нарезку
+        let tokenObjects = parseAndMatchTokens(rawVal, activeDictSet);
+        
+        // Выводим результат в консоль для анализа (только для сложных строк, где больше 2 слов)
+        if (rawVal.split(" ").length > 2) {
+             console.log(`[Шаг 2] Нарезка строки: "${rawVal}"`);
+             console.table(tokenObjects);
+        }
+        // ------------------------------
         if (tokenObjects.length > 0) {
           // 2. Находим Якорь (первое число = индекс 100)
           let anchorIndex = tokenObjects.findIndex(t => /\d/.test(t.cleanText));
