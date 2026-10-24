@@ -791,26 +791,21 @@ function parseAndMatchTokens(rawString, colName) {
 }
 
 window.startTokenizerQueue = function() {
-    // Если карантин пуст, идем дальше
     if (!window.mapper2State.quarantine || window.mapper2State.quarantine.length === 0) {
         const container = document.getElementById("smartMapperContainer");
         if (container) container.style.display = "none";
-        
-        if (typeof window.navigateIncomeStep === "function") {
-            window.navigateIncomeStep(2);
-        }
+        if (typeof window.navigateIncomeStep === "function") window.navigateIncomeStep(2);
         return;
     }
 
-    // Берем первую проблемную строку
     const currentItem = window.mapper2State.quarantine[0];
     const colName = currentItem.excelColumnName;
     const rawString = currentItem.rawString;
     const targetParams = window.mapper2State.smartRules[colName] || [];
 
-    // 🔥 ШАГ 4.1: Вызываем наше новое умное ядро! (Никакого дублирования кода)
+    // 🔥 ШАГ 4.1: Вызываем новое умное ядро (передаем пустой Set для словаря, так как собираем руками)
     let tokens = typeof parseAndMatchTokens === "function" 
-        ? parseAndMatchTokens(rawString, colName) 
+        ? parseAndMatchTokens(rawString, new Set()) 
         : [];
 
     if (tokens.length === 0) {
@@ -819,19 +814,17 @@ window.startTokenizerQueue = function() {
         return;
     }
 
-    // 🔥 ШАГ 4.2: Индексация "Smart Skeleton" относительно якоря (первого числа)
-    let anchorIndex = tokens.findIndex(t => /\d/.test(t.cleanText));
-    if (anchorIndex === -1) anchorIndex = 0; // Если чисел вообще нет (редкость), якорем будет первый элемент
+    // 🔥 ШАГ 4.2: Индексация относительно якоря (используем t.text)
+    let anchorIndex = tokens.findIndex(t => /\d/.test(t.text));
+    if (anchorIndex === -1) anchorIndex = 0;
 
-    // Присваиваем универсальный индекс (Якорь = 100)
     tokens.forEach((tok, idx) => {
         tok.universalIndex = 100 + (idx - anchorIndex);
     });
 
-    // 🔥 ШАГ 4.3: Новая гибкая сигнатура (N - число, G - мусор/текст)
-    const sig = tokens.map(t => /\d/.test(t.cleanText) ? 'N' : 'G').join('-');
+    // 🔥 ШАГ 4.3: Гибкая сигнатура
+    const sig = tokens.map(t => /\d/.test(t.text) ? 'N' : 'G').join('-');
 
-    // Отрисовываем интерфейс (Твоя верстка, адаптированная под новые индексы)
     const container = document.getElementById("smartMapperContainer");
     if (!container) return;
     container.innerHTML = "";
@@ -855,15 +848,11 @@ window.startTokenizerQueue = function() {
     const tokensContainer = document.createElement("div");
     tokensContainer.className = "tokens-visual-container";
 
+    // Отрисовываем ВСЕ токены как кнопки, чтобы можно было захватить точку
     let activeTokensHtml = "";
     tokens.forEach((tok) => {
-        if (tok.isActive) {
-            let tooltip = tok.matchedParams.length > 0 ? `Подходит для: ${tok.matchedParams.join(', ')}` : "";
-            // Используем новый универсальный индекс!
-            activeTokensHtml += `<button class="token-btn active-token" data-indices="${tok.universalIndex}" title="${tooltip}">${tok.text}</button>`;
-        } else {
-            activeTokensHtml += `<span class="token-text passive-token">${tok.text}</span>`;
-        }
+        let baseClass = tok.type === 'garbage' ? 'passive-token' : 'active-token';
+        activeTokensHtml += `<button class="token-btn ${baseClass}" data-indices="${tok.universalIndex}">${tok.text}</button>`;
     });
     
     tokensContainer.innerHTML = activeTokensHtml;
@@ -878,15 +867,10 @@ window.startTokenizerQueue = function() {
     paramsGrid.className = "params-match-grid";
 
     targetParams.forEach(paramName => {
-        // Ищем токен, который подходит
-        let suggestedToken = tokens.find(t => t.isActive && t.matchedParams.includes(paramName) && t.matchedParams.length === 1);
-        let defaultVal = suggestedToken ? suggestedToken.text : "";
-        let defaultIndices = suggestedToken ? suggestedToken.universalIndex : "";
-
         paramsGrid.innerHTML += `
             <div class="match-row" data-param="${paramName}">
                 <div class="match-label">${paramName}</div>
-                <div class="match-dropzone" data-assigned-indices="${defaultIndices}">${defaultVal || "Кликните значение выше..."}</div>
+                <div class="match-dropzone" data-assigned-indices="">Кликните значения выше...</div>
             </div>
         `;
     });
@@ -903,29 +887,44 @@ window.startTokenizerQueue = function() {
     modal.appendChild(body);
     container.appendChild(modal);
 
-    let selectedTokenBtn = null;
-    const tokenBtns = tokensContainer.querySelectorAll('.active-token');
+    // 🔥 МУЛЬТИВЫДЕЛЕНИЕ ТОКЕНОВ
+    let selectedTokenBtns = [];
+    const tokenBtns = tokensContainer.querySelectorAll('.token-btn');
+    
     tokenBtns.forEach(btn => {
         btn.addEventListener('click', function() {
-            tokenBtns.forEach(b => b.classList.remove('selected'));
-            this.classList.add('selected');
-            selectedTokenBtn = this;
+            if (this.classList.contains('selected')) {
+                this.classList.remove('selected');
+                selectedTokenBtns = selectedTokenBtns.filter(b => b !== this);
+            } else {
+                this.classList.add('selected');
+                selectedTokenBtns.push(this);
+            }
         });
     });
 
+    // 🔥 СКЛЕИВАНИЕ В ПАРАМЕТР
     const dropzones = paramsGrid.querySelectorAll('.match-dropzone');
     dropzones.forEach(zone => {
         zone.addEventListener('click', function() {
-            if (selectedTokenBtn) {
-                this.textContent = selectedTokenBtn.textContent;
-                this.dataset.assignedIndices = selectedTokenBtn.dataset.indices;
+            if (selectedTokenBtns.length > 0) {
+                // Сортируем выбранные кнопки по их индексу, чтобы порядок текста был правильным
+                selectedTokenBtns.sort((a, b) => Number(a.dataset.indices) - Number(b.dataset.indices));
+                
+                const combinedText = selectedTokenBtns.map(b => b.textContent).join('');
+                const combinedIndices = selectedTokenBtns.map(b => b.dataset.indices).join(',');
+                
+                this.textContent = combinedText;
+                this.dataset.assignedIndices = combinedIndices;
                 this.classList.add('filled');
                 
-                selectedTokenBtn.classList.remove('selected');
-                selectedTokenBtn.classList.add('assigned');
-                selectedTokenBtn = null;
+                selectedTokenBtns.forEach(b => {
+                    b.classList.remove('selected');
+                    b.classList.add('assigned');
+                });
+                selectedTokenBtns = [];
             } else {
-                this.textContent = "Кликните значение выше...";
+                this.textContent = "Кликните значения выше...";
                 this.dataset.assignedIndices = "";
                 this.classList.remove('filled');
             }
@@ -941,11 +940,9 @@ window.startTokenizerQueue = function() {
             
             if (indicesStr !== "") {
                 let sysId = param; 
-                
                 if (window.currentTemplateData && window.currentTemplateData.humanNames && window.currentTemplateData.systemKeys) {
                     const hNames = window.currentTemplateData.humanNames;
                     const sKeys = window.currentTemplateData.systemKeys;
-                    
                     for (let i = 0; i < hNames.length; i++) {
                         if (String(hNames[i]).trim() === param) {
                             sysId = sKeys[i];
@@ -953,8 +950,7 @@ window.startTokenizerQueue = function() {
                         }
                     }
                 }
-                
-                // Сохраняем универсальный индекс или массив индексов (если мультивыделение)
+                // Разбиваем строку индексов "100,101,102" обратно в массив чисел
                 ruleMap[sysId] = indicesStr.split(',').map(Number);
             }
         });
