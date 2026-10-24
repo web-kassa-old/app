@@ -791,44 +791,52 @@ function parseAndMatchTokens(rawString, colName) {
 }
 
 window.startTokenizerQueue = function() {
+    console.log("🛠️ [TOKENIZER] Запуск. В карантине:", window.mapper2State.quarantine ? window.mapper2State.quarantine.length : 0);
+
     if (!window.mapper2State.quarantine || window.mapper2State.quarantine.length === 0) {
+        console.log("🛠️ [TOKENIZER] Карантин пуст. Возвращаем обратно в Маппер!");
         const container = document.getElementById("smartMapperContainer");
         if (container) container.style.display = "none";
-        if (typeof window.navigateIncomeStep === "function") window.navigateIncomeStep(2);
+        
+        if (typeof window.applyMapper2Logic === "function") {
+            window.applyMapper2Logic();
+        }
         return;
     }
 
     const currentItem = window.mapper2State.quarantine[0];
+    console.log("🛠️ [TOKENIZER] Текущий элемент из карантина:", currentItem);
+
     const colName = currentItem.excelColumnName;
     const rawString = currentItem.rawString;
     const targetParams = (window.mapper2State.smartRules && window.mapper2State.smartRules[colName]) ? window.mapper2State.smartRules[colName] : [];
 
-    // 🔥 ШАГ 4.1: Вызываем новое умное ядро (передаем пустой Set для словаря, так как собираем руками)
     let tokens = typeof parseAndMatchTokens === "function" 
         ? parseAndMatchTokens(rawString, new Set()) 
         : [];
+    console.log("🛠️ [TOKENIZER] Нарезанные токены:", tokens);
 
     if (tokens.length === 0) {
+        console.log("🛠️ [TOKENIZER] Токенов ноль, пропускаем строку");
         window.mapper2State.quarantine.shift();
         window.startTokenizerQueue();
         return;
     }
 
-    // 🔥 ШАГ 4.2: Индексация относительно якоря (используем t.text)
     let anchorIndex = tokens.findIndex(t => /\d/.test(t.text));
     if (anchorIndex === -1) anchorIndex = 0;
-
-    tokens.forEach((tok, idx) => {
-        tok.universalIndex = 100 + (idx - anchorIndex);
-    });
-
-    // 🔥 ШАГ 4.3: Гибкая сигнатура
+    tokens.forEach((tok, idx) => tok.universalIndex = 100 + (idx - anchorIndex));
     const sig = tokens.map(t => /\d/.test(t.text) ? 'N' : 'G').join('-');
 
     const container = document.getElementById("smartMapperContainer");
+    console.log("🛠️ [TOKENIZER] Контейнер найден?", !!container);
     if (!container) return;
+
     container.innerHTML = "";
     container.style.display = "flex";
+    console.log("🛠️ [TOKENIZER] Окно должно быть открыто!");
+    
+    // ... дальше остается весь старый код с генерацией кнопок и модалки
 
     const modal = document.createElement("div");
     modal.className = "smart-modal-content tokenizer-modal";
