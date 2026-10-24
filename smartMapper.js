@@ -852,7 +852,7 @@ window.startTokenizerQueue = function() {
     let activeTokensHtml = "";
     tokens.forEach((tok) => {
         let baseClass = tok.type === 'garbage' ? 'passive-token' : 'active-token';
-        activeTokensHtml += `<button class="token-btn ${baseClass}" data-indices="${tok.universalIndex}">${tok.text}</button>`;
+        activeTokensHtml += `<button class="token-btn ${baseClass}" data-indices="${tok.universalIndex}" style="pointer-events: auto; cursor: pointer;">${tok.text}</button>`;
     });
     
     tokensContainer.innerHTML = activeTokensHtml;
