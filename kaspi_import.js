@@ -1668,15 +1668,14 @@ window.applyMapper2Logic = function () {
         // Запускаем нарезку
         let tokenObjects = parseAndMatchTokens(rawVal, activeDictSet);
         
-        // Выводим результат в консоль для анализа (только для сложных строк, где больше 2 слов)
-        if (rawVal.split(" ").length > 2) {
-             console.log(`[Шаг 2] Нарезка строки: "${rawVal}"`);
-             console.table(tokenObjects);
-        }
+        // Выводим в лог ВООБЩЕ ВСЕ строки без исключений (фильтр удален)
+        console.log(`[Шаг 2] Нарезка строки: "${rawVal}"`);
+        console.table(tokenObjects);
         // ------------------------------
+
         if (tokenObjects.length > 0) {
           // 2. Находим Якорь (первое число = индекс 100)
-          let anchorIndex = tokenObjects.findIndex(t => /\d/.test(t.cleanText));
+          let anchorIndex = tokenObjects.findIndex(t => /\d/.test(t.text)); // Исправлено на t.text
           if (anchorIndex === -1) anchorIndex = 0;
 
           tokenObjects.forEach((tok, idx) => {
@@ -1684,7 +1683,7 @@ window.applyMapper2Logic = function () {
           });
 
           // 3. Генерируем новую сигнатуру (N - число, G - мусор)
-          const sig = tokenObjects.map(t => /\d/.test(t.cleanText) ? 'N' : 'G').join('-');
+          const sig = tokenObjects.map(t => /\d/.test(t.text) ? 'N' : 'G').join('-'); // Исправлено на t.text
 
           // 4. Ищем правило по новой сигнатуре
           let targetIndices = null;
