@@ -1587,7 +1587,7 @@ window.applyMapper2Logic = function () {
     const lang = window.currentLang || localStorage.getItem("pos_lang") || "ru";
     const tr = typeof translations !== "undefined" && translations[lang] ? translations[lang] : {};
     const errorMsg = tr.mapper_err_missing_cols || "⚠️ Обязательно привяжите колонки (или введите вручную):\n1. Наименование (или model)\n2. Количество (qty)\n3. Цена (price/cost)";
-    return alert(errorMsg);
+    // return alert(errorMsg);
   }
 
   if (window.currentImportMode === "kaspi") {
