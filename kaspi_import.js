@@ -1657,53 +1657,31 @@ window.applyMapper2Logic = function () {
       let excelHeader = state.invoiceHeaders ? state.invoiceHeaders[colIdx] : "";
 
       if (state.splitRules && typeof parseAndMatchTokens === "function") {
-        // 1. Прогоняем строку через наше умное ядро (с очисткой пробелов и слиянием мусора)
-        
-        // --- ТЕСТОВЫЙ ЗАПУСК ШАГА 2 ---
-        // Получаем словари Каспи для текущего поля (если они есть)
-        let humanName = state.sysToHumanMap ? state.sysToHumanMap[primaryKey] : primaryKey;
-        let activeDictArray = window.kaspiDicts && window.kaspiDicts[humanName] ? window.kaspiDicts[humanName] : [];
-        let activeDictSet = new Set(activeDictArray.map(v => String(v).split("(")[0].trim().toLowerCase()));
-        
-        // Запускаем нарезку
-        let tokenObjects = parseAndMatchTokens(rawVal, activeDictSet);
-        
-        // Выводим в лог ВООБЩЕ ВСЕ строки без исключений (фильтр удален)
-        console.log(`[Шаг 2] Нарезка строки: "${rawVal}"`);
-        console.table(tokenObjects);
-        // ------------------------------
+        // 🔥 Строго пустой Set, чтобы структура всегда совпадала с Токенизатором
+        let tokenObjects = parseAndMatchTokens(rawVal, new Set());
 
         if (tokenObjects.length > 0) {
-          // 2. Находим Якорь (первое число = индекс 100)
-          let anchorIndex = tokenObjects.findIndex(t => /\d/.test(t.text)); // Исправлено на t.text
+          let anchorIndex = tokenObjects.findIndex(t => /\d/.test(t.text));
           if (anchorIndex === -1) anchorIndex = 0;
 
           tokenObjects.forEach((tok, idx) => {
               tok.universalIndex = 100 + (idx - anchorIndex);
           });
 
-          // 3. Генерируем новую сигнатуру (N - число, G - мусор)
-          const sig = tokenObjects.map(t => /\d/.test(t.text) ? 'N' : 'G').join('-'); // Исправлено на t.text
+          const sig = tokenObjects.map(t => /\d/.test(t.text) ? 'N' : 'G').join('-');
 
-          // 4. Ищем правило по новой сигнатуре
           let targetIndices = null;
-          
-          // Проверяем по заголовку колонки Excel
-          if (state.splitRules[excelHeader] && state.splitRules[excelHeader][sig]) {
+          if (excelHeader && state.splitRules[excelHeader] && state.splitRules[excelHeader][sig]) {
               targetIndices = state.splitRules[excelHeader][sig][primaryKey];
-          }
-          // Фоллбэк: проверяем по системному ключу (для обратной совместимости)
-          if (!targetIndices && state.splitRules[primaryKey] && state.splitRules[primaryKey][sig]) {
+          } else if (state.splitRules[primaryKey] && state.splitRules[primaryKey][sig]) {
               targetIndices = state.splitRules[primaryKey][sig];
           }
 
-          // 5. Если правило найдено, собираем результат по универсальным индексам
           if (targetIndices) {
              let resultArr = [];
              let indicesArray = Array.isArray(targetIndices) ? targetIndices : [targetIndices];
              
              indicesArray.forEach((targetIdx) => {
-               // Ищем токен с нужным универсальным индексом
                let matchedTok = tokenObjects.find(t => t.universalIndex === targetIdx);
                if (matchedTok) resultArr.push(matchedTok.text);
              });
@@ -1797,19 +1775,16 @@ window.applyMapper2Logic = function () {
         // 🔥 ПРОВЕРКА "БЕЛОГО СПИСКА": Отметил ли клиент эту колонку в интерфейсе?
         let isComplex = window.complexColumnsToTokenize && window.complexColumnsToTokenize.includes(excelHeader);
 
-        // ⚡ ФИНАЛЬНЫЙ ФИКС: Проверяем правило СТРОГО по текущей сигнатуре
+        // ⚡ ФИНАЛЬНЫЙ ФИКС: Точная синхронизация сигнатуры с Токенизатором
         let isAlreadyProcessed = false;
         if (state.splitRules && typeof parseAndMatchTokens === "function") {
-            // Берем оригинальную сырую строку прямо из ячейки Excel
             let originalColIdx = state.colMap[key];
             let originalRawString = originalColIdx !== undefined ? String(row[originalColIdx] || "").trim() : rawValue;
             
-            // Нарезаем её и генерируем сигнатуру
             let tokens = parseAndMatchTokens(originalRawString, new Set());
             if (tokens.length > 0) {
                 const sig = tokens.map(t => /\d/.test(t.text) ? 'N' : 'G').join('-');
                 
-                // Пропускаем мимо карантина ТОЛЬКО если есть правило для конкретной сигнатуры
                 if (excelHeader && state.splitRules[excelHeader] && state.splitRules[excelHeader][sig]) {
                     isAlreadyProcessed = true;
                 } else if (state.splitRules[key] && state.splitRules[key][sig]) {

@@ -801,7 +801,7 @@ window.startTokenizerQueue = function() {
     const currentItem = window.mapper2State.quarantine[0];
     const colName = currentItem.excelColumnName;
     const rawString = currentItem.rawString;
-    const targetParams = window.mapper2State.smartRules[colName] || [];
+    const targetParams = (window.mapper2State.smartRules && window.mapper2State.smartRules[colName]) ? window.mapper2State.smartRules[colName] : [];
 
     // 🔥 ШАГ 4.1: Вызываем новое умное ядро (передаем пустой Set для словаря, так как собираем руками)
     let tokens = typeof parseAndMatchTokens === "function" 
