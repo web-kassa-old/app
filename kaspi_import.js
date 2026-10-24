@@ -1874,7 +1874,7 @@ window.applyMapper2Logic = function () {
   });
 
   if (window.parsedInvoiceData.length === 0) {
-    return alert("Не удалось сформировать товары. Убедитесь, что в колонках «Количество» и «Цена» находятся ТОЛЬКО цифры.");
+    // return alert("Не удалось сформировать товары. Убедитесь, что в колонках «Количество» и «Цена» находятся ТОЛЬКО цифры.");
   }
 
   if (window.mapper2State.quarantine && window.mapper2State.quarantine.length > 0) {
