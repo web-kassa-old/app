@@ -1599,7 +1599,7 @@ window.applyMapper2Logic = function () {
       try { currentMemory = JSON.parse(window.mapper2State.rawMemoryJson || "{}"); } catch (e) {}
       let memoryUpdated = false;
 
-      Object.keys(state.colMap).forEach((sysKey) => {
+      Object.keys(colMap).forEach((sysKey) => {
         let colIndex = state.colMap[sysKey];
         let headerText = state.invoiceHeaders[colIndex];
         if (headerText) {
@@ -1639,7 +1639,7 @@ window.applyMapper2Logic = function () {
     originalFiles: [{ fileName: state.fileName, fileBase64: state.originalBase64 }],
   };
 
-  let mappedIndices = Object.values(state.colMap).filter((v) => v !== undefined);
+  let mappedIndices = Object.values(colMap).filter((v) => v !== undefined);
 
   window.mapper2State.quarantine = [];
 
@@ -1816,7 +1816,7 @@ window.applyMapper2Logic = function () {
       attributesObj[key] = matchedDictValue;
     };
 
-    let allKeys = new Set(Object.keys(state.colMap));
+    let allKeys = new Set(Object.keys(colMap));
     if (state.dictValues) Object.keys(state.dictValues).forEach((k) => allKeys.add(k));
     if (state.splitRules) Object.keys(state.splitRules).forEach((k) => allKeys.add(k));
 
