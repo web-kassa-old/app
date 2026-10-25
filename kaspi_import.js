@@ -1569,7 +1569,6 @@ window.updateReqCardStatus = function (sysKey, text, className, previewText) {
 
 // 6. ФИНАЛЬНАЯ СБОРКА JSON ДЛЯ СЕРВЕРА
 window.applyMapper2Logic = function () {
-  console.log("📍 [TRACE] Старт applyMapper2Logic");
   const state = window.mapper2State || {};
   const colMap = state.colMap || {};
   const dict = state.dictValues || {};
@@ -1588,7 +1587,7 @@ window.applyMapper2Logic = function () {
     const lang = window.currentLang || localStorage.getItem("pos_lang") || "ru";
     const tr = typeof translations !== "undefined" && translations[lang] ? translations[lang] : {};
     const errorMsg = tr.mapper_err_missing_cols || "⚠️ Обязательно привяжите колонки (или введите вручную):\n1. Наименование (или model)\n2. Количество (qty)\n3. Цена (price/cost)";
-    // return alert(errorMsg);
+    return alert(errorMsg);
   }
 
   if (window.currentImportMode === "kaspi") {
@@ -1599,7 +1598,7 @@ window.applyMapper2Logic = function () {
       try { currentMemory = JSON.parse(window.mapper2State.rawMemoryJson || "{}"); } catch (e) {}
       let memoryUpdated = false;
 
-      Object.keys(colMap).forEach((sysKey) => {
+      Object.keys(state.colMap).forEach((sysKey) => {
         let colIndex = state.colMap[sysKey];
         let headerText = state.invoiceHeaders[colIndex];
         if (headerText) {
@@ -1639,51 +1638,44 @@ window.applyMapper2Logic = function () {
     originalFiles: [{ fileName: state.fileName, fileBase64: state.originalBase64 }],
   };
 
-  let mappedIndices = Object.values(colMap).filter((v) => v !== undefined);
+  let mappedIndices = Object.values(state.colMap).filter((v) => v !== undefined);
 
   window.mapper2State.quarantine = [];
-
-  console.log(`📍 [TRACE] Начинаем перебор строк. Всего строк: ${state.invoiceRows ? state.invoiceRows.length : 0}`);
 
   state.invoiceRows.forEach((row, index) => {
     if (!row || row.length === 0) return;
 
     const getValue = (primaryKey, kaspiKey) => {
-      if (dict && dict[primaryKey]) return dict[primaryKey];
-      if (kaspiKey && dict && dict[kaspiKey]) return dict[kaspiKey];
+      if (state.dictValues && state.dictValues[primaryKey]) return state.dictValues[primaryKey];
+      if (kaspiKey && state.dictValues && state.dictValues[kaspiKey]) return state.dictValues[kaspiKey];
 
-      let colIdx = colMap ? colMap[primaryKey] : undefined;
-      if (colIdx === undefined && kaspiKey && colMap) colIdx = colMap[kaspiKey];
+      let colIdx = state.colMap[primaryKey];
+      if (colIdx === undefined && kaspiKey) colIdx = state.colMap[kaspiKey];
       if (colIdx === undefined) return "";
 
       let rawVal = String(row[colIdx] || "").trim();
       let excelHeader = state.invoiceHeaders ? state.invoiceHeaders[colIdx] : "";
 
       if (state.splitRules && typeof parseAndMatchTokens === "function") {
-        // 🔥 Строго пустой Set, чтобы структура всегда совпадала с Токенизатором
-        let tokenObjects = parseAndMatchTokens(rawVal, new Set());
+        let tokenObjects = parseAndMatchTokens(rawVal, excelHeader || primaryKey);
 
         if (tokenObjects.length > 0) {
-          let anchorIndex = tokenObjects.findIndex(t => /\d/.test(t.text));
+          let anchorIndex = tokenObjects.findIndex(t => /\d/.test(t.cleanText));
           if (anchorIndex === -1) anchorIndex = 0;
-
-          tokenObjects.forEach((tok, idx) => {
-              tok.universalIndex = 100 + (idx - anchorIndex);
-          });
-
-          const sig = tokenObjects.map(t => /\d/.test(t.text) ? 'N' : 'G').join('-');
+          tokenObjects.forEach((tok, idx) => tok.universalIndex = 100 + (idx - anchorIndex));
+          const sig = tokenObjects.map(t => /\d/.test(t.cleanText) ? 'N' : 'G').join('-');
 
           let targetIndices = null;
-          if (excelHeader && state.splitRules[excelHeader] && state.splitRules[excelHeader][sig]) {
+          if (state.splitRules[excelHeader] && state.splitRules[excelHeader][sig]) {
               targetIndices = state.splitRules[excelHeader][sig][primaryKey];
-          } else if (state.splitRules[primaryKey] && state.splitRules[primaryKey][sig]) {
+          }
+          if (!targetIndices && state.splitRules[primaryKey] && state.splitRules[primaryKey][sig]) {
               targetIndices = state.splitRules[primaryKey][sig];
           }
 
           if (targetIndices) {
              let resultArr = [];
              let indicesArray = Array.isArray(targetIndices) ? targetIndices : [targetIndices];
-             
              indicesArray.forEach((targetIdx) => {
                let matchedTok = tokenObjects.find(t => t.universalIndex === targetIdx);
                if (matchedTok) resultArr.push(matchedTok.text);
@@ -1778,22 +1770,12 @@ window.applyMapper2Logic = function () {
         // 🔥 ПРОВЕРКА "БЕЛОГО СПИСКА": Отметил ли клиент эту колонку в интерфейсе?
         let isComplex = window.complexColumnsToTokenize && window.complexColumnsToTokenize.includes(excelHeader);
 
-        // ⚡ ФИНАЛЬНЫЙ ФИКС: Точная синхронизация сигнатуры с Токенизатором
+        // ⚡ ФИНАЛЬНЫЙ ФИКС: Проверяем правило по всем 3 возможным ключам (включая заголовок из Excel)
         let isAlreadyProcessed = false;
-        if (state.splitRules && typeof parseAndMatchTokens === "function") {
-            let originalColIdx = state.colMap[key];
-            let originalRawString = originalColIdx !== undefined ? String(row[originalColIdx] || "").trim() : rawValue;
-            
-            let tokens = parseAndMatchTokens(originalRawString, new Set());
-            if (tokens.length > 0) {
-                const sig = tokens.map(t => /\d/.test(t.text) ? 'N' : 'G').join('-');
-                
-                if (excelHeader && state.splitRules[excelHeader] && state.splitRules[excelHeader][sig]) {
-                    isAlreadyProcessed = true;
-                } else if (state.splitRules[key] && state.splitRules[key][sig]) {
-                    isAlreadyProcessed = true;
-                }
-            }
+        if (state.splitRules) {
+            if (state.splitRules[key]) isAlreadyProcessed = true;
+            if (humanName && state.splitRules[humanName]) isAlreadyProcessed = true;
+            if (excelHeader && state.splitRules[excelHeader]) isAlreadyProcessed = true;
         }
 
         // Если колонка сложная и еще НЕ прошла Токенизатор -> в карантин
@@ -1816,7 +1798,7 @@ window.applyMapper2Logic = function () {
       attributesObj[key] = matchedDictValue;
     };
 
-    let allKeys = new Set(Object.keys(colMap));
+    let allKeys = new Set(Object.keys(state.colMap));
     if (state.dictValues) Object.keys(state.dictValues).forEach((k) => allKeys.add(k));
     if (state.splitRules) Object.keys(state.splitRules).forEach((k) => allKeys.add(k));
 
@@ -1878,10 +1860,8 @@ window.applyMapper2Logic = function () {
   });
 
   if (window.parsedInvoiceData.length === 0) {
-    // return alert("Не удалось сформировать товары. Убедитесь, что в колонках «Количество» и «Цена» находятся ТОЛЬКО цифры.");
+    return alert("Не удалось сформировать товары. Убедитесь, что в колонках «Количество» и «Цена» находятся ТОЛЬКО цифры.");
   }
-
-  console.log(`📍 [TRACE] Цикл завершен. Товаров собрано: ${window.parsedInvoiceData.length}. В карантине: ${window.mapper2State.quarantine.length}`);
 
   if (window.mapper2State.quarantine && window.mapper2State.quarantine.length > 0) {
     if (typeof window.startTokenizerQueue === "function") {
@@ -1891,8 +1871,6 @@ window.applyMapper2Logic = function () {
     }
     return;
   }
-
-  console.log("📍 [TRACE] Финиш! Открываем таблицу предпросмотра."); // <--- Маячок 4
 
   window.renderPreviewTable();
   document.getElementById("mapper2Area").style.display = "none";
@@ -4214,12 +4192,25 @@ function selectCurrency(value) {
 window.kaspiDicts = {};
 
 window.checkMapperReadiness = function() {
+    const st = window.mapper2State || {};
+    const cm = st.colMap || {};
+    const dv = st.dictValues || {};
+
+    const hasQty = cm["qty"] !== undefined || dv["qty"] !== undefined;
+    const hasPrice = cm["price"] !== undefined || cm["cost"] !== undefined || dv["price"] !== undefined || dv["cost"] !== undefined;
+    const hasName = cm["name"] !== undefined || cm["model"] !== undefined || dv["name"] !== undefined || dv["model"] !== undefined;
+
     const btn = document.getElementById("applyMapper2Btn");
     if (btn) {
-        // Охранник отключен: кнопка всегда активна
-        btn.style.backgroundColor = "var(--accent-green, #2ecc71)";
-        btn.style.color = "#000";
-        btn.style.opacity = "1";
-        btn.style.pointerEvents = "auto";
+        if (hasQty && hasPrice && hasName) {
+            btn.style.backgroundColor = "var(--accent-green, #2ecc71)";
+            btn.style.color = "#000";
+            btn.style.opacity = "1";
+            btn.style.pointerEvents = "auto";
+        } else {
+            btn.style.backgroundColor = "";
+            btn.style.opacity = "0.5";
+            btn.style.pointerEvents = "none";
+        }
     }
 };

@@ -672,175 +672,63 @@ function getCleanDictValues(sysKey) {
 
 // Главная функция пре-матчинга: режет строку, сверяет с базой и склеивает мусор
 function parseAndMatchTokens(rawString, colName) {
-    // ШАГ 1: Очистка пробелов (оставляем только между цифрами)
     let cleanString = String(rawString).replace(/\s+/g, (match, offset, string) => {
         const prev = string[offset - 1];
         const next = string[offset + match.length];
-        if (prev && next && /\d/.test(prev) && /\d/.test(next)) {
-            return ' '; // сохраняем пробел как защитный разделитель
-        }
-        return ''; // удаляем весь остальной мусор
+        if (prev && next && /\d/.test(prev) && /\d/.test(next)) return ' ';
+        return ''; 
     });
 
-    // ШАГ 2: Нарезка на сырые атомарные токены
-    // Режет по буквам, цифрам, спецсимволам и оставшимся пробелам
     const regex = /\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]|\s/g;
     let rawTokens = cleanString.match(regex) || [];
-
     let processedTokens = [];
-    let selectedParams = window.mapper2State.smartRules[colName] || [];
 
-    // Подготовка словарей (очищенных от скобок)
-    let validDicts = {};
-    selectedParams.forEach(param => {
-        validDicts[param] = typeof getCleanDictValues === "function" ? getCleanDictValues(param) : [];
-    });
-
-    // Вспомогательная функция поиска в словарях
-    const findInDicts = (val, isDec = false) => {
-        let found = [];
-        Object.keys(validDicts).forEach(param => {
-            if (validDicts[param].includes(val) || (isDec && validDicts[param].some(v => Number(v) === Number(val)))) {
-                found.push(param);
-            }
+    rawTokens.forEach(text => {
+        let isGarbage = /^[^\wа-яА-ЯёЁ]+$/.test(text); // Пунктуация - это мусор
+        processedTokens.push({
+            text: text,
+            cleanText: text.toUpperCase(),
+            isActive: true, // Делаем кликабельными ВСЕ токены, чтобы можно было выбрать точку
+            type: isGarbage ? 'garbage' : 'valid'
         });
-        return found;
-    };
-
-    // ШАГ 3: Сверка и слияние
-    let i = 0;
-    let currentGarbage = null; // Накопитель для мусорных токенов
-
-    // Функция сброса накопленного мусора в итоговый массив
-    const pushGarbage = () => {
-        if (currentGarbage !== null) {
-            processedTokens.push({
-                text: currentGarbage,
-                cleanText: currentGarbage,
-                isActive: false, // Всегда неактивен
-                matchedParams: []
-            });
-            currentGarbage = null;
-        }
-    };
-
-    while (i < rawTokens.length) {
-        let text = rawTokens[i];
-        let isDecimal = false;
-        let matchedParams = [];
-        let skip = 1;
-        let mergedDisplay = text;
-        let matchValue = text.toUpperCase();
-
-        // Проверка на дробь (Lookahead)
-        if (/\d/.test(text) && i + 2 < rawTokens.length) {
-            let nextTok = rawTokens[i + 1];
-            let nextNextTok = rawTokens[i + 2];
-            
-            if ((nextTok === '.' || nextTok === ',') && /\d/.test(nextNextTok)) {
-                let potentialMatch = (text + '.' + nextNextTok).toUpperCase();
-                let found = findInDicts(potentialMatch, true);
-                
-                if (found.length > 0) {
-                    // Дробь ЕСТЬ в словаре -> склеиваем в ОДИН активный токен
-                    isDecimal = true;
-                    matchedParams = found;
-                    mergedDisplay = text + nextTok + nextNextTok;
-                    matchValue = potentialMatch;
-                    skip = 3;
-                }
-                // Если дроби НЕТ в словаре, isDecimal остается false,
-                // и скрипт обработает 10, точку и 50 как три отдельных токена.
-            }
-        }
-
-        // Если это не цельная словарная дробь, проверяем текущий токен
-        if (!isDecimal) {
-            // Пробел игнорируем при поиске, он просто пойдет в мусор
-            if (text.trim() !== "") {
-                 matchedParams = findInDicts(matchValue);
-            }
-        }
-
-        if (matchedParams.length > 0) {
-            // ТОКЕН НАЙДЕН -> АКТИВЕН
-            pushGarbage(); // Сначала скидываем весь мусор, который накопился слева
-            
-            processedTokens.push({
-                text: mergedDisplay,
-                cleanText: matchValue,
-                isActive: true,
-                matchedParams: matchedParams
-            });
-            i += skip;
-        } else {
-            // ТОКЕН НЕ НАЙДЕН -> МУСОР
-            // Плюсуем его к накопителю (склеиваем неизвестные подряд)
-            if (currentGarbage === null) {
-                currentGarbage = text;
-            } else {
-                currentGarbage += text;
-            }
-            i += 1; // Шагаем по одному, чтобы следующая часть разорванной дроби проверилась отдельно
-        }
-    }
-    
-    pushGarbage(); // Скидываем хвост мусора, если он остался в конце строки
+    });
 
     return processedTokens;
 }
 
 window.startTokenizerQueue = function() {
-    console.log("🛠️ [TOKENIZER] Запуск. В карантине:", window.mapper2State.quarantine ? window.mapper2State.quarantine.length : 0);
-
     if (!window.mapper2State.quarantine || window.mapper2State.quarantine.length === 0) {
-        console.log("🛠️ [TOKENIZER] Карантин пуст. Возвращаем обратно в Маппер!");
         const container = document.getElementById("smartMapperContainer");
         if (container) container.style.display = "none";
-        
-        if (typeof window.applyMapper2Logic === "function") {
-            window.applyMapper2Logic();
-        }
+        if (typeof window.navigateIncomeStep === "function") window.navigateIncomeStep(2);
         return;
     }
 
     const currentItem = window.mapper2State.quarantine[0];
-    console.log("🛠️ [TOKENIZER] Текущий элемент из карантина:", currentItem);
-
     const colName = currentItem.excelColumnName;
     const rawString = currentItem.rawString;
-    const targetParams = (window.mapper2State.smartRules && window.mapper2State.smartRules[colName]) ? window.mapper2State.smartRules[colName] : [];
+    const targetParams = window.mapper2State.smartRules[colName] || [];
 
-    let tokens = typeof parseAndMatchTokens === "function" 
-        ? parseAndMatchTokens(rawString, new Set()) 
-        : [];
-    console.log("🛠️ [TOKENIZER] Нарезанные токены:", tokens);
-
+    let tokens = typeof parseAndMatchTokens === "function" ? parseAndMatchTokens(rawString, colName) : [];
     if (tokens.length === 0) {
-        console.log("🛠️ [TOKENIZER] Токенов ноль, пропускаем строку");
         window.mapper2State.quarantine.shift();
         window.startTokenizerQueue();
         return;
     }
 
-    let anchorIndex = tokens.findIndex(t => /\d/.test(t.text));
+    let anchorIndex = tokens.findIndex(t => /\d/.test(t.cleanText));
     if (anchorIndex === -1) anchorIndex = 0;
     tokens.forEach((tok, idx) => tok.universalIndex = 100 + (idx - anchorIndex));
-    const sig = tokens.map(t => /\d/.test(t.text) ? 'N' : 'G').join('-');
+    const sig = tokens.map(t => /\d/.test(t.cleanText) ? 'N' : 'G').join('-');
 
     const container = document.getElementById("smartMapperContainer");
-    console.log("🛠️ [TOKENIZER] Контейнер найден?", !!container);
     if (!container) return;
-
     container.innerHTML = "";
     container.style.display = "flex";
-    console.log("🛠️ [TOKENIZER] Окно должно быть открыто!");
-    
-    // ... дальше остается весь старый код с генерацией кнопок и модалки
 
     const modal = document.createElement("div");
     modal.className = "smart-modal-content tokenizer-modal";
-
+    
     const header = document.createElement("div");
     header.className = "smart-modal-header";
     header.innerHTML = `Связь данных: <span style="color: var(--accent-blue);">${colName.toUpperCase()}</span>`;
@@ -856,7 +744,6 @@ window.startTokenizerQueue = function() {
     const tokensContainer = document.createElement("div");
     tokensContainer.className = "tokens-visual-container";
 
-    // Отрисовываем ВСЕ токены как кнопки, чтобы можно было захватить точку
     let activeTokensHtml = "";
     tokens.forEach((tok) => {
         let baseClass = tok.type === 'garbage' ? 'passive-token' : 'active-token';
@@ -888,14 +775,11 @@ window.startTokenizerQueue = function() {
 
     const footer = document.createElement("div");
     footer.className = "smart-modal-footer";
-    footer.innerHTML = `
-        <button class="confirm-btn btn-primary green" id="btnNextToken" style="width: 100%; padding: 12px; font-weight: bold; border-radius: 8px;">ПОДТВЕРДИТЬ СТРУКТУРУ</button>
-    `;
+    footer.innerHTML = `<button class="confirm-btn btn-primary green" id="btnNextToken" style="width: 100%; padding: 12px; font-weight: bold; border-radius: 8px;">ПОДТВЕРДИТЬ СТРУКТУРУ</button>`;
     body.appendChild(footer);
     modal.appendChild(body);
     container.appendChild(modal);
 
-    // 🔥 МУЛЬТИВЫДЕЛЕНИЕ ТОКЕНОВ
     let selectedTokenBtns = [];
     const tokenBtns = tokensContainer.querySelectorAll('.token-btn');
     
@@ -903,37 +787,32 @@ window.startTokenizerQueue = function() {
         btn.addEventListener('click', function() {
             if (this.classList.contains('selected')) {
                 this.classList.remove('selected');
-                this.style.outline = ''; // Убираем рамку
+                this.style.outline = '';
                 selectedTokenBtns = selectedTokenBtns.filter(b => b !== this);
             } else {
                 this.classList.add('selected');
-                this.style.outline = '2px dashed #00ff00'; // Явная зеленая рамка для ВСЕХ кнопок
+                this.style.outline = '2px dashed #00ff00';
                 this.style.outlineOffset = '2px';
                 selectedTokenBtns.push(this);
             }
         });
     });
 
-    // 🔥 СКЛЕИВАНИЕ В ПАРАМЕТР
     const dropzones = paramsGrid.querySelectorAll('.match-dropzone');
     dropzones.forEach(zone => {
         zone.addEventListener('click', function() {
             if (selectedTokenBtns.length > 0) {
                 selectedTokenBtns.sort((a, b) => Number(a.dataset.indices) - Number(b.dataset.indices));
-                
-                const combinedText = selectedTokenBtns.map(b => b.textContent).join('');
-                const combinedIndices = selectedTokenBtns.map(b => b.dataset.indices).join(',');
-                
-                this.textContent = combinedText;
-                this.dataset.assignedIndices = combinedIndices;
+                this.textContent = selectedTokenBtns.map(b => b.textContent).join('');
+                this.dataset.assignedIndices = selectedTokenBtns.map(b => b.dataset.indices).join(',');
                 this.classList.add('filled');
                 
                 selectedTokenBtns.forEach(b => {
                     b.classList.remove('selected');
                     b.classList.add('assigned');
-                    b.style.outline = ''; // Сбрасываем зеленую рамку
+                    b.style.outline = '';
                     b.style.border = '1px solid #555';
-                    b.style.opacity = '0.5'; // Делаем визуально использованным
+                    b.style.opacity = '0.5';
                 });
                 selectedTokenBtns = [];
             } else {
@@ -946,24 +825,19 @@ window.startTokenizerQueue = function() {
 
     document.getElementById("btnNextToken").addEventListener("click", () => {
         let ruleMap = {};
-        
         dropzones.forEach(zone => {
             const param = String(zone.closest('.match-row').dataset.param).trim();
             const indicesStr = zone.dataset.assignedIndices;
             
             if (indicesStr !== "") {
                 let sysId = param; 
-                if (window.currentTemplateData && window.currentTemplateData.humanNames && window.currentTemplateData.systemKeys) {
+                if (window.currentTemplateData && window.currentTemplateData.humanNames) {
                     const hNames = window.currentTemplateData.humanNames;
                     const sKeys = window.currentTemplateData.systemKeys;
                     for (let i = 0; i < hNames.length; i++) {
-                        if (String(hNames[i]).trim() === param) {
-                            sysId = sKeys[i];
-                            break;
-                        }
+                        if (String(hNames[i]).trim() === param) { sysId = sKeys[i]; break; }
                     }
                 }
-                // Разбиваем строку индексов "100,101,102" обратно в массив чисел
                 ruleMap[sysId] = indicesStr.split(',').map(Number);
             }
         });
@@ -975,39 +849,4 @@ window.startTokenizerQueue = function() {
         window.mapper2State.quarantine.shift();
         window.startTokenizerQueue();
     });
-};
-
-window.parseAndMatchTokens = function(rawString, validDicts) {
-    const processedStr = rawString.replace(/\s+/g, (match, offset, string) => {
-        if (offset === 0 || offset + match.length === string.length) return "";
-        const charBefore = string[offset - 1];
-        const charAfter = string[offset + match.length];
-        if (/\d/.test(charBefore) && /\d/.test(charAfter)) return " ";
-        return "";
-    });
-
-    const rawTokens = processedStr.match(/\d+|[a-zA-Zа-яА-ЯёЁ]+|[^a-zA-Zа-яА-ЯёЁ\d\s]/g) || [];
-    const resultTokens = [];
-    let garbageBuffer = "";
-
-    rawTokens.forEach(token => {
-        const isNumber = /^\d+$/.test(token);
-        const isValid = validDicts && validDicts.has ? validDicts.has(token.toLowerCase()) : false;
-
-        if (isNumber || isValid) {
-            if (garbageBuffer) {
-                resultTokens.push({ text: garbageBuffer, valid: false, type: 'garbage' });
-                garbageBuffer = "";
-            }
-            resultTokens.push({ text: token, valid: true, type: isNumber ? 'number' : 'dict_match' });
-        } else {
-            garbageBuffer += token;
-        }
-    });
-
-    if (garbageBuffer) {
-        resultTokens.push({ text: garbageBuffer, valid: false, type: 'garbage' });
-    }
-
-    return resultTokens;
 };
