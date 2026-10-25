@@ -1901,6 +1901,18 @@ window.applyMapper2Logic = function () {
 
     const exportBtns = document.getElementById("exportActionButtons");
     if (exportBtns) exportBtns.style.display = "flex";
+
+    // 🔥 Прячем лишние кнопки при экспорте Каспи
+    const previewArea = document.getElementById("invoicePreviewArea");
+    if (previewArea) {
+       const allBtns = previewArea.querySelectorAll("button");
+       allBtns.forEach(b => {
+           const text = b.innerText.toUpperCase();
+           if (text.includes("ДИСК") || text.includes("СБРОС") || text.includes("ПЕРЕЗАЛИТЬ")) {
+               b.style.display = "none";
+           }
+       });
+    }
   } else {
     const sendBtn = document.getElementById("sendInvoiceBtn");
     if (sendBtn) sendBtn.style.display = "flex"; 
@@ -3499,11 +3511,15 @@ window.handleCardSelectForExport = async function (
       if (step3) {
         const allBtns = step3.querySelectorAll("button");
         allBtns.forEach((b) => {
-          if (
-            b.innerText.trim().toUpperCase() === "НАЗАД" ||
-            b.textContent.includes("НАЗАД")
-          ) {
+          const text = b.innerText.trim().toUpperCase();
+          
+          if (text === "НАЗАД" || text.includes("НАЗАД")) {
             b.style.display = "";
+          }
+          
+          // 🔥 Прячем лишние кнопки при экспорте Каспи
+          if (window.isKaspiExportMode && (text.includes("ДИСК") || text.includes("СБРОС") || text.includes("ПЕРЕЗАЛИТЬ"))) {
+              b.style.display = "none";
           }
         });
       }
