@@ -1902,7 +1902,6 @@ window.applyMapper2Logic = function () {
   document.getElementById("invoicePreviewArea").style.display = "flex";
 
   // 🔥 ИСПРАВЛЕНИЕ ЛОГИКИ ОТОБРАЖЕНИЯ КНОПОК 🔥
-  // Показываем "Скачать файл" ТОЛЬКО если это 100% экспорт. Иначе возвращаем кнопку "Оприходовать".
   if (window.isKaspiExportMode) {
     const sendBtn = document.getElementById("sendInvoiceBtn");
     if (sendBtn) sendBtn.style.display = "none";
@@ -1915,8 +1914,14 @@ window.applyMapper2Logic = function () {
        const allBtns = previewArea.querySelectorAll("button");
        allBtns.forEach(b => {
            const text = b.innerText.toUpperCase();
+           
+           // Прячем лишние кнопки Каспи
            if (text.includes("ДИСК") || text.includes("СБРОС") || text.includes("ПЕРЕЗАЛИТЬ")) {
                b.style.display = "none";
+           }
+           // 🔥 ПРИНУДИТЕЛЬНО ВОЗВРАЩАЕМ КНОПКУ "НАЗАД" 🔥
+           if (text === "НАЗАД" || text.includes("НАЗАД")) {
+               b.style.display = "block"; // или "" в зависимости от верстки
            }
        });
     }
@@ -3521,11 +3526,12 @@ window.handleCardSelectForExport = async function (
         allBtns.forEach((b) => {
           const text = b.innerText.trim().toUpperCase();
           
+          // 🔥 Жестко возвращаем кнопку "НАЗАД"
           if (text === "НАЗАД" || text.includes("НАЗАД")) {
-            b.style.display = "";
+            b.style.display = "block";
           }
           
-          // 🔥 Прячем лишние кнопки при экспорте Каспи
+          // 🔥 Прячем лишние кнопки при экспорте Каспи (Диск, Сброс)
           if (window.isKaspiExportMode && (text.includes("ДИСК") || text.includes("СБРОС") || text.includes("ПЕРЕЗАЛИТЬ"))) {
               b.style.display = "none";
           }
