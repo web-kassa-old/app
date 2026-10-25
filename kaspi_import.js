@@ -476,7 +476,6 @@ window.navigateBack = function () {
 
 // 2. ОТРИСОВКА КАРТОЧЕК НА ГЛАВНОМ ЭКРАНЕ
 window.renderMapper2Cards = function (templateData) {
-  // === КЭШИРОВАНИЕ ДАННЫХ ===
   if (templateData) {
     window.lastTemplateData = templateData;
   } else {
@@ -484,7 +483,6 @@ window.renderMapper2Cards = function (templateData) {
   }
 
   const t = translations[currentLang] || translations["ru"];
-
   window.kaspiDicts = templateData.dictionary || window.kaspiDicts || {};
 
   const container = document.getElementById("mapper2CardsContainer");
@@ -494,22 +492,12 @@ window.renderMapper2Cards = function (templateData) {
   window.mapper2State.dictValues = window.mapper2State.dictValues || {};
   window.mapper2State.splitRules = window.mapper2State.splitRules || {};
 
-  if (
-    window.mapper2State.smartRules &&
-    templateData &&
-    templateData.humanNames &&
-    templateData.systemKeys
-  ) {
+  if (window.mapper2State.smartRules && templateData && templateData.humanNames && templateData.systemKeys) {
     const headers = window.mapper2State.invoiceHeaders || [];
-
     Object.keys(window.mapper2State.smartRules).forEach((invoiceColName) => {
-      const colIndex = headers.findIndex(
-        (h) => String(h).trim() === invoiceColName,
-      );
-
+      const colIndex = headers.findIndex((h) => String(h).trim() === invoiceColName);
       if (colIndex !== -1) {
         const selectedParams = window.mapper2State.smartRules[invoiceColName];
-
         selectedParams.forEach((paramName) => {
           const pIdx = templateData.humanNames.indexOf(paramName);
           if (pIdx !== -1) {
@@ -526,10 +514,7 @@ window.renderMapper2Cards = function (templateData) {
 
   if (templateData && templateData.memoryJson) {
     try {
-      learnedSynonyms =
-        typeof templateData.memoryJson === "string"
-          ? JSON.parse(templateData.memoryJson)
-          : templateData.memoryJson;
+      learnedSynonyms = typeof templateData.memoryJson === "string" ? JSON.parse(templateData.memoryJson) : templateData.memoryJson;
       window.mapper2State.rawMemoryJson = JSON.stringify(learnedSynonyms);
       if (learnedSynonyms._splitRules) {
         const memorySplits = JSON.parse(JSON.stringify(learnedSynonyms._splitRules));
@@ -552,8 +537,7 @@ window.renderMapper2Cards = function (templateData) {
       window.mapper2State.sysToHumanMap[sysKey] = humName;
 
       let reqText = (requirements[i] || "").toLowerCase();
-      let isReq =
-        reqText.includes("обязательн") && !reqText.includes("необязательн");
+      let isReq = reqText.includes("обязательн") && !reqText.includes("необязательн");
 
       allReqs.push({
         sysKey,
@@ -567,82 +551,25 @@ window.renderMapper2Cards = function (templateData) {
   }
 
   const posBaseFields = [
-    {
-      sysKey: "name",
-      name: t.pos_name || "Наименование",
-      nameKey: "pos_name",
-      req: true,
-      desc: t.desc_req || "Обязательно",
-      descKey: "desc_req",
-      isKaspi: false,
-    },
-    {
-      sysKey: "qty",
-      name: t.pos_qty || "Количество",
-      nameKey: "pos_qty",
-      req: true,
-      desc: t.desc_stock || "На складе (POS)",
-      descKey: "desc_stock",
-      isKaspi: false,
-    },
-    {
-      sysKey: "price",
-      name: t.pos_price || "Цена закупа",
-      nameKey: "pos_price",
-      req: true,
-      desc: t.desc_currency || "В валюте накладной",
-      descKey: "desc_currency",
-      isKaspi: false,
-    },
-    {
-      sysKey: "barcode",
-      name: t.pos_barcode || "Код / Штрихкод",
-      nameKey: "pos_barcode",
-      req: false,
-      desc: t.desc_id_link || "Связь с ID товара в POS",
-      descKey: "desc_id_link",
-      isKaspi: false,
-    },
-    {
-      sysKey: "cbm",
-      name: t.pos_cbm || "Объем (CBM)",
-      nameKey: "pos_cbm",
-      req: false,
-      desc: t.desc_calc || "Для расчета",
-      descKey: "desc_calc",
-      isKaspi: false,
-    },
-    {
-      sysKey: "weight",
-      name: t.pos_weight || "Вес (кг)",
-      nameKey: "pos_weight",
-      req: false,
-      desc: t.desc_calc || "Для расчета",
-      descKey: "desc_calc",
-      isKaspi: false,
-    },
+    { sysKey: "name", name: t.pos_name || "Наименование", nameKey: "pos_name", req: true, desc: t.desc_req || "Обязательно", descKey: "desc_req", isKaspi: false },
+    { sysKey: "qty", name: t.pos_qty || "Количество", nameKey: "pos_qty", req: true, desc: t.desc_stock || "На складе (POS)", descKey: "desc_stock", isKaspi: false },
+    { sysKey: "price", name: t.pos_price || "Цена закупа", nameKey: "pos_price", req: true, desc: t.desc_currency || "В валюте накладной", descKey: "desc_currency", isKaspi: false },
+    { sysKey: "barcode", name: t.pos_barcode || "Код / Штрихкод", nameKey: "pos_barcode", req: false, desc: t.desc_id_link || "Связь с ID товара в POS", descKey: "desc_id_link", isKaspi: false }
   ];
 
   posBaseFields.forEach((field) => {
     if (!allReqs.some((r) => r.sysKey === field.sysKey)) allReqs.push(field);
   });
 
-  const globalSynonyms =
-    typeof invoiceSynonyms !== "undefined" ? invoiceSynonyms : {};
-  const headersLower = (window.mapper2State.invoiceHeaders || []).map((h) =>
-    String(h || "")
-      .trim()
-      .toLowerCase(),
-  );
+  const globalSynonyms = typeof invoiceSynonyms !== "undefined" ? invoiceSynonyms : {};
+  const headersLower = (window.mapper2State.invoiceHeaders || []).map((h) => String(h || "").trim().toLowerCase());
 
   let htmlRequired = "";
   let htmlOptional = "";
   let htmlFilled = "";
 
   allReqs.forEach((req) => {
-    let isKaspiSku =
-      req.sysKey.toLowerCase().includes("sku") ||
-      req.name.toLowerCase().includes("артикул");
+    let isKaspiSku = req.sysKey.toLowerCase().includes("sku") || req.name.toLowerCase().includes("артикул");
 
     if (isKaspiSku) {
       htmlFilled += `
@@ -660,42 +587,50 @@ window.renderMapper2Cards = function (templateData) {
 
     let learned = learnedSynonyms[req.sysKey] || [];
     let baseRaw = [];
-    if (globalSynonyms[req.sysKey])
-      baseRaw = baseRaw.concat(globalSynonyms[req.sysKey]);
-    if (globalSynonyms[req.name])
-      baseRaw = baseRaw.concat(globalSynonyms[req.name]);
-    if (req.isDict && globalSynonyms["Brand"])
-      baseRaw = baseRaw.concat(globalSynonyms["Brand"]);
+    if (globalSynonyms[req.sysKey]) baseRaw = baseRaw.concat(globalSynonyms[req.sysKey]);
+    if (globalSynonyms[req.name]) baseRaw = baseRaw.concat(globalSynonyms[req.name]);
+    if (req.isDict && globalSynonyms["Brand"]) baseRaw = baseRaw.concat(globalSynonyms["Brand"]);
 
-    let base = baseRaw
-      .map((w) => String(w).trim().toLowerCase())
-      .filter(Boolean);
+    let base = baseRaw.map((w) => String(w).trim().toLowerCase()).filter(Boolean);
     let foundIndex = -1;
 
-    const safeLearned = Array.isArray(learned)
-      ? learned
-      : typeof learned === "string"
-        ? [learned]
-        : [];
+    const safeLearned = Array.isArray(learned) ? learned : typeof learned === "string" ? [learned] : [];
 
     foundIndex = headersLower.findIndex((h) => h && safeLearned.includes(h));
-    if (foundIndex === -1)
-      foundIndex = headersLower.findIndex((h) => h && base.includes(h));
-    if (foundIndex === -1)
-      foundIndex = headersLower.findIndex(
-        (h) => h && safeLearned.some((w) => w.length > 2 && h.includes(w)),
-      );
-    if (foundIndex === -1)
-      foundIndex = headersLower.findIndex(
-        (h) => h && base.some((w) => w.length > 2 && h.includes(w)),
-      );
+    if (foundIndex === -1) foundIndex = headersLower.findIndex((h) => h && base.includes(h));
+    if (foundIndex === -1) foundIndex = headersLower.findIndex((h) => h && safeLearned.some((w) => w.length > 2 && h.includes(w)));
+    if (foundIndex === -1) foundIndex = headersLower.findIndex((h) => h && base.some((w) => w.length > 2 && h.includes(w)));
 
     if (foundIndex !== -1) window.mapper2State.colMap[req.sysKey] = foundIndex;
 
     let mappedIndex = window.mapper2State.colMap[req.sysKey];
-    let dictValue =
-      window.mapper2State.dictValues &&
-      window.mapper2State.dictValues[req.sysKey];
+    let dictValue = window.mapper2State.dictValues && window.mapper2State.dictValues[req.sysKey];
+
+    // 🔥 ИЩЕМ ДАННЫЕ В БАЗЕ ПРИ ЭКСПОРТЕ 🔥
+    let hasDbValues = false;
+    let dbSample = "";
+
+    if (window.isKaspiExportMode && window.kaspiExportItems && window.kaspiExportItems.length > 0) {
+        let sysKeyLower = req.sysKey.toLowerCase();
+        // 🔥 ИСПРАВЛЕНИЕ: добавлена открывающая скобка в if
+        if (["name", "qty", "price", "cost", "barcode"].includes(sysKeyLower)) {
+            hasDbValues = true;
+            dbSample = "Данные товара";
+        } else {
+            for (let item of window.kaspiExportItems) {
+                let attrs = {};
+                try { attrs = typeof item.attributes === "string" ? JSON.parse(item.attributes || "{}") : (item.attributes || {}); } catch(e){}
+                let liveAttrs = item._attributesObj || {};
+                
+                let val = liveAttrs[req.name] || liveAttrs[req.sysKey] || attrs[req.name] || attrs[req.sysKey];
+                if (val !== undefined && val !== null && val !== "") {
+                    hasDbValues = true;
+                    dbSample = String(val);
+                    break;
+                }
+            }
+        }
+    }
 
     let statusClass = "status-empty";
     let statusText = t.inc_select || "ВЫБРАТЬ";
@@ -705,102 +640,40 @@ window.renderMapper2Cards = function (templateData) {
 
     if (dictValue) {
       statusClass = "status-filled";
-      let shortVal =
-        dictValue.length > 15 ? dictValue.substring(0, 15) + "..." : dictValue;
+      let shortVal = dictValue.length > 15 ? dictValue.substring(0, 15) + "..." : dictValue;
       statusText = `✓ ${shortVal}`;
       statusI18n = "";
-      statusStyle =
-        "border: 1px solid var(--accent-green, #2ecc71); color: var(--accent-green, #2ecc71); background: var(--bg-success-dim, rgba(46, 204, 113, 0.15)); font-weight: bold;";
+      statusStyle = "border: 1px solid var(--accent-green, #2ecc71); color: var(--accent-green, #2ecc71); background: var(--bg-success-dim, rgba(46, 204, 113, 0.15)); font-weight: bold;";
     } else if (mappedIndex !== undefined) {
       statusClass = "status-filled";
-      let colName =
-        window.mapper2State.invoiceHeaders[mappedIndex] ||
-        `Колонка ${mappedIndex + 1}`;
-
-      let splitData =
-        window.mapper2State.splitRules &&
-        (window.mapper2State.splitRules[req.name] || window.mapper2State.splitRules[req.sysKey]);
+      let colName = window.mapper2State.invoiceHeaders[mappedIndex] || `Колонка ${mappedIndex + 1}`;
+      let splitData = window.mapper2State.splitRules && (window.mapper2State.splitRules[req.name] || window.mapper2State.splitRules[req.sysKey]);
         
       if (splitData) { 
         let sampleText = "";
         let gluedText = "";
-        let highlighted = "";
-
-        for (
-          let i = 0;
-          i < Math.min(10, window.mapper2State.invoiceRows.length);
-          i++
-        ) {
-          let val = String(
-            window.mapper2State.invoiceRows[i][mappedIndex] || "",
-          ).trim();
-          if (val) {
-            sampleText = val;
-            break;
-          }
+        for (let i = 0; i < Math.min(10, window.mapper2State.invoiceRows.length); i++) {
+          let val = String(window.mapper2State.invoiceRows[i][mappedIndex] || "").trim();
+          if (val) { sampleText = val; break; }
         }
-
         if (sampleText) {
-          const regex = /\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g;
-          let tokens = sampleText.match(regex) || [];
-          
-          const sig = tokens.map(t => {
-            if (/\d/.test(t)) return 'D';
-            if (/[a-zA-Zа-яА-ЯёЁ]/.test(t)) return 'L';
-            return '.';
-          }).join('-');
-          
-          let rawIndices = [];
-          if (Array.isArray(splitData)) {
-            rawIndices = splitData;
-          } else if (splitData[sig]) {
-            rawIndices = splitData[sig];
-          } else if (Object.keys(splitData).length > 0) {
-            let firstKey = Object.keys(splitData)[0];
-            rawIndices = Array.isArray(splitData[firstKey]) ? splitData[firstKey] : [];
-          }
-
-          let validIndices = rawIndices.map(idx => {
-            if (typeof idx === 'object' && idx !== null) {
-              return idx.index !== undefined ? parseInt(idx.index) : parseInt(idx.i);
-            }
-            return parseInt(idx);
-          }).filter(n => !isNaN(n));
-
-          validIndices = [...new Set(validIndices)].filter(n => n >= 0 && n < tokens.length).sort((a, b) => a - b);
-
-          validIndices.forEach(i => {
-            if (tokens[i] !== undefined) gluedText += tokens[i];
-          });
-
-          highlighted = tokens
-            .map((tok, i) => {
-              if (validIndices.includes(i)) {
-                return `<b style="color:#000; background:var(--accent-green, #4CAF50); padding:0 3px; border-radius:3px;">${tok}</b>`;
-              } else {
-                return `<span style="color:#666; text-decoration:line-through;">${tok}</span>`;
-              }
-            })
-            .join("");
-        }
-        
-        statusText = `✂ ${gluedText || colName}`;
-        statusI18n = "";
-        statusStyle =
-          "border: 1px solid var(--accent-green, #2ecc71); color: var(--accent-green, #2ecc71); background: var(--bg-success-dim, rgba(46, 204, 113, 0.15)); font-weight: bold;";
-
-        if (highlighted) {
-          extraPreviewHtml = `
-                    <div id="preview-${req.sysKey}" style="margin-top: 6px; font-size: 11px; background: rgba(255,255,255,0.05); padding: 4px 8px; border-radius: 4px; display: inline-block;">
-                        ${highlighted}
-                    </div>`;
+          statusText = `✂ Из колонки`;
+        } else {
+          statusText = `✓ ${colName}`;
         }
       } else {
         statusText = `✓ ${colName}`;
-        statusI18n = "";
-        statusStyle =
-          "border: 1px solid var(--accent-green, #2ecc71); color: var(--accent-green, #2ecc71); background: var(--bg-success-dim, rgba(46, 204, 113, 0.15)); font-weight: bold;";
       }
+      statusI18n = "";
+      statusStyle = "border: 1px solid var(--accent-green, #2ecc71); color: var(--accent-green, #2ecc71); background: var(--bg-success-dim, rgba(46, 204, 113, 0.15)); font-weight: bold;";
+    
+    } else if (hasDbValues) {
+      // 🔥 ОБМАНЫВАЕМ ПРОВЕРКУ: СТАВИМ СТАТУС FILLED ДЛЯ ДАННЫХ ИЗ БАЗЫ 🔥
+      statusClass = "status-filled";
+      let shortVal = dbSample.length > 15 ? dbSample.substring(0, 15) + "..." : dbSample;
+      statusText = `✓ Из базы (${shortVal})`;
+      statusI18n = "";
+      statusStyle = "border: 1px solid var(--accent-blue, #3498db); color: var(--accent-blue, #3498db); background: rgba(52, 152, 219, 0.15); font-weight: bold;";
     }
 
     let nameI18nAttr = req.nameKey ? `data-i18n="${req.nameKey}"` : "";
@@ -816,76 +689,47 @@ window.renderMapper2Cards = function (templateData) {
             <div class="req-status ${statusClass}" id="status-${req.sysKey}" style="${statusStyle}" ${statusI18n}>${statusText}</div>
         </div>`;
 
-    if (statusClass === "status-filled") {
-      htmlFilled += cardHtml;
-    } else if (req.req) {
-      htmlRequired += cardHtml;
-    } else {
-      htmlOptional += cardHtml;
-    }
+    if (statusClass === "status-filled") htmlFilled += cardHtml;
+    else if (req.req) htmlRequired += cardHtml;
+    else htmlOptional += cardHtml;
   });
 
   let finalHtml = "";
-
   if (htmlRequired) {
-    finalHtml +=
-      `<div class="section-header" data-i18n="req_fill_title" style="color: #ff4444; padding: 15px 10px 5px; font-size: 11px; text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px;">🔴 ${t.req_fill_title || "Обязательные для заполнения"}</div>` +
-      htmlRequired;
+    finalHtml += `<div class="section-header" data-i18n="req_fill_title" style="color: #ff4444; padding: 15px 10px 5px; font-size: 11px; text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px;">🔴 ${t.req_fill_title || "Обязательные для заполнения"}</div>` + htmlRequired;
   }
   if (htmlOptional) {
-    finalHtml +=
-      `<div class="section-header" data-i18n="add_params_title" style="color: var(--accent-blue); padding: 15px 10px 5px; font-size: 11px; text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px;">🔵 ${t.add_params_title || "Дополнительные параметры"}</div>` +
-      htmlOptional;
+    finalHtml += `<div class="section-header" data-i18n="add_params_title" style="color: var(--accent-blue); padding: 15px 10px 5px; font-size: 11px; text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px;">🔵 ${t.add_params_title || "Дополнительные параметры"}</div>` + htmlOptional;
   }
   if (htmlFilled) {
-    finalHtml +=
-      `<div class="section-header" data-i18n="desc_invoice_sys" style="color: var(--accent-green); padding: 15px 10px 5px; font-size: 11px; text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px;">✅ ${t.desc_invoice_sys || "Из накладной и системы"}</div>` +
-      htmlFilled;
+    finalHtml += `<div class="section-header" data-i18n="desc_invoice_sys" style="color: var(--accent-green); padding: 15px 10px 5px; font-size: 11px; text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px;">✅ ${t.desc_invoice_sys || "Из накладной и системы"}</div>` + htmlFilled;
   }
 
   container.innerHTML = finalHtml;
 
   const parseBtn = document.getElementById("parseInvoiceBtn");
   if (parseBtn) parseBtn.style.display = "none";
-
   const importModeContainer = document.getElementById("importModeContainer");
   if (importModeContainer) importModeContainer.style.display = "none";
-
   const invoiceUploadWrapper = document.getElementById("invoiceUploadWrapper");
   if (invoiceUploadWrapper) invoiceUploadWrapper.style.display = "none";
-
   const tabs = document.getElementById("mapperTabsContainer");
   if (tabs) tabs.style.display = "none";
-
   const currency = document.getElementById("mapperCurrencyBlock");
   if (currency) currency.style.display = "none";
-
   document.getElementById("mapper2Area").style.display = "flex";
 
-  // 1. СНАЧАЛА вызываем штатную проверку полей, которая может сбросить текст
+  // Вызываем твою родную функцию проверки полей
   if (typeof window.checkMapperReadiness === "function") {
     window.checkMapperReadiness();
   }
-  
-  // 2. ЗАТЕМ принудительно переписываем текст для экспорта (используем функцию для страховки)
+
+  // 🔥 Перебиваем текст кнопки на "ПОДТВЕРДИТЬ ШАБЛОН" только если поля прошли проверку
   const applyBtn = document.getElementById("applyMapper2Btn");
-  if (applyBtn) {
-      applyBtn.style.display = "block";
-      
-      const updateText = () => {
-          const btnSpan = applyBtn.querySelector("span");
-          if (window.isKaspiExportMode) {
-              if (btnSpan) btnSpan.innerText = "ПОДТВЕРДИТЬ ШАБЛОН";
-              else applyBtn.innerHTML = "✅ ПОДТВЕРДИТЬ ШАБЛОН";
-          } else {
-              if (btnSpan) btnSpan.innerText = t.inc_build_invoice || "СОБРАТЬ НАКЛАДНУЮ";
-              else applyBtn.innerHTML = "✅ " + (t.inc_build_invoice || "СОБРАТЬ НАКЛАДНУЮ");
-          }
-      };
-      
-      updateText();
-      // Микро-задержка на случай, если проверка работает асинхронно
-      setTimeout(updateText, 100);
+  if (applyBtn && window.isKaspiExportMode) {
+      if (!applyBtn.classList.contains("disabled") && !applyBtn.classList.contains("btn-disabled")) {
+          applyBtn.innerHTML = "✅ ПОДТВЕРДИТЬ ШАБЛОН";
+      }
   }
 };
 
