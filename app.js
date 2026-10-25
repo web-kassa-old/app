@@ -6648,6 +6648,7 @@ document.addEventListener("DOMContentLoaded", () => {
     clearTimeout(pressTimer);
   });
 });
+
 // Генерация итогового прайс-листа для Kaspi
 window.generateExportFile = async function (target = "local") {
   const btn = document.getElementById("generateExportBtn");
@@ -6759,7 +6760,6 @@ window.generateExportFile = async function (target = "local") {
 
         let value = "";
 
-        // Проверяем живые словари и сплиттеры
         let dictVal = window.mapper2State && window.mapper2State.dictValues && (window.mapper2State.dictValues[kaspiKey] || window.mapper2State.dictValues[humanKey]);
         let splitVal = "";
         
@@ -6813,7 +6813,6 @@ window.generateExportFile = async function (target = "local") {
         } else if (sourceDbField && String(sourceDbField).startsWith("static_")) {
           value = String(sourceDbField).replace("static_", "");
         } else {
-            // 🔥 Парсим ручные правки из окна превью
             let attrs = {};
             try {
                 attrs = typeof item.attributes === "string" ? JSON.parse(item.attributes || "{}") : item.attributes || {};
@@ -6826,14 +6825,12 @@ window.generateExportFile = async function (target = "local") {
                 else if (item[sourceDbField] !== undefined && item[sourceDbField] !== null) value = item[sourceDbField];
             }
 
-            // 🔥 БЕЗОПАСНЫЙ АВТО-МЭТЧИНГ: Вытаскиваем то, что ты ввел руками
             if (value === "" || value === null || value === undefined) {
                 if (liveAttrs[kaspiKey] !== undefined && liveAttrs[kaspiKey] !== null) value = liveAttrs[kaspiKey];
                 else if (liveAttrs[humanKey] !== undefined && liveAttrs[humanKey] !== null) value = liveAttrs[humanKey];
                 else if (attrs[kaspiKey] !== undefined && attrs[kaspiKey] !== null) value = attrs[kaspiKey];
                 else if (attrs[humanKey] !== undefined && attrs[humanKey] !== null) value = attrs[humanKey];
                 
-                // Блокируем попадание названия в пустую колонку "Описание"
                 else if (kaspiKey !== "description" && kaspiKey !== "desc" && item[kaspiKey] !== undefined && item[kaspiKey] !== null && item[kaspiKey] !== "") {
                     value = item[kaspiKey];
                 }
@@ -6861,13 +6858,36 @@ window.generateExportFile = async function (target = "local") {
     const dateStr = new Date().toISOString().slice(0, 10);
     const fileName = `Kaspi_Export_${dateStr}.xlsx`;
 
+    // 🔥 ИСПРАВЛЕНО: ТИХОЕ АВТОСОХРАНЕНИЕ
     if (window.isKaspiExportMode && window.parsedInvoiceData) {
       const url = typeof APPS_SCRIPT_URL !== "undefined" ? APPS_SCRIPT_URL : window.APPS_SCRIPT_URL;
-      const itemsToUpdate = window.parsedInvoiceData.map((item) => ({
-        item_id: item.item_id || item.id,
-        attributes: typeof item.attributes === "object" ? JSON.stringify(item.attributes) : item.attributes || "{}",
-      }));
+      
+      // Игнорируем базовые системные ключи, чтобы не засорять JSON
+      const excludeKeys = ["name", "price", "cost", "qty", "quantity", "barcode", "merchant_sku", "description", "desc", "item_name", "item_id", "id", "attributes", "kaspi_attributes", "params", "_attributesobj", "_hascollisions", "_collisionslist"];
 
+      const itemsToUpdate = window.parsedInvoiceData.map((item) => {
+        // 1. Берем старые данные из базы
+        let baseAttrs = {};
+        try { baseAttrs = typeof item.attributes === "string" ? JSON.parse(item.attributes || "{}") : (item.attributes || {}); } catch(e){}
+        
+        // 2. Объединяем с живыми системными объектами
+        let liveAttrs = item._attributesObj || {};
+        let merged = Object.assign({}, baseAttrs, liveAttrs);
+
+        // 3. ПЕРЕХВАТЫВАЕМ РУЧНОЙ ВВОД (из окна "Изменить параметры")
+        Object.keys(item).forEach(key => {
+            if (!excludeKeys.includes(key.toLowerCase()) && item[key] !== undefined && item[key] !== null && item[key] !== "") {
+                merged[key] = item[key]; // Упаковываем твои правки!
+            }
+        });
+
+        return {
+          item_id: item.item_id || item.id,
+          attributes: JSON.stringify(merged),
+        };
+      });
+
+      // Отправляем правильные данные в БД
       fetch(url, {
         method: "POST",
         body: JSON.stringify({ action: "silentUpdateAttributesBackend", api_key: CLIENT_API_KEY, items: itemsToUpdate }),
@@ -6907,6 +6927,7 @@ window.generateExportFile = async function (target = "local") {
     if (typeof window.hideLoading === "function") window.hideLoading();
   }
 };
+
 // Глобальная переменная для отслеживания режима
 window.currentImportMode = "internal";
 
