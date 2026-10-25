@@ -6858,43 +6858,60 @@ window.generateExportFile = async function (target = "local") {
     const dateStr = new Date().toISOString().slice(0, 10);
     const fileName = `Kaspi_Export_${dateStr}.xlsx`;
 
-    // 🔥 ИСПРАВЛЕНО: ТИХОЕ АВТОСОХРАНЕНИЕ
+    // 🔥 ИСПРАВЛЕНО: ТОЧНАЯ ПРИВЯЗКА ID ДЛЯ БЭКЕНДА + МАЯЧКИ 🔥
     if (window.isKaspiExportMode && window.parsedInvoiceData) {
       const url = typeof APPS_SCRIPT_URL !== "undefined" ? APPS_SCRIPT_URL : window.APPS_SCRIPT_URL;
-      
-      // Игнорируем базовые системные ключи, чтобы не засорять JSON
       const excludeKeys = ["name", "price", "cost", "qty", "quantity", "barcode", "merchant_sku", "description", "desc", "item_name", "item_id", "id", "attributes", "kaspi_attributes", "params", "_attributesobj", "_hascollisions", "_collisionslist"];
 
-      const itemsToUpdate = window.parsedInvoiceData.map((item) => {
-        // 1. Берем старые данные из базы
+      const itemsToUpdate = window.parsedInvoiceData.map((item, idx) => {
+        // Достаем оригинальный ID с сервера
+        let realId = item.item_id || item.id;
+        if (window.kaspiExportItems && window.kaspiExportItems[idx]) {
+            realId = window.kaspiExportItems[idx].item_id || window.kaspiExportItems[idx].id || realId;
+        }
+
         let baseAttrs = {};
         try { baseAttrs = typeof item.attributes === "string" ? JSON.parse(item.attributes || "{}") : (item.attributes || {}); } catch(e){}
-        
-        // 2. Объединяем с живыми системными объектами
         let liveAttrs = item._attributesObj || {};
         let merged = Object.assign({}, baseAttrs, liveAttrs);
 
-        // 3. ПЕРЕХВАТЫВАЕМ РУЧНОЙ ВВОД (из окна "Изменить параметры")
         Object.keys(item).forEach(key => {
             if (!excludeKeys.includes(key.toLowerCase()) && item[key] !== undefined && item[key] !== null && item[key] !== "") {
-                merged[key] = item[key]; // Упаковываем твои правки!
+                merged[key] = item[key];
             }
         });
 
         return {
-          item_id: item.item_id || item.id,
+          item_id: realId,
+          barcode: item.barcode || "", // Штрихкод для двойного поиска
           attributes: JSON.stringify(merged),
         };
       });
 
-      // Отправляем правильные данные в БД
+      // 🚨 МАЯЧКИ ДЛЯ ТЕСТИРОВАНИЯ 🚨
+      console.log("🚀 ПОДГОТОВКА К ОТПРАВКЕ НА СЕРВЕР (silentUpdateAttributesBackend):");
+      console.log("Всего товаров отправляется:", itemsToUpdate.length);
+      if (itemsToUpdate.length > 0) {
+          console.log("📦 Структура ПЕРВОГО товара:", itemsToUpdate[0]);
+          try {
+              console.log("📋 Распакованные атрибуты ПЕРВОГО товара:", JSON.parse(itemsToUpdate[0].attributes));
+          } catch(e) {
+              console.log("⚠️ Ошибка парсинга атрибутов для лога");
+          }
+      }
+
       fetch(url, {
         method: "POST",
         body: JSON.stringify({ action: "silentUpdateAttributesBackend", api_key: CLIENT_API_KEY, items: itemsToUpdate }),
       })
         .then((res) => res.json())
         .then((data) => {
-          if (data.success) console.log("✅ Параметры товаров успешно обновлены в базе!");
+          if (data.success) {
+            console.log("✅ Параметры товаров успешно обновлены в базе! Количество обработанных строк:", data.updated);
+            if (data.updated === 0) console.warn("⚠️ Бэкенд ответил успехом, но не смог найти эти ID/Штрихкоды в базе!");
+          } else {
+            console.error("❌ Ошибка от бэкенда:", data.error);
+          }
         })
         .catch((e) => console.error("Ошибка сети при сохранении параметров:", e));
     }
