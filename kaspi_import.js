@@ -1657,26 +1657,40 @@ window.applyMapper2Logic = function () {
       let excelHeader = state.invoiceHeaders ? state.invoiceHeaders[colIdx] : "";
 
       if (state.splitRules && typeof parseAndMatchTokens === "function") {
+        // 1. Прогоняем строку через наше умное ядро (с очисткой пробелов и слиянием мусора)
         let tokenObjects = parseAndMatchTokens(rawVal, excelHeader || primaryKey);
 
         if (tokenObjects.length > 0) {
+          // 2. Находим Якорь (первое число = индекс 100)
           let anchorIndex = tokenObjects.findIndex(t => /\d/.test(t.cleanText));
           if (anchorIndex === -1) anchorIndex = 0;
-          tokenObjects.forEach((tok, idx) => tok.universalIndex = 100 + (idx - anchorIndex));
+
+          tokenObjects.forEach((tok, idx) => {
+              tok.universalIndex = 100 + (idx - anchorIndex);
+          });
+
+          // 3. Генерируем новую сигнатуру (N - число, G - мусор)
           const sig = tokenObjects.map(t => /\d/.test(t.cleanText) ? 'N' : 'G').join('-');
 
+          // 4. Ищем правило по новой сигнатуре
           let targetIndices = null;
+          
+          // Проверяем по заголовку колонки Excel
           if (state.splitRules[excelHeader] && state.splitRules[excelHeader][sig]) {
               targetIndices = state.splitRules[excelHeader][sig][primaryKey];
           }
+          // Фоллбэк: проверяем по системному ключу (для обратной совместимости)
           if (!targetIndices && state.splitRules[primaryKey] && state.splitRules[primaryKey][sig]) {
               targetIndices = state.splitRules[primaryKey][sig];
           }
 
+          // 5. Если правило найдено, собираем результат по универсальным индексам
           if (targetIndices) {
              let resultArr = [];
              let indicesArray = Array.isArray(targetIndices) ? targetIndices : [targetIndices];
+             
              indicesArray.forEach((targetIdx) => {
+               // Ищем токен с нужным универсальным индексом
                let matchedTok = tokenObjects.find(t => t.universalIndex === targetIdx);
                if (matchedTok) resultArr.push(matchedTok.text);
              });
