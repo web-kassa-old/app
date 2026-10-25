@@ -872,7 +872,20 @@ window.renderMapper2Cards = function (templateData) {
   if (currency) currency.style.display = "none";
 
   document.getElementById("mapper2Area").style.display = "flex";
-  document.getElementById("applyMapper2Btn").style.display = "block";
+  
+  const applyBtn = document.getElementById("applyMapper2Btn");
+  if (applyBtn) {
+      applyBtn.style.display = "block";
+      // 🔥 Меняем текст кнопки для режима экспорта
+      const btnSpan = applyBtn.querySelector("span");
+      if (window.isKaspiExportMode) {
+          if (btnSpan) btnSpan.innerText = "ПОДТВЕРДИТЬ ШАБЛОН";
+          else applyBtn.innerText = "✓ ПОДТВЕРДИТЬ ШАБЛОН";
+      } else {
+          if (btnSpan) btnSpan.innerText = t.inc_build_invoice || "СОБРАТЬ НАКЛАДНУЮ";
+          else applyBtn.innerText = "✓ СОБРАТЬ НАКЛАДНУЮ";
+      }
+  }
 
   window.checkMapperReadiness();
 };

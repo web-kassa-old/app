@@ -6779,15 +6779,61 @@ window.generateExportFile = async function (target = "local") {
 
         let value = "";
 
-        if (sourceDbField === "barcode")
-          value = item.barcode || ""; // УБРАЛИ item_id! Берем только чистый штрихкод из базы.
-        else if (sourceDbField === "name")
+        // 🔥 НОВОЕ: 1. Сначала проверяем, не выбрал ли клиент жесткое значение из словаря прямо сейчас
+        let dictVal = window.mapper2State && window.mapper2State.dictValues && (window.mapper2State.dictValues[kaspiKey] || window.mapper2State.dictValues[humanKey]);
+        
+        // 🔥 НОВОЕ: 2. Проверяем, не нарезал ли клиент это значение через сплиттер прямо сейчас
+        let splitVal = "";
+        if (!dictVal && window.mapper2State && window.mapper2State.invoiceRows && window.mapper2State.splitRules) {
+            let splitRule = window.mapper2State.splitRules[kaspiKey] || window.mapper2State.splitRules[humanKey];
+            if (splitRule) {
+                // Если правило есть, пытаемся вырезать его из виртуальной строки маппера
+                let rowData = window.mapper2State.invoiceRows[itemIdx];
+                if (rowData) {
+                    let colIdx = window.mapper2State.colMap[sourceDbField];
+                    let rawVal = String(rowData[colIdx] || "").trim();
+                    if (rawVal && typeof parseAndMatchTokens === "function") {
+                        let tokens = parseAndMatchTokens(rawVal, "");
+                        let sigTokens = tokens.filter(t => !/^[a-zA-Zа-яА-ЯёЁ]+$/.test(t.cleanText));
+                        let sig = sigTokens.map(t => /\d/.test(t.cleanText) ? 'N' : 'S').join('-');
+                        let tIndices = splitRule[sig] || splitRule; // Берем по сигнатуре или старый формат
+                        
+                        if (tIndices && !Array.isArray(tIndices) && typeof tIndices === 'object') {
+                           let firstKey = Object.keys(tIndices)[0];
+                           tIndices = tIndices[firstKey];
+                        }
+                        
+                        if (tIndices && Array.isArray(tIndices)) {
+                             let anchorIndex = tokens.findIndex(t => /\d/.test(t.cleanText));
+                             if (anchorIndex === -1) anchorIndex = 0;
+                             tokens.forEach((tok, idx) => tok.universalIndex = 100 + (idx - anchorIndex));
+                             
+                             let resultArr = [];
+                             tIndices.forEach(targetIdx => {
+                                 let matchedTok = tokens.find(t => t.universalIndex === targetIdx);
+                                 if (matchedTok) resultArr.push(matchedTok.text);
+                             });
+                             splitVal = resultArr.join("");
+                        }
+                    }
+                }
+            }
+        }
+
+        // Приоритет данных: Словарь -> Сплиттер -> База данных
+        if (dictVal) {
+            value = dictVal;
+        } else if (splitVal) {
+            value = splitVal;
+        } else if (sourceDbField === "barcode") {
+          value = item.barcode || ""; 
+        } else if (sourceDbField === "name") {
           value = String(item.name || item.item_name || "");
-        else if (sourceDbField === "price")
+        } else if (sourceDbField === "price") {
           value = Number(item.price || item.cost || item.retail_price) || 0;
-        else if (sourceDbField === "qty")
+        } else if (sourceDbField === "qty") {
           value = Number(item.qty || item.quantity) || 0;
-        else if (sourceDbField && String(sourceDbField).startsWith("static_")) {
+        } else if (sourceDbField && String(sourceDbField).startsWith("static_")) {
           value = String(sourceDbField).replace("static_", "");
         } else if (sourceDbField) {
           let attrs = {};
@@ -6802,15 +6848,6 @@ window.generateExportFile = async function (target = "local") {
             value = attrs[sourceDbField];
           } else if (item[sourceDbField] !== undefined && item[sourceDbField] !== null) {
             value = item[sourceDbField];
-          }
-        }
-
-        // Авто-мэтчинг
-        if ((value === "" || value === null || value === undefined) && !sourceDbField) {
-          if (item[humanKey] !== undefined && item[humanKey] !== null && item[humanKey] !== "") {
-            value = item[humanKey];
-          } else if (item[kaspiKey] !== undefined && item[kaspiKey] !== null && item[kaspiKey] !== "") {
-            value = item[kaspiKey];
           }
         }
 
