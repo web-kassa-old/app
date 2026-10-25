@@ -747,47 +747,30 @@ window.parseAndMatchTokens = function(rawString, colName) {
 };
 
 window.startTokenizerQueue = function() {
-    // Если карантин пуст, идем дальше
     if (!window.mapper2State.quarantine || window.mapper2State.quarantine.length === 0) {
         const container = document.getElementById("smartMapperContainer");
         if (container) container.style.display = "none";
-        
-        if (typeof window.navigateIncomeStep === "function") {
-            window.navigateIncomeStep(2);
-        }
+        if (typeof window.navigateIncomeStep === "function") window.navigateIncomeStep(2);
         return;
     }
 
-    // Берем первую проблемную строку
     const currentItem = window.mapper2State.quarantine[0];
     const colName = currentItem.excelColumnName;
     const rawString = currentItem.rawString;
     const targetParams = window.mapper2State.smartRules[colName] || [];
 
-    // 🔥 ШАГ 4.1: Вызываем наше новое умное ядро! (Никакого дублирования кода)
-    let tokens = typeof parseAndMatchTokens === "function" 
-        ? parseAndMatchTokens(rawString, colName) 
-        : [];
-
+    let tokens = typeof parseAndMatchTokens === "function" ? parseAndMatchTokens(rawString, colName) : [];
     if (tokens.length === 0) {
         window.mapper2State.quarantine.shift();
         window.startTokenizerQueue();
         return;
     }
 
-    // 🔥 ШАГ 4.2: Индексация "Smart Skeleton" относительно якоря (первого числа)
     let anchorIndex = tokens.findIndex(t => /\d/.test(t.cleanText));
-    if (anchorIndex === -1) anchorIndex = 0; // Если чисел вообще нет (редкость), якорем будет первый элемент
+    if (anchorIndex === -1) anchorIndex = 0;
+    tokens.forEach((tok, idx) => tok.universalIndex = 100 + (idx - anchorIndex));
+    const sig = tokens.map(t => t.type).join('-'); // Используем новую точную сигнатуру
 
-    // Присваиваем универсальный индекс (Якорь = 100)
-    tokens.forEach((tok, idx) => {
-        tok.universalIndex = 100 + (idx - anchorIndex);
-    });
-
-    // 🔥 ШАГ 4.3: Новая гибкая сигнатура (N - число, G - мусор/текст)
-    const sig = tokens.map(t => /\d/.test(t.cleanText) ? 'N' : 'G').join('-');
-
-    // Отрисовываем интерфейс (Твоя верстка, адаптированная под новые индексы)
     const container = document.getElementById("smartMapperContainer");
     if (!container) return;
     container.innerHTML = "";
@@ -795,7 +778,7 @@ window.startTokenizerQueue = function() {
 
     const modal = document.createElement("div");
     modal.className = "smart-modal-content tokenizer-modal";
-
+    
     const header = document.createElement("div");
     header.className = "smart-modal-header";
     header.innerHTML = `Связь данных: <span style="color: var(--accent-blue);">${colName.toUpperCase()}</span>`;
@@ -813,13 +796,9 @@ window.startTokenizerQueue = function() {
 
     let activeTokensHtml = "";
     tokens.forEach((tok) => {
-        if (tok.isActive) {
-            let tooltip = tok.matchedParams.length > 0 ? `Подходит для: ${tok.matchedParams.join(', ')}` : "";
-            // Используем новый универсальный индекс!
-            activeTokensHtml += `<button class="token-btn active-token" data-indices="${tok.universalIndex}" title="${tooltip}">${tok.text}</button>`;
-        } else {
-            activeTokensHtml += `<span class="token-text passive-token">${tok.text}</span>`;
-        }
+        // Убрали проблемный tooltip с matchedParams
+        let baseClass = tok.type === 'garbage' ? 'passive-token' : 'active-token';
+        activeTokensHtml += `<button class="token-btn ${baseClass}" data-indices="${tok.universalIndex}" style="pointer-events: auto; cursor: pointer;">${tok.text}</button>`;
     });
     
     tokensContainer.innerHTML = activeTokensHtml;
@@ -833,6 +812,7 @@ window.startTokenizerQueue = function() {
     const paramsGrid = document.createElement("div");
     paramsGrid.className = "params-match-grid";
 
+    // Убрали проблемный поиск defaultVal по matchedParams
     targetParams.forEach(paramName => {
         paramsGrid.innerHTML += `
             <div class="match-row" data-param="${paramName}">
@@ -847,36 +827,48 @@ window.startTokenizerQueue = function() {
 
     const footer = document.createElement("div");
     footer.className = "smart-modal-footer";
-    footer.innerHTML = `
-        <button class="confirm-btn btn-primary green" id="btnNextToken" style="width: 100%; padding: 12px; font-weight: bold; border-radius: 8px;">ПОДТВЕРДИТЬ СТРУКТУРУ</button>
-    `;
+    footer.innerHTML = `<button class="confirm-btn btn-primary green" id="btnNextToken" style="width: 100%; padding: 12px; font-weight: bold; border-radius: 8px;">ПОДТВЕРДИТЬ СТРУКТУРУ</button>`;
     body.appendChild(footer);
     modal.appendChild(body);
     container.appendChild(modal);
 
-    let selectedTokenBtn = null;
-    const tokenBtns = tokensContainer.querySelectorAll('.active-token');
+    let selectedTokenBtns = [];
+    const tokenBtns = tokensContainer.querySelectorAll('.token-btn');
+    
     tokenBtns.forEach(btn => {
         btn.addEventListener('click', function() {
-            tokenBtns.forEach(b => b.classList.remove('selected'));
-            this.classList.add('selected');
-            selectedTokenBtn = this;
+            if (this.classList.contains('selected')) {
+                this.classList.remove('selected');
+                this.style.outline = '';
+                selectedTokenBtns = selectedTokenBtns.filter(b => b !== this);
+            } else {
+                this.classList.add('selected');
+                this.style.outline = '2px dashed #00ff00';
+                this.style.outlineOffset = '2px';
+                selectedTokenBtns.push(this);
+            }
         });
     });
 
     const dropzones = paramsGrid.querySelectorAll('.match-dropzone');
     dropzones.forEach(zone => {
         zone.addEventListener('click', function() {
-            if (selectedTokenBtn) {
-                this.textContent = selectedTokenBtn.textContent;
-                this.dataset.assignedIndices = selectedTokenBtn.dataset.indices;
+            if (selectedTokenBtns.length > 0) {
+                selectedTokenBtns.sort((a, b) => Number(a.dataset.indices) - Number(b.dataset.indices));
+                this.textContent = selectedTokenBtns.map(b => b.textContent).join('');
+                this.dataset.assignedIndices = selectedTokenBtns.map(b => b.dataset.indices).join(',');
                 this.classList.add('filled');
                 
-                selectedTokenBtn.classList.remove('selected');
-                selectedTokenBtn.classList.add('assigned');
-                selectedTokenBtn = null;
+                selectedTokenBtns.forEach(b => {
+                    b.classList.remove('selected');
+                    b.classList.add('assigned');
+                    b.style.outline = '';
+                    b.style.border = '1px solid #555';
+                    b.style.opacity = '0.5';
+                });
+                selectedTokenBtns = [];
             } else {
-                this.textContent = "Кликните значение выше...";
+                this.textContent = "Кликните значения выше...";
                 this.dataset.assignedIndices = "";
                 this.classList.remove('filled');
             }
@@ -885,27 +877,19 @@ window.startTokenizerQueue = function() {
 
     document.getElementById("btnNextToken").addEventListener("click", () => {
         let ruleMap = {};
-        
         dropzones.forEach(zone => {
             const param = String(zone.closest('.match-row').dataset.param).trim();
             const indicesStr = zone.dataset.assignedIndices;
             
             if (indicesStr !== "") {
                 let sysId = param; 
-                
-                if (window.currentTemplateData && window.currentTemplateData.humanNames && window.currentTemplateData.systemKeys) {
+                if (window.currentTemplateData && window.currentTemplateData.humanNames) {
                     const hNames = window.currentTemplateData.humanNames;
                     const sKeys = window.currentTemplateData.systemKeys;
-                    
                     for (let i = 0; i < hNames.length; i++) {
-                        if (String(hNames[i]).trim() === param) {
-                            sysId = sKeys[i];
-                            break;
-                        }
+                        if (String(hNames[i]).trim() === param) { sysId = sKeys[i]; break; }
                     }
                 }
-                
-                // Сохраняем универсальный индекс или массив индексов (если мультивыделение)
                 ruleMap[sysId] = indicesStr.split(',').map(Number);
             }
         });
