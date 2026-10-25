@@ -1649,11 +1649,11 @@ window.applyMapper2Logic = function () {
     if (!row || row.length === 0) return;
 
     const getValue = (primaryKey, kaspiKey) => {
-      if (state.dictValues && state.dictValues[primaryKey]) return state.dictValues[primaryKey];
-      if (kaspiKey && state.dictValues && state.dictValues[kaspiKey]) return state.dictValues[kaspiKey];
+      if (dict && dict[primaryKey]) return dict[primaryKey];
+      if (kaspiKey && dict && dict[kaspiKey]) return dict[kaspiKey];
 
-      let colIdx = state.colMap[primaryKey];
-      if (colIdx === undefined && kaspiKey) colIdx = state.colMap[kaspiKey];
+      let colIdx = colMap ? colMap[primaryKey] : undefined;
+      if (colIdx === undefined && kaspiKey && colMap) colIdx = colMap[kaspiKey];
       if (colIdx === undefined) return "";
 
       let rawVal = String(row[colIdx] || "").trim();
