@@ -834,15 +834,10 @@ window.startTokenizerQueue = function() {
     paramsGrid.className = "params-match-grid";
 
     targetParams.forEach(paramName => {
-        // Ищем токен, который подходит
-        let suggestedToken = tokens.find(t => t.isActive && t.matchedParams.includes(paramName) && t.matchedParams.length === 1);
-        let defaultVal = suggestedToken ? suggestedToken.text : "";
-        let defaultIndices = suggestedToken ? suggestedToken.universalIndex : "";
-
         paramsGrid.innerHTML += `
             <div class="match-row" data-param="${paramName}">
                 <div class="match-label">${paramName}</div>
-                <div class="match-dropzone" data-assigned-indices="${defaultIndices}">${defaultVal || "Кликните значение выше..."}</div>
+                <div class="match-dropzone" data-assigned-indices="">Кликните значения выше...</div>
             </div>
         `;
     });
