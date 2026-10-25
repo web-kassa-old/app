@@ -1584,7 +1584,6 @@ window.applyMapper2Logic = function () {
   const state = window.mapper2State || {};
 
   // 🔥 ЗАЩИТА ОТ "ЗАЛИПАНИЯ" РЕЖИМА ЭКСПОРТА 🔥
-  // Если поставщик не Kaspi (Экспорт), значит это обычная приемка — жестко отключаем режим экспорта.
   if (state.supplier !== "Kaspi (Экспорт)") {
       window.isKaspiExportMode = false;
   }
@@ -1592,7 +1591,6 @@ window.applyMapper2Logic = function () {
   const colMap = state.colMap || {};
   const dict = state.dictValues || {};
 
-  // 1. Определяем режим работы для игнорирования пустых цен/количеств
   const isKaspiMode = window.isKaspiExportMode || window.currentImportMode === "kaspi";
 
   const hasQty = colMap["qty"] !== undefined || dict["qty"] !== undefined;
@@ -1601,7 +1599,6 @@ window.applyMapper2Logic = function () {
   const hasName = colMap["name"] !== undefined || colMap["model"] !== undefined || 
                   dict["name"] !== undefined || dict["model"] !== undefined;
 
-  // 2. Блокируем отсутствие базовых колонок ТОЛЬКО для обычной приемки
   if (!isKaspiMode) {
       if (!hasQty || !hasPrice || !hasName) {
         const lang = window.currentLang || localStorage.getItem("pos_lang") || "ru";
@@ -1660,7 +1657,6 @@ window.applyMapper2Logic = function () {
   };
 
   let mappedIndices = Object.values(state.colMap).filter((v) => v !== undefined);
-
   window.mapper2State.quarantine = [];
 
   state.invoiceRows.forEach((row, index) => {
@@ -1729,13 +1725,11 @@ window.applyMapper2Logic = function () {
     let qty = parseFloat(rawQty) || 0;
     let price = parseFloat(String(rawPrice).replace(",", "."));
 
-    // 3. Отключаем удаление строк с нулевой ценой для экспорта
     if (!isKaspiMode && (isNaN(price) || price <= 0)) {
         return; 
     }
 
     let hasIdentifier = (rawId && String(rawId).trim() !== "") || (rawName && String(rawName).trim() !== "");
-    // 4. Отключаем удаление строк без идентификатора для экспорта
     if (!isKaspiMode && !hasIdentifier) {
         return; 
     }
@@ -1765,12 +1759,14 @@ window.applyMapper2Logic = function () {
       let lowerKey = String(key).toLowerCase();
       let rawValue = getValue(key);
 
-      if (["qty", "price", "cost", "name", "model", "barcode", "cbm", "weight"].includes(lowerKey)) return;
+      // 🔥 ЖЕСТКО ИСКЛЮЧАЕМ СИСТЕМНЫЕ ПОЛЯ, ЧТОБЫ ОНИ НЕ ПОПАЛИ В ХАРАКТЕРИСТИКИ 🔥
+      if (["qty", "price", "cost", "name", "model", "barcode", "cbm", "weight", "item_id", "item_name", "id", "sku", "merchant_sku"].includes(lowerKey)) return;
       if (!rawValue) return;
 
-      let humanName = state.sysToHumanMap ? state.sysToHumanMap[key] : key;
-      let searchString = rawValue;
+      // 🔥 ПЕРЕВОДИМ ТЕХНИЧЕСКИЙ КЛЮЧ В РУССКИЙ (HUMAN NAME) 🔥
+      let humanName = (state.sysToHumanMap && state.sysToHumanMap[key]) ? state.sysToHumanMap[key] : key;
 
+      let searchString = rawValue;
       let dict = window.kaspiDicts && window.kaspiDicts[humanName];
       let hasDictionary = dict && Array.isArray(dict) && dict.length > 0;
       let foundMatch = false;
@@ -1811,17 +1807,19 @@ window.applyMapper2Logic = function () {
           itemHasCollisions = true;
           itemCollisionsList.push({
             sysKey: key,
-            humanName: humanName,
+            humanName: humanName, // Окно коллизий уже использует русское название
             rawString: rawValue,
             excelColumnName: excelHeader || "ДАННЫЕ ИЗ НАКЛАДНОЙ",
           });
         } else {
-          attributesObj[key] = rawValue;
+          // СОХРАНЯЕМ В АТРИБУТЫ ПОД РУССКИМ ИМЕНЕМ
+          attributesObj[humanName] = rawValue;
         }
         return; 
       }
 
-      attributesObj[key] = matchedDictValue;
+      // СОХРАНЯЕМ В АТРИБУТЫ ПОД РУССКИМ ИМЕНЕМ
+      attributesObj[humanName] = matchedDictValue;
     };
 
     let allKeys = new Set(Object.keys(state.colMap));
@@ -1831,10 +1829,14 @@ window.applyMapper2Logic = function () {
     allKeys.forEach((key) => processAttribute(key));
 
     let cleanAttributesObj = Object.assign({}, attributesObj);
+    // Дополнительная зачистка мусора
     delete cleanAttributesObj['Артикул'];
     delete cleanAttributesObj['Название модели'];
     delete cleanAttributesObj['sku'];
     delete cleanAttributesObj['title'];
+    delete cleanAttributesObj['item_id'];
+    delete cleanAttributesObj['item_name'];
+    delete cleanAttributesObj['id'];
 
     let finalAttributes = Object.keys(cleanAttributesObj).length > 0 ? JSON.stringify(cleanAttributesObj) : "";
 
@@ -1865,7 +1867,7 @@ window.applyMapper2Logic = function () {
       attributes: finalAttributes,
       _hasCollisions: itemHasCollisions,
       _collisionsList: itemCollisionsList,
-      _attributesObj: attributesObj,
+      _attributesObj: cleanAttributesObj, // Передаем очищенный объект с русскими ключами
     };
 
     window.parsedInvoiceData.push(itemData);
@@ -1883,7 +1885,6 @@ window.applyMapper2Logic = function () {
     }
   });
 
-  // 5. Игнорируем пустую таблицу для экспорта
   if (window.parsedInvoiceData.length === 0 && !isKaspiMode) {
     return alert("Не удалось сформировать товары. Убедитесь, что в колонках «Количество» и «Цена» находятся ТОЛЬКО цифры.");
   }
@@ -1901,7 +1902,6 @@ window.applyMapper2Logic = function () {
   document.getElementById("mapper2Area").style.display = "none";
   document.getElementById("invoicePreviewArea").style.display = "flex";
 
-  // 🔥 ИСПРАВЛЕНИЕ ЛОГИКИ ОТОБРАЖЕНИЯ КНОПОК 🔥
   if (window.isKaspiExportMode) {
     const sendBtn = document.getElementById("sendInvoiceBtn");
     if (sendBtn) sendBtn.style.display = "none";
@@ -1914,19 +1914,15 @@ window.applyMapper2Logic = function () {
        const allBtns = previewArea.querySelectorAll("button");
        allBtns.forEach(b => {
            const text = b.innerText.toUpperCase();
-           
-           // Прячем лишние кнопки Каспи
            if (text.includes("ДИСК") || text.includes("СБРОС") || text.includes("ПЕРЕЗАЛИТЬ")) {
                b.style.display = "none";
            }
-           // 🔥 ПРИНУДИТЕЛЬНО ВОЗВРАЩАЕМ КНОПКУ "НАЗАД" 🔥
            if (text === "НАЗАД" || text.includes("НАЗАД")) {
-               b.style.display = "block"; // или "" в зависимости от верстки
+               b.style.display = "block"; 
            }
        });
     }
   } else {
-    // Ветка обычной приемки
     const sendBtn = document.getElementById("sendInvoiceBtn");
     if (sendBtn) sendBtn.style.display = "flex"; 
 
