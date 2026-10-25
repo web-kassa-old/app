@@ -310,8 +310,9 @@ window.renderSmartMapperModal = function (complexColumns) {
                                 : [];
                             
                             if (tokens.length > 1) {
-                                // 2. Единый и жесткий стандарт сигнатуры (N - цифра, G - буква или символ)
-                                const sig = tokens.map(t => /\d/.test(t.cleanText) ? 'N' : 'G').join('-');
+                                // 🔥 ВОЗВРАЩАЕМ ТРЮК: Убираем буквы, чтобы 175... и LT205... имели один слепок (N-S-N-N)
+                                const sigTokens = tokens.filter(t => !/^[a-zA-Zа-яА-ЯёЁ]+$/.test(t.cleanText));
+                                const sig = sigTokens.map(t => /\d/.test(t.cleanText) ? 'N' : 'S').join('-');
 
                                 if (!signatureMap[sig]) {
                                     signatureMap[sig] = strVal;
@@ -773,12 +774,14 @@ window.startTokenizerQueue = function() {
     }
 
     // 🔥 ШАГ 4.2: Индексация "Smart Skeleton" относительно якоря (первого числа)
-    let anchorIndex = tokens.findIndex(t => /\d/.test(t.cleanText));
-    if (anchorIndex === -1) anchorIndex = 0; // Если чисел вообще нет (редкость), якорем будет первый элемент
-
-    // Присваиваем универсальный индекс (Якорь = 100)
-    tokens.forEach((tok, idx) => {
-        tok.universalIndex = 100 + (idx - anchorIndex);
+    // Числа и разделители получают жесткий порядок, а буквы - уникальные ID
+    let numIndex = 100;
+    tokens.forEach((tok) => {
+        if (!/^[a-zA-Zа-яА-ЯёЁ]+$/.test(tok.cleanText)) {
+            tok.universalIndex = numIndex++; // Жесткий каркас: 100, 101, 102...
+        } else {
+            tok.universalIndex = 'L_' + tok.cleanText; // Смысловая привязка: L_R, L_LT
+        }
     });
 
     // 🔥 ШАГ 4.3: Новая гибкая сигнатура (N - число, G - мусор/текст)
@@ -908,7 +911,7 @@ window.startTokenizerQueue = function() {
                 }
                 
                 // Сохраняем универсальный индекс или массив индексов (если мультивыделение)
-                ruleMap[sysId] = indicesStr.split(',').map(Number);
+                ruleMap[sysId] = indicesStr.split(',').map(v => isNaN(v) ? v : Number(v));
             }
         });
 
