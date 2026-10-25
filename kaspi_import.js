@@ -1583,10 +1583,17 @@ window.updateReqCardStatus = function (sysKey, text, className, previewText) {
 // 6. ФИНАЛЬНАЯ СБОРКА JSON ДЛЯ СЕРВЕРА
 window.applyMapper2Logic = function () {
   const state = window.mapper2State || {};
+
+  // 🔥 ЗАЩИТА ОТ "ЗАЛИПАНИЯ" РЕЖИМА ЭКСПОРТА 🔥
+  // Если поставщик не Kaspi (Экспорт), значит это обычная приемка — жестко отключаем режим экспорта.
+  if (state.supplier !== "Kaspi (Экспорт)") {
+      window.isKaspiExportMode = false;
+  }
+
   const colMap = state.colMap || {};
   const dict = state.dictValues || {};
 
-  // 1. Определяем режим работы
+  // 1. Определяем режим работы для игнорирования пустых цен/количеств
   const isKaspiMode = window.isKaspiExportMode || window.currentImportMode === "kaspi";
 
   const hasQty = colMap["qty"] !== undefined || dict["qty"] !== undefined;
@@ -1895,14 +1902,15 @@ window.applyMapper2Logic = function () {
   document.getElementById("mapper2Area").style.display = "none";
   document.getElementById("invoicePreviewArea").style.display = "flex";
 
-  if (isKaspiMode) {
+  // 🔥 ИСПРАВЛЕНИЕ ЛОГИКИ ОТОБРАЖЕНИЯ КНОПОК 🔥
+  // Показываем "Скачать файл" ТОЛЬКО если это 100% экспорт. Иначе возвращаем кнопку "Оприходовать".
+  if (window.isKaspiExportMode) {
     const sendBtn = document.getElementById("sendInvoiceBtn");
     if (sendBtn) sendBtn.style.display = "none";
 
     const exportBtns = document.getElementById("exportActionButtons");
     if (exportBtns) exportBtns.style.display = "flex";
 
-    // 🔥 Прячем лишние кнопки при экспорте Каспи
     const previewArea = document.getElementById("invoicePreviewArea");
     if (previewArea) {
        const allBtns = previewArea.querySelectorAll("button");
@@ -1914,6 +1922,7 @@ window.applyMapper2Logic = function () {
        });
     }
   } else {
+    // Ветка обычной приемки
     const sendBtn = document.getElementById("sendInvoiceBtn");
     if (sendBtn) sendBtn.style.display = "flex"; 
 
