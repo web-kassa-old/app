@@ -1573,21 +1573,23 @@ window.applyMapper2Logic = function () {
   const colMap = state.colMap || {};
   const dict = state.dictValues || {};
 
-  // Проверяем: есть ли привязка к Excel ИЛИ ручной ввод для каждого обязательного поля
+  // 1. Определяем режим работы
+  const isKaspiMode = window.isKaspiExportMode || window.currentImportMode === "kaspi";
+
   const hasQty = colMap["qty"] !== undefined || dict["qty"] !== undefined;
-  
   const hasPrice = colMap["price"] !== undefined || colMap["cost"] !== undefined || 
                    dict["price"] !== undefined || dict["cost"] !== undefined;
-                   
   const hasName = colMap["name"] !== undefined || colMap["model"] !== undefined || 
                   dict["name"] !== undefined || dict["model"] !== undefined;
 
-  // Если хотя бы одно обязательное поле вообще никак не заполнено — блокируем
-  if (!hasQty || !hasPrice || !hasName) {
-    const lang = window.currentLang || localStorage.getItem("pos_lang") || "ru";
-    const tr = typeof translations !== "undefined" && translations[lang] ? translations[lang] : {};
-    const errorMsg = tr.mapper_err_missing_cols || "⚠️ Обязательно привяжите колонки (или введите вручную):\n1. Наименование (или model)\n2. Количество (qty)\n3. Цена (price/cost)";
-    return alert(errorMsg);
+  // 2. Блокируем отсутствие базовых колонок ТОЛЬКО для обычной приемки
+  if (!isKaspiMode) {
+      if (!hasQty || !hasPrice || !hasName) {
+        const lang = window.currentLang || localStorage.getItem("pos_lang") || "ru";
+        const tr = typeof translations !== "undefined" && translations[lang] ? translations[lang] : {};
+        const errorMsg = tr.mapper_err_missing_cols || "⚠️ Обязательно привяжите колонки (или введите вручную):\n1. Наименование (или model)\n2. Количество (qty)\n3. Цена (price/cost)";
+        return alert(errorMsg);
+      }
   }
 
   if (window.currentImportMode === "kaspi") {
@@ -1667,12 +1669,11 @@ window.applyMapper2Logic = function () {
               tok.universalIndex = 100 + (idx - anchorIndex);
           });
 
-          // 🔥 ВОЗВРАЩАЕМ ТРЮК: Игнорируем буквы при поиске сохраненной сигнатуры
           const sigTokens = tokenObjects.filter(t => !/^[a-zA-Zа-яА-ЯёЁ]+$/.test(t.cleanText));
           const sig = sigTokens.map(t => /\d/.test(t.cleanText) ? 'N' : 'S').join('-');
 
           let targetIndices = null;
-          let sigFound = false; // Флаг: мы уже знаем эту структуру?
+          let sigFound = false;
           
           if (state.splitRules[excelHeader] && state.splitRules[excelHeader][sig]) {
               sigFound = true;
@@ -1683,7 +1684,6 @@ window.applyMapper2Logic = function () {
               targetIndices = state.splitRules[primaryKey][sig];
           }
 
-          // 🔥 ИСПРАВЛЕНИЕ: Правильно обрабатываем пустые поля в знакомых структурах
           if (sigFound) {
              if (targetIndices !== undefined && targetIndices !== null) {
                  let resultArr = [];
@@ -1695,7 +1695,6 @@ window.applyMapper2Logic = function () {
                  });
                  return resultArr.join(""); 
              }
-             // Если структура известна, но клиент не привязал это поле (например, высоту) -> возвращаем пустоту!
              return ""; 
           }
         }
@@ -1711,12 +1710,14 @@ window.applyMapper2Logic = function () {
     let qty = parseFloat(rawQty) || 0;
     let price = parseFloat(String(rawPrice).replace(",", "."));
 
-    if (isNaN(price) || price <= 0) {
+    // 3. Отключаем удаление строк с нулевой ценой для экспорта
+    if (!isKaspiMode && (isNaN(price) || price <= 0)) {
         return; 
     }
 
     let hasIdentifier = (rawId && String(rawId).trim() !== "") || (rawName && String(rawName).trim() !== "");
-    if (!hasIdentifier) {
+    // 4. Отключаем удаление строк без идентификатора для экспорта
+    if (!isKaspiMode && !hasIdentifier) {
         return; 
     }
 
@@ -1777,6 +1778,7 @@ window.applyMapper2Logic = function () {
       if (window.currentImportMode === "kaspi" && hasDictionary && !foundMatch) {
         let colIdx = state.colMap[key];
         let excelHeader = colIdx !== undefined && state.invoiceHeaders ? state.invoiceHeaders[colIdx] : "";
+        
         let isComplex = window.complexColumnsToTokenize && window.complexColumnsToTokenize.includes(excelHeader);
 
         let isAlreadyProcessed = false;
@@ -1828,7 +1830,7 @@ window.applyMapper2Logic = function () {
       item_id: rawId,
       item_name: name,
       qty: qty,
-      cost: price, 
+      cost: isNaN(price) ? 0 : price, 
       cbm: cbm,
       weight: weight,
       raw_logistics: rawLogisticsStr.trim(),
@@ -1862,7 +1864,8 @@ window.applyMapper2Logic = function () {
     }
   });
 
-  if (window.parsedInvoiceData.length === 0) {
+  // 5. Игнорируем пустую таблицу для экспорта
+  if (window.parsedInvoiceData.length === 0 && !isKaspiMode) {
     return alert("Не удалось сформировать товары. Убедитесь, что в колонках «Количество» и «Цена» находятся ТОЛЬКО цифры.");
   }
 
@@ -1879,7 +1882,7 @@ window.applyMapper2Logic = function () {
   document.getElementById("mapper2Area").style.display = "none";
   document.getElementById("invoicePreviewArea").style.display = "flex";
 
-  if (window.isKaspiExportMode) {
+  if (isKaspiMode) {
     const sendBtn = document.getElementById("sendInvoiceBtn");
     if (sendBtn) sendBtn.style.display = "none";
 
