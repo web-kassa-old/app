@@ -477,7 +477,6 @@ window.navigateBack = function () {
 // 2. ОТРИСОВКА КАРТОЧЕК НА ГЛАВНОМ ЭКРАНЕ
 window.renderMapper2Cards = function (templateData) {
   // === КЭШИРОВАНИЕ ДАННЫХ ===
-  // Запоминаем данные при первом вызове, чтобы перерисовка работала при вызове без аргументов
   if (templateData) {
     window.lastTemplateData = templateData;
   } else {
@@ -486,7 +485,6 @@ window.renderMapper2Cards = function (templateData) {
 
   const t = translations[currentLang] || translations["ru"];
 
-  // Защита: если dictionary нет в templateData, берем из памяти или ставим пустой объект
   window.kaspiDicts = templateData.dictionary || window.kaspiDicts || {};
 
   const container = document.getElementById("mapper2CardsContainer");
@@ -534,7 +532,6 @@ window.renderMapper2Cards = function (templateData) {
           : templateData.memoryJson;
       window.mapper2State.rawMemoryJson = JSON.stringify(learnedSynonyms);
       if (learnedSynonyms._splitRules) {
-        // ⚡ НЕ стираем свежие правила из Токенизатора! Только дополняем их старыми из памяти.
         const memorySplits = JSON.parse(JSON.stringify(learnedSynonyms._splitRules));
         window.mapper2State.splitRules = { ...memorySplits, ...window.mapper2State.splitRules };
       }
@@ -710,7 +707,6 @@ window.renderMapper2Cards = function (templateData) {
       statusClass = "status-filled";
       let shortVal =
         dictValue.length > 15 ? dictValue.substring(0, 15) + "..." : dictValue;
-      // ИСПРАВЛЕНИЕ 1: Добавляем галочку и красим кнопку для словаря
       statusText = `✓ ${shortVal}`;
       statusI18n = "";
       statusStyle =
@@ -721,12 +717,11 @@ window.renderMapper2Cards = function (templateData) {
         window.mapper2State.invoiceHeaders[mappedIndex] ||
         `Колонка ${mappedIndex + 1}`;
 
-      // ⚡ Читаем правила И по ключу (Specs), И по имени (Ширина профиля)
       let splitData =
         window.mapper2State.splitRules &&
         (window.mapper2State.splitRules[req.name] || window.mapper2State.splitRules[req.sysKey]);
         
-      if (splitData) { // Убрали жесткую проверку массива, проверяем просто наличие данных
+      if (splitData) { 
         let sampleText = "";
         let gluedText = "";
         let highlighted = "";
@@ -746,25 +741,21 @@ window.renderMapper2Cards = function (templateData) {
         }
 
         if (sampleText) {
-          // ⚡ Строго та же регулярка, что и в Токенизаторе
           const regex = /\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g;
           let tokens = sampleText.match(regex) || [];
           
-          // Генерируем сигнатуру для превью
           const sig = tokens.map(t => {
             if (/\d/.test(t)) return 'D';
             if (/[a-zA-Zа-яА-ЯёЁ]/.test(t)) return 'L';
             return '.';
           }).join('-');
           
-          // ⚡ ДОСТАЕМ ИНДЕКСЫ (поддерживаем и старый массив, и новые сигнатуры)
           let rawIndices = [];
           if (Array.isArray(splitData)) {
-            rawIndices = splitData; // Старый формат
+            rawIndices = splitData;
           } else if (splitData[sig]) {
-            rawIndices = splitData[sig]; // Новый формат по точной сигнатуре
+            rawIndices = splitData[sig];
           } else if (Object.keys(splitData).length > 0) {
-            // Фолбэк для превью: берем первое попавшееся правило, если сигнатура образца не совпала
             let firstKey = Object.keys(splitData)[0];
             rawIndices = Array.isArray(splitData[firstKey]) ? splitData[firstKey] : [];
           }
@@ -776,7 +767,6 @@ window.renderMapper2Cards = function (templateData) {
             return parseInt(idx);
           }).filter(n => !isNaN(n));
 
-          // Убираем дубликаты и сортируем по порядку
           validIndices = [...new Set(validIndices)].filter(n => n >= 0 && n < tokens.length).sort((a, b) => a - b);
 
           validIndices.forEach(i => {
@@ -806,7 +796,6 @@ window.renderMapper2Cards = function (templateData) {
                     </div>`;
         }
       } else {
-        // ИСПРАВЛЕНИЕ 3: Меняем текст кнопки для обычного маппинга
         statusText = `✓ ${colName}`;
         statusI18n = "";
         statusStyle =
@@ -872,22 +861,32 @@ window.renderMapper2Cards = function (templateData) {
   if (currency) currency.style.display = "none";
 
   document.getElementById("mapper2Area").style.display = "flex";
+
+  // 1. СНАЧАЛА вызываем штатную проверку полей, которая может сбросить текст
+  if (typeof window.checkMapperReadiness === "function") {
+    window.checkMapperReadiness();
+  }
   
+  // 2. ЗАТЕМ принудительно переписываем текст для экспорта (используем функцию для страховки)
   const applyBtn = document.getElementById("applyMapper2Btn");
   if (applyBtn) {
       applyBtn.style.display = "block";
-      // 🔥 Меняем текст кнопки для режима экспорта
-      const btnSpan = applyBtn.querySelector("span");
-      if (window.isKaspiExportMode) {
-          if (btnSpan) btnSpan.innerText = "ПОДТВЕРДИТЬ ШАБЛОН";
-          else applyBtn.innerText = "✓ ПОДТВЕРДИТЬ ШАБЛОН";
-      } else {
-          if (btnSpan) btnSpan.innerText = t.inc_build_invoice || "СОБРАТЬ НАКЛАДНУЮ";
-          else applyBtn.innerText = "✓ СОБРАТЬ НАКЛАДНУЮ";
-      }
+      
+      const updateText = () => {
+          const btnSpan = applyBtn.querySelector("span");
+          if (window.isKaspiExportMode) {
+              if (btnSpan) btnSpan.innerText = "ПОДТВЕРДИТЬ ШАБЛОН";
+              else applyBtn.innerHTML = "✅ ПОДТВЕРДИТЬ ШАБЛОН";
+          } else {
+              if (btnSpan) btnSpan.innerText = t.inc_build_invoice || "СОБРАТЬ НАКЛАДНУЮ";
+              else applyBtn.innerHTML = "✅ " + (t.inc_build_invoice || "СОБРАТЬ НАКЛАДНУЮ");
+          }
+      };
+      
+      updateText();
+      // Микро-задержка на случай, если проверка работает асинхронно
+      setTimeout(updateText, 100);
   }
-
-  window.checkMapperReadiness();
 };
 
 // 3. ОТКРЫТИЕ ШТОРКИ И ОТРИСОВКА КОЛОНОК
