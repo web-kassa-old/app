@@ -684,7 +684,7 @@ function parseAndMatchTokens(rawString, colName) {
     let rawTokens = cleanString.match(regex) || [];
     let processedTokens = [];
     
-    let selectedParams = window.mapper2State.smartRules[colName] || [];
+    let selectedParams = (window.mapper2State && window.mapper2State.smartRules) ? (window.mapper2State.smartRules[colName] || []) : [];
     let validDicts = {};
     selectedParams.forEach(param => {
         validDicts[param] = typeof getCleanDictValues === "function" ? getCleanDictValues(param) : [];
