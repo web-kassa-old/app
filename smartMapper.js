@@ -300,20 +300,19 @@ window.renderSmartMapperModal = function (complexColumns) {
                 const signatureMap = {};
                 for (let i = 0; i < Math.min(1000, rows.length); i++) {
                     if (rows[i] && rows[i][colIndex]) {
-                        // Убрали слепое удаление пробелов, чтобы не ломать исходный формат для парсера
+                        // Убрали слепое удаление пробелов, чтобы сохранить исходный вид строки
                         let strVal = String(rows[i][colIndex]).trim();
                         
                         if (strVal && isNaN(Number(strVal.replace(/,/g, "")))) {
-                            // Прогоняем строку через наше новое единое ядро нарезки
-                            let tokens = typeof window.parseAndMatchTokens === "function" 
-                                ? window.parseAndMatchTokens(strVal, colName) 
+                            // 1. Прогоняем строку через НАШУ функцию, чтобы сигнатуры карантина и финала 100% совпадали
+                            let tokens = typeof parseAndMatchTokens === "function" 
+                                ? parseAndMatchTokens(strVal, colName) 
                                 : [];
                             
                             if (tokens.length > 1) {
-                                // Новая умная сигнатура: N (число), L (буква), или сам символ
-                                const sig = tokens.map(t => t.type).join('-');
+                                // 2. Единый и жесткий стандарт сигнатуры (N - цифра, G - буква или символ)
+                                const sig = tokens.map(t => /\d/.test(t.cleanText) ? 'N' : 'G').join('-');
 
-                                // Сохраняем ИСХОДНУЮ строку для первого встреченного уникального формата
                                 if (!signatureMap[sig]) {
                                     signatureMap[sig] = strVal;
                                 }
@@ -670,107 +669,122 @@ function getCleanDictValues(sysKey) {
     });
 }
 
-// Главная функция пре-матчинга: режет строку, сверяет с базой и склеивает мусор
-window.parseAndMatchTokens = function(rawString, colName) {
-    // 1. Очистка лишних пробелов (оставляем только между цифрами)
+// Главная функция пре-матчинга: режет строку, сверяет с базой
+function parseAndMatchTokens(rawString, colName) {
     let cleanString = String(rawString).replace(/\s+/g, (match, offset, string) => {
         const prev = string[offset - 1];
         const next = string[offset + match.length];
-        if (prev && next && /\d/.test(prev) && /\d/.test(next)) return ' ';
+        if (prev && next && /\d/.test(prev) && /\d/.test(next)) return ' '; 
         return ''; 
     });
 
-    // 2. Строгая нарезка на атомы: числа, буквы, спецсимволы
-    const regex = /\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g;
+    const regex = /\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]|\s/g;
     let rawTokens = cleanString.match(regex) || [];
-    
     let processedTokens = [];
-    let i = 0;
-
-    // Подтягиваем словари только для выбранных пользователем параметров (если они уже есть)
-    let selectedParams = (window.mapper2State && window.mapper2State.smartRules && colName) 
-        ? window.mapper2State.smartRules[colName] || [] 
-        : [];
-        
+    
+    let selectedParams = window.mapper2State.smartRules[colName] || [];
     let validDicts = {};
-    if (window.kaspiDicts) {
-        selectedParams.forEach(param => {
-            validDicts[param] = window.kaspiDicts[param] || [];
-        });
-    }
+    selectedParams.forEach(param => {
+        validDicts[param] = typeof getCleanDictValues === "function" ? getCleanDictValues(param) : [];
+    });
 
-    // 3. Анализ и формирование токенов
+    const findInDicts = (val, isDec = false) => {
+        let found = [];
+        Object.keys(validDicts).forEach(param => {
+            if (validDicts[param].includes(val) || (isDec && validDicts[param].some(v => Number(v) === Number(val)))) {
+                found.push(param);
+            }
+        });
+        return found;
+    };
+
+    let i = 0;
     while (i < rawTokens.length) {
         let text = rawTokens[i];
-        let isNumber = /^\d+$/.test(text);
-        let isLetter = /^[a-zA-Zа-яА-ЯёЁ]+$/.test(text);
-        let type = isNumber ? 'N' : (isLetter ? 'L' : text); // Тип: N, L или сам спецсимвол
-
         let isDecimal = false;
-        let mergedText = text;
+        let matchedParams = [];
         let skip = 1;
+        let mergedDisplay = text;
+        let matchValue = text.toUpperCase();
 
-        // Lookahead: проверяем, не дробь ли это, и есть ли она в справочнике
-        if (isNumber && i + 2 < rawTokens.length) {
-            let nextTok = rawTokens[i+1];
-            let nextNextTok = rawTokens[i+2];
-            if ((nextTok === '.' || nextTok === ',') && /^\d+$/.test(nextNextTok)) {
-                let potentialMatch = text + nextTok + nextNextTok;
+        if (/\d/.test(text) && i + 2 < rawTokens.length) {
+            let nextTok = rawTokens[i + 1];
+            let nextNextTok = rawTokens[i + 2];
+            
+            if ((nextTok === '.' || nextTok === ',') && /\d/.test(nextNextTok)) {
+                let potentialMatch = (text + '.' + nextNextTok).toUpperCase();
+                let found = findInDicts(potentialMatch, true);
                 
-                let foundInDict = false;
-                Object.values(validDicts).forEach(dict => {
-                    if (dict.includes(potentialMatch) || dict.includes(potentialMatch.replace(',', '.'))) {
-                        foundInDict = true;
-                    }
-                });
-
-                if (foundInDict) {
+                if (found.length > 0) {
                     isDecimal = true;
-                    mergedText = potentialMatch;
-                    skip = 3; // Склеиваем 3 атома в одну кнопку
+                    matchedParams = found;
+                    mergedDisplay = text + nextTok + nextNextTok;
+                    matchValue = potentialMatch;
+                    skip = 3;
                 }
             }
         }
 
-        processedTokens.push({
-            text: mergedText, // Текст для кнопки
-            cleanText: text.toUpperCase(), // Технический текст
-            type: type, // N, L или спецсимвол
-            originalIndices: Array.from({length: skip}, (_, idx) => i + idx), // Массив исходных индексов атомов
-            isActive: true 
-        });
+        if (!isDecimal && text.trim() !== "") {
+             matchedParams = findInDicts(matchValue);
+        }
 
+        // БОЛЬШЕ НИКАКОГО СЛИЯНИЯ МУСОРА! Каждый токен строго на своем месте.
+        processedTokens.push({
+            text: mergedDisplay,
+            cleanText: matchValue,
+            isActive: matchedParams.length > 0, // Активен только если найден
+            matchedParams: matchedParams
+        });
+        
         i += skip;
     }
 
     return processedTokens;
-};
+}
 
 window.startTokenizerQueue = function() {
+    // Если карантин пуст, идем дальше
     if (!window.mapper2State.quarantine || window.mapper2State.quarantine.length === 0) {
         const container = document.getElementById("smartMapperContainer");
         if (container) container.style.display = "none";
-        if (typeof window.navigateIncomeStep === "function") window.navigateIncomeStep(2);
+        
+        if (typeof window.navigateIncomeStep === "function") {
+            window.navigateIncomeStep(2);
+        }
         return;
     }
 
+    // Берем первую проблемную строку
     const currentItem = window.mapper2State.quarantine[0];
     const colName = currentItem.excelColumnName;
     const rawString = currentItem.rawString;
     const targetParams = window.mapper2State.smartRules[colName] || [];
 
-    let tokens = typeof parseAndMatchTokens === "function" ? parseAndMatchTokens(rawString, colName) : [];
+    // 🔥 ШАГ 4.1: Вызываем наше новое умное ядро! (Никакого дублирования кода)
+    let tokens = typeof parseAndMatchTokens === "function" 
+        ? parseAndMatchTokens(rawString, colName) 
+        : [];
+
     if (tokens.length === 0) {
         window.mapper2State.quarantine.shift();
         window.startTokenizerQueue();
         return;
     }
 
+    // 🔥 ШАГ 4.2: Индексация "Smart Skeleton" относительно якоря (первого числа)
     let anchorIndex = tokens.findIndex(t => /\d/.test(t.cleanText));
-    if (anchorIndex === -1) anchorIndex = 0;
-    tokens.forEach((tok, idx) => tok.universalIndex = 100 + (idx - anchorIndex));
-    const sig = tokens.map(t => t.type).join('-'); // Используем новую точную сигнатуру
+    if (anchorIndex === -1) anchorIndex = 0; // Если чисел вообще нет (редкость), якорем будет первый элемент
 
+    // Присваиваем универсальный индекс (Якорь = 100)
+    tokens.forEach((tok, idx) => {
+        tok.universalIndex = 100 + (idx - anchorIndex);
+    });
+
+    // 🔥 ШАГ 4.3: Новая гибкая сигнатура (N - число, G - мусор/текст)
+    const sig = tokens.map(t => /\d/.test(t.cleanText) ? 'N' : 'G').join('-');
+
+    // Отрисовываем интерфейс (Твоя верстка, адаптированная под новые индексы)
     const container = document.getElementById("smartMapperContainer");
     if (!container) return;
     container.innerHTML = "";
@@ -778,7 +792,7 @@ window.startTokenizerQueue = function() {
 
     const modal = document.createElement("div");
     modal.className = "smart-modal-content tokenizer-modal";
-    
+
     const header = document.createElement("div");
     header.className = "smart-modal-header";
     header.innerHTML = `Связь данных: <span style="color: var(--accent-blue);">${colName.toUpperCase()}</span>`;
@@ -796,9 +810,13 @@ window.startTokenizerQueue = function() {
 
     let activeTokensHtml = "";
     tokens.forEach((tok) => {
-        // Убрали проблемный tooltip с matchedParams
-        let baseClass = tok.type === 'garbage' ? 'passive-token' : 'active-token';
-        activeTokensHtml += `<button class="token-btn ${baseClass}" data-indices="${tok.universalIndex}" style="pointer-events: auto; cursor: pointer;">${tok.text}</button>`;
+        if (tok.isActive) {
+            let tooltip = tok.matchedParams.length > 0 ? `Подходит для: ${tok.matchedParams.join(', ')}` : "";
+            // Используем новый универсальный индекс!
+            activeTokensHtml += `<button class="token-btn active-token" data-indices="${tok.universalIndex}" title="${tooltip}">${tok.text}</button>`;
+        } else {
+            activeTokensHtml += `<span class="token-text passive-token">${tok.text}</span>`;
+        }
     });
     
     tokensContainer.innerHTML = activeTokensHtml;
@@ -812,12 +830,16 @@ window.startTokenizerQueue = function() {
     const paramsGrid = document.createElement("div");
     paramsGrid.className = "params-match-grid";
 
-    // Убрали проблемный поиск defaultVal по matchedParams
     targetParams.forEach(paramName => {
+        // Ищем токен, который подходит
+        let suggestedToken = tokens.find(t => t.isActive && t.matchedParams.includes(paramName) && t.matchedParams.length === 1);
+        let defaultVal = suggestedToken ? suggestedToken.text : "";
+        let defaultIndices = suggestedToken ? suggestedToken.universalIndex : "";
+
         paramsGrid.innerHTML += `
             <div class="match-row" data-param="${paramName}">
                 <div class="match-label">${paramName}</div>
-                <div class="match-dropzone" data-assigned-indices="">Кликните значения выше...</div>
+                <div class="match-dropzone" data-assigned-indices="${defaultIndices}">${defaultVal || "Кликните значение выше..."}</div>
             </div>
         `;
     });
@@ -827,48 +849,36 @@ window.startTokenizerQueue = function() {
 
     const footer = document.createElement("div");
     footer.className = "smart-modal-footer";
-    footer.innerHTML = `<button class="confirm-btn btn-primary green" id="btnNextToken" style="width: 100%; padding: 12px; font-weight: bold; border-radius: 8px;">ПОДТВЕРДИТЬ СТРУКТУРУ</button>`;
+    footer.innerHTML = `
+        <button class="confirm-btn btn-primary green" id="btnNextToken" style="width: 100%; padding: 12px; font-weight: bold; border-radius: 8px;">ПОДТВЕРДИТЬ СТРУКТУРУ</button>
+    `;
     body.appendChild(footer);
     modal.appendChild(body);
     container.appendChild(modal);
 
-    let selectedTokenBtns = [];
-    const tokenBtns = tokensContainer.querySelectorAll('.token-btn');
-    
+    let selectedTokenBtn = null;
+    const tokenBtns = tokensContainer.querySelectorAll('.active-token');
     tokenBtns.forEach(btn => {
         btn.addEventListener('click', function() {
-            if (this.classList.contains('selected')) {
-                this.classList.remove('selected');
-                this.style.outline = '';
-                selectedTokenBtns = selectedTokenBtns.filter(b => b !== this);
-            } else {
-                this.classList.add('selected');
-                this.style.outline = '2px dashed #00ff00';
-                this.style.outlineOffset = '2px';
-                selectedTokenBtns.push(this);
-            }
+            tokenBtns.forEach(b => b.classList.remove('selected'));
+            this.classList.add('selected');
+            selectedTokenBtn = this;
         });
     });
 
     const dropzones = paramsGrid.querySelectorAll('.match-dropzone');
     dropzones.forEach(zone => {
         zone.addEventListener('click', function() {
-            if (selectedTokenBtns.length > 0) {
-                selectedTokenBtns.sort((a, b) => Number(a.dataset.indices) - Number(b.dataset.indices));
-                this.textContent = selectedTokenBtns.map(b => b.textContent).join('');
-                this.dataset.assignedIndices = selectedTokenBtns.map(b => b.dataset.indices).join(',');
+            if (selectedTokenBtn) {
+                this.textContent = selectedTokenBtn.textContent;
+                this.dataset.assignedIndices = selectedTokenBtn.dataset.indices;
                 this.classList.add('filled');
                 
-                selectedTokenBtns.forEach(b => {
-                    b.classList.remove('selected');
-                    b.classList.add('assigned');
-                    b.style.outline = '';
-                    b.style.border = '1px solid #555';
-                    b.style.opacity = '0.5';
-                });
-                selectedTokenBtns = [];
+                selectedTokenBtn.classList.remove('selected');
+                selectedTokenBtn.classList.add('assigned');
+                selectedTokenBtn = null;
             } else {
-                this.textContent = "Кликните значения выше...";
+                this.textContent = "Кликните значение выше...";
                 this.dataset.assignedIndices = "";
                 this.classList.remove('filled');
             }
@@ -877,19 +887,27 @@ window.startTokenizerQueue = function() {
 
     document.getElementById("btnNextToken").addEventListener("click", () => {
         let ruleMap = {};
+        
         dropzones.forEach(zone => {
             const param = String(zone.closest('.match-row').dataset.param).trim();
             const indicesStr = zone.dataset.assignedIndices;
             
             if (indicesStr !== "") {
                 let sysId = param; 
-                if (window.currentTemplateData && window.currentTemplateData.humanNames) {
+                
+                if (window.currentTemplateData && window.currentTemplateData.humanNames && window.currentTemplateData.systemKeys) {
                     const hNames = window.currentTemplateData.humanNames;
                     const sKeys = window.currentTemplateData.systemKeys;
+                    
                     for (let i = 0; i < hNames.length; i++) {
-                        if (String(hNames[i]).trim() === param) { sysId = sKeys[i]; break; }
+                        if (String(hNames[i]).trim() === param) {
+                            sysId = sKeys[i];
+                            break;
+                        }
                     }
                 }
+                
+                // Сохраняем универсальный индекс или массив индексов (если мультивыделение)
                 ruleMap[sysId] = indicesStr.split(',').map(Number);
             }
         });
