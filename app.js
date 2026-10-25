@@ -6657,32 +6657,25 @@ window.generateExportFile = async function (target = "local") {
     btn.innerText = "⏳ Формирование файла...";
     btn.disabled = true;
   }
-  if (typeof window.showLoading === "function")
-    window.showLoading(null, "kaspi_saving");
+  if (typeof window.showLoading === "function") window.showLoading(null, "kaspi_saving");
 
   try {
     const items = window.parsedInvoiceData || window.kaspiExportItems;
-    if (!items || items.length === 0)
-      throw new Error("Нет товаров для выгрузки.");
-    if (!window.rawKaspiTemplateBuffer)
-      throw new Error("Оригинальный шаблон не найден в памяти.");
+    if (!items || items.length === 0) throw new Error("Нет товаров для выгрузки.");
+    if (!window.rawKaspiTemplateBuffer) throw new Error("Оригинальный шаблон не найден в памяти.");
 
     const getSafeText = (cell) => {
       if (!cell || cell.value === null || cell.value === undefined) return "";
       if (typeof cell.value === "object") {
-        if (cell.value.richText)
-          return cell.value.richText.map((rt) => rt.text).join("").trim();
-        if (cell.value.result !== undefined)
-          return String(cell.value.result).trim();
+        if (cell.value.richText) return cell.value.richText.map((rt) => rt.text).join("").trim();
+        if (cell.value.result !== undefined) return String(cell.value.result).trim();
       }
       return String(cell.value).trim();
     };
 
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(window.rawKaspiTemplateBuffer);
-    let worksheet = window.kaspiTargetSheetName
-      ? workbook.getWorksheet(window.kaspiTargetSheetName)
-      : null;
+    let worksheet = window.kaspiTargetSheetName ? workbook.getWorksheet(window.kaspiTargetSheetName) : null;
 
     let sysKeyRowIndex = -1;
     let startRow = 4;
@@ -6707,26 +6700,18 @@ window.generateExportFile = async function (target = "local") {
     }
 
     if (!worksheet) worksheet = workbook.worksheets[0];
-    if (sysKeyRowIndex === -1)
-      throw new Error("Не удалось найти строку с merchant_sku в шаблоне.");
+    if (sysKeyRowIndex === -1) throw new Error("Не удалось найти строку с merchant_sku в шаблоне.");
 
     const sysKeyRow = worksheet.getRow(sysKeyRowIndex);
     const humanKeyRow = worksheet.getRow(sysKeyRowIndex + 1);
 
     let memory = {};
-    if (
-      window.mapper2State &&
-      window.mapper2State.colMap &&
-      Object.keys(window.mapper2State.colMap).length > 0
-    ) {
+    if (window.mapper2State && window.mapper2State.colMap && Object.keys(window.mapper2State.colMap).length > 0) {
       memory = window.mapper2State.colMap;
     } else {
       const config = window.kaspiExportConfig || {};
       try {
-        memory =
-          typeof config.mapper_memory === "string"
-            ? JSON.parse(config.mapper_memory)
-            : config.mapper_memory || {};
+        memory = typeof config.mapper_memory === "string" ? JSON.parse(config.mapper_memory) : config.mapper_memory || {};
       } catch (e) {}
     }
 
@@ -6744,7 +6729,6 @@ window.generateExportFile = async function (target = "local") {
 
         let sourceDbField = "";
 
-        // === ПУЛЕНЕПРОБИВАЕМЫЙ ПОИСК ПОЛЯ ИЗ МАППЕРА ===
         if (memory[colNumber]) {
           sourceDbField = memory[colNumber];
         } else if (memory[String(colNumber)]) {
@@ -6765,29 +6749,23 @@ window.generateExportFile = async function (target = "local") {
           }
         }
 
-        // Если скрипт вытащил цифру вместо текста (например, "5"), 
-        // значит маппер сохранил номер колонки. Принудительно ставим текстовый ключ.
         if (sourceDbField && !isNaN(sourceDbField)) {
           sourceDbField = kaspiKey || humanKey;
         }
 
-        // === ЖЕЛЕЗНАЯ СВЯЗКА АРТИКУЛА И ШТРИХКОДА ===
         if (kaspiKey === "merchant_sku" && (!sourceDbField || sourceDbField === "merchant_sku")) {
-            sourceDbField = "barcode";
+          sourceDbField = "barcode";
         }
-        // ============================================
 
         let value = "";
 
-        // 🔥 НОВОЕ: 1. Сначала проверяем, не выбрал ли клиент жесткое значение из словаря прямо сейчас
+        // Проверяем живые словари и сплиттеры
         let dictVal = window.mapper2State && window.mapper2State.dictValues && (window.mapper2State.dictValues[kaspiKey] || window.mapper2State.dictValues[humanKey]);
-        
-        // 🔥 НОВОЕ: 2. Проверяем, не нарезал ли клиент это значение через сплиттер прямо сейчас
         let splitVal = "";
+        
         if (!dictVal && window.mapper2State && window.mapper2State.invoiceRows && window.mapper2State.splitRules) {
             let splitRule = window.mapper2State.splitRules[kaspiKey] || window.mapper2State.splitRules[humanKey];
             if (splitRule) {
-                // Если правило есть, пытаемся вырезать его из виртуальной строки маппера
                 let rowData = window.mapper2State.invoiceRows[itemIdx];
                 if (rowData) {
                     let colIdx = window.mapper2State.colMap[sourceDbField];
@@ -6796,7 +6774,7 @@ window.generateExportFile = async function (target = "local") {
                         let tokens = parseAndMatchTokens(rawVal, "");
                         let sigTokens = tokens.filter(t => !/^[a-zA-Zа-яА-ЯёЁ]+$/.test(t.cleanText));
                         let sig = sigTokens.map(t => /\d/.test(t.cleanText) ? 'N' : 'S').join('-');
-                        let tIndices = splitRule[sig] || splitRule; // Берем по сигнатуре или старый формат
+                        let tIndices = splitRule[sig] || splitRule; 
                         
                         if (tIndices && !Array.isArray(tIndices) && typeof tIndices === 'object') {
                            let firstKey = Object.keys(tIndices)[0];
@@ -6820,7 +6798,6 @@ window.generateExportFile = async function (target = "local") {
             }
         }
 
-        // Приоритет данных: Словарь -> Сплиттер -> База данных
         if (dictVal) {
             value = dictVal;
         } else if (splitVal) {
@@ -6835,20 +6812,35 @@ window.generateExportFile = async function (target = "local") {
           value = Number(item.qty || item.quantity) || 0;
         } else if (sourceDbField && String(sourceDbField).startsWith("static_")) {
           value = String(sourceDbField).replace("static_", "");
-        } else if (sourceDbField) {
-          let attrs = {};
-          try {
-            attrs =
-              typeof item.attributes === "string"
-                ? JSON.parse(item.attributes || "{}")
-                : item.attributes || {};
-          } catch (e) {}
+        } else {
+            // 🔥 Парсим ручные правки из окна превью
+            let attrs = {};
+            try {
+                attrs = typeof item.attributes === "string" ? JSON.parse(item.attributes || "{}") : item.attributes || {};
+            } catch (e) {}
+            let liveAttrs = item._attributesObj || {};
 
-          if (attrs[sourceDbField] !== undefined && attrs[sourceDbField] !== null) {
-            value = attrs[sourceDbField];
-          } else if (item[sourceDbField] !== undefined && item[sourceDbField] !== null) {
-            value = item[sourceDbField];
-          }
+            if (sourceDbField) {
+                if (liveAttrs[sourceDbField] !== undefined && liveAttrs[sourceDbField] !== null) value = liveAttrs[sourceDbField];
+                else if (attrs[sourceDbField] !== undefined && attrs[sourceDbField] !== null) value = attrs[sourceDbField];
+                else if (item[sourceDbField] !== undefined && item[sourceDbField] !== null) value = item[sourceDbField];
+            }
+
+            // 🔥 БЕЗОПАСНЫЙ АВТО-МЭТЧИНГ: Вытаскиваем то, что ты ввел руками
+            if (value === "" || value === null || value === undefined) {
+                if (liveAttrs[kaspiKey] !== undefined && liveAttrs[kaspiKey] !== null) value = liveAttrs[kaspiKey];
+                else if (liveAttrs[humanKey] !== undefined && liveAttrs[humanKey] !== null) value = liveAttrs[humanKey];
+                else if (attrs[kaspiKey] !== undefined && attrs[kaspiKey] !== null) value = attrs[kaspiKey];
+                else if (attrs[humanKey] !== undefined && attrs[humanKey] !== null) value = attrs[humanKey];
+                
+                // Блокируем попадание названия в пустую колонку "Описание"
+                else if (kaspiKey !== "description" && kaspiKey !== "desc" && item[kaspiKey] !== undefined && item[kaspiKey] !== null && item[kaspiKey] !== "") {
+                    value = item[kaspiKey];
+                }
+                else if (humanKey !== "Описание" && humanKey !== "Описание (мин. 100 символов, макс. 7 000 символов)" && item[humanKey] !== undefined && item[humanKey] !== null && item[humanKey] !== "") {
+                    value = item[humanKey];
+                }
+            }
         }
 
         if (value !== "" && value !== undefined && value !== null) {
@@ -6869,7 +6861,6 @@ window.generateExportFile = async function (target = "local") {
     const dateStr = new Date().toISOString().slice(0, 10);
     const fileName = `Kaspi_Export_${dateStr}.xlsx`;
 
-    // ТИХОЕ АВТОСОХРАНЕНИЕ
     if (window.isKaspiExportMode && window.parsedInvoiceData) {
       const url = typeof APPS_SCRIPT_URL !== "undefined" ? APPS_SCRIPT_URL : window.APPS_SCRIPT_URL;
       const itemsToUpdate = window.parsedInvoiceData.map((item) => ({
@@ -6916,7 +6907,6 @@ window.generateExportFile = async function (target = "local") {
     if (typeof window.hideLoading === "function") window.hideLoading();
   }
 };
-
 // Глобальная переменная для отслеживания режима
 window.currentImportMode = "internal";
 
