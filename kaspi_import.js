@@ -1901,6 +1901,18 @@ window.applyMapper2Logic = function () {
 
     const exportBtns = document.getElementById("exportActionButtons");
     if (exportBtns) exportBtns.style.display = "flex";
+
+    // 🔥 Прячем лишние кнопки при экспорте Каспи
+    const previewArea = document.getElementById("invoicePreviewArea");
+    if (previewArea) {
+       const allBtns = previewArea.querySelectorAll("button");
+       allBtns.forEach(b => {
+           const text = b.innerText.toUpperCase();
+           if (text.includes("ДИСК") || text.includes("СБРОС") || text.includes("ПЕРЕЗАЛИТЬ")) {
+               b.style.display = "none";
+           }
+       });
+    }
   } else {
     const sendBtn = document.getElementById("sendInvoiceBtn");
     if (sendBtn) sendBtn.style.display = "flex"; 
@@ -3373,11 +3385,9 @@ window.handleCardSelectForExport = async function (
          }
       }
       if (savedMeta.saved_mapping) {
-          // Восстанавливаем связки колонок, если они не прилетели из шаблона
-          window.mapper2State.colMap = Object.assign({}, savedMeta.saved_mapping, window.mapper2State.colMap);
+         window.mapper2State.colMap = Object.assign({}, savedMeta.saved_mapping, window.mapper2State.colMap);
       }
       
-      // Глобальная переменная для Токенатора/Сплиттера
       window.kaspiComplexParamsState = {
          splitRules: window.mapper2State.splitRules || {},
          dictValues: window.mapper2State.dictValues || {}
@@ -3394,8 +3404,7 @@ window.handleCardSelectForExport = async function (
           const hName = res.templateConfig.humanNames[i];
           if (sKey && hName) window.mapper2State.sysToHumanMap[sKey] = hName;
         }
-        // 🔥 Спасаем словарь в глобальную память
-    window.GLOBAL_KASPI_DICT = window.mapper2State.sysToHumanMap;
+        window.GLOBAL_KASPI_DICT = window.mapper2State.sysToHumanMap;
       }
       // =========================================================
 
@@ -3405,41 +3414,52 @@ window.handleCardSelectForExport = async function (
 
       if (step1) step1.style.display = "none";
 
-      // === АВТОМАТИЧЕСКОЕ ВОССТАНОВЛЕНИЕ СВЯЗЕЙ В РЕЖИМЕ ЭКСПОРТА ===
       if (!res.templateConfig) res.templateConfig = {};
       if (!res.templateConfig.mapping) res.templateConfig.mapping = {};
 
-      // 0. ЖЕСТКАЯ ОЧИСТКА ПАМЯТИ
-      res.templateConfig.mapping = {};
+      // 0. Очищаем colMap перед пересборкой
+      let existingColMap = Object.assign({}, window.mapper2State.colMap);
       window.mapper2State.colMap = {};
+      res.templateConfig.mapping = {};
 
       // 1. Универсальная привязка ВСЕХ параметров
       extractedHeaders.forEach((header, idx) => {
-          // ИСПРАВЛЕНИЕ: Генератору нужен текст (header), а мапперу - индекс (idx)
           res.templateConfig.mapping[header] = header; 
           window.mapper2State.colMap[header] = idx;
+
+          // 🔥 ФИКС АВТОЗАПОЛНЕНИЯ ИЗ БАЗЫ: Увязываем русские названия характеристик с техническими ключами Kaspi
+          if (res.templateConfig.humanNames && res.templateConfig.systemKeys) {
+              let humanIdx = res.templateConfig.humanNames.indexOf(header);
+              if (humanIdx !== -1) {
+                  let sysKey = res.templateConfig.systemKeys[humanIdx];
+                  window.mapper2State.colMap[sysKey] = idx; // Маппер увидит это и зажжет зеленую галочку!
+              }
+          }
       });
+
+      // Возвращаем старые маппинги, если они были сохранены
+      window.mapper2State.colMap = Object.assign({}, window.mapper2State.colMap, existingColMap);
 
       // 2. Восстанавливаем сплиттеры чисто для визуала (данные уже готовы)
       if (savedMeta.saved_complex_params) {
-          res.templateConfig.splitRules = savedMeta.saved_complex_params.splitRules || {};
-          res.templateConfig.dictValues = savedMeta.saved_complex_params.dictValues || {};
-          window.mapper2State.splitRules = res.templateConfig.splitRules;
-          window.mapper2State.dictValues = res.templateConfig.dictValues;
-          window.kaspiComplexParamsState = {
-              splitRules: res.templateConfig.splitRules,
-              dictValues: res.templateConfig.dictValues
-          };
+         res.templateConfig.splitRules = savedMeta.saved_complex_params.splitRules || {};
+         res.templateConfig.dictValues = savedMeta.saved_complex_params.dictValues || {};
+         window.mapper2State.splitRules = res.templateConfig.splitRules;
+         window.mapper2State.dictValues = res.templateConfig.dictValues;
+         window.kaspiComplexParamsState = {
+             splitRules: res.templateConfig.splitRules,
+             dictValues: res.templateConfig.dictValues
+         };
       }
 
-      // 3. Жестко привязываем базовые поля (с правильным ключом "name")
+      // 3. Жестко привязываем базовые поля (расширен словарь на всякий случай)
       const baseFieldsMap = {
-          "name": ["item_name", "name", "title"], // Исправлено с item_name на name
+          "name": ["item_name", "name", "title", "Наименование", "Название"], 
           "item_id": ["item_id", "id", "sku"],
-          "price": ["cost", "price", "price_in"],
-          "qty": ["qty", "quantity"],
-          "barcode": ["barcode", "ean"],
-          "brand": ["brand"]
+          "price": ["cost", "price", "price_in", "Цена"],
+          "qty": ["qty", "quantity", "Количество"],
+          "barcode": ["barcode", "ean", "Штрихкод"],
+          "brand": ["brand", "Бренд"]
       };
 
       Object.keys(baseFieldsMap).forEach(targetKey => {
@@ -3447,7 +3467,6 @@ window.handleCardSelectForExport = async function (
           for (let pName of possibleNames) {
               let idx = extractedHeaders.indexOf(pName);
               if (idx !== -1) {
-                  // ИСПРАВЛЕНИЕ: Передаем ключ, а не цифру
                   res.templateConfig.mapping[targetKey] = targetKey; 
                   window.mapper2State.colMap[targetKey] = idx;
                   break; 
@@ -3455,13 +3474,12 @@ window.handleCardSelectForExport = async function (
           }
       });
 
-      // 4. ОБХОД ПРОВЕРКИ (Глубокая очистка данных в самом ядре)
+      // 4. Глубокая очистка цен и количества
       let priceIdx = window.mapper2State.colMap["price"];
       let qtyIdx = window.mapper2State.colMap["qty"];
       let priceKey = extractedHeaders[priceIdx];
       let qtyKey = extractedHeaders[qtyIdx];
 
-      // Чистим оригинальный массив товаров
       window.parsedInvoiceData.forEach(item => {
           if (priceKey) {
               let cleanPrice = String(item[priceKey] || "").replace(/\s/g, '').replace(/,/g, '.').replace(/[^\d.-]/g, '');
@@ -3473,18 +3491,13 @@ window.handleCardSelectForExport = async function (
           }
       });
 
-      // Синхронизируем очищенные данные с визуальной таблицей маппера
       window.mapper2State.invoiceRows = window.parsedInvoiceData.map((item) =>
           extractedHeaders.map((h) => item[h])
       );
 
-      // === ВОССТАНОВЛЕНИЕ МАППЕРА ===
+      // === Рендерим маппер с готовыми данными ===
       window.renderMapper2Cards(res.templateConfig);
 
-      // === ВОССТАНОВЛЕНИЕ МАППЕРА: Рендерим его с НАШИМИ данными! ===
-      window.renderMapper2Cards(res.templateConfig);
-
-      // Умная навигация
       if (isExported) {
         if (step2) step2.style.display = "none";
         if (step3) step3.style.display = "flex";
@@ -3499,11 +3512,15 @@ window.handleCardSelectForExport = async function (
       if (step3) {
         const allBtns = step3.querySelectorAll("button");
         allBtns.forEach((b) => {
-          if (
-            b.innerText.trim().toUpperCase() === "НАЗАД" ||
-            b.textContent.includes("НАЗАД")
-          ) {
-            b.style.display = "";
+          const text = b.innerText.trim().toUpperCase();
+          
+          // 🔥 Восстановлен block, чтобы кнопка 100% появлялась
+          if (text === "НАЗАД" || text.includes("НАЗАД")) {
+            b.style.display = "block";
+          }
+          
+          if (window.isKaspiExportMode && (text.includes("ДИСК") || text.includes("СБРОС") || text.includes("ПЕРЕЗАЛИТЬ"))) {
+              b.style.display = "none";
           }
         });
       }
