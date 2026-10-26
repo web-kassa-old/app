@@ -476,6 +476,8 @@ window.navigateBack = function () {
 
 // 2. ОТРИСОВКА КАРТОЧЕК НА ГЛАВНОМ ЭКРАНЕ
 window.renderMapper2Cards = function (templateData) {
+
+  console.log("🔵 [МАЯЧОК 1] Запущена renderMapper2Cards. Маппер рисуется с нуля!");
   // === КЭШИРОВАНИЕ ДАННЫХ ===
   // Запоминаем данные при первом вызове, чтобы перерисовка работала при вызове без аргументов
   if (templateData) {
@@ -885,6 +887,9 @@ window.renderMapper2Cards = function (templateData) {
               window.originalCheckMapperReadiness = window.checkMapperReadiness;
               
               window.checkMapperReadiness = function() {
+
+                console.log("🟢 [МАЯЧОК 2] Сработала checkMapperReadiness. Идет проверка и обновление кнопок.");
+
                   // Выполняем стандартную проверку (она красит кнопку в зеленый, убирает disabled)
                   if (window.originalCheckMapperReadiness) window.originalCheckMapperReadiness();
                   
@@ -2176,14 +2181,16 @@ window.renderPreviewTable = function () {
                 backBtn.innerText = '⬅ НАЗАД';
                 
                 backBtn.onclick = function(e) {
-                    e.preventDefault();
-                    document.getElementById('invoicePreviewArea').style.display = 'none';
-                    document.getElementById('mapper2Area').style.display = 'flex';
-                    
-                    // 🔥 БРОНЕБОЙНОЕ РЕШЕНИЕ: Ждем 100мс (пока система перерисует маппер)
-                    // и сразу же жестко внедряем нашу кнопку Назад, если её стерли
-                    setTimeout(() => {
-                        const applyBtn = document.getElementById("applyMapper2Btn");
+    e.preventDefault();
+    console.log("🔴 [МАЯЧОК 3] Нажата кнопка Назад из сверки. Скрываем сверку, показываем маппер.");
+    document.getElementById('invoicePreviewArea').style.display = 'none';
+    document.getElementById('mapper2Area').style.display = 'flex';
+    
+    setTimeout(() => {
+        console.log("🟠 [МАЯЧОК 4] Таймаут 100мс прошел. Пробуем восстановить кнопку Назад в маппере.");
+        const applyBtn = document.getElementById("applyMapper2Btn");
+        console.log("🟠 [МАЯЧОК 5] Главная кнопка applyBtn найдена?", !!applyBtn);
+        // ... наш код внедрения кнопки
                         if (applyBtn) {
                             const btnContainer = applyBtn.parentElement;
                             if (btnContainer && !document.getElementById("kaspiMapperBackBtn")) {
