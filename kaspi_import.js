@@ -476,8 +476,6 @@ window.navigateBack = function () {
 
 // 2. ОТРИСОВКА КАРТОЧЕК НА ГЛАВНОМ ЭКРАНЕ
 window.renderMapper2Cards = function (templateData) {
-
-  console.log("🔵 [МАЯЧОК 1] Запущена renderMapper2Cards. Маппер рисуется с нуля!");
   // === КЭШИРОВАНИЕ ДАННЫХ ===
   // Запоминаем данные при первом вызове, чтобы перерисовка работала при вызове без аргументов
   if (templateData) {
@@ -887,9 +885,6 @@ window.renderMapper2Cards = function (templateData) {
               window.originalCheckMapperReadiness = window.checkMapperReadiness;
               
               window.checkMapperReadiness = function() {
-
-                console.log("🟢 [МАЯЧОК 2] Сработала checkMapperReadiness. Идет проверка и обновление кнопок.");
-
                   // Выполняем стандартную проверку (она красит кнопку в зеленый, убирает disabled)
                   if (window.originalCheckMapperReadiness) window.originalCheckMapperReadiness();
                   
@@ -2150,7 +2145,8 @@ window.renderPreviewTable = function () {
         const allBtns = document.querySelectorAll('button');
         allBtns.forEach(b => {
             const txt = b.innerText.trim().toUpperCase();
-            if (txt === 'НАЗАД' || txt === 'АРТҚА') {
+            // 🔥 Прячем системные кнопки, но исключаем наши новые кнопки с ID
+            if ((txt.includes('НАЗАД') || txt.includes('АРТҚА')) && b.id !== 'kaspiMapperBackBtn' && b.id !== 'kaspiBackToMapperBtn') {
                 b.style.display = 'none';
             }
         });
@@ -2181,49 +2177,15 @@ window.renderPreviewTable = function () {
                 backBtn.innerText = '⬅ НАЗАД';
                 
                 backBtn.onclick = function(e) {
-    e.preventDefault();
-    console.log("🔴 [МАЯЧОК 3] Нажата кнопка Назад из сверки. Скрываем сверку, показываем маппер.");
-    document.getElementById('invoicePreviewArea').style.display = 'none';
-    document.getElementById('mapper2Area').style.display = 'flex';
-    
-    setTimeout(() => {
-        console.log("🟠 [МАЯЧОК 4] Таймаут 100мс прошел. Пробуем восстановить кнопку Назад в маппере.");
-        const applyBtn = document.getElementById("applyMapper2Btn");
-        console.log("🟠 [МАЯЧОК 5] Главная кнопка applyBtn найдена?", !!applyBtn);
-        // ... наш код внедрения кнопки
-                        if (applyBtn) {
-                            const btnContainer = applyBtn.parentElement;
-                            if (btnContainer && !document.getElementById("kaspiMapperBackBtn")) {
-                                btnContainer.style.display = "flex";
-                                btnContainer.style.gap = "10px";
-                                
-                                const newBackBtn = document.createElement("button");
-                                newBackBtn.id = "kaspiMapperBackBtn";
-                                newBackBtn.setAttribute("data-i18n", "kaspi_mapper_back");
-                                newBackBtn.innerText = "⬅ НАЗАД";
-                                newBackBtn.style.background = "transparent";
-                                newBackBtn.style.color = "var(--text-main)";
-                                newBackBtn.style.border = "1px solid var(--border-light)";
-                                newBackBtn.style.padding = "12px 15px";
-                                newBackBtn.style.borderRadius = "6px";
-                                newBackBtn.style.fontWeight = "bold";
-                                newBackBtn.style.cursor = "pointer";
-                                newBackBtn.style.flex = "1";
-                                
-                                applyBtn.style.flex = "2";
-                                
-                                newBackBtn.onclick = function() {
-                                    document.getElementById("mapper2Area").style.display = "none";
-                                    const exportModal = document.getElementById("export-modal");
-                                    if (exportModal) exportModal.style.display = "flex"; 
-                                };
-                                
-                                btnContainer.insertBefore(newBackBtn, applyBtn);
-                                if (typeof window.applyTranslations === 'function') window.applyTranslations();
-                                else if (typeof window.updateLanguage === 'function') window.updateLanguage();
-                            }
-                        }
-                    }, 100);
+                    e.preventDefault();
+                    document.getElementById('invoicePreviewArea').style.display = 'none';
+                    document.getElementById('mapper2Area').style.display = 'flex';
+                    
+                    // 🔥 Если кнопка маппера всё-таки скрылась, просто делаем её видимой
+                    const mapperBackBtn = document.getElementById("kaspiMapperBackBtn");
+                    if (mapperBackBtn) {
+                        mapperBackBtn.style.display = "block";
+                    }
                 };
                 
                 exportBtns.insertBefore(backBtn, exportBtns.firstChild);
