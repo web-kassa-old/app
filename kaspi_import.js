@@ -1952,11 +1952,6 @@ window.renderPreviewTable = function () {
   const state = window.mapper2State;
   const t = translations[currentLang] || translations["ru"];
 
-  // 🔥 НАШ МАЯЧОК 🔥
-  if (window.kaspiExportItems && window.kaspiExportItems.length > 0) {
-      console.log("=== МАЯЧОК: СТРУКТУРА ТОВАРА ОТ СЕРВЕРА ===", window.kaspiExportItems[0]);
-  }
-
   // Запускаем авто-дописывание параметров перед рендером
   if (typeof window.autoCleanInvoiceAttributes === "function") {
       window.autoCleanInvoiceAttributes();
@@ -1998,6 +1993,8 @@ window.renderPreviewTable = function () {
             attrsHtml =
               `<div style="display: flex; flex-direction: column; gap: 4px; margin-top: 8px;">` +
               Object.keys(parsed)
+                // 🔥 Исключаем технические поля из вывода в карточке
+                .filter((k) => !["doc_no", "invoice_no", "document_id"].includes(String(k).toLowerCase()))
                 .map((k) => {
                   let humanName = window.mapper2State.sysToHumanMap
                     ? window.mapper2State.sysToHumanMap[k]
