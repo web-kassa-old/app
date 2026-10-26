@@ -880,80 +880,80 @@ window.renderMapper2Cards = function (templateData) {
       applyBtn.style.display = "block";
 
       if (window.isKaspiExportMode) {
-          // ПЕРЕХВАТЧИК: Оборачиваем родную функцию проверки, чтобы она не сбрасывала наш текст
+          // ПЕРЕХВАТЧИК: Оборачиваем родную функцию проверки
           if (!window.originalCheckMapperReadiness) {
               window.originalCheckMapperReadiness = window.checkMapperReadiness;
               
               window.checkMapperReadiness = function() {
-                  // Выполняем стандартную проверку (она красит кнопку в зеленый, убирает disabled)
+                  // 1. Выполняем стандартную проверку
                   if (window.originalCheckMapperReadiness) window.originalCheckMapperReadiness();
                   
-                  // После проверки вешаем ключ перевода для режима экспорта
+                  // 2. После проверки восстанавливаем наш текст, цвет и кнопку Назад
                   const btn = document.getElementById("applyMapper2Btn");
                   if (btn && window.isKaspiExportMode) {
+                      const btnContainer = btn.parentElement;
+                      
                       if (!btn.classList.contains("disabled") && !btn.classList.contains("btn-disabled")) {
                           const btnSpan = btn.querySelector("span");
-                          const target = btnSpan || btn; // Если есть span, вешаем на него, иначе на саму кнопку
+                          const target = btnSpan || btn;
+                          target.setAttribute("data-i18n", "kaspi_go_to_preview");
                           
-                          target.setAttribute("data-i18n", "kaspi_confirm_template");
+                          // 🔥 КРАСИМ КНОПКУ В СИНИЙ ЦВЕТ
+                          btn.style.background = "var(--accent-blue, #2196f3)"; 
+                          btn.style.borderColor = "var(--accent-blue, #2196f3)";
                           
                           if (typeof window.applyTranslations === 'function') window.applyTranslations();
                           else if (typeof window.updateLanguage === 'function') window.updateLanguage();
+                      }
+                      
+                      if (btnContainer) {
+                          // 🔥 УБИВАЕМ СИСТЕМНЫЕ ДУБЛИКАТЫ (теперь ищет и русские, и казахские)
+                          const allOldBtns = btnContainer.querySelectorAll("button");
+                          allOldBtns.forEach(b => {
+                              const txt = b.innerText.trim().toUpperCase();
+                              if (b !== btn && b.id !== "kaspiMapperBackBtn" && (txt.includes("НАЗАД") || txt.includes("АРТҚА"))) {
+                                  b.style.display = "none"; // Прячем системную кнопку
+                              }
+                          });
+
+                          let backBtn = document.getElementById("kaspiMapperBackBtn");
+                          if (!backBtn) {
+                              backBtn = document.createElement("button");
+                              backBtn.id = "kaspiMapperBackBtn";
+                              backBtn.setAttribute("data-i18n", "kaspi_mapper_back");
+                              backBtn.innerText = "⬅ НАЗАД";
+                              backBtn.style.background = "transparent";
+                              backBtn.style.color = "var(--text-main)";
+                              backBtn.style.border = "1px solid var(--border-light)";
+                              backBtn.style.padding = "12px 15px";
+                              backBtn.style.borderRadius = "6px";
+                              backBtn.style.fontWeight = "bold";
+                              backBtn.style.cursor = "pointer";
+                              backBtn.onclick = function() {
+                                  document.getElementById("mapper2Area").style.display = "none";
+                                  const exportModal = document.getElementById("export-modal");
+                                  if (exportModal) exportModal.style.display = "flex"; 
+                              };
+                              btnContainer.insertBefore(backBtn, btn);
+                              
+                              if (typeof window.applyTranslations === 'function') window.applyTranslations();
+                              else if (typeof window.updateLanguage === 'function') window.updateLanguage();
+                          }
+                          
+                          // Жестко задаем стили
+                          btnContainer.style.display = "flex";
+                          btnContainer.style.gap = "10px";
+                          backBtn.style.display = "block";
+                          backBtn.style.flex = "1";
+                          btn.style.flex = "2";
                       }
                   }
               };
           }
           
-          // Вызываем обновленную функцию проверки
+          // Запускаем перехватчик
           if (typeof window.checkMapperReadiness === "function") {
               window.checkMapperReadiness();
-          }
-
-          // Создаем кнопку "Назад"
-          const btnContainer = applyBtn.parentElement;
-          if (btnContainer) {
-              // 🔥 1. УБИВАЕМ СТАРЫЕ ДУБЛИКАТЫ (Дворник)
-              // Скрипт ищет все кнопки внизу, и если находит "левую" кнопку НАЗАД без нужного ID — удаляет её.
-              const allOldBtns = btnContainer.querySelectorAll("button");
-              allOldBtns.forEach(btn => {
-                  if (btn !== applyBtn && btn.id !== "kaspiMapperBackBtn" && btn.innerText.toUpperCase().includes("НАЗАД")) {
-                      btn.remove();
-                  }
-              });
-
-              // 🔥 2. СОЗДАЕМ КНОПКУ (только если её еще нет)
-              if (!document.getElementById("kaspiMapperBackBtn")) {
-                  btnContainer.style.display = "flex";
-                  btnContainer.style.gap = "10px";
-                  
-                  const backBtn = document.createElement("button");
-                  backBtn.id = "kaspiMapperBackBtn";
-                  backBtn.setAttribute("data-i18n", "kaspi_mapper_back");
-                  backBtn.innerText = "⬅ НАЗАД"; // Заглушка до перевода
-                  backBtn.style.background = "transparent";
-                  backBtn.style.color = "var(--text-main)";
-                  backBtn.style.border = "1px solid var(--border-light)";
-                  backBtn.style.padding = "12px 15px";
-                  backBtn.style.borderRadius = "6px";
-                  backBtn.style.fontWeight = "bold";
-                  backBtn.style.cursor = "pointer";
-                  backBtn.style.flex = "1"; // Кнопка Назад занимает 1/3
-                  
-                  applyBtn.style.flex = "2"; // Главная кнопка занимает 2/3
-                  
-                  backBtn.onclick = function() {
-                      document.getElementById("mapper2Area").style.display = "none";
-                      const exportModal = document.getElementById("export-modal");
-                      if (exportModal) {
-                          exportModal.style.display = "flex"; 
-                      }
-                  };
-                  
-                  btnContainer.insertBefore(backBtn, applyBtn);
-                  
-                  if (typeof window.applyTranslations === 'function') window.applyTranslations();
-                  else if (typeof window.updateLanguage === 'function') window.updateLanguage();
-              }
           }
       } else {
           // ЕСЛИ ЭТО ОБЫЧНАЯ ПРИЕМКА ТОВАРА: сбрасываем всё к оригиналу
@@ -964,15 +964,28 @@ window.renderMapper2Cards = function (templateData) {
           if (backBtn) backBtn.remove();
           
           applyBtn.style.flex = ""; 
-          
+          // 🔥 Возвращаем родной зеленый цвет для обычной приемки
+          applyBtn.style.background = "";
+          applyBtn.style.borderColor = "";
+
           const btnSpan = applyBtn.querySelector("span");
           const target = btnSpan || applyBtn;
           
-          if (target.getAttribute("data-i18n") === "kaspi_confirm_template") {
-               target.setAttribute("data-i18n", "inc_build_invoice"); // Возвращаем ключ обычной сборки
-               
+          if (target.getAttribute("data-i18n") === "kaspi_go_to_preview") {
+               target.setAttribute("data-i18n", "inc_build_invoice"); 
                if (typeof window.applyTranslations === 'function') window.applyTranslations();
                else if (typeof window.updateLanguage === 'function') window.updateLanguage();
+          }
+          
+          // Возвращаем видимость системным кнопкам "Назад", если они были скрыты
+          const btnContainer = applyBtn.parentElement;
+          if (btnContainer) {
+              const allOldBtns = btnContainer.querySelectorAll("button");
+              allOldBtns.forEach(b => {
+                  if (b !== applyBtn && b.id !== "kaspiMapperBackBtn") {
+                      b.style.display = ""; 
+                  }
+              });
           }
       }
   }
