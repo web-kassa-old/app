@@ -873,21 +873,97 @@ window.renderMapper2Cards = function (templateData) {
 
   document.getElementById("mapper2Area").style.display = "flex";
   
+  // 🔥 ЛОГИКА ДЛЯ РЕЖИМА ЭКСПОРТА И ПЕРЕВОДОВ (КНОПКИ ВНИЗУ МАППЕРА)
   const applyBtn = document.getElementById("applyMapper2Btn");
+  
   if (applyBtn) {
       applyBtn.style.display = "block";
-      // 🔥 Меняем текст кнопки для режима экспорта
-      const btnSpan = applyBtn.querySelector("span");
+
       if (window.isKaspiExportMode) {
-          if (btnSpan) btnSpan.innerText = "ПОДТВЕРДИТЬ ШАБЛОН";
-          else applyBtn.innerText = "✓ ПОДТВЕРДИТЬ ШАБЛОН";
+          // ПЕРЕХВАТЧИК: Оборачиваем родную функцию проверки, чтобы она не сбрасывала наш текст
+          if (!window.originalCheckMapperReadiness) {
+              window.originalCheckMapperReadiness = window.checkMapperReadiness;
+              
+              window.checkMapperReadiness = function() {
+                  // Выполняем стандартную проверку (она красит кнопку в зеленый, убирает disabled)
+                  if (window.originalCheckMapperReadiness) window.originalCheckMapperReadiness();
+                  
+                  // После проверки вешаем ключ перевода для режима экспорта
+                  const btn = document.getElementById("applyMapper2Btn");
+                  if (btn && window.isKaspiExportMode) {
+                      if (!btn.classList.contains("disabled") && !btn.classList.contains("btn-disabled")) {
+                          const btnSpan = btn.querySelector("span");
+                          const target = btnSpan || btn; // Если есть span, вешаем на него, иначе на саму кнопку
+                          
+                          target.setAttribute("data-i18n", "kaspi_confirm_template");
+                          
+                          if (typeof window.applyTranslations === 'function') window.applyTranslations();
+                          else if (typeof window.updateLanguage === 'function') window.updateLanguage();
+                      }
+                  }
+              };
+          }
+          
+          // Вызываем обновленную функцию проверки
+          if (typeof window.checkMapperReadiness === "function") {
+              window.checkMapperReadiness();
+          }
+
+          // Создаем кнопку "Назад"
+          const btnContainer = applyBtn.parentElement;
+          if (btnContainer && !document.getElementById("kaspiMapperBackBtn")) {
+              btnContainer.style.display = "flex";
+              btnContainer.style.gap = "10px";
+              
+              const backBtn = document.createElement("button");
+              backBtn.id = "kaspiMapperBackBtn";
+              backBtn.setAttribute("data-i18n", "kaspi_mapper_back");
+              backBtn.innerText = "⬅ НАЗАД"; // Заглушка до перевода
+              backBtn.style.background = "transparent";
+              backBtn.style.color = "var(--text-main)";
+              backBtn.style.border = "1px solid var(--border-light)";
+              backBtn.style.padding = "12px 15px";
+              backBtn.style.borderRadius = "6px";
+              backBtn.style.fontWeight = "bold";
+              backBtn.style.cursor = "pointer";
+              backBtn.style.flex = "1"; // Кнопка Назад занимает 1/3
+              
+              applyBtn.style.flex = "2"; // Главная кнопка занимает 2/3
+              
+              backBtn.onclick = function() {
+                  document.getElementById("mapper2Area").style.display = "none";
+                  const exportModal = document.getElementById("export-modal");
+                  if (exportModal) {
+                      exportModal.style.display = "flex"; 
+                  }
+              };
+              
+              btnContainer.insertBefore(backBtn, applyBtn);
+              
+              if (typeof window.applyTranslations === 'function') window.applyTranslations();
+              else if (typeof window.updateLanguage === 'function') window.updateLanguage();
+          }
       } else {
-          if (btnSpan) btnSpan.innerText = t.inc_build_invoice || "СОБРАТЬ НАКЛАДНУЮ";
-          else applyBtn.innerText = "✓ СОБРАТЬ НАКЛАДНУЮ";
+          // ЕСЛИ ЭТО ОБЫЧНАЯ ПРИЕМКА ТОВАРА: сбрасываем всё к оригиналу
+          if (typeof window.checkMapperReadiness === "function") {
+              window.checkMapperReadiness();
+          }
+          const backBtn = document.getElementById("kaspiMapperBackBtn");
+          if (backBtn) backBtn.remove();
+          
+          applyBtn.style.flex = ""; 
+          
+          const btnSpan = applyBtn.querySelector("span");
+          const target = btnSpan || applyBtn;
+          
+          if (target.getAttribute("data-i18n") === "kaspi_confirm_template") {
+               target.setAttribute("data-i18n", "inc_build_invoice"); // Возвращаем ключ обычной сборки
+               
+               if (typeof window.applyTranslations === 'function') window.applyTranslations();
+               else if (typeof window.updateLanguage === 'function') window.updateLanguage();
+          }
       }
   }
-
-  window.checkMapperReadiness();
 };
 
 // 3. ОТКРЫТИЕ ШТОРКИ И ОТРИСОВКА КОЛОНОК
