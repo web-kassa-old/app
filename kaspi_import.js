@@ -2180,13 +2180,43 @@ window.renderPreviewTable = function () {
                     document.getElementById('invoicePreviewArea').style.display = 'none';
                     document.getElementById('mapper2Area').style.display = 'flex';
                     
-                    // 🔥 МАГИЯ ВОССТАНОВЛЕНИЯ: Принудительно запускаем проверку маппера при возврате, 
-                    // чтобы он заново перерисовал кнопку Назад, если система ее удалила
+                    // 🔥 БРОНЕБОЙНОЕ РЕШЕНИЕ: Ждем 100мс (пока система перерисует маппер)
+                    // и сразу же жестко внедряем нашу кнопку Назад, если её стерли
                     setTimeout(() => {
-                        if (typeof window.checkMapperReadiness === 'function') {
-                            window.checkMapperReadiness();
+                        const applyBtn = document.getElementById("applyMapper2Btn");
+                        if (applyBtn) {
+                            const btnContainer = applyBtn.parentElement;
+                            if (btnContainer && !document.getElementById("kaspiMapperBackBtn")) {
+                                btnContainer.style.display = "flex";
+                                btnContainer.style.gap = "10px";
+                                
+                                const newBackBtn = document.createElement("button");
+                                newBackBtn.id = "kaspiMapperBackBtn";
+                                newBackBtn.setAttribute("data-i18n", "kaspi_mapper_back");
+                                newBackBtn.innerText = "⬅ НАЗАД";
+                                newBackBtn.style.background = "transparent";
+                                newBackBtn.style.color = "var(--text-main)";
+                                newBackBtn.style.border = "1px solid var(--border-light)";
+                                newBackBtn.style.padding = "12px 15px";
+                                newBackBtn.style.borderRadius = "6px";
+                                newBackBtn.style.fontWeight = "bold";
+                                newBackBtn.style.cursor = "pointer";
+                                newBackBtn.style.flex = "1";
+                                
+                                applyBtn.style.flex = "2";
+                                
+                                newBackBtn.onclick = function() {
+                                    document.getElementById("mapper2Area").style.display = "none";
+                                    const exportModal = document.getElementById("export-modal");
+                                    if (exportModal) exportModal.style.display = "flex"; 
+                                };
+                                
+                                btnContainer.insertBefore(newBackBtn, applyBtn);
+                                if (typeof window.applyTranslations === 'function') window.applyTranslations();
+                                else if (typeof window.updateLanguage === 'function') window.updateLanguage();
+                            }
                         }
-                    }, 50);
+                    }, 100);
                 };
                 
                 exportBtns.insertBefore(backBtn, exportBtns.firstChild);
