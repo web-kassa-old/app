@@ -1943,7 +1943,9 @@ window.renderPreviewTable = function () {
   const t = translations[currentLang] || translations["ru"];
 
   // Запускаем авто-дописывание параметров перед рендером
-  window.autoCleanInvoiceAttributes();
+  if (typeof window.autoCleanInvoiceAttributes === "function") {
+      window.autoCleanInvoiceAttributes();
+  }
 
   // Скрываем вкладки и валюту по их ID
   const tabs = document.getElementById("mapperTabsContainer");
@@ -1952,6 +1954,13 @@ window.renderPreviewTable = function () {
   const currency = document.getElementById("mapperCurrencyBlock");
   if (currency) currency.style.display = "none";
 
+  // 🔥 3. ДОСТАЕМ ОРИГИНАЛЬНЫЙ НОМЕР НАКЛАДНОЙ ИЗ ТОВАРА 🔥
+  let realDocNo = state.docNo;
+  if (window.parsedInvoiceData && window.parsedInvoiceData.length > 0) {
+      let firstItem = window.parsedInvoiceData[0];
+      realDocNo = firstItem.doc_no || firstItem.invoice_no || firstItem.document_id || state.docNo;
+  }
+
   const supplierI18nAttr = !state.supplier
     ? `data-i18n="inc_not_specified"`
     : "";
@@ -1959,7 +1968,7 @@ window.renderPreviewTable = function () {
   document.getElementById("invoiceMetadata").innerHTML = `
         <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; padding: 10px; background: var(--bg-panel); border-radius: 8px; border: 1px solid var(--border-light);">
             <div><span data-i18n="inc_supplier" style="color:var(--text-muted);">${t.inc_supplier || "Пост:"}</span> <b ${supplierI18nAttr} style="color:var(--accent-yellow);">${state.supplier || t.inc_not_specified || "Не указан"}</b></div>
-            <div><span data-i18n="inc_doc_short" style="color:var(--text-muted);">${t.inc_doc_short || "Док:"}</span> <b style="color:var(--accent-yellow);">${state.docNo}</b></div>
+            <div><span data-i18n="inc_doc_short" style="color:var(--text-muted);">${t.inc_doc_short || "Док:"}</span> <b style="color:var(--accent-yellow);">${realDocNo}</b></div>
             <div><span data-i18n="inc_pos" style="color:var(--text-muted);">${t.inc_pos || "Поз:"}</span> <b style="color:var(--accent-yellow);">${window.parsedInvoiceData.length}</b></div>
         </div>
     `;
@@ -2003,15 +2012,15 @@ window.renderPreviewTable = function () {
           } catch (e) {}
         }
 
-        // ИСПРАВЛЕНИЕ: Разбиваем товар на две строки.
-        // Первая строка: Название, Код, Количество, Цена.
-        // Вторая строка (colspan="2"): Параметры и кнопка, растянутые на всю ширину.
+        // 🔥 1. ИСПРАВЛЕНИЕ: Выводим ID, если его нет - то item_id, sku, или штрихкод 🔥
+        let displayCode = item.id || item.item_id || item.sku || item.barcode || "AUTO";
+
         return `
         <tr>
             <td class="col-main" style="padding:12px 8px 4px 8px; vertical-align: top; border-bottom: none;">
                 <div style="font-weight:bold; font-size:13px; line-height:1.2;">${item.item_name}</div>
                 <div style="display: flex; align-items: center; gap: 8px; margin-top: 6px;">
-                    <span style="color:var(--accent-blue); font-weight:bold; font-size:11px;">Код: ${item.item_id || "AUTO"}</span>
+                    <span style="color:var(--accent-blue); font-weight:bold; font-size:11px;">Код: ${displayCode}</span>
                     ${!item.barcode ? `<span style="font-size:9px; color:var(--accent-green); background: rgba(46, 204, 113, 0.1); padding: 2px 6px; border-radius: 4px; font-weight: bold;">+ EAN-13</span>` : ""}
                 </div>
             </td>
@@ -2024,7 +2033,7 @@ window.renderPreviewTable = function () {
             <td colspan="2" style="padding: 0 8px 12px 8px; border-top: none;">
                 ${attrsHtml}
                 <button onclick="window.openEditorMain(${index})" style="width: 100%; background: rgba(128,128,128,0.05); border: 1px dashed var(--border-light); color: var(--text-muted); cursor: pointer; border-radius: 4px; font-size: 11px; margin-top: 10px; padding: 10px;">
-                    ✏️️ <span data-i18n="inc_edit_params">${t.inc_edit_params || "Изменить параметры"}</span>
+                    ✏ <span data-i18n="inc_edit_params">${t.inc_edit_params || "Изменить параметры"}</span>
                 </button>
             </td>
         </tr>`;
@@ -2055,6 +2064,33 @@ window.renderPreviewTable = function () {
             exportBtns.style.flexDirection = "column"; 
             exportBtns.style.gap = "10px"; 
             step3.appendChild(exportBtns);
+
+            // 🔥 2. СОЗДАЕМ ЖЕЛЕЗНУЮ КНОПКУ "НАЗАД" В ФУТЕРЕ 🔥
+            let backBtn = document.getElementById('kaspiBackToMapperBtn');
+            if (!backBtn) {
+                backBtn = document.createElement('button');
+                backBtn.id = 'kaspiBackToMapperBtn';
+                backBtn.style.background = 'transparent';
+                backBtn.style.color = 'var(--text-main)';
+                backBtn.style.border = '1px solid var(--border-light)';
+                backBtn.style.padding = '12px 15px';
+                backBtn.style.minHeight = '42px';
+                backBtn.style.borderRadius = '6px';
+                backBtn.style.fontWeight = 'bold';
+                backBtn.style.cursor = 'pointer';
+                backBtn.style.width = '100%';
+                backBtn.style.boxSizing = 'border-box';
+                backBtn.innerText = '⬅ НАЗАД';
+                
+                backBtn.onclick = function(e) {
+                    e.preventDefault();
+                    document.getElementById('invoicePreviewArea').style.display = 'none';
+                    document.getElementById('mapper2Area').style.display = 'flex';
+                };
+                
+                // Вставляем кнопку НАЗАД в самое начало блока кнопок
+                exportBtns.insertBefore(backBtn, exportBtns.firstChild);
+            }
             
             // --- СОЗДАЕМ КНОПКУ ПОЛНОГО СБРОСА ---
             let resetBtn = document.getElementById('kaspiResetExportBtn');
@@ -2066,10 +2102,8 @@ window.renderPreviewTable = function () {
                 resetBtn.style.color = 'var(--btn-danger-text, #ffffff)';
                 resetBtn.style.border = '1px solid var(--btn-danger-border, #dc2626)';
                 
-                // ИСПРАВЛЕНИЕ 1: Увеличили padding и задали минимальную высоту
                 resetBtn.style.padding = '12px 15px'; 
                 resetBtn.style.minHeight = '42px';
-                
                 resetBtn.style.borderRadius = '6px';
                 resetBtn.style.fontWeight = 'bold';
                 resetBtn.style.cursor = 'pointer';
@@ -2092,14 +2126,10 @@ window.renderPreviewTable = function () {
 
                     if (!confirm(confirmMsg)) return;
                     
-                    // 1. Стираем из памяти старые/кривые данные маппинга
                     window.parsedInvoiceData = [];
                     window.kaspiExportItems = [];
                     if (window.mapper2State) window.mapper2State.colMap = {};
                     
-                    // 2. ИДЕАЛЬНЫЙ СБРОС: 
-                    // Просто запускаем функцию открытия заново для этой же партии,
-                    // передав isExported = false (как будто это новая синяя карточка)
                     if (window.currentExportHash) {
                         window.handleCardSelectForExport(window.currentExportHash, null, false);
                     }
