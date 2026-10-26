@@ -888,31 +888,34 @@ window.renderMapper2Cards = function (templateData) {
                   // 1. Выполняем стандартную проверку
                   if (window.originalCheckMapperReadiness) window.originalCheckMapperReadiness();
                   
-                  // 2. После проверки восстанавливаем наш текст, цвет и кнопку Назад
                   const btn = document.getElementById("applyMapper2Btn");
                   if (btn && window.isKaspiExportMode) {
                       const btnContainer = btn.parentElement;
                       
+                      // 🔥 1. МЕНЯЕМ ТЕКСТ ВСЕГДА (даже если кнопка заблокирована/серая)
+                      const btnSpan = btn.querySelector("span");
+                      const target = btnSpan || btn;
+                      target.setAttribute("data-i18n", "kaspi_go_to_preview");
+                      
+                      // 🔥 2. КРАСИМ В СИНИЙ (только когда активна) ИСПОЛЬЗУЯ !important
                       if (!btn.classList.contains("disabled") && !btn.classList.contains("btn-disabled")) {
-                          const btnSpan = btn.querySelector("span");
-                          const target = btnSpan || btn;
-                          target.setAttribute("data-i18n", "kaspi_go_to_preview");
-                          
-                          // 🔥 КРАСИМ КНОПКУ В СИНИЙ ЦВЕТ
-                          btn.style.background = "var(--accent-blue, #2196f3)"; 
-                          btn.style.borderColor = "var(--accent-blue, #2196f3)";
-                          
-                          if (typeof window.applyTranslations === 'function') window.applyTranslations();
-                          else if (typeof window.updateLanguage === 'function') window.updateLanguage();
+                          btn.style.setProperty("background", "var(--accent-blue, #2196f3)", "important");
+                          btn.style.setProperty("border-color", "var(--accent-blue, #2196f3)", "important");
+                      } else {
+                          // Если неактивна, пусть остается родной серой, убираем синий
+                          btn.style.background = ""; 
+                          btn.style.borderColor = "";
                       }
                       
+                      if (typeof window.applyTranslations === 'function') window.applyTranslations();
+                      else if (typeof window.updateLanguage === 'function') window.updateLanguage();
+                      
                       if (btnContainer) {
-                          // 🔥 УБИВАЕМ СИСТЕМНЫЕ ДУБЛИКАТЫ (теперь ищет и русские, и казахские)
+                          // 🔥 3. БРОНЕБОЙНЫЙ ДВОРНИК: прячем вообще все лишние кнопки без разбора текста
                           const allOldBtns = btnContainer.querySelectorAll("button");
                           allOldBtns.forEach(b => {
-                              const txt = b.innerText.trim().toUpperCase();
-                              if (b !== btn && b.id !== "kaspiMapperBackBtn" && (txt.includes("НАЗАД") || txt.includes("АРТҚА"))) {
-                                  b.style.display = "none"; // Прячем системную кнопку
+                              if (b.id !== "applyMapper2Btn" && b.id !== "kaspiMapperBackBtn") {
+                                  b.style.display = "none";
                               }
                           });
 
@@ -964,7 +967,7 @@ window.renderMapper2Cards = function (templateData) {
           if (backBtn) backBtn.remove();
           
           applyBtn.style.flex = ""; 
-          // 🔥 Возвращаем родной зеленый цвет для обычной приемки
+          // Возвращаем родной цвет
           applyBtn.style.background = "";
           applyBtn.style.borderColor = "";
 
@@ -977,12 +980,12 @@ window.renderMapper2Cards = function (templateData) {
                else if (typeof window.updateLanguage === 'function') window.updateLanguage();
           }
           
-          // Возвращаем видимость системным кнопкам "Назад", если они были скрыты
+          // Возвращаем видимость системным кнопкам
           const btnContainer = applyBtn.parentElement;
           if (btnContainer) {
               const allOldBtns = btnContainer.querySelectorAll("button");
               allOldBtns.forEach(b => {
-                  if (b !== applyBtn && b.id !== "kaspiMapperBackBtn") {
+                  if (b.id !== "applyMapper2Btn" && b.id !== "kaspiMapperBackBtn") {
                       b.style.display = ""; 
                   }
               });
