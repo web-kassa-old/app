@@ -3404,7 +3404,12 @@ window.handleCardSelectForExport = async function (
 
       // === ВОССТАНОВЛЕНИЕ ЗАГОЛОВКОВ И ПЕРЕВОДА НА РУССКИЙ ===
       window.mapper2State.supplier = "Kaspi (Экспорт)";
-      window.mapper2State.docNo = res.templateConfig.templateName || "Партия";
+      let origDoc = "Партия";
+if (res.items && res.items.length > 0) {
+    // Ищем оригинальный номер накладной, под которым товар был оприходован
+    origDoc = res.items[0].doc_no || res.items[0].invoice_no || res.items[0].document_id || res.templateConfig.templateName || "Партия";
+}
+window.mapper2State.docNo = origDoc;
 
       if (res.templateConfig && res.templateConfig.systemKeys) {
         window.mapper2State.sysToHumanMap = {};
