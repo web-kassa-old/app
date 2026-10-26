@@ -2040,28 +2040,27 @@ window.renderPreviewTable = function () {
   const state = window.mapper2State;
   const t = translations[currentLang] || translations["ru"];
 
-  // Запускаем авто-дописывание параметров перед рендером
   if (typeof window.autoCleanInvoiceAttributes === "function") {
       window.autoCleanInvoiceAttributes();
   }
 
-  // Скрываем вкладки и валюту по их ID
   const tabs = document.getElementById("mapperTabsContainer");
   if (tabs) tabs.style.display = "none";
 
   const currency = document.getElementById("mapperCurrencyBlock");
   if (currency) currency.style.display = "none";
 
-  // 🔥 3. ДОСТАЕМ ОРИГИНАЛЬНЫЙ НОМЕР НАКЛАДНОЙ ИЗ ТОВАРА 🔥
   let realDocNo = state.docNo;
-  if (window.parsedInvoiceData && window.parsedInvoiceData.length > 0) {
-      let firstItem = window.parsedInvoiceData[0];
-      realDocNo = firstItem.doc_no || firstItem.invoice_no || firstItem.document_id || state.docNo;
+  let sourceItems = (window.kaspiExportItems && window.kaspiExportItems.length > 0) 
+      ? window.kaspiExportItems 
+      : window.parsedInvoiceData;
+      
+  if (sourceItems && sourceItems.length > 0) {
+      let firstItem = sourceItems[0];
+      realDocNo = firstItem.doc_no || firstItem.invoice_no || firstItem.document_id || firstItem.docId || state.docNo;
   }
 
-  const supplierI18nAttr = !state.supplier
-    ? `data-i18n="inc_not_specified"`
-    : "";
+  const supplierI18nAttr = !state.supplier ? `data-i18n="inc_not_specified"` : "";
 
   document.getElementById("invoiceMetadata").innerHTML = `
         <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; padding: 10px; background: var(--bg-panel); border-radius: 8px; border: 1px solid var(--border-light);">
@@ -2075,28 +2074,23 @@ window.renderPreviewTable = function () {
     window.parsedInvoiceData
       .map((item, index) => {
         let attrsHtml = "";
+        let displayCode = null;
+
         if (item.attributes) {
           try {
             let parsed = JSON.parse(item.attributes);
+            
+            if (parsed.item_id && isNaN(Number(parsed.item_id))) {
+                displayCode = parsed.item_id;
+            }
+            
             attrsHtml =
               `<div style="display: flex; flex-direction: column; gap: 4px; margin-top: 8px;">` +
               Object.keys(parsed)
-                // 🔥 Исключаем технические поля из вывода в карточке
                 .filter((k) => !["doc_no", "invoice_no", "document_id"].includes(String(k).toLowerCase()))
                 .map((k) => {
-                  let humanName = window.mapper2State.sysToHumanMap
-                    ? window.mapper2State.sysToHumanMap[k]
-                    : null;
-                  let displayKey =
-                    humanName ||
-                    k
-                      .split("*")
-                      .pop()
-                      .replace(/tires/gi, "")
-                      .replace(/additional/gi, "")
-                      .replace(/general/gi, "")
-                      .replace(/\./g, "")
-                      .trim();
+                  let humanName = window.mapper2State.sysToHumanMap ? window.mapper2State.sysToHumanMap[k] : null;
+                  let displayKey = humanName || k.split("*").pop().replace(/tires/gi, "").replace(/additional/gi, "").replace(/general/gi, "").replace(/\./g, "").trim();
                   if (!displayKey) displayKey = k;
 
                   let val = parsed[k];
@@ -2112,8 +2106,12 @@ window.renderPreviewTable = function () {
           } catch (e) {}
         }
 
-        // 🔥 1. ИСПРАВЛЕНИЕ: Выводим ID, если его нет - то item_id, sku, или штрихкод 🔥
-        let displayCode = item.id || item.item_id || item.sku || item.barcode || "AUTO";
+        if (!displayCode) {
+            displayCode = item.item_id || item.sku || item.barcode || item.id || "AUTO";
+            if (/^\d{12,13}$/.test(displayCode) && item.sku && !/^\d{12,13}$/.test(item.sku)) {
+                displayCode = item.sku;
+            }
+        }
 
         return `
         <tr>
@@ -2140,13 +2138,10 @@ window.renderPreviewTable = function () {
       })
       .join("");
 
-  // === ЛОГИКА ДЛЯ РЕЖИМА ЭКСПОРТА ===
     if (window.isKaspiExportMode) {
-        // 1. Прячем кнопку "Оприходовать"
         const sendBtn = document.getElementById("sendInvoiceBtn");
         if (sendBtn) sendBtn.style.display = "none";
         
-        // 2. Ищем белую системную кнопку "Назад / Артқа" ВЕЗДЕ и убиваем её
         const allBtns = document.querySelectorAll('button');
         allBtns.forEach(b => {
             const txt = b.innerText.trim().toUpperCase();
@@ -2158,16 +2153,13 @@ window.renderPreviewTable = function () {
         const step3 = document.getElementById("invoicePreviewArea");
         const exportBtns = document.getElementById("exportActionButtons");
         
-        // 3. Настраиваем контейнер с кнопками экспорта
         if (exportBtns && step3) {
-            // 🔥 МЕНЯЕМ LAYOUT НА ГОРИЗОНТАЛЬНЫЙ
             exportBtns.style.display = "flex";
-            exportBtns.style.flexDirection = "row"; // Кнопки в ряд
-            exportBtns.style.flexWrap = "wrap";     // Разрешаем перенос строк
+            exportBtns.style.flexDirection = "row"; 
+            exportBtns.style.flexWrap = "wrap";     
             exportBtns.style.gap = "10px"; 
             step3.appendChild(exportBtns);
 
-            // 🔥 2. СОЗДАЕМ ЖЕЛЕЗНУЮ КНОПКУ "НАЗАД" В ФУТЕРЕ 🔥
             let backBtn = document.getElementById('kaspiBackToMapperBtn');
             if (!backBtn) {
                 backBtn = document.createElement('button');
@@ -2187,35 +2179,37 @@ window.renderPreviewTable = function () {
                     e.preventDefault();
                     document.getElementById('invoicePreviewArea').style.display = 'none';
                     document.getElementById('mapper2Area').style.display = 'flex';
+                    
+                    // 🔥 МАГИЯ ВОССТАНОВЛЕНИЯ: Принудительно запускаем проверку маппера при возврате, 
+                    // чтобы он заново перерисовал кнопку Назад, если система ее удалила
+                    setTimeout(() => {
+                        if (typeof window.checkMapperReadiness === 'function') {
+                            window.checkMapperReadiness();
+                        }
+                    }, 50);
                 };
                 
-                // Вставляем кнопку НАЗАД в самое начало блока кнопок
                 exportBtns.insertBefore(backBtn, exportBtns.firstChild);
             }
             
-            // --- СОЗДАЕМ КНОПКУ ПОЛНОГО СБРОСА ---
             let resetBtn = document.getElementById('kaspiResetExportBtn');
             if (!resetBtn) {
                 resetBtn = document.createElement('button');
                 resetBtn.id = 'kaspiResetExportBtn';
-                
                 resetBtn.style.background = 'var(--btn-danger-bg, #ef4444)';
                 resetBtn.style.color = 'var(--btn-danger-text, #ffffff)';
                 resetBtn.style.border = '1px solid var(--btn-danger-border, #dc2626)';
-                
                 resetBtn.style.padding = '12px 15px'; 
                 resetBtn.style.minHeight = '42px';
                 resetBtn.style.borderRadius = '6px';
                 resetBtn.style.fontWeight = 'bold';
                 resetBtn.style.cursor = 'pointer';
                 resetBtn.style.boxSizing = 'border-box';
-                
                 resetBtn.setAttribute('data-i18n', 'kaspi_reset_invoice');
                 resetBtn.innerText = '🔄 ПЕРЕЗАЛИТЬ НАКЛАДНУЮ (СБРОС)'; 
                 
                 resetBtn.onclick = function(e) {
                     e.preventDefault();
-                    
                     let confirmMsg = 'Очистить таблицу и загрузить накладную заново?';
                     if (typeof window.t === 'function') {
                         confirmMsg = window.t('kaspi_reset_confirm') || confirmMsg;
@@ -2238,15 +2232,14 @@ window.renderPreviewTable = function () {
                 exportBtns.appendChild(resetBtn);
             }
 
-            // 🔥 ПРИМЕНЯЕМ ПРОПОРЦИИ ДЛЯ СТРОКИ:
             Array.from(exportBtns.children).forEach(child => {
                 if (child.id === 'kaspiBackToMapperBtn') {
-                    child.style.flex = "1"; // Кнопка Назад занимает левую часть
+                    child.style.flex = "1"; 
                 } else if (child.id === 'kaspiResetExportBtn') {
-                    child.style.flex = "0 0 100%"; // Сброс переносится вниз на всю ширину
+                    child.style.flex = "0 0 100%"; 
                     child.style.marginTop = "5px";
                 } else {
-                    child.style.flex = "2"; // Основная кнопка (Скачать файл) занимает правую часть
+                    child.style.flex = "2"; 
                 }
             });
             
