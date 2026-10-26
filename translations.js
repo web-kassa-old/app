@@ -508,8 +508,8 @@ const translations = {
     complex_example: "Пример:",
     complex_empty: "(Пустая колонка)",
     btn_next: "ДАЛЕЕ ➔",
-    kaspi_confirm_template: "✓ ПЕРЕЙТИ К СВЕРКЕ",
-    kaspi_mapper_back: "⬅ НАЗАД",
+    kaspi_confirm_template: "ПЕРЕЙТИ К СВЕРКЕ",
+    kaspi_mapper_back: "НАЗАД",
   },
   kz: {
     btn_sale: "САТУ",
@@ -1020,7 +1020,7 @@ const translations = {
     complex_example: "Мысал:",
     complex_empty: "(Бос баған)",
     btn_next: "ЖАЛҒАСТЫРУ ➔",
-    kaspi_confirm_template: "✓ ТЕКСЕРУГЕ ӨТУ",
-    kaspi_mapper_back: "⬅ АРТҚА",
+    kaspi_confirm_template: "ТЕКСЕРУГЕ ӨТУ",
+    kaspi_mapper_back: "АРТҚА",
   },
 };

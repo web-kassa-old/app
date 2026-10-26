@@ -911,37 +911,49 @@ window.renderMapper2Cards = function (templateData) {
 
           // Создаем кнопку "Назад"
           const btnContainer = applyBtn.parentElement;
-          if (btnContainer && !document.getElementById("kaspiMapperBackBtn")) {
-              btnContainer.style.display = "flex";
-              btnContainer.style.gap = "10px";
-              
-              const backBtn = document.createElement("button");
-              backBtn.id = "kaspiMapperBackBtn";
-              backBtn.setAttribute("data-i18n", "kaspi_mapper_back");
-              backBtn.innerText = "⬅ НАЗАД"; // Заглушка до перевода
-              backBtn.style.background = "transparent";
-              backBtn.style.color = "var(--text-main)";
-              backBtn.style.border = "1px solid var(--border-light)";
-              backBtn.style.padding = "12px 15px";
-              backBtn.style.borderRadius = "6px";
-              backBtn.style.fontWeight = "bold";
-              backBtn.style.cursor = "pointer";
-              backBtn.style.flex = "1"; // Кнопка Назад занимает 1/3
-              
-              applyBtn.style.flex = "2"; // Главная кнопка занимает 2/3
-              
-              backBtn.onclick = function() {
-                  document.getElementById("mapper2Area").style.display = "none";
-                  const exportModal = document.getElementById("export-modal");
-                  if (exportModal) {
-                      exportModal.style.display = "flex"; 
+          if (btnContainer) {
+              // 🔥 1. УБИВАЕМ СТАРЫЕ ДУБЛИКАТЫ (Дворник)
+              // Скрипт ищет все кнопки внизу, и если находит "левую" кнопку НАЗАД без нужного ID — удаляет её.
+              const allOldBtns = btnContainer.querySelectorAll("button");
+              allOldBtns.forEach(btn => {
+                  if (btn !== applyBtn && btn.id !== "kaspiMapperBackBtn" && btn.innerText.toUpperCase().includes("НАЗАД")) {
+                      btn.remove();
                   }
-              };
-              
-              btnContainer.insertBefore(backBtn, applyBtn);
-              
-              if (typeof window.applyTranslations === 'function') window.applyTranslations();
-              else if (typeof window.updateLanguage === 'function') window.updateLanguage();
+              });
+
+              // 🔥 2. СОЗДАЕМ КНОПКУ (только если её еще нет)
+              if (!document.getElementById("kaspiMapperBackBtn")) {
+                  btnContainer.style.display = "flex";
+                  btnContainer.style.gap = "10px";
+                  
+                  const backBtn = document.createElement("button");
+                  backBtn.id = "kaspiMapperBackBtn";
+                  backBtn.setAttribute("data-i18n", "kaspi_mapper_back");
+                  backBtn.innerText = "⬅ НАЗАД"; // Заглушка до перевода
+                  backBtn.style.background = "transparent";
+                  backBtn.style.color = "var(--text-main)";
+                  backBtn.style.border = "1px solid var(--border-light)";
+                  backBtn.style.padding = "12px 15px";
+                  backBtn.style.borderRadius = "6px";
+                  backBtn.style.fontWeight = "bold";
+                  backBtn.style.cursor = "pointer";
+                  backBtn.style.flex = "1"; // Кнопка Назад занимает 1/3
+                  
+                  applyBtn.style.flex = "2"; // Главная кнопка занимает 2/3
+                  
+                  backBtn.onclick = function() {
+                      document.getElementById("mapper2Area").style.display = "none";
+                      const exportModal = document.getElementById("export-modal");
+                      if (exportModal) {
+                          exportModal.style.display = "flex"; 
+                      }
+                  };
+                  
+                  btnContainer.insertBefore(backBtn, applyBtn);
+                  
+                  if (typeof window.applyTranslations === 'function') window.applyTranslations();
+                  else if (typeof window.updateLanguage === 'function') window.updateLanguage();
+              }
           }
       } else {
           // ЕСЛИ ЭТО ОБЫЧНАЯ ПРИЕМКА ТОВАРА: сбрасываем всё к оригиналу
