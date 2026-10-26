@@ -510,6 +510,8 @@ const translations = {
     btn_next: "ДАЛЕЕ ➔",
     kaspi_confirm_template: "ПЕРЕЙТИ К СВЕРКЕ",
     kaspi_mapper_back: "НАЗАД",
+    kaspi_mapper_back: "НАЗАД",
+    kaspi_download_file: "СКАЧАТЬ ФАЙЛ (.XLSM)",
   },
   kz: {
     btn_sale: "САТУ",
@@ -1022,5 +1024,7 @@ const translations = {
     btn_next: "ЖАЛҒАСТЫРУ ➔",
     kaspi_confirm_template: "ТЕКСЕРУГЕ ӨТУ",
     kaspi_mapper_back: "АРТҚА",
+    kaspi_mapper_back: "АРТҚА",
+    kaspi_download_file: "ФАЙЛДЫ ЖҮКТЕУ (.XLSM)",
   },
 };

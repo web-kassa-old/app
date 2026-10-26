@@ -2174,7 +2174,8 @@ window.renderPreviewTable = function () {
                 backBtn.style.fontWeight = 'bold';
                 backBtn.style.cursor = 'pointer';
                 backBtn.style.boxSizing = 'border-box';
-                backBtn.innerText = '⬅ НАЗАД';
+                backBtn.setAttribute('data-i18n', 'kaspi_mapper_back');
+                backBtn.innerText = 'НАЗАД';
                 
                 backBtn.onclick = function(e) {
                     e.preventDefault();
@@ -2238,7 +2239,8 @@ window.renderPreviewTable = function () {
                     child.style.flex = "0 0 100%"; 
                     child.style.marginTop = "5px";
                 } else {
-                    child.style.flex = "2"; 
+                    child.style.flex = "2";
+                    child.setAttribute('data-i18n', 'kaspi_download_file'); 
                 }
             });
             
