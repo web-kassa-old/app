@@ -1759,10 +1759,12 @@ window.applyMapper2Logic = function () {
       let lowerKey = String(key).toLowerCase();
       let rawValue = getValue(key);
 
-      if (["qty", "price", "cost", "name", "model", "barcode", "cbm", "weight"].includes(lowerKey)) return;
+      // 🔥 1. Исключаем все системные ключи Каспи и локальные переменные на старте
+      if (["qty", "price", "cost", "name", "model", "barcode", "cbm", "weight", "item_id", "item_name", "id", "sku", "merchant_sku"].includes(lowerKey)) return;
       if (!rawValue) return;
 
-      let humanName = state.sysToHumanMap ? state.sysToHumanMap[key] : key;
+      // 🔥 2. Получаем русское название параметра (или оставляем key, если перевода нет)
+      let humanName = (state.sysToHumanMap && state.sysToHumanMap[key]) ? state.sysToHumanMap[key] : key;
       let searchString = rawValue;
 
       let dict = window.kaspiDicts && window.kaspiDicts[humanName];
@@ -1810,12 +1812,19 @@ window.applyMapper2Logic = function () {
             excelColumnName: excelHeader || "ДАННЫЕ ИЗ НАКЛАДНОЙ",
           });
         } else {
-          attributesObj[key] = rawValue;
+          // 🔥 3. Сохраняем ТОЛЬКО под русским именем (humanName). 
+          // Это автоматически схлопнет дубликаты (Tires*width и Ширина профиля запишутся в одну ячейку)
+          if (!["item_id", "item_name", "id", "sku", "qty", "price", "barcode"].includes(String(humanName).toLowerCase())) {
+             attributesObj[humanName] = rawValue;
+          }
         }
         return; 
       }
 
-      attributesObj[key] = matchedDictValue;
+      // 🔥 Сохраняем ТОЛЬКО под русским именем (humanName) с финальной защитой от системного мусора
+      if (!["item_id", "item_name", "id", "sku", "qty", "price", "barcode"].includes(String(humanName).toLowerCase())) {
+         attributesObj[humanName] = matchedDictValue;
+      }
     };
 
     let allKeys = new Set(Object.keys(state.colMap));
