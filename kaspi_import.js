@@ -885,33 +885,34 @@ window.renderMapper2Cards = function (templateData) {
               window.originalCheckMapperReadiness = window.checkMapperReadiness;
               
               window.checkMapperReadiness = function() {
-                  // 1. Выполняем стандартную проверку
+                  // Выполняем родную проверку
                   if (window.originalCheckMapperReadiness) window.originalCheckMapperReadiness();
                   
                   const btn = document.getElementById("applyMapper2Btn");
                   if (btn && window.isKaspiExportMode) {
                       const btnContainer = btn.parentElement;
                       
-                      // 🔥 1. МЕНЯЕМ ТЕКСТ ВСЕГДА (даже если кнопка заблокирована/серая)
+                      // 1. ВЕШАЕМ ПРАВИЛЬНЫЙ АТРИБУТ ИЗ ТВОЕГО СЛОВАРЯ
                       const btnSpan = btn.querySelector("span");
                       const target = btnSpan || btn;
-                      target.setAttribute("data-i18n", "kaspi_go_to_preview");
+                      target.setAttribute("data-i18n", "kaspi_confirm_template");
                       
-                      // 🔥 2. КРАСИМ В СИНИЙ (только когда активна) ИСПОЛЬЗУЯ !important
+                      // 2. КРАСИМ В СИНИЙ (только активную) ИСПОЛЬЗУЯ !important
                       if (!btn.classList.contains("disabled") && !btn.classList.contains("btn-disabled")) {
                           btn.style.setProperty("background", "var(--accent-blue, #2196f3)", "important");
                           btn.style.setProperty("border-color", "var(--accent-blue, #2196f3)", "important");
                       } else {
-                          // Если неактивна, пусть остается родной серой, убираем синий
                           btn.style.background = ""; 
                           btn.style.borderColor = "";
                       }
                       
-                      if (typeof window.applyTranslations === 'function') window.applyTranslations();
-                      else if (typeof window.updateLanguage === 'function') window.updateLanguage();
+                      // 3. Вызываем вашу системную функцию перевода
+                      if (typeof window.applyLanguage === 'function') {
+                          window.applyLanguage(typeof currentLang !== 'undefined' ? currentLang : 'ru');
+                      }
                       
                       if (btnContainer) {
-                          // 🔥 3. БРОНЕБОЙНЫЙ ДВОРНИК: прячем вообще все лишние кнопки без разбора текста
+                          // ДВОРНИК: Прячем все лишнее системное
                           const allOldBtns = btnContainer.querySelectorAll("button");
                           allOldBtns.forEach(b => {
                               if (b.id !== "applyMapper2Btn" && b.id !== "kaspiMapperBackBtn") {
@@ -923,8 +924,9 @@ window.renderMapper2Cards = function (templateData) {
                           if (!backBtn) {
                               backBtn = document.createElement("button");
                               backBtn.id = "kaspiMapperBackBtn";
+                              // ВЕШАЕМ АТРИБУТ НАЗАД
                               backBtn.setAttribute("data-i18n", "kaspi_mapper_back");
-                              backBtn.innerText = "⬅ НАЗАД";
+                              
                               backBtn.style.background = "transparent";
                               backBtn.style.color = "var(--text-main)";
                               backBtn.style.border = "1px solid var(--border-light)";
@@ -939,11 +941,12 @@ window.renderMapper2Cards = function (templateData) {
                               };
                               btnContainer.insertBefore(backBtn, btn);
                               
-                              if (typeof window.applyTranslations === 'function') window.applyTranslations();
-                              else if (typeof window.updateLanguage === 'function') window.updateLanguage();
+                              // Вызываем перевод для новой кнопки
+                              if (typeof window.applyLanguage === 'function') {
+                                  window.applyLanguage(typeof currentLang !== 'undefined' ? currentLang : 'ru');
+                              }
                           }
                           
-                          // Жестко задаем стили
                           btnContainer.style.display = "flex";
                           btnContainer.style.gap = "10px";
                           backBtn.style.display = "block";
@@ -954,33 +957,28 @@ window.renderMapper2Cards = function (templateData) {
               };
           }
           
-          // Запускаем перехватчик
-          if (typeof window.checkMapperReadiness === "function") {
-              window.checkMapperReadiness();
-          }
+          if (typeof window.checkMapperReadiness === "function") window.checkMapperReadiness();
+          
       } else {
           // ЕСЛИ ЭТО ОБЫЧНАЯ ПРИЕМКА ТОВАРА: сбрасываем всё к оригиналу
-          if (typeof window.checkMapperReadiness === "function") {
-              window.checkMapperReadiness();
-          }
+          if (typeof window.checkMapperReadiness === "function") window.checkMapperReadiness();
+          
           const backBtn = document.getElementById("kaspiMapperBackBtn");
           if (backBtn) backBtn.remove();
           
           applyBtn.style.flex = ""; 
-          // Возвращаем родной цвет
           applyBtn.style.background = "";
           applyBtn.style.borderColor = "";
 
           const btnSpan = applyBtn.querySelector("span");
           const target = btnSpan || applyBtn;
+          target.setAttribute("data-i18n", "inc_build_invoice");
           
-          if (target.getAttribute("data-i18n") === "kaspi_go_to_preview") {
-               target.setAttribute("data-i18n", "inc_build_invoice"); 
-               if (typeof window.applyTranslations === 'function') window.applyTranslations();
-               else if (typeof window.updateLanguage === 'function') window.updateLanguage();
+          // Вызываем перевод, чтобы он вернул текст "Собрать накладную" на нужном языке
+          if (typeof window.applyLanguage === 'function') {
+              window.applyLanguage(typeof currentLang !== 'undefined' ? currentLang : 'ru');
           }
           
-          // Возвращаем видимость системным кнопкам
           const btnContainer = applyBtn.parentElement;
           if (btnContainer) {
               const allOldBtns = btnContainer.querySelectorAll("button");
