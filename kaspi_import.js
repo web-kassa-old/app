@@ -1846,10 +1846,15 @@ window.applyMapper2Logic = function () {
       ? templateDropdown.options[templateDropdown.selectedIndex].text.trim() 
       : "Новые товары";
 
+    // 🔥 Достаем оригинальные данные товара из кэша сервера
+    let origItem = (window.kaspiExportItems && window.kaspiExportItems[index]) ? window.kaspiExportItems[index] : {};
+    let realDocNo = origItem.doc_no || origItem.invoice_no || origItem.document_id || origItem.docId || state.docNo;
+    let realItemId = origItem.item_id || origItem.sku || rawId;
+
     const itemData = {
-      doc_no: state.docNo,
+      doc_no: realDocNo,
       supplier: state.supplier,
-      item_id: rawId,
+      item_id: realItemId,  // Оригинальный буквенный ID
       item_name: name,
       qty: qty,
       cost: isNaN(price) ? 0 : price, 
@@ -1857,13 +1862,13 @@ window.applyMapper2Logic = function () {
       weight: weight,
       raw_logistics: rawLogisticsStr.trim(),
       staff_id: typeof currentUser !== "undefined" && currentUser ? currentUser.uid : "Auto-Import",
-      id: rawId,
+      id: realItemId,       // Оригинальный ID
       name: name,
       desc: name,
       description: name,
-      barcode: barcode, 
+      barcode: origItem.barcode || barcode, 
       category: activeCategoryText, 
-      sku: rawId, 
+      sku: realItemId,      // Оригинальный ID
       title: name, 
       attributes: finalAttributes,
       _hasCollisions: itemHasCollisions,
@@ -1872,7 +1877,12 @@ window.applyMapper2Logic = function () {
     };
 
     window.parsedInvoiceData.push(itemData);
-    window.invoiceGroups[state.docNo].items.push(itemData);
+    
+    // Безопасное добавление в группу
+    if (!window.invoiceGroups[realDocNo]) {
+        window.invoiceGroups[realDocNo] = { items: [] };
+    }
+    window.invoiceGroups[realDocNo].items.push(itemData);
 
     if (itemHasCollisions) {
       itemCollisionsList.forEach((collision) => {
