@@ -2160,8 +2160,10 @@ window.renderPreviewTable = function () {
         
         // 3. Настраиваем контейнер с кнопками экспорта
         if (exportBtns && step3) {
+            // 🔥 МЕНЯЕМ LAYOUT НА ГОРИЗОНТАЛЬНЫЙ
             exportBtns.style.display = "flex";
-            exportBtns.style.flexDirection = "column"; 
+            exportBtns.style.flexDirection = "row"; // Кнопки в ряд
+            exportBtns.style.flexWrap = "wrap";     // Разрешаем перенос строк
             exportBtns.style.gap = "10px"; 
             step3.appendChild(exportBtns);
 
@@ -2178,7 +2180,6 @@ window.renderPreviewTable = function () {
                 backBtn.style.borderRadius = '6px';
                 backBtn.style.fontWeight = 'bold';
                 backBtn.style.cursor = 'pointer';
-                backBtn.style.width = '100%';
                 backBtn.style.boxSizing = 'border-box';
                 backBtn.innerText = '⬅ НАЗАД';
                 
@@ -2207,7 +2208,6 @@ window.renderPreviewTable = function () {
                 resetBtn.style.borderRadius = '6px';
                 resetBtn.style.fontWeight = 'bold';
                 resetBtn.style.cursor = 'pointer';
-                resetBtn.style.width = '100%'; 
                 resetBtn.style.boxSizing = 'border-box';
                 
                 resetBtn.setAttribute('data-i18n', 'kaspi_reset_invoice');
@@ -2236,10 +2236,22 @@ window.renderPreviewTable = function () {
                 };
                 
                 exportBtns.appendChild(resetBtn);
-                
-                if (typeof window.applyTranslations === 'function') window.applyTranslations();
-                else if (typeof window.updateLanguage === 'function') window.updateLanguage();
             }
+
+            // 🔥 ПРИМЕНЯЕМ ПРОПОРЦИИ ДЛЯ СТРОКИ:
+            Array.from(exportBtns.children).forEach(child => {
+                if (child.id === 'kaspiBackToMapperBtn') {
+                    child.style.flex = "1"; // Кнопка Назад занимает левую часть
+                } else if (child.id === 'kaspiResetExportBtn') {
+                    child.style.flex = "0 0 100%"; // Сброс переносится вниз на всю ширину
+                    child.style.marginTop = "5px";
+                } else {
+                    child.style.flex = "2"; // Основная кнопка (Скачать файл) занимает правую часть
+                }
+            });
+            
+            if (typeof window.applyTranslations === 'function') window.applyTranslations();
+            else if (typeof window.updateLanguage === 'function') window.updateLanguage();
         }
     }
 };
