@@ -1942,6 +1942,11 @@ window.renderPreviewTable = function () {
   const state = window.mapper2State;
   const t = translations[currentLang] || translations["ru"];
 
+  // 🔥 НАШ МАЯЧОК 🔥
+  if (window.kaspiExportItems && window.kaspiExportItems.length > 0) {
+      console.log("=== МАЯЧОК: СТРУКТУРА ТОВАРА ОТ СЕРВЕРА ===", window.kaspiExportItems[0]);
+  }
+
   // Запускаем авто-дописывание параметров перед рендером
   if (typeof window.autoCleanInvoiceAttributes === "function") {
       window.autoCleanInvoiceAttributes();
