@@ -2265,10 +2265,12 @@ window.renderPreviewTable = function () {
     } else {
         // 🔥 ОБЫЧНАЯ ПРИЕМКА ТОВАРА: Сбрасываем интерфейс к заводским настройкам 🔥
         
-        // 1. Возвращаем кнопку "Оприходовать"
+        // 1. ЖЕСТКО ВОЗВРАЩАЕМ кнопку "Оприходовать"
         const sendBtn = document.getElementById("sendInvoiceBtn");
         if (sendBtn) {
-            sendBtn.style.display = ""; // Возвращает стандартную видимость
+            sendBtn.style.setProperty("display", "block", "important"); // Принудительно показываем
+            sendBtn.style.width = "100%"; // На всякий случай возвращаем ей ширину
+            sendBtn.style.marginTop = "10px"; // Возвращаем отступ, если он сбился
         }
         
         // 2. Прячем панель экспорта Kaspi (Скачать файл и т.д.)
@@ -2285,7 +2287,7 @@ window.renderPreviewTable = function () {
                 const txt = b.innerText.trim().toUpperCase();
                 if (txt.includes('НАЗАД') || txt.includes('АРТҚА')) {
                     if (b.id !== 'kaspiBackToMapperBtn') {
-                        b.style.display = ""; 
+                        b.style.setProperty("display", "block", "important"); 
                     }
                 }
             });
