@@ -2258,8 +2258,37 @@ window.renderPreviewTable = function () {
                 }
             });
             
-            if (typeof window.applyTranslations === 'function') window.applyTranslations();
-            else if (typeof window.updateLanguage === 'function') window.updateLanguage();
+            if (typeof window.applyLanguage === 'function') {
+                window.applyLanguage(typeof currentLang !== 'undefined' ? currentLang : 'ru');
+            }
+        }
+    } else {
+        // 🔥 ОБЫЧНАЯ ПРИЕМКА ТОВАРА: Сбрасываем интерфейс к заводским настройкам 🔥
+        
+        // 1. Возвращаем кнопку "Оприходовать"
+        const sendBtn = document.getElementById("sendInvoiceBtn");
+        if (sendBtn) {
+            sendBtn.style.display = ""; // Возвращает стандартную видимость
+        }
+        
+        // 2. Прячем панель экспорта Kaspi (Скачать файл и т.д.)
+        const exportBtns = document.getElementById("exportActionButtons");
+        if (exportBtns) {
+            exportBtns.style.display = "none"; 
+        }
+        
+        // 3. Восстанавливаем видимость родных кнопок "Назад" 
+        const step3 = document.getElementById("invoicePreviewArea");
+        if (step3) {
+            const allBtns = step3.querySelectorAll('button');
+            allBtns.forEach(b => {
+                const txt = b.innerText.trim().toUpperCase();
+                if (txt.includes('НАЗАД') || txt.includes('АРТҚА')) {
+                    if (b.id !== 'kaspiBackToMapperBtn') {
+                        b.style.display = ""; 
+                    }
+                }
+            });
         }
     }
 };
