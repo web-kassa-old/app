@@ -16,9 +16,15 @@ document.addEventListener("change", function(e) {
 function toggleIncomeModule() {
   const modal = document.getElementById("income-modal");
 
-  // === ОЧИСТКА ПАМЯТИ МАТРЕШКИ ===
+  // === ОЧИСТКА ПАМЯТИ МАТРЕШКИ И СБРОС РЕЖИМОВ ===
   window.mapper2State = window.mapper2State || {};
   window.mapper2State.history = [];
+  window.mapper2State.colMap = {}; // Очищаем маппинг колонок
+
+  // 🔥 ЖЕСТКИЙ СБРОС: Включаем режим ОБЫЧНОЙ ПРИЕМКИ
+  window.isKaspiExportMode = false;
+  window.currentExportHash = null;
+  window.kaspiExportItems = []; 
 
   if (modal.style.display === "none" || modal.style.display === "") {
     // Принудительно включаем Шаг 1 перед открытием (true означает, что шаг не пишется в историю дублем)
@@ -3288,6 +3294,14 @@ window.autoCleanInvoiceAttributes = function () {
 
 // 1. Открытие модалки экспорта и загрузка списка категорий
 window.openExportModal = async function () {
+  // 🔥 ЖЕСТКИЙ СБРОС СТЕЙТА: Включаем режим ЭКСПОРТА KASPI 🔥
+  window.isKaspiExportMode = true;
+  window.parsedInvoiceData = []; // Очищаем память от данных обычной приемки
+  window.kaspiExportItems = [];
+  
+  window.mapper2State = window.mapper2State || {};
+  window.mapper2State.colMap = {}; // Очищаем старый маппинг колонок
+
   const modal = document.getElementById("export-modal");
   const container = document.getElementById("exportCardsContainer");
   const btnArea = document.getElementById("exportActionButtons");
