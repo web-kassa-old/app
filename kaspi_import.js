@@ -2265,33 +2265,46 @@ window.renderPreviewTable = function () {
     } else {
         // 🔥 ОБЫЧНАЯ ПРИЕМКА ТОВАРА: Сбрасываем интерфейс к заводским настройкам 🔥
         
-        // 1. ЖЕСТКО ВОЗВРАЩАЕМ кнопку "Оприходовать"
-        const sendBtn = document.getElementById("sendInvoiceBtn");
-        if (sendBtn) {
-            sendBtn.style.setProperty("display", "block", "important"); // Принудительно показываем
-            sendBtn.style.width = "100%"; // На всякий случай возвращаем ей ширину
-            sendBtn.style.marginTop = "10px"; // Возвращаем отступ, если он сбился
-        }
-        
-        // 2. Прячем панель экспорта Kaspi (Скачать файл и т.д.)
+        // 1. Прячем панель экспорта Kaspi мгновенно
         const exportBtns = document.getElementById("exportActionButtons");
         if (exportBtns) {
             exportBtns.style.display = "none"; 
         }
-        
-        // 3. Восстанавливаем видимость родных кнопок "Назад" 
-        const step3 = document.getElementById("invoicePreviewArea");
-        if (step3) {
-            const allBtns = step3.querySelectorAll('button');
-            allBtns.forEach(b => {
-                const txt = b.innerText.trim().toUpperCase();
-                if (txt.includes('НАЗАД') || txt.includes('АРТҚА')) {
-                    if (b.id !== 'kaspiBackToMapperBtn') {
-                        b.style.setProperty("display", "block", "important"); 
-                    }
+
+        // 2. Отложенное восстановление (перебиваем фоновые системные скрипты)
+        setTimeout(() => {
+            // ЖЕСТКО ВОЗВРАЩАЕМ кнопку "Оприходовать"
+            const sendBtn = document.getElementById("sendInvoiceBtn");
+            if (sendBtn) {
+                // Сбиваем любые блокировки и пряталки
+                sendBtn.style.display = "block"; 
+                sendBtn.style.setProperty("display", "block", "important");
+                sendBtn.style.visibility = "visible";
+                sendBtn.removeAttribute("hidden");
+                
+                // Если кнопка вдруг оказалась в невидимом div-контейнере, принудительно открываем и его
+                const parent = sendBtn.parentElement;
+                if (parent && parent.id !== "invoicePreviewArea" && parent.style.display === "none") {
+                    parent.style.setProperty("display", "flex", "important");
+                    parent.style.width = "100%";
                 }
-            });
-        }
+            }
+            
+            // Восстанавливаем видимость родных кнопок "Назад" 
+            const step3 = document.getElementById("invoicePreviewArea");
+            if (step3) {
+                const allBtns = step3.querySelectorAll('button');
+                allBtns.forEach(b => {
+                    const txt = b.innerText.trim().toUpperCase();
+                    if (txt.includes('НАЗАД') || txt.includes('АРТҚА')) {
+                        if (b.id !== 'kaspiBackToMapperBtn') {
+                            b.style.display = "block"; 
+                            b.style.setProperty("display", "block", "important");
+                        }
+                    }
+                });
+            }
+        }, 100); // Задержка 100мс решает проблему конфликта с родными скриптами
     }
 };
 
