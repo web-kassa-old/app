@@ -2051,32 +2051,32 @@ window.currentFieldDict = [];
 
 // === ОТРИСОВКА ГЛАВНОЙ ТАБЛИЦЫ ===
 window.renderPreviewTable = function () {
-  const state = window.mapper2State;
-  const t = translations[currentLang] || translations["ru"];
+    const state = window.mapper2State;
+    const t = translations[currentLang] || translations["ru"];
 
-  if (typeof window.autoCleanInvoiceAttributes === "function") {
-      window.autoCleanInvoiceAttributes();
-  }
+    if (typeof window.autoCleanInvoiceAttributes === "function") {
+        window.autoCleanInvoiceAttributes();
+    }
 
-  const tabs = document.getElementById("mapperTabsContainer");
-  if (tabs) tabs.style.display = "none";
+    const tabs = document.getElementById("mapperTabsContainer");
+    if (tabs) tabs.style.display = "none";
 
-  const currency = document.getElementById("mapperCurrencyBlock");
-  if (currency) currency.style.display = "none";
+    const currency = document.getElementById("mapperCurrencyBlock");
+    if (currency) currency.style.display = "none";
 
-  let realDocNo = state.docNo;
-  let sourceItems = (window.kaspiExportItems && window.kaspiExportItems.length > 0) 
-      ? window.kaspiExportItems 
-      : window.parsedInvoiceData;
-      
-  if (sourceItems && sourceItems.length > 0) {
-      let firstItem = sourceItems[0];
-      realDocNo = firstItem.doc_no || firstItem.invoice_no || firstItem.document_id || firstItem.docId || state.docNo;
-  }
+    let realDocNo = state.docNo;
+    let sourceItems = (window.kaspiExportItems && window.kaspiExportItems.length > 0) 
+        ? window.kaspiExportItems 
+        : window.parsedInvoiceData;
+        
+    if (sourceItems && sourceItems.length > 0) {
+        let firstItem = sourceItems[0];
+        realDocNo = firstItem.doc_no || firstItem.invoice_no || firstItem.document_id || firstItem.docId || state.docNo;
+    }
 
-  const supplierI18nAttr = !state.supplier ? `data-i18n="inc_not_specified"` : "";
+    const supplierI18nAttr = !state.supplier ? `data-i18n="inc_not_specified"` : "";
 
-  document.getElementById("invoiceMetadata").innerHTML = `
+    document.getElementById("invoiceMetadata").innerHTML = `
         <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; padding: 10px; background: var(--bg-panel); border-radius: 8px; border: 1px solid var(--border-light);">
             <div><span data-i18n="inc_supplier" style="color:var(--text-muted);">${t.inc_supplier || "Пост:"}</span> <b ${supplierI18nAttr} style="color:var(--accent-yellow);">${state.supplier || t.inc_not_specified || "Не указан"}</b></div>
             <div><span data-i18n="inc_doc_short" style="color:var(--text-muted);">${t.inc_doc_short || "Док:"}</span> <b style="color:var(--accent-yellow);">${realDocNo}</b></div>
@@ -2084,73 +2084,73 @@ window.renderPreviewTable = function () {
         </div>
     `;
 
-  document.getElementById("invoiceTableBody").innerHTML =
-    window.parsedInvoiceData
-      .map((item, index) => {
-        let attrsHtml = "";
-        let displayCode = null;
+    document.getElementById("invoiceTableBody").innerHTML =
+      window.parsedInvoiceData
+        .map((item, index) => {
+            let attrsHtml = "";
+            let displayCode = null;
 
-        if (item.attributes) {
-          try {
-            let parsed = JSON.parse(item.attributes);
-            
-            if (parsed.item_id && isNaN(Number(parsed.item_id))) {
-                displayCode = parsed.item_id;
+            if (item.attributes) {
+                try {
+                    let parsed = JSON.parse(item.attributes);
+                    
+                    if (parsed.item_id && isNaN(Number(parsed.item_id))) {
+                        displayCode = parsed.item_id;
+                    }
+                    
+                    attrsHtml =
+                        `<div style="display: flex; flex-direction: column; gap: 4px; margin-top: 8px;">` +
+                        Object.keys(parsed)
+                            .filter((k) => !["doc_no", "invoice_no", "document_id"].includes(String(k).toLowerCase()))
+                            .map((k) => {
+                                let humanName = window.mapper2State.sysToHumanMap ? window.mapper2State.sysToHumanMap[k] : null;
+                                let displayKey = humanName || k.split("*").pop().replace(/tires/gi, "").replace(/additional/gi, "").replace(/general/gi, "").replace(/\./g, "").trim();
+                                if (!displayKey) displayKey = k;
+
+                                let val = parsed[k];
+                                if (val.length > 30) val = val.substring(0, 30) + "...";
+
+                                return `<div style="font-size: 11px; background: rgba(76, 175, 80, 0.1); border: 1px solid rgba(76, 175, 80, 0.3); padding: 6px 8px; border-radius: 4px; display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; line-height: 1.3;">
+                                            <span style="color:var(--text-muted); flex: 1;">${displayKey}:</span> 
+                                            <b style="color:var(--accent-green); text-align: right; max-width: 55%; word-break: break-word;">${val}</b>
+                                        </div>`;
+                            })
+                            .join("") +
+                        `</div>`;
+                } catch (e) {}
             }
-            
-            attrsHtml =
-              `<div style="display: flex; flex-direction: column; gap: 4px; margin-top: 8px;">` +
-              Object.keys(parsed)
-                .filter((k) => !["doc_no", "invoice_no", "document_id"].includes(String(k).toLowerCase()))
-                .map((k) => {
-                  let humanName = window.mapper2State.sysToHumanMap ? window.mapper2State.sysToHumanMap[k] : null;
-                  let displayKey = humanName || k.split("*").pop().replace(/tires/gi, "").replace(/additional/gi, "").replace(/general/gi, "").replace(/\./g, "").trim();
-                  if (!displayKey) displayKey = k;
 
-                  let val = parsed[k];
-                  if (val.length > 30) val = val.substring(0, 30) + "...";
-
-                  return `<div style="font-size: 11px; background: rgba(76, 175, 80, 0.1); border: 1px solid rgba(76, 175, 80, 0.3); padding: 6px 8px; border-radius: 4px; display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; line-height: 1.3;">
-                            <span style="color:var(--text-muted); flex: 1;">${displayKey}:</span> 
-                            <b style="color:var(--accent-green); text-align: right; max-width: 55%; word-break: break-word;">${val}</b>
-                        </div>`;
-                })
-                .join("") +
-              `</div>`;
-          } catch (e) {}
-        }
-
-        if (!displayCode) {
-            displayCode = item.item_id || item.sku || item.barcode || item.id || "AUTO";
-            if (/^\d{12,13}$/.test(displayCode) && item.sku && !/^\d{12,13}$/.test(item.sku)) {
-                displayCode = item.sku;
+            if (!displayCode) {
+                displayCode = item.item_id || item.sku || item.barcode || item.id || "AUTO";
+                if (/^\d{12,13}$/.test(displayCode) && item.sku && !/^\d{12,13}$/.test(item.sku)) {
+                    displayCode = item.sku;
+                }
             }
-        }
 
-        return `
-        <tr>
-            <td class="col-main" style="padding:12px 8px 4px 8px; vertical-align: top; border-bottom: none;">
-                <div style="font-weight:bold; font-size:13px; line-height:1.2;">${item.item_name}</div>
-                <div style="display: flex; align-items: center; gap: 8px; margin-top: 6px;">
-                    <span style="color:var(--accent-blue); font-weight:bold; font-size:11px;">Код: ${displayCode}</span>
-                    ${!item.barcode ? `<span style="font-size:9px; color:var(--accent-green); background: rgba(46, 204, 113, 0.1); padding: 2px 6px; border-radius: 4px; font-weight: bold;">+ EAN-13</span>` : ""}
-                </div>
-            </td>
-            <td class="col-min" style="padding:12px 8px 4px 8px; vertical-align: top; text-align:right; width: 70px; border-bottom: none;">
-                <div style="font-size:12px; color:var(--text-muted); margin-bottom: 4px;">${Number(item.qty).toLocaleString("ru-RU")}</div>
-                <div style="font-size:13px; font-weight:bold; color:var(--accent-yellow);">${Number(item.cost).toLocaleString("ru-RU")}</div>
-            </td>
-        </tr>
-        <tr style="border-bottom:1px solid var(--border-light);">
-            <td colspan="2" style="padding: 0 8px 12px 8px; border-top: none;">
-                ${attrsHtml}
-                <button onclick="window.openEditorMain(${index})" style="width: 100%; background: rgba(128,128,128,0.05); border: 1px dashed var(--border-light); color: var(--text-muted); cursor: pointer; border-radius: 4px; font-size: 11px; margin-top: 10px; padding: 10px;">
-                    ✏ <span data-i18n="inc_edit_params">${t.inc_edit_params || "Изменить параметры"}</span>
-                </button>
-            </td>
-        </tr>`;
-      })
-      .join("");
+            return `
+            <tr>
+                <td class="col-main" style="padding:12px 8px 4px 8px; vertical-align: top; border-bottom: none;">
+                    <div style="font-weight:bold; font-size:13px; line-height:1.2;">${item.item_name}</div>
+                    <div style="display: flex; align-items: center; gap: 8px; margin-top: 6px;">
+                        <span style="color:var(--accent-blue); font-weight:bold; font-size:11px;">Код: ${displayCode}</span>
+                        ${!item.barcode ? `<span style="font-size:9px; color:var(--accent-green); background: rgba(46, 204, 113, 0.1); padding: 2px 6px; border-radius: 4px; font-weight: bold;">+ EAN-13</span>` : ""}
+                    </div>
+                </td>
+                <td class="col-min" style="padding:12px 8px 4px 8px; vertical-align: top; text-align:right; width: 70px; border-bottom: none;">
+                    <div style="font-size:12px; color:var(--text-muted); margin-bottom: 4px;">${Number(item.qty).toLocaleString("ru-RU")}</div>
+                    <div style="font-size:13px; font-weight:bold; color:var(--accent-yellow);">${Number(item.cost).toLocaleString("ru-RU")}</div>
+                </td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border-light);">
+                <td colspan="2" style="padding: 0 8px 12px 8px; border-top: none;">
+                    ${attrsHtml}
+                    <button onclick="window.openEditorMain(${index})" style="width: 100%; background: rgba(128,128,128,0.05); border: 1px dashed var(--border-light); color: var(--text-muted); cursor: pointer; border-radius: 4px; font-size: 11px; margin-top: 10px; padding: 10px;">
+                        ✏ <span data-i18n="inc_edit_params">${t.inc_edit_params || "Изменить параметры"}</span>
+                    </button>
+                </td>
+            </tr>`;
+        })
+        .join("");
 
     if (window.isKaspiExportMode) {
         const sendBtn = document.getElementById("sendInvoiceBtn");
@@ -2196,7 +2196,7 @@ window.renderPreviewTable = function () {
                     document.getElementById('invoicePreviewArea').style.display = 'none';
                     document.getElementById('mapper2Area').style.display = 'flex';
                     
-                    // 🔥 Если кнопка маппера всё-таки скрылась, просто делаем её видимой
+                    // Если кнопка маппера скрылась, делаем её видимой
                     const mapperBackBtn = document.getElementById("kaspiMapperBackBtn");
                     if (mapperBackBtn) {
                         mapperBackBtn.style.display = "block";
@@ -2246,15 +2246,30 @@ window.renderPreviewTable = function () {
                 exportBtns.appendChild(resetBtn);
             }
 
+            // 🔥 УМНЫЙ ЦИКЛ, исключающий дубликаты
+            let downloadBtnFound = false; 
+
             Array.from(exportBtns.children).forEach(child => {
                 if (child.id === 'kaspiBackToMapperBtn') {
                     child.style.flex = "1"; 
+                    child.style.display = "block";
                 } else if (child.id === 'kaspiResetExportBtn') {
                     child.style.flex = "0 0 100%"; 
                     child.style.marginTop = "5px";
-                } else {
-                    child.style.flex = "2";
-                    child.setAttribute('data-i18n', 'kaspi_download_file'); 
+                    child.style.display = "block";
+                } else if (child.tagName.toUpperCase() === 'BUTTON') {
+                    // Это родные кнопки системы (скачать файл или скрытые дубликаты)
+                    if (!downloadBtnFound) {
+                        // Первую попавшуюся делаем главной кнопкой скачивания
+                        child.style.flex = "2";
+                        child.setAttribute('data-i18n', 'kaspi_download_file');
+                        child.style.display = "block";
+                        downloadBtnFound = true; // Запоминаем, что главная кнопка уже найдена
+                    } else {
+                        // Все остальные скрытые системные дубликаты жестко прячем
+                        child.style.display = "none";
+                        child.style.setProperty("display", "none", "important");
+                    }
                 }
             });
             
