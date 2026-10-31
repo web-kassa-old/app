@@ -834,44 +834,70 @@ window.renderMapper2Cards = function (templateData) {
     } else if (mappedIndex !== undefined) {
       statusClass = "status-filled";
 
-      // 🔥 ДОБАВЛЕНО: Интеллектуальный перевод колонки через словарь синонимов
-      let rawColName = window.mapper2State.invoiceHeaders[mappedIndex];
-      let colName = rawColName || `Колонка ${mappedIndex + 1}`;
-      
-      if (rawColName && typeof invoiceSynonyms !== "undefined") {
-          let cleanHeader = String(rawColName).toLowerCase().replace(/\s+/g, "");
-          let matchedKey = null;
+      // 🔥 ДОБАВЛЕНО: Интеллектуальный перевод с МАЯЧКАМИ
+        // Проверяем оба варианта словаря, чтобы точно не промахнуться
+        let activeDict = window.mapper2State?.dictValues;
+        if (!activeDict || Object.keys(activeDict).length === 0) {
+            activeDict = typeof invoiceSynonyms !== "undefined" ? invoiceSynonyms : {};
+        }
 
-          // Ищем шапку в словаре
-          for (let key in invoiceSynonyms) {
-              let synArray = invoiceSynonyms[key] || [];
-              let isMatch = synArray.some(syn => {
-                  let cleanSyn = String(syn).toLowerCase().replace(/\s+/g, "");
-                  return cleanSyn && (cleanHeader.includes(cleanSyn) || cleanSyn.includes(cleanHeader));
-              });
+        if (header && activeDict) {
+            let cleanHeader = String(header).toLowerCase().replace(/\s+/g, "");
+            let matchedKey = null;
 
-              if (isMatch) {
-                  matchedKey = key;
-                  break;
-              }
-          }
+            console.log("=== МАЯЧОК: ПРОВЕРКА ШАПКИ ===");
+            console.log("Оригинальная шапка:", header);
+            console.log("Очищенная шапка:", cleanHeader);
+            console.log("Словарь:", activeDict);
 
-          // Если нашли - дописываем перевод, но чтобы это было красиво: "品号 (barcode)"
-          if (matchedKey && matchedKey !== rawColName) {
-              // Если ключ системный вроде "barcode", можно перевести его в удобочитаемый
-              let displayKey = matchedKey;
-              const niceNames = {
-                  "barcode": "Артикул",
-                  "name": "Наименование",
-                  "qty": "Количество",
-                  "price": "Цена"
-              };
-              if (niceNames[matchedKey]) displayKey = niceNames[matchedKey];
-              
-              colName = `${rawColName} (${displayKey})`;
-          }
-      }
-      // 🔥 КОНЕЦ ДОБАВЛЕНИЯ
+            for (let key in activeDict) {
+                let synRaw = activeDict[key] || [];
+                
+                // Превращаем всё в плоский массив слов (даже если там строка через запятую)
+                let synArray = [];
+                if (Array.isArray(synRaw)) {
+                    synRaw.forEach(s => synArray.push(...String(s).split(",")));
+                } else if (typeof synRaw === "string") {
+                    synArray = synRaw.split(",");
+                }
+
+                console.log(`Проверяем ключ [${key}], разбитые синонимы:`, synArray);
+
+                let isMatch = synArray.some(syn => {
+                    let cleanSyn = String(syn).toLowerCase().replace(/\s+/g, "");
+                    let match = cleanSyn && (cleanHeader.includes(cleanSyn) || cleanSyn.includes(cleanHeader));
+                    
+                    if (match) {
+                        console.log(`✅ НАЙДЕНО СОВПАДЕНИЕ! Шапка: ${cleanHeader}, Синоним: ${cleanSyn}`);
+                    }
+                    return match;
+                });
+
+                if (isMatch) {
+                    matchedKey = key;
+                    break;
+                }
+            }
+
+            if (matchedKey && matchedKey !== header) {
+                console.log(`Итоговый ключ для ${header}:`, matchedKey);
+                let displayKey = matchedKey;
+                const niceNames = {
+                    "barcode": "Артикул / Код товара",
+                    "id": "Артикул / Код товара",
+                    "name": "Наименование / Бренд",
+                    "qty": "Количество / Остаток",
+                    "price": "Цена",
+                    "cost": "Цена"
+                };
+                if (niceNames[matchedKey]) displayKey = niceNames[matchedKey];
+                
+                colName = `${originalName} <span style="color: var(--accent-blue); font-size: 0.85em; font-weight: normal;">(${displayKey})</span>`;
+            } else {
+                console.log(`❌ Совпадений для ${header} не найдено.`);
+            }
+        }
+        // 🔥 КОНЕЦ ДОБАВЛЕНИЯ
 
       // ⚡ Читаем правила И по ключу (Specs), И по имени (Ширина профиля)
       let splitData =
