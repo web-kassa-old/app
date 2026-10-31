@@ -201,7 +201,13 @@ window.renderSmartMapperModal = function (complexColumns) {
             }
         }
 
-        let translatedName = window.translateColumnHeader(col.colName);
+        const rawColName = String(col.colName).toLowerCase().trim();
+        let translatedName = typeof window.translateColumnHeader === "function" ? window.translateColumnHeader(col.colName) : col.colName;
+        if (typeof translations !== "undefined" && typeof currentLang !== "undefined") {
+            if (translations[currentLang] && translations[currentLang][rawColName]) {
+                translatedName = `${translations[currentLang][rawColName]} (${col.colName})`;
+            }
+        }
 
         const currentSavedParams = savedRules[col.colName] || [];
 
