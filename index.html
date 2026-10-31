@@ -3615,17 +3615,40 @@
     </div>
     <div id="smartMapperContainer"></div>
 
-    <script src="translations.js"></script>
-    <script src="smartMapper.js?v=003"></script>
+    <!-- Внешние библиотеки оставляем как есть -->
     <script
       src="https://unpkg.com/html5-qrcode"
       type="text/javascript"
     ></script>
-    <!-- Библиотека Quagga2 для видео-сканирования штрихкодов -->
     <script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2/dist/quagga.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <script src="app.js?v=009"></script>
-    <script src="kaspi_import.js?v=002"></script>
+
+    <!-- Автоматический загрузчик локальных скриптов (Zero-Manual-Step) -->
+    <script>
+      (function () {
+        // Метка времени. Math.floor(Date.now() / 3600000) сбрасывает кэш раз в час.
+        // Если хотите, чтобы кэш сбрасывался вообще при каждом обновлении страницы (F5),
+        // используйте просто: const version = Date.now();
+        const version = Date.now();
+
+        const localScripts = [
+          "translations.js",
+          "smartMapper.js",
+          "app.js",
+          "kaspi_import.js",
+        ];
+
+        localScripts.forEach(function (src) {
+          const script = document.createElement("script");
+          script.src = src + "?v=" + version;
+          // Отключаем асинхронность, чтобы скрипты загрузились строго по очереди,
+          // иначе app.js может запуститься раньше translations.js и выдать ошибку
+          script.async = false;
+          document.body.appendChild(script);
+        });
+      })();
+    </script>
+
     <!-- Контейнер для Токенизатора -->
     <div
       id="tokenizer-overlay"

@@ -834,7 +834,7 @@ window.renderMapper2Cards = function (templateData) {
     } else if (mappedIndex !== undefined) {
       statusClass = "status-filled";
 
-      // 🔥 ДОБАВЛЕНО: Интеллектуальный перевод с МАЯЧКАМИ
+      // 🔥 Интеллектуальный перевод колонки через словарь синонимов (Чистая версия)
         let activeDict = typeof invoiceSynonyms !== "undefined" ? invoiceSynonyms : {};
         if (window.mapper2State && window.mapper2State.dictValues && Object.keys(window.mapper2State.dictValues).length > 0) {
             activeDict = window.mapper2State.dictValues;
@@ -844,13 +844,8 @@ window.renderMapper2Cards = function (templateData) {
             let cleanHeader = String(header).toLowerCase().replace(/\s+/g, "");
             let matchedKey = null;
 
-            console.log(`\n=== МАЯЧОК: ПРОВЕРКА ШАПКИ [${header}] ===`);
-            console.log("Очищенная шапка:", cleanHeader);
-
             for (let key in activeDict) {
                 let synRaw = activeDict[key] || [];
-                
-                // Превращаем всё в плоский массив слов
                 let synArray = [];
                 if (Array.isArray(synRaw)) {
                     synRaw.forEach(s => synArray.push(...String(s).split(",")));
@@ -859,13 +854,8 @@ window.renderMapper2Cards = function (templateData) {
                 }
 
                 let isMatch = synArray.some(syn => {
-                    let cleanSyn = String(syn).toLowerCase().replace(/\s+/g, "");
-                    // Ищем точное совпадение очищенных строк (без includes, чтобы избежать ложных срабатываний)
-                    if (cleanSyn && cleanHeader === cleanSyn) {
-                        console.log(`✅ НАЙДЕНО СОВПАДЕНИЕ! Ключ: ${key}, Синоним: ${cleanSyn}`);
-                        return true;
-                    }
-                    return false;
+                    let cleanSyn = String(syn).trim().toLowerCase().replace(/\s+/g, "");
+                    return cleanSyn && cleanHeader === cleanSyn;
                 });
 
                 if (isMatch) {
@@ -876,22 +866,31 @@ window.renderMapper2Cards = function (templateData) {
 
             if (matchedKey && matchedKey !== header) {
                 let displayKey = matchedKey;
-                const niceNames = {
-                    "barcode": "Артикул / Код товара",
-                    "id": "Артикул / Код товара",
-                    "name": "Наименование / Бренд",
-                    "qty": "Количество / Остаток",
-                    "price": "Цена",
-                    "cost": "Цена"
+                
+                // Универсальный словарь только для базовых системных полей
+                const baseNames = {
+                    "barcode": "Артикул / Штрихкод",
+                    "id": "Артикул / Код",
+                    "name": "Наименование",
+                    "brand": "Бренд",
+                    "qty": "Количество",
+                    "price": "Цена продажи",
+                    "cost": "Цена закупа",
+                    "category": "Категория"
                 };
-                if (niceNames[matchedKey]) displayKey = niceNames[matchedKey];
+
+                // Если это системный ключ - переводим, если ваше кастомное слово (Размер, Цвет) - оставляем как есть
+                if (baseNames[matchedKey]) {
+                    displayKey = baseNames[matchedKey];
+                } else {
+                    // Делаем первую букву заглавной для красоты
+                    displayKey = displayKey.charAt(0).toUpperCase() + displayKey.slice(1);
+                }
                 
                 colName = `${originalName} <span style="color: var(--accent-blue); font-size: 0.85em; font-weight: normal;">(${displayKey})</span>`;
-            } else {
-                console.log(`❌ Совпадений не найдено.`);
             }
         }
-        // 🔥 КОНЕЦ ДОБАВЛЕНИЯ
+        // 🔥 КОНЕЦ БЛОКА ПЕРЕВОДА
 
       // ⚡ Читаем правила И по ключу (Specs), И по имени (Ширина профиля)
       let splitData =
