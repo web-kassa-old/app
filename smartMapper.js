@@ -201,10 +201,14 @@ window.renderSmartMapperModal = function (complexColumns) {
             }
         }
 
-        // 🔥 МЯГКОЕ ИСПОЛЬЗОВАНИЕ ФУНКЦИИ ПЕРЕВОДА
-        let translatedName = typeof window.translateColumnHeader === "function" 
-            ? window.translateColumnHeader(col.colName) 
-            : col.colName;
+        const rawColName = String(col.colName).toLowerCase().trim();
+        let translatedName = col.colName;
+        translatedName = typeof window.translateColumnHeader === "function" ? window.translateColumnHeader(col.colName) : translatedName;
+        if (typeof translations !== "undefined" && typeof currentLang !== "undefined") {
+            if (translations[currentLang] && translations[currentLang][rawColName]) {
+                translatedName = `${translations[currentLang][rawColName]} (${col.colName})`;
+            }
+        }
 
         const currentSavedParams = savedRules[col.colName] || [];
 
@@ -228,16 +232,11 @@ window.renderSmartMapperModal = function (complexColumns) {
             ? kaspiParams.filter((p) => currentSavedParams.includes(p.id)).map((p) => `<span class="chip">${p.name}</span>`).join("")
             : `<span class="empty-chips" data-i18n="smart_mapper_empty">Не выбрано</span>`;
 
-        let exampleTitle = (typeof translations !== "undefined" && typeof currentLang !== "undefined" && translations[currentLang]) 
-            ? translations[currentLang].example_from_file 
-            : "Пример из файла:";
-
-        // 🔥 УБРАН .toUpperCase(), ЧТОБЫ НЕ ЛОМАТЬ CSS-ПЕРЕМЕННЫЕ
         card.innerHTML = `
             <div class="smart-col-info">
-                <span data-i18n="smart_mapper_col_prefix">Колонка:</span> <span>${translatedName}</span>
-                <div style="margin-top: 8px; font-size: 14px; color: var(--accent-yellow);">${exampleTitle} <strong style="color:var(--text-main); font-family:monospace; font-size:16px;">${bestExample}</strong></div>
-            </div>
+    <span data-i18n="smart_mapper_col_prefix">Колонка:</span> <span>${translatedName}</span>
+    <div style="margin-top: 8px; font-size: 14px; color: var(--accent-yellow);">${translations[currentLang].example_from_file} <strong style="color:var(--text-main); font-family:monospace; font-size:16px;">${bestExample}</strong></div>
+</div>
             <div class="smart-chips-area">
                 <div class="chips-title" data-i18n="smart_mapper_you_selected">Вы выбрали:</div>
                 <div class="chips-container">${initialChips}</div>
