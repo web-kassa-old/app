@@ -80,7 +80,44 @@ window.showComplexColumnSelector = function(headers, rows, templateData) {
     html += `<div class="complex-list">`;
     
     headers.forEach((header, idx) => {
-        let colName = header || `Колонка ${idx + 1}`;
+        let originalName = header || `Колонка ${idx + 1}`;
+        let colName = originalName;
+
+        // 🔥 ДОБАВЛЕНО: Интеллектуальный перевод колонки через словарь синонимов
+        if (header && typeof invoiceSynonyms !== "undefined") {
+            let cleanHeader = String(header).toLowerCase().replace(/\s+/g, "");
+            let matchedKey = null;
+
+            // Ищем шапку в словаре
+            for (let key in invoiceSynonyms) {
+                let synArray = invoiceSynonyms[key] || [];
+                let isMatch = synArray.some(syn => {
+                    let cleanSyn = String(syn).toLowerCase().replace(/\s+/g, "");
+                    return cleanSyn && (cleanHeader.includes(cleanSyn) || cleanSyn.includes(cleanHeader));
+                });
+
+                if (isMatch) {
+                    matchedKey = key;
+                    break;
+                }
+            }
+
+            // Если нашли - дописываем красивый перевод
+            if (matchedKey && matchedKey !== header) {
+                let displayKey = matchedKey;
+                const niceNames = {
+                    "barcode": "Артикул / Код товара",
+                    "name": "Наименование / Бренд",
+                    "qty": "Количество / Остаток",
+                    "price": "Цена"
+                };
+                if (niceNames[matchedKey]) displayKey = niceNames[matchedKey];
+                
+                colName = `${originalName} <span style="color: var(--accent-blue); font-size: 0.85em; font-weight: normal;">(${displayKey})</span>`;
+            }
+        }
+        // 🔥 КОНЕЦ ДОБАВЛЕНИЯ
+
         let sampleVal = getComplexExample(idx);
         
         if (sampleVal.length > 40) sampleVal = sampleVal.substring(0, 40) + "...";
@@ -89,9 +126,11 @@ window.showComplexColumnSelector = function(headers, rows, templateData) {
             ? `<div class="complex-example"><span data-i18n="complex_example">Пример:</span> <span class="complex-tag">${sampleVal}</span></div>` 
             : `<div class="complex-example" style="opacity:0.5;" data-i18n="complex_empty">(Пустая колонка)</div>`;
         
+        // Обратите внимание: в value передаем originalName (чистое имя колонки), 
+        // чтобы логика парсера не сломалась, а на экран выводим colName (с переводом)
         html += `
             <label class="complex-label">
-                <input type="checkbox" class="complex-col-cb" value="${colName}">
+                <input type="checkbox" class="complex-col-cb" value="${originalName}">
                 <div style="flex: 1;">
                     <div class="complex-name">${colName}</div>
                     ${displayVal}
