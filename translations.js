@@ -511,6 +511,11 @@ const translations = {
     kaspi_confirm_template: "ПЕРЕЙТИ К СВЕРКЕ",
     kaspi_mapper_back: "НАЗАД",
     kaspi_download_file: "СКАЧАТЬ ФАЙЛ (.XLSM)",
+    split_data_link: "Связь данных:",
+    split_found_in_invoice: "Найдено в накладной:",
+    split_distribute_values: "Распределите активные значения:",
+    split_click_above: "Кликните значение выше...",
+    split_confirm_structure: "ПОДТВЕРДИТЬ СТРУКТУРУ",
   },
   kz: {
     btn_sale: "САТУ",
@@ -1024,5 +1029,10 @@ const translations = {
     kaspi_confirm_template: "ТЕКСЕРУГЕ ӨТУ",
     kaspi_mapper_back: "АРТҚА",
     kaspi_download_file: "ФАЙЛДЫ ЖҮКТЕУ (.XLSM)",
+    split_data_link: "Деректер байланысы:",
+    split_found_in_invoice: "Жүкқұжатта табылды:",
+    split_distribute_values: "Белсенді мәндерді бөліңіз:",
+    split_click_above: "Жоғарыдағы мәнді басыңыз...",
+    split_confirm_structure: "ҚҰРЫЛЫМДЫ РАСТАУ",
   },
 };

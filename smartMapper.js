@@ -833,6 +833,10 @@ window.startTokenizerQueue = function() {
     const paramsGrid = document.createElement("div");
     paramsGrid.className = "params-match-grid";
 
+    // Получаем переводы для динамической вставки
+    const placeholderText = translations[currentLang]["split_click_above"];
+    const confirmBtnText = translations[currentLang]["split_confirm_structure"];
+
     targetParams.forEach(paramName => {
         // Ищем токен, который подходит
         let suggestedToken = tokens.find(t => t.isActive && t.matchedParams.includes(paramName) && t.matchedParams.length === 1);
@@ -842,7 +846,7 @@ window.startTokenizerQueue = function() {
         paramsGrid.innerHTML += `
             <div class="match-row" data-param="${paramName}">
                 <div class="match-label">${paramName}</div>
-                <div class="match-dropzone" data-assigned-indices="${defaultIndices}">${defaultVal || "Кликните значение выше..."}</div>
+                <div class="match-dropzone" data-assigned-indices="${defaultIndices}">${defaultVal || placeholderText}</div>
             </div>
         `;
     });
@@ -853,7 +857,7 @@ window.startTokenizerQueue = function() {
     const footer = document.createElement("div");
     footer.className = "smart-modal-footer";
     footer.innerHTML = `
-        <button class="confirm-btn btn-primary green" id="btnNextToken" style="width: 100%; padding: 12px; font-weight: bold; border-radius: 8px;">ПОДТВЕРДИТЬ СТРУКТУРУ</button>
+        <button class="confirm-btn btn-primary green" id="btnNextToken" data-i18n="split_confirm_structure" style="width: 100%; padding: 12px; font-weight: bold; border-radius: 8px;">${confirmBtnText}</button>
     `;
     body.appendChild(footer);
     modal.appendChild(body);
@@ -881,7 +885,8 @@ window.startTokenizerQueue = function() {
                 selectedTokenBtn.classList.add('assigned');
                 selectedTokenBtn = null;
             } else {
-                this.textContent = "Кликните значение выше...";
+                // Используем переменную с переводом при сбросе значения
+                this.textContent = placeholderText;
                 this.dataset.assignedIndices = "";
                 this.classList.remove('filled');
             }
