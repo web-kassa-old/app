@@ -148,7 +148,6 @@ window.processInvoiceFile = async function () {
     return alert(translations[currentLang]?.inc_no_file || "Выберите файл");
 
   // ⚡ 1. ЖЕСТКИЙ СБРОС СОСТОЯНИЯ (Лекарство от черных экранов при возврате "Назад")
-  // Сохраняем только кэш словаря, а старые файлы, шапки и токены выжигаем под ноль
   const preservedDict = window.mapper2State?.dictValues || (typeof invoiceSynonyms !== "undefined" ? invoiceSynonyms : {});
   window.mapper2State = {
     dictValues: preservedDict
@@ -244,8 +243,9 @@ window.processInvoiceFile = async function () {
         let cleanCell = rawCell.toLowerCase().replace(/\s+/g, "");
         if (!cleanCell) continue;
 
-        if (supSyns.some((syn) => cleanCell.includes(syn))) {
-          if (rawCell.includes(":")) {
+        // 🔥 Безопасный ?.includes
+        if (supSyns.some((syn) => cleanCell?.includes(syn))) {
+          if (rawCell?.includes(":")) {
             let parts = rawCell.split(":");
             if (parts[1] && parts[1].trim()) file_supplier = parts[1].trim().replace(/^"|"$/g, "");
           }
@@ -259,8 +259,9 @@ window.processInvoiceFile = async function () {
           }
         }
 
-        if (docSyns.some((syn) => cleanCell.includes(syn))) {
-          if (rawCell.includes(":")) {
+        // 🔥 Безопасный ?.includes
+        if (docSyns.some((syn) => cleanCell?.includes(syn))) {
+          if (rawCell?.includes(":")) {
             let parts = rawCell.split(":");
             if (parts[1] && parts[1].trim()) file_doc_no = parts[1].trim().replace(/^"|"$/g, "");
           }
@@ -287,7 +288,8 @@ window.processInvoiceFile = async function () {
         let val = String(c).trim().replace(/,/g, "");
         return val !== "" && !isNaN(Number(val));
       }).length;
-      if (numCount >= 2 && !String(row[0] || "").toUpperCase().includes("TOTAL")) {
+      // 🔥 Безопасный ?.includes
+      if (numCount >= 2 && !String(row[0] || "").toUpperCase()?.includes("TOTAL")) {
         firstDataRowIdx = i;
         break;
       }
@@ -298,26 +300,23 @@ window.processInvoiceFile = async function () {
       window.mapper2State.invoiceHeaders = rawHeaders.map((h) => String(h || "").replace(/[\r\n]+/g, " ").trim());
       window.mapper2State.invoiceRows = rows.slice(firstDataRowIdx);
 
-      // 🔥 АВТО-ОПРЕДЕЛЕНИЕ КОЛОНОК (Используем твой глобальный словарь invoiceSynonyms)
       let globalSyns = typeof invoiceSynonyms !== "undefined" ? invoiceSynonyms : {};
       let headersToSearch = window.mapper2State.invoiceHeaders.map(h => String(h).toLowerCase().replace(/\s+/g, ""));
 
-      // Ищем колонку по системному ключу (sysKey) или запасным вариантам
       const findCol = (keys, fallbacks) => {
           let syns = [];
           keys.forEach(k => {
               if (globalSyns[k]) syns = syns.concat(globalSyns[k]);
           });
           syns = syns.concat(fallbacks).map(s => String(s).toLowerCase().replace(/\s+/g, "")).filter(Boolean);
-          return headersToSearch.findIndex(h => syns.some(syn => h.includes(syn)));
+          // 🔥 Безопасный ?.includes
+          return headersToSearch.findIndex(h => syns.some(syn => h?.includes(syn)));
       };
 
-      // Ищем индексы, используя системные ключи из твоей конфигурации (price, barcode, name)
       let priceIdx = findCol(["price", "Розничная цена", "Закупочная цена"], ["usd", "цена", "стоимость", "amount"]);
       let idIdx = findCol(["barcode", "Артикул / Код товара", "id", "code"], ["артикул", "штрихкод"]);
       let nameIdx = findCol(["name", "Бренд / Производитель", "Наименование товара"], ["brand", "бренд", "наименование", "товар"]);
 
-      // Запускаем 2-факторную очистку, если нашли Цену и хотя бы один идентификатор (Артикул или Название)
       if (priceIdx !== -1 && (idIdx !== -1 || nameIdx !== -1)) {
           window.mapper2State.invoiceRows = window.mapper2State.invoiceRows.filter(row => {
               if (!row || row.length === 0) return false;
@@ -325,20 +324,18 @@ window.processInvoiceFile = async function () {
               let isEmpty = row.every(cell => String(cell || "").trim() === "");
               if (isEmpty) return false;
 
-              // Фактор 1: Цена > 0
               let rawPrice = String(row[priceIdx] || "").replace(",", ".").replace(/[^0-9.-]/g, "");
               let price = parseFloat(rawPrice);
               if (isNaN(price) || price <= 0) return false; 
 
-              // Фактор 2: Наличие Идентификатора (Артикула ИЛИ Названия/Бренда)
               let rawId = idIdx !== -1 ? String(row[idIdx] || "").trim() : "";
               let rawName = nameIdx !== -1 ? String(row[nameIdx] || "").trim() : "";
               let hasIdentifier = rawId !== "" || rawName !== "";
               
               if (!hasIdentifier) return false;
 
-              // Фактор 3: Защита от смещения "TOTAL AMOUNT" в рабочие колонки
-              if (rawId.toUpperCase().includes("TOTAL") || rawName.toUpperCase().includes("TOTAL")) {
+              // 🔥 Безопасный ?.includes
+              if (rawId.toUpperCase()?.includes("TOTAL") || rawName.toUpperCase()?.includes("TOTAL")) {
                   return false; 
               }
 
@@ -360,7 +357,6 @@ window.processInvoiceFile = async function () {
       let smartHeaders = window.mapper2State.invoiceHeaders || [];
       let smartRows = window.mapper2State.invoiceRows || [];
 
-      // Вызываем модалку, передавая идеально чистую таблицу!
       window.showComplexColumnSelector(smartHeaders, smartRows, templateData);
     } else {
       throw new Error("Не удалось найти таблицу с товарами");
@@ -1694,7 +1690,6 @@ window.applyMapper2Logic = function () {
   const colMap = state.colMap || {};
   const dict = state.dictValues || {};
 
-  // 1. Определяем режим работы
   const isKaspiMode = window.isKaspiExportMode || window.currentImportMode === "kaspi";
 
   const hasQty = colMap["qty"] !== undefined || dict["qty"] !== undefined;
@@ -1703,7 +1698,6 @@ window.applyMapper2Logic = function () {
   const hasName = colMap["name"] !== undefined || colMap["model"] !== undefined || 
                   dict["name"] !== undefined || dict["model"] !== undefined;
 
-  // 2. Блокируем отсутствие базовых колонок ТОЛЬКО для обычной приемки
   if (!isKaspiMode) {
       if (!hasQty || !hasPrice || !hasName) {
         const lang = window.currentLang || localStorage.getItem("pos_lang") || "ru";
@@ -1729,7 +1723,8 @@ window.applyMapper2Logic = function () {
           if (!Array.isArray(currentMemory[sysKey])) {
             currentMemory[sysKey] = [];
           }
-          if (!currentMemory[sysKey].includes(cleanWord)) {
+          // 🔥 Безопасный ?.includes
+          if (!currentMemory[sysKey]?.includes(cleanWord)) {
             currentMemory[sysKey].push(cleanWord);
             memoryUpdated = true;
           }
@@ -1831,13 +1826,11 @@ window.applyMapper2Logic = function () {
     let qty = parseFloat(rawQty) || 0;
     let price = parseFloat(String(rawPrice).replace(",", "."));
 
-    // 3. Отключаем удаление строк с нулевой ценой для экспорта
     if (!isKaspiMode && (isNaN(price) || price <= 0)) {
         return; 
     }
 
     let hasIdentifier = (rawId && String(rawId).trim() !== "") || (rawName && String(rawName).trim() !== "");
-    // 4. Отключаем удаление строк без идентификатора для экспорта
     if (!isKaspiMode && !hasIdentifier) {
         return; 
     }
@@ -1847,7 +1840,8 @@ window.applyMapper2Logic = function () {
 
     let rawLogisticsStr = "";
     row.forEach((cellVal, idx) => {
-      if (mappedIndices.includes(idx)) return;
+      // 🔥 Безопасный ?.includes
+      if (mappedIndices?.includes(idx)) return;
       let val = String(cellVal || "").trim();
       if (val && val.length < 30 && !/^\d{8,15}$/.test(val)) {
         rawLogisticsStr += " " + val;
@@ -1867,11 +1861,10 @@ window.applyMapper2Logic = function () {
       let lowerKey = String(key).toLowerCase();
       let rawValue = getValue(key);
 
-      // 🔥 1. Исключаем все системные ключи Каспи и локальные переменные на старте
-      if (["qty", "price", "cost", "name", "model", "barcode", "cbm", "weight", "item_id", "item_name", "id", "sku", "merchant_sku"].includes(lowerKey)) return;
+      // 🔥 Безопасный ?.includes на массиве
+      if (["qty", "price", "cost", "name", "model", "barcode", "cbm", "weight", "item_id", "item_name", "id", "sku", "merchant_sku"]?.includes(lowerKey)) return;
       if (!rawValue) return;
 
-      // 🔥 2. Получаем русское название параметра (или оставляем key, если перевода нет)
       let humanName = (state.sysToHumanMap && state.sysToHumanMap[key]) ? state.sysToHumanMap[key] : key;
       let searchString = rawValue;
 
@@ -1902,7 +1895,8 @@ window.applyMapper2Logic = function () {
         let colIdx = state.colMap[key];
         let excelHeader = colIdx !== undefined && state.invoiceHeaders ? state.invoiceHeaders[colIdx] : "";
         
-        let isComplex = window.complexColumnsToTokenize && window.complexColumnsToTokenize.includes(excelHeader);
+        // 🔥 Безопасный ?.includes (ГЛАВНАЯ ПРИЧИНА ОШИБКИ БЫЛА ЗДЕСЬ)
+        let isComplex = window.complexColumnsToTokenize?.includes(excelHeader);
 
         let isAlreadyProcessed = false;
         if (state.splitRules) {
@@ -1920,17 +1914,16 @@ window.applyMapper2Logic = function () {
             excelColumnName: excelHeader || "ДАННЫЕ ИЗ НАКЛАДНОЙ",
           });
         } else {
-          // 🔥 3. Сохраняем ТОЛЬКО под русским именем (humanName). 
-          // Это автоматически схлопнет дубликаты (Tires*width и Ширина профиля запишутся в одну ячейку)
-          if (!["item_id", "item_name", "id", "sku", "qty", "price", "barcode"].includes(String(humanName).toLowerCase())) {
+          // 🔥 Безопасный ?.includes
+          if (!["item_id", "item_name", "id", "sku", "qty", "price", "barcode"]?.includes(String(humanName).toLowerCase())) {
              attributesObj[humanName] = rawValue;
           }
         }
         return; 
       }
 
-      // 🔥 Сохраняем ТОЛЬКО под русским именем (humanName) с финальной защитой от системного мусора
-      if (!["item_id", "item_name", "id", "sku", "qty", "price", "barcode"].includes(String(humanName).toLowerCase())) {
+      // 🔥 Безопасный ?.includes
+      if (!["item_id", "item_name", "id", "sku", "qty", "price", "barcode"]?.includes(String(humanName).toLowerCase())) {
          attributesObj[humanName] = matchedDictValue;
       }
     };
@@ -1954,7 +1947,6 @@ window.applyMapper2Logic = function () {
       ? templateDropdown.options[templateDropdown.selectedIndex].text.trim() 
       : "Новые товары";
 
-    // 🔥 Достаем оригинальные данные товара из кэша сервера
     let origItem = (window.kaspiExportItems && window.kaspiExportItems[index]) ? window.kaspiExportItems[index] : {};
     let realDocNo = origItem.doc_no || origItem.invoice_no || origItem.document_id || origItem.docId || state.docNo;
     let realItemId = origItem.item_id || origItem.sku || rawId;
@@ -1962,7 +1954,7 @@ window.applyMapper2Logic = function () {
     const itemData = {
       doc_no: realDocNo,
       supplier: state.supplier,
-      item_id: realItemId,  // Оригинальный буквенный ID
+      item_id: realItemId, 
       item_name: name,
       qty: qty,
       cost: isNaN(price) ? 0 : price, 
@@ -1970,13 +1962,13 @@ window.applyMapper2Logic = function () {
       weight: weight,
       raw_logistics: rawLogisticsStr.trim(),
       staff_id: typeof currentUser !== "undefined" && currentUser ? currentUser.uid : "Auto-Import",
-      id: realItemId,       // Оригинальный ID
+      id: realItemId,       
       name: name,
       desc: name,
       description: name,
       barcode: origItem.barcode || barcode, 
       category: activeCategoryText, 
-      sku: realItemId,      // Оригинальный ID
+      sku: realItemId,      
       title: name, 
       attributes: finalAttributes,
       _hasCollisions: itemHasCollisions,
@@ -1986,7 +1978,6 @@ window.applyMapper2Logic = function () {
 
     window.parsedInvoiceData.push(itemData);
     
-    // Безопасное добавление в группу
     if (!window.invoiceGroups[realDocNo]) {
         window.invoiceGroups[realDocNo] = { items: [] };
     }
@@ -2004,7 +1995,6 @@ window.applyMapper2Logic = function () {
     }
   });
 
-  // 5. Игнорируем пустую таблицу для экспорта
   if (window.parsedInvoiceData.length === 0 && !isKaspiMode) {
     return alert("Не удалось сформировать товары. Убедитесь, что в колонках «Количество» и «Цена» находятся ТОЛЬКО цифры.");
   }
@@ -2029,13 +2019,13 @@ window.applyMapper2Logic = function () {
     const exportBtns = document.getElementById("exportActionButtons");
     if (exportBtns) exportBtns.style.display = "flex";
 
-    // 🔥 Прячем лишние кнопки при экспорте Каспи
     const previewArea = document.getElementById("invoicePreviewArea");
     if (previewArea) {
        const allBtns = previewArea.querySelectorAll("button");
        allBtns.forEach(b => {
            const text = b.innerText.toUpperCase();
-           if (text.includes("ДИСК") || text.includes("СБРОС") || text.includes("ПЕРЕЗАЛИТЬ")) {
+           // 🔥 Безопасный ?.includes
+           if (text?.includes("ДИСК") || text?.includes("СБРОС") || text?.includes("ПЕРЕЗАЛИТЬ")) {
                b.style.display = "none";
            }
        });
@@ -2107,7 +2097,8 @@ window.renderPreviewTable = function () {
                     attrsHtml =
                         `<div style="display: flex; flex-direction: column; gap: 4px; margin-top: 8px;">` +
                         Object.keys(parsed)
-                            .filter((k) => !["doc_no", "invoice_no", "document_id"].includes(String(k).toLowerCase()))
+                            // 🔥 Безопасный ?.includes
+                            .filter((k) => !["doc_no", "invoice_no", "document_id"]?.includes(String(k).toLowerCase()))
                             .map((k) => {
                                 let humanName = window.mapper2State.sysToHumanMap ? window.mapper2State.sysToHumanMap[k] : null;
                                 let displayKey = humanName || k.split("*").pop().replace(/tires/gi, "").replace(/additional/gi, "").replace(/general/gi, "").replace(/\./g, "").trim();
@@ -2165,8 +2156,8 @@ window.renderPreviewTable = function () {
         const allBtns = document.querySelectorAll('button');
         allBtns.forEach(b => {
             const txt = b.innerText.trim().toUpperCase();
-            // 🔥 Прячем системные кнопки, но исключаем наши новые кнопки с ID
-            if ((txt.includes('НАЗАД') || txt.includes('АРТҚА')) && b.id !== 'kaspiMapperBackBtn' && b.id !== 'kaspiBackToMapperBtn') {
+            // 🔥 Безопасный ?.includes
+            if ((txt?.includes('НАЗАД') || txt?.includes('АРТҚА')) && b.id !== 'kaspiMapperBackBtn' && b.id !== 'kaspiBackToMapperBtn') {
                 b.style.display = 'none';
             }
         });
@@ -2202,7 +2193,6 @@ window.renderPreviewTable = function () {
                     document.getElementById('invoicePreviewArea').style.display = 'none';
                     document.getElementById('mapper2Area').style.display = 'flex';
                     
-                    // Если кнопка маппера скрылась, делаем её видимой
                     const mapperBackBtn = document.getElementById("kaspiMapperBackBtn");
                     if (mapperBackBtn) {
                         mapperBackBtn.style.display = "block";
@@ -2252,7 +2242,6 @@ window.renderPreviewTable = function () {
                 exportBtns.appendChild(resetBtn);
             }
 
-            // 🔥 УМНЫЙ ЦИКЛ, исключающий дубликаты
             let downloadBtnFound = false; 
 
             Array.from(exportBtns.children).forEach(child => {
@@ -2264,15 +2253,12 @@ window.renderPreviewTable = function () {
                     child.style.marginTop = "5px";
                     child.style.display = "block";
                 } else if (child.tagName.toUpperCase() === 'BUTTON') {
-                    // Это родные кнопки системы (скачать файл или скрытые дубликаты)
                     if (!downloadBtnFound) {
-                        // Первую попавшуюся делаем главной кнопкой скачивания
                         child.style.flex = "2";
                         child.setAttribute('data-i18n', 'kaspi_download_file');
                         child.style.display = "block";
-                        downloadBtnFound = true; // Запоминаем, что главная кнопка уже найдена
+                        downloadBtnFound = true; 
                     } else {
-                        // Все остальные скрытые системные дубликаты жестко прячем
                         child.style.display = "none";
                         child.style.setProperty("display", "none", "important");
                     }
@@ -2284,26 +2270,19 @@ window.renderPreviewTable = function () {
             }
         }
     } else {
-        // 🔥 ОБЫЧНАЯ ПРИЕМКА ТОВАРА: Сбрасываем интерфейс к заводским настройкам 🔥
-        
-        // 1. Прячем панель экспорта Kaspi мгновенно
         const exportBtns = document.getElementById("exportActionButtons");
         if (exportBtns) {
             exportBtns.style.display = "none"; 
         }
 
-        // 2. Отложенное восстановление (перебиваем фоновые системные скрипты)
         setTimeout(() => {
-            // ЖЕСТКО ВОЗВРАЩАЕМ кнопку "Оприходовать"
             const sendBtn = document.getElementById("sendInvoiceBtn");
             if (sendBtn) {
-                // Сбиваем любые блокировки и пряталки
                 sendBtn.style.display = "block"; 
                 sendBtn.style.setProperty("display", "block", "important");
                 sendBtn.style.visibility = "visible";
                 sendBtn.removeAttribute("hidden");
                 
-                // Если кнопка вдруг оказалась в невидимом div-контейнере, принудительно открываем и его
                 const parent = sendBtn.parentElement;
                 if (parent && parent.id !== "invoicePreviewArea" && parent.style.display === "none") {
                     parent.style.setProperty("display", "flex", "important");
@@ -2311,13 +2290,13 @@ window.renderPreviewTable = function () {
                 }
             }
             
-            // Восстанавливаем видимость родных кнопок "Назад" 
             const step3 = document.getElementById("invoicePreviewArea");
             if (step3) {
                 const allBtns = step3.querySelectorAll('button');
                 allBtns.forEach(b => {
                     const txt = b.innerText.trim().toUpperCase();
-                    if (txt.includes('НАЗАД') || txt.includes('АРТҚА')) {
+                    // 🔥 Безопасный ?.includes
+                    if (txt?.includes('НАЗАД') || txt?.includes('АРТҚА')) {
                         if (b.id !== 'kaspiBackToMapperBtn') {
                             b.style.display = "block"; 
                             b.style.setProperty("display", "block", "important");
@@ -2325,7 +2304,7 @@ window.renderPreviewTable = function () {
                     }
                 });
             }
-        }, 100); // Задержка 100мс решает проблему конфликта с родными скриптами
+        }, 100); 
     }
 };
 
