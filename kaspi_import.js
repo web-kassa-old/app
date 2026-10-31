@@ -83,10 +83,16 @@ window.showComplexColumnSelector = function(headers, rows, templateData) {
         let originalName = header || `Колонка ${idx + 1}`;
         let colName = originalName;
 
-        // 🔥 Интеллектуальный перевод колонки через словарь синонимов (Чистая и универсальная версия)
-        let activeDict = typeof invoiceSynonyms !== "undefined" ? invoiceSynonyms : {};
-        if (window.mapper2State && window.mapper2State.dictValues && Object.keys(window.mapper2State.dictValues).length > 0) {
-            activeDict = window.mapper2State.dictValues;
+        // 🔥 Интеллектуальный перевод (Слияние свежего словаря и кэша маппера)
+        let activeDict = typeof invoiceSynonyms !== "undefined" ? JSON.parse(JSON.stringify(invoiceSynonyms)) : {};
+        
+        if (window.mapper2State && window.mapper2State.dictValues) {
+            for (let key in window.mapper2State.dictValues) {
+                let baseArr = Array.isArray(activeDict[key]) ? activeDict[key] : [];
+                let savedArr = Array.isArray(window.mapper2State.dictValues[key]) ? window.mapper2State.dictValues[key] : String(window.mapper2State.dictValues[key]).split(",");
+                // Склеиваем словари и убираем дубликаты
+                activeDict[key] = [...new Set([...baseArr, ...savedArr])];
+            }
         }
 
         if (header && Object.keys(activeDict).length > 0) {
@@ -855,10 +861,16 @@ window.renderMapper2Cards = function (templateData) {
     } else if (mappedIndex !== undefined) {
       statusClass = "status-filled";
 
-      // 🔥 Интеллектуальный перевод колонки через словарь синонимов (Чистая версия)
-        let activeDict = typeof invoiceSynonyms !== "undefined" ? invoiceSynonyms : {};
-        if (window.mapper2State && window.mapper2State.dictValues && Object.keys(window.mapper2State.dictValues).length > 0) {
-            activeDict = window.mapper2State.dictValues;
+      // 🔥 Интеллектуальный перевод (Слияние свежего словаря и кэша маппера)
+        let activeDict = typeof invoiceSynonyms !== "undefined" ? JSON.parse(JSON.stringify(invoiceSynonyms)) : {};
+        
+        if (window.mapper2State && window.mapper2State.dictValues) {
+            for (let key in window.mapper2State.dictValues) {
+                let baseArr = Array.isArray(activeDict[key]) ? activeDict[key] : [];
+                let savedArr = Array.isArray(window.mapper2State.dictValues[key]) ? window.mapper2State.dictValues[key] : String(window.mapper2State.dictValues[key]).split(",");
+                // Склеиваем словари и убираем дубликаты
+                activeDict[key] = [...new Set([...baseArr, ...savedArr])];
+            }
         }
 
         if (header && Object.keys(activeDict).length > 0) {
