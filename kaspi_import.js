@@ -794,16 +794,52 @@ window.renderMapper2Cards = function (templateData) {
         "border: 1px solid var(--accent-green, #2ecc71); color: var(--accent-green, #2ecc71); background: var(--bg-success-dim, rgba(46, 204, 113, 0.15)); font-weight: bold;";
     } else if (mappedIndex !== undefined) {
       statusClass = "status-filled";
-      let colName =
-        window.mapper2State.invoiceHeaders[mappedIndex] ||
-        `Колонка ${mappedIndex + 1}`;
+
+      // 🔥 ДОБАВЛЕНО: Интеллектуальный перевод колонки через словарь синонимов
+      let rawColName = window.mapper2State.invoiceHeaders[mappedIndex];
+      let colName = rawColName || `Колонка ${mappedIndex + 1}`;
+      
+      if (rawColName && typeof invoiceSynonyms !== "undefined") {
+          let cleanHeader = String(rawColName).toLowerCase().replace(/\s+/g, "");
+          let matchedKey = null;
+
+          // Ищем шапку в словаре
+          for (let key in invoiceSynonyms) {
+              let synArray = invoiceSynonyms[key] || [];
+              let isMatch = synArray.some(syn => {
+                  let cleanSyn = String(syn).toLowerCase().replace(/\s+/g, "");
+                  return cleanSyn && (cleanHeader.includes(cleanSyn) || cleanSyn.includes(cleanHeader));
+              });
+
+              if (isMatch) {
+                  matchedKey = key;
+                  break;
+              }
+          }
+
+          // Если нашли - дописываем перевод, но чтобы это было красиво: "品号 (barcode)"
+          if (matchedKey && matchedKey !== rawColName) {
+              // Если ключ системный вроде "barcode", можно перевести его в удобочитаемый
+              let displayKey = matchedKey;
+              const niceNames = {
+                  "barcode": "Артикул",
+                  "name": "Наименование",
+                  "qty": "Количество",
+                  "price": "Цена"
+              };
+              if (niceNames[matchedKey]) displayKey = niceNames[matchedKey];
+              
+              colName = `${rawColName} (${displayKey})`;
+          }
+      }
+      // 🔥 КОНЕЦ ДОБАВЛЕНИЯ
 
       // ⚡ Читаем правила И по ключу (Specs), И по имени (Ширина профиля)
       let splitData =
         window.mapper2State.splitRules &&
         (window.mapper2State.splitRules[req.name] || window.mapper2State.splitRules[req.sysKey]);
         
-      if (splitData) { // Убрали жесткую проверку массива, проверяем просто наличие данных
+      if (splitData) { 
         let sampleText = "";
         let gluedText = "";
         let highlighted = "";
