@@ -835,25 +835,22 @@ window.renderMapper2Cards = function (templateData) {
       statusClass = "status-filled";
 
       // 🔥 ДОБАВЛЕНО: Интеллектуальный перевод с МАЯЧКАМИ
-        // Проверяем оба варианта словаря, чтобы точно не промахнуться
-        let activeDict = window.mapper2State?.dictValues;
-        if (!activeDict || Object.keys(activeDict).length === 0) {
-            activeDict = typeof invoiceSynonyms !== "undefined" ? invoiceSynonyms : {};
+        let activeDict = typeof invoiceSynonyms !== "undefined" ? invoiceSynonyms : {};
+        if (window.mapper2State && window.mapper2State.dictValues && Object.keys(window.mapper2State.dictValues).length > 0) {
+            activeDict = window.mapper2State.dictValues;
         }
 
-        if (header && activeDict) {
+        if (header && Object.keys(activeDict).length > 0) {
             let cleanHeader = String(header).toLowerCase().replace(/\s+/g, "");
             let matchedKey = null;
 
-            console.log("=== МАЯЧОК: ПРОВЕРКА ШАПКИ ===");
-            console.log("Оригинальная шапка:", header);
+            console.log(`\n=== МАЯЧОК: ПРОВЕРКА ШАПКИ [${header}] ===`);
             console.log("Очищенная шапка:", cleanHeader);
-            console.log("Словарь:", activeDict);
 
             for (let key in activeDict) {
                 let synRaw = activeDict[key] || [];
                 
-                // Превращаем всё в плоский массив слов (даже если там строка через запятую)
+                // Превращаем всё в плоский массив слов
                 let synArray = [];
                 if (Array.isArray(synRaw)) {
                     synRaw.forEach(s => synArray.push(...String(s).split(",")));
@@ -861,16 +858,14 @@ window.renderMapper2Cards = function (templateData) {
                     synArray = synRaw.split(",");
                 }
 
-                console.log(`Проверяем ключ [${key}], разбитые синонимы:`, synArray);
-
                 let isMatch = synArray.some(syn => {
                     let cleanSyn = String(syn).toLowerCase().replace(/\s+/g, "");
-                    let match = cleanSyn && (cleanHeader.includes(cleanSyn) || cleanSyn.includes(cleanHeader));
-                    
-                    if (match) {
-                        console.log(`✅ НАЙДЕНО СОВПАДЕНИЕ! Шапка: ${cleanHeader}, Синоним: ${cleanSyn}`);
+                    // Ищем точное совпадение очищенных строк (без includes, чтобы избежать ложных срабатываний)
+                    if (cleanSyn && cleanHeader === cleanSyn) {
+                        console.log(`✅ НАЙДЕНО СОВПАДЕНИЕ! Ключ: ${key}, Синоним: ${cleanSyn}`);
+                        return true;
                     }
-                    return match;
+                    return false;
                 });
 
                 if (isMatch) {
@@ -880,7 +875,6 @@ window.renderMapper2Cards = function (templateData) {
             }
 
             if (matchedKey && matchedKey !== header) {
-                console.log(`Итоговый ключ для ${header}:`, matchedKey);
                 let displayKey = matchedKey;
                 const niceNames = {
                     "barcode": "Артикул / Код товара",
@@ -894,7 +888,7 @@ window.renderMapper2Cards = function (templateData) {
                 
                 colName = `${originalName} <span style="color: var(--accent-blue); font-size: 0.85em; font-weight: normal;">(${displayKey})</span>`;
             } else {
-                console.log(`❌ Совпадений для ${header} не найдено.`);
+                console.log(`❌ Совпадений не найдено.`);
             }
         }
         // 🔥 КОНЕЦ ДОБАВЛЕНИЯ
