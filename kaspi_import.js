@@ -147,7 +147,7 @@ window.processInvoiceFile = async function () {
   if (!fileInput || !fileInput.files.length)
     return alert(translations[currentLang]?.inc_no_file || "Выберите файл");
 
-  // ⚡ 1. ЖЕСТКИЙ СБРОС СОСТОЯНИЯ (Лекарство от черных экранов при возврате "Назад")
+  // ⚡ 1. ЖЕСТКИЙ СБРОС СОСТОЯНИЯ
   const preservedDict = window.mapper2State?.dictValues || (typeof invoiceSynonyms !== "undefined" ? invoiceSynonyms : {});
   window.mapper2State = {
     dictValues: preservedDict
@@ -215,15 +215,40 @@ window.processInvoiceFile = async function () {
     });
     const arrayBuffer = await dataPromise;
 
+    // 🔥 ПРЕПРОЦЕССИНГ ОБЪЕДИНЕННЫХ ЯЧЕЕК (SheetJS)
     const workbook = XLSX.read(arrayBuffer, { type: "array" });
     let rows = [];
+    
     for (let sName of workbook.SheetNames) {
-      let sRows = XLSX.utils.sheet_to_json(workbook.Sheets[sName], { header: 1 });
+      let sheet = workbook.Sheets[sName];
+      
+      // 1. Распаковываем объединенные ячейки (!merges)
+      if (sheet['!merges']) {
+          sheet['!merges'].forEach(merge => {
+              // Берем значение из верхней левой ячейки диапазона
+              let startCellAddress = XLSX.utils.encode_cell({c: merge.s.c, r: merge.s.r});
+              let mainVal = sheet[startCellAddress] ? sheet[startCellAddress].v : undefined;
+              
+              if (mainVal !== undefined) {
+                  // Копируем во все остальные ячейки этого диапазона
+                  for (let r = merge.s.r; r <= merge.e.r; r++) {
+                      for (let c = merge.s.c; c <= merge.e.c; c++) {
+                          if (r === merge.s.r && c === merge.s.c) continue; 
+                          let targetCell = XLSX.utils.encode_cell({c: c, r: r});
+                          sheet[targetCell] = { t: 's', v: mainVal };
+                      }
+                  }
+              }
+          });
+      }
+
+      let sRows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
       if (sRows && sRows.length > 0) {
         rows = sRows;
         break;
       }
     }
+    
     if (rows.length === 0) throw new Error("Пустой файл");
 
     let file_doc_no = "UNKNOWN";
@@ -243,7 +268,6 @@ window.processInvoiceFile = async function () {
         let cleanCell = rawCell.toLowerCase().replace(/\s+/g, "");
         if (!cleanCell) continue;
 
-        // 🔥 Безопасный ?.includes
         if (supSyns.some((syn) => cleanCell?.includes(syn))) {
           if (rawCell?.includes(":")) {
             let parts = rawCell.split(":");
@@ -259,7 +283,6 @@ window.processInvoiceFile = async function () {
           }
         }
 
-        // 🔥 Безопасный ?.includes
         if (docSyns.some((syn) => cleanCell?.includes(syn))) {
           if (rawCell?.includes(":")) {
             let parts = rawCell.split(":");
@@ -281,26 +304,84 @@ window.processInvoiceFile = async function () {
       window.mapper2State.docNo = `IN-${String(now.getDate()).padStart(2, "0")}.${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}`;
     }
 
+    // 🔥 АВТО-ОПРЕДЕЛЕНИЕ ГРАНИЦ ДАННЫХ И СКЛЕЙКА ШАПКИ
     let firstDataRowIdx = -1;
+    let globalSyns = typeof invoiceSynonyms !== "undefined" ? invoiceSynonyms : {};
+    let searchKeys = [];
+    ["price", "barcode", "name", "qty"].forEach(k => {
+        if (globalSyns[k]) searchKeys = searchKeys.concat(globalSyns[k]);
+    });
+    searchKeys = searchKeys.map(s => String(s).toLowerCase().replace(/\s+/g, ""));
+
     for (let i = 0; i < Math.min(50, rows.length); i++) {
       let row = rows[i] || [];
+      
+      let filledCellsCount = row.filter((c) => String(c).trim() !== "").length;
       let numCount = row.filter((c) => {
         let val = String(c).trim().replace(/,/g, "");
         return val !== "" && !isNaN(Number(val));
       }).length;
-      // 🔥 Безопасный ?.includes
-      if (numCount >= 2 && !String(row[0] || "").toUpperCase()?.includes("TOTAL")) {
-        firstDataRowIdx = i;
-        break;
+      let hasTotal = row.some(c => String(c).toUpperCase()?.includes("TOTAL") || String(c).toUpperCase()?.includes("ИТОГО"));
+
+      if (filledCellsCount >= 4 && numCount >= 1 && !hasTotal) {
+        let isFormulaRow = row.some(c => String(c).toUpperCase()?.includes("G=A-B-C") || String(c) === "A");
+        if (!isFormulaRow) {
+           firstDataRowIdx = i;
+           break;
+        }
       }
     }
 
     if (firstDataRowIdx > 0) {
-      let rawHeaders = rows[firstDataRowIdx - 1] || [];
-      window.mapper2State.invoiceHeaders = rawHeaders.map((h) => String(h || "").replace(/[\r\n]+/g, " ").trim());
-      window.mapper2State.invoiceRows = rows.slice(firstDataRowIdx);
+      let headerIdx = firstDataRowIdx - 1;
+      
+      // Обходим мусорные строки (вроде G=A-B-C) вверх
+      while (headerIdx >= 0) {
+          let checkRow = rows[headerIdx] || [];
+          let isJunk = checkRow.some(c => String(c).toUpperCase()?.includes("G=A-B-C") || String(c) === "A");
+          if (isJunk) {
+              headerIdx--;
+          } else {
+              break;
+          }
+      }
+      
+      // Склеиваем шапку (двухэтажную, если есть)
+      let rawHeaders = rows[headerIdx] || [];
+      let upperHeaders = headerIdx > 0 ? (rows[headerIdx - 1] || []) : [];
+      
+      window.mapper2State.invoiceHeaders = rawHeaders.map((bottomText, idx) => {
+          let topText = String(upperHeaders[idx] || "").replace(/[\r\n]+/g, " ").trim();
+          let botText = String(bottomText || "").replace(/[\r\n]+/g, " ").trim();
+          
+          if (topText && botText && topText.toLowerCase() !== botText.toLowerCase()) {
+             return `${topText} ${botText}`; // Например "Размеры Ширина"
+          }
+          return botText || topText;
+      });
 
-      let globalSyns = typeof invoiceSynonyms !== "undefined" ? invoiceSynonyms : {};
+      // Передаем в парсер только полезные данные, отсекая случайные пустые строки
+      let validRows = [];
+      let emptyCount = 0;
+      
+      for (let i = firstDataRowIdx; i < rows.length; i++) {
+          let row = rows[i] || [];
+          let isEmpty = row.every(cell => String(cell || "").trim() === "");
+          let isTotal = row.some(c => String(c).toUpperCase()?.includes("TOTAL") || String(c).toUpperCase()?.includes("ИТОГО"));
+          
+          if (isTotal) break;
+          
+          if (isEmpty) {
+              emptyCount++;
+              if (emptyCount >= 3) break; // Три пустые строки = конец таблицы
+              continue;
+          } else {
+              emptyCount = 0;
+              validRows.push(row);
+          }
+      }
+      
+      window.mapper2State.invoiceRows = validRows;
       let headersToSearch = window.mapper2State.invoiceHeaders.map(h => String(h).toLowerCase().replace(/\s+/g, ""));
 
       const findCol = (keys, fallbacks) => {
@@ -309,7 +390,6 @@ window.processInvoiceFile = async function () {
               if (globalSyns[k]) syns = syns.concat(globalSyns[k]);
           });
           syns = syns.concat(fallbacks).map(s => String(s).toLowerCase().replace(/\s+/g, "")).filter(Boolean);
-          // 🔥 Безопасный ?.includes
           return headersToSearch.findIndex(h => syns.some(syn => h?.includes(syn)));
       };
 
@@ -321,9 +401,6 @@ window.processInvoiceFile = async function () {
           window.mapper2State.invoiceRows = window.mapper2State.invoiceRows.filter(row => {
               if (!row || row.length === 0) return false;
 
-              let isEmpty = row.every(cell => String(cell || "").trim() === "");
-              if (isEmpty) return false;
-
               let rawPrice = String(row[priceIdx] || "").replace(",", ".").replace(/[^0-9.-]/g, "");
               let price = parseFloat(rawPrice);
               if (isNaN(price) || price <= 0) return false; 
@@ -333,8 +410,6 @@ window.processInvoiceFile = async function () {
               let hasIdentifier = rawId !== "" || rawName !== "";
               
               if (!hasIdentifier) return false;
-
-              // 🔥 Безопасный ?.includes
               if (rawId.toUpperCase()?.includes("TOTAL") || rawName.toUpperCase()?.includes("TOTAL")) {
                   return false; 
               }
@@ -1723,7 +1798,6 @@ window.applyMapper2Logic = function () {
           if (!Array.isArray(currentMemory[sysKey])) {
             currentMemory[sysKey] = [];
           }
-          // 🔥 Безопасный ?.includes
           if (!currentMemory[sysKey]?.includes(cleanWord)) {
             currentMemory[sysKey].push(cleanWord);
             memoryUpdated = true;
@@ -1840,7 +1914,6 @@ window.applyMapper2Logic = function () {
 
     let rawLogisticsStr = "";
     row.forEach((cellVal, idx) => {
-      // 🔥 Безопасный ?.includes
       if (mappedIndices?.includes(idx)) return;
       let val = String(cellVal || "").trim();
       if (val && val.length < 30 && !/^\d{8,15}$/.test(val)) {
@@ -1861,7 +1934,6 @@ window.applyMapper2Logic = function () {
       let lowerKey = String(key).toLowerCase();
       let rawValue = getValue(key);
 
-      // 🔥 Безопасный ?.includes на массиве
       if (["qty", "price", "cost", "name", "model", "barcode", "cbm", "weight", "item_id", "item_name", "id", "sku", "merchant_sku"]?.includes(lowerKey)) return;
       if (!rawValue) return;
 
@@ -1895,7 +1967,6 @@ window.applyMapper2Logic = function () {
         let colIdx = state.colMap[key];
         let excelHeader = colIdx !== undefined && state.invoiceHeaders ? state.invoiceHeaders[colIdx] : "";
         
-        // 🔥 Безопасный ?.includes (ГЛАВНАЯ ПРИЧИНА ОШИБКИ БЫЛА ЗДЕСЬ)
         let isComplex = window.complexColumnsToTokenize?.includes(excelHeader);
 
         let isAlreadyProcessed = false;
@@ -1914,7 +1985,6 @@ window.applyMapper2Logic = function () {
             excelColumnName: excelHeader || "ДАННЫЕ ИЗ НАКЛАДНОЙ",
           });
         } else {
-          // 🔥 Безопасный ?.includes
           if (!["item_id", "item_name", "id", "sku", "qty", "price", "barcode"]?.includes(String(humanName).toLowerCase())) {
              attributesObj[humanName] = rawValue;
           }
@@ -1922,7 +1992,6 @@ window.applyMapper2Logic = function () {
         return; 
       }
 
-      // 🔥 Безопасный ?.includes
       if (!["item_id", "item_name", "id", "sku", "qty", "price", "barcode"]?.includes(String(humanName).toLowerCase())) {
          attributesObj[humanName] = matchedDictValue;
       }
@@ -2024,7 +2093,6 @@ window.applyMapper2Logic = function () {
        const allBtns = previewArea.querySelectorAll("button");
        allBtns.forEach(b => {
            const text = b.innerText.toUpperCase();
-           // 🔥 Безопасный ?.includes
            if (text?.includes("ДИСК") || text?.includes("СБРОС") || text?.includes("ПЕРЕЗАЛИТЬ")) {
                b.style.display = "none";
            }
