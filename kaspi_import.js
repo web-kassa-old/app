@@ -141,7 +141,7 @@ window.showComplexColumnSelector = function(headers, rows, templateData) {
     
     headers.forEach((header, idx) => {
         let originalName = header || `Колонка ${idx + 1}`;
-        let colName = originalName;
+let colName = window.translateColumnHeader(originalName);
 
         let sampleVal = getComplexExample(idx);
         
@@ -857,7 +857,7 @@ window.renderMapper2Cards = function (templateData) {
     } else if (mappedIndex !== undefined) {
       statusClass = "status-filled";
 
-      originalName = window.translateColumnHeader(header);
+      let displayName = window.translateColumnHeader(header);
 
       // ⚡ Читаем правила И по ключу (Specs), И по имени (Ширина профиля)
       let splitData =
