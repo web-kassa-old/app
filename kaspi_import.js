@@ -37,6 +37,66 @@ function toggleIncomeModule() {
   }
 }
 
+// 🔥 Универсальная функция перевода шапок
+window.translateColumnHeader = function(header) {
+    if (!header) return "";
+    let activeDict = {};
+    
+    if (typeof invoiceSynonyms !== "undefined") {
+        for (let key in invoiceSynonyms) {
+            let val = invoiceSynonyms[key];
+            activeDict[key] = Array.isArray(val) ? [...val] : String(val).split(",").map(s => s.trim());
+        }
+    }
+    
+    if (window.mapper2State && window.mapper2State.dictValues) {
+        for (let key in window.mapper2State.dictValues) {
+            let savedVal = window.mapper2State.dictValues[key];
+            let savedArr = Array.isArray(savedVal) ? savedVal : String(savedVal).split(",").map(s => s.trim());
+            activeDict[key] = activeDict[key] ? [...new Set([...activeDict[key], ...savedArr])] : savedArr;
+        }
+    }
+
+    if (Object.keys(activeDict).length > 0) {
+        let cleanHeader = String(header).toLowerCase().replace(/\s+/g, "");
+        let matchedKey = null;
+
+        for (let key in activeDict) {
+            let isMatch = activeDict[key].some(syn => {
+                let cleanSyn = String(syn).toLowerCase().replace(/\s+/g, "");
+                return cleanSyn && cleanHeader === cleanSyn;
+            });
+
+            if (isMatch) {
+                matchedKey = key;
+                break;
+            }
+        }
+
+        if (matchedKey && matchedKey !== header) {
+            let displayKey = matchedKey;
+            const baseNames = {
+                "barcode": "Артикул / Штрихкод",
+                "id": "Артикул / Код",
+                "name": "Наименование",
+                "brand": "Бренд",
+                "qty": "Количество",
+                "price": "Цена продажи",
+                "cost": "Цена закупа",
+                "category": "Категория",
+                "size": "Размер / Габариты"
+            };
+
+            displayKey = baseNames[matchedKey] ? baseNames[matchedKey] : displayKey.charAt(0).toUpperCase() + displayKey.slice(1);
+            
+            // Возвращаем готовую HTML-строку с подсветкой
+            return `${header} <span style="color: var(--accent-blue); font-size: 0.85em; font-weight: normal;">(${displayKey})</span>`;
+        }
+    }
+    // Если перевода нет, просто возвращаем оригинальное название
+    return header;
+};
+
 window.showComplexColumnSelector = function(headers, rows, templateData) {
     const overlay = document.createElement("div");
     overlay.className = "complex-overlay";
@@ -82,70 +142,6 @@ window.showComplexColumnSelector = function(headers, rows, templateData) {
     headers.forEach((header, idx) => {
         let originalName = header || `Колонка ${idx + 1}`;
         let colName = originalName;
-
-        // 🔥 Интеллектуальный перевод (Слияние свежего словаря и кэша маппера)
-        let activeDict = typeof invoiceSynonyms !== "undefined" ? JSON.parse(JSON.stringify(invoiceSynonyms)) : {};
-        
-        if (window.mapper2State && window.mapper2State.dictValues) {
-            for (let key in window.mapper2State.dictValues) {
-                let baseArr = Array.isArray(activeDict[key]) ? activeDict[key] : [];
-                let savedArr = Array.isArray(window.mapper2State.dictValues[key]) ? window.mapper2State.dictValues[key] : String(window.mapper2State.dictValues[key]).split(",");
-                // Склеиваем словари и убираем дубликаты
-                activeDict[key] = [...new Set([...baseArr, ...savedArr])];
-            }
-        }
-
-        if (header && Object.keys(activeDict).length > 0) {
-            let cleanHeader = String(header).toLowerCase().replace(/\s+/g, "");
-            let matchedKey = null;
-
-            for (let key in activeDict) {
-                let synRaw = activeDict[key] || [];
-                let synArray = [];
-                if (Array.isArray(synRaw)) {
-                    synRaw.forEach(s => synArray.push(...String(s).split(",")));
-                } else if (typeof synRaw === "string") {
-                    synArray = synRaw.split(",");
-                }
-
-                let isMatch = synArray.some(syn => {
-                    let cleanSyn = String(syn).trim().toLowerCase().replace(/\s+/g, "");
-                    // Строгое равенство (===) вместо includes, чтобы избежать ложных срабатываний
-                    return cleanSyn && cleanHeader === cleanSyn;
-                });
-
-                if (isMatch) {
-                    matchedKey = key;
-                    break;
-                }
-            }
-
-            if (matchedKey && matchedKey !== header) {
-                let displayKey = matchedKey;
-                
-                // Универсальный словарь только для базовых системных полей
-                const baseNames = {
-                    "barcode": "Артикул / Штрихкод",
-                    "id": "Артикул / Код",
-                    "name": "Наименование",
-                    "brand": "Бренд",
-                    "qty": "Количество",
-                    "price": "Цена продажи",
-                    "cost": "Цена закупа",
-                    "category": "Категория"
-                };
-
-                // Если это системный ключ - переводим, если кастомное слово (Размер, Слойность) - оставляем как есть
-                if (baseNames[matchedKey]) {
-                    displayKey = baseNames[matchedKey];
-                } else {
-                    displayKey = displayKey.charAt(0).toUpperCase() + displayKey.slice(1);
-                }
-                
-                colName = `${originalName} <span style="color: var(--accent-blue); font-size: 0.85em; font-weight: normal;">(${displayKey})</span>`;
-            }
-        }
-        // 🔥 КОНЕЦ БЛОКА ПЕРЕВОДА
 
         let sampleVal = getComplexExample(idx);
         
@@ -861,69 +857,7 @@ window.renderMapper2Cards = function (templateData) {
     } else if (mappedIndex !== undefined) {
       statusClass = "status-filled";
 
-      // 🔥 Интеллектуальный перевод (Слияние свежего словаря и кэша маппера)
-        let activeDict = typeof invoiceSynonyms !== "undefined" ? JSON.parse(JSON.stringify(invoiceSynonyms)) : {};
-        
-        if (window.mapper2State && window.mapper2State.dictValues) {
-            for (let key in window.mapper2State.dictValues) {
-                let baseArr = Array.isArray(activeDict[key]) ? activeDict[key] : [];
-                let savedArr = Array.isArray(window.mapper2State.dictValues[key]) ? window.mapper2State.dictValues[key] : String(window.mapper2State.dictValues[key]).split(",");
-                // Склеиваем словари и убираем дубликаты
-                activeDict[key] = [...new Set([...baseArr, ...savedArr])];
-            }
-        }
-
-        if (header && Object.keys(activeDict).length > 0) {
-            let cleanHeader = String(header).toLowerCase().replace(/\s+/g, "");
-            let matchedKey = null;
-
-            for (let key in activeDict) {
-                let synRaw = activeDict[key] || [];
-                let synArray = [];
-                if (Array.isArray(synRaw)) {
-                    synRaw.forEach(s => synArray.push(...String(s).split(",")));
-                } else if (typeof synRaw === "string") {
-                    synArray = synRaw.split(",");
-                }
-
-                let isMatch = synArray.some(syn => {
-                    let cleanSyn = String(syn).trim().toLowerCase().replace(/\s+/g, "");
-                    return cleanSyn && cleanHeader === cleanSyn;
-                });
-
-                if (isMatch) {
-                    matchedKey = key;
-                    break;
-                }
-            }
-
-            if (matchedKey && matchedKey !== header) {
-                let displayKey = matchedKey;
-                
-                // Универсальный словарь только для базовых системных полей
-                const baseNames = {
-                    "barcode": "Артикул / Штрихкод",
-                    "id": "Артикул / Код",
-                    "name": "Наименование",
-                    "brand": "Бренд",
-                    "qty": "Количество",
-                    "price": "Цена продажи",
-                    "cost": "Цена закупа",
-                    "category": "Категория"
-                };
-
-                // Если это системный ключ - переводим, если ваше кастомное слово (Размер, Цвет) - оставляем как есть
-                if (baseNames[matchedKey]) {
-                    displayKey = baseNames[matchedKey];
-                } else {
-                    // Делаем первую букву заглавной для красоты
-                    displayKey = displayKey.charAt(0).toUpperCase() + displayKey.slice(1);
-                }
-                
-                colName = `${originalName} <span style="color: var(--accent-blue); font-size: 0.85em; font-weight: normal;">(${displayKey})</span>`;
-            }
-        }
-        // 🔥 КОНЕЦ БЛОКА ПЕРЕВОДА
+      originalName = window.translateColumnHeader(header);
 
       // ⚡ Читаем правила И по ключу (Specs), И по имени (Ширина профиля)
       let splitData =
