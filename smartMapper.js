@@ -201,13 +201,8 @@ window.renderSmartMapperModal = function (complexColumns) {
             }
         }
 
-        const rawColName = String(col.colName).toLowerCase().trim();
-        let translatedName = col.colName;
-        if (typeof translations !== "undefined" && typeof currentLang !== "undefined") {
-            if (translations[currentLang] && translations[currentLang][rawColName]) {
-                translatedName = `${translations[currentLang][rawColName]} (${col.colName})`;
-            }
-        }
+        // 🔥 Используем единую универсальную функцию перевода
+        let translatedName = window.translateColumnHeader(col.colName);
 
         const currentSavedParams = savedRules[col.colName] || [];
 
