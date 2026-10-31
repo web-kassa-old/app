@@ -201,13 +201,7 @@ window.renderSmartMapperModal = function (complexColumns) {
             }
         }
 
-        const rawColName = String(col.colName).toLowerCase().trim();
-        let translatedName = col.colName;
-        if (typeof translations !== "undefined" && typeof currentLang !== "undefined") {
-            if (translations[currentLang] && translations[currentLang][rawColName]) {
-                translatedName = `${translations[currentLang][rawColName]} (${col.colName})`;
-            }
-        }
+        let translatedName = window.translateColumnHeader(col.colName);
 
         const currentSavedParams = savedRules[col.colName] || [];
 
@@ -233,7 +227,7 @@ window.renderSmartMapperModal = function (complexColumns) {
 
         card.innerHTML = `
             <div class="smart-col-info">
-    <span data-i18n="smart_mapper_col_prefix">Колонка:</span> <span>${translatedName.toUpperCase()}</span>
+    <span data-i18n="smart_mapper_col_prefix">Колонка:</span> <span>${translatedName}</span>
     <div style="margin-top: 8px; font-size: 14px; color: var(--accent-yellow);">${translations[currentLang].example_from_file} <strong style="color:var(--text-main); font-family:monospace; font-size:16px;">${bestExample}</strong></div>
 </div>
             <div class="smart-chips-area">
