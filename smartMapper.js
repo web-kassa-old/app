@@ -233,9 +233,9 @@ window.renderSmartMapperModal = function (complexColumns) {
 
         card.innerHTML = `
             <div class="smart-col-info">
-                <span data-i18n="smart_mapper_col_prefix">Колонка:</span> <span>${translatedName.toUpperCase()}</span>
-                <div style="margin-top: 8px; font-size: 14px; color: var(--accent-yellow);">Пример из файла: <strong style="color:var(--text-main); font-family:monospace; font-size:16px;">${bestExample}</strong></div>
-            </div>
+    <span data-i18n="smart_mapper_col_prefix">Колонка:</span> <span>${translatedName.toUpperCase()}</span>
+    <div style="margin-top: 8px; font-size: 14px; color: var(--accent-yellow);">${translations[currentLang].example_from_file} <strong style="color:var(--text-main); font-family:monospace; font-size:16px;">${bestExample}</strong></div>
+</div>
             <div class="smart-chips-area">
                 <div class="chips-title" data-i18n="smart_mapper_you_selected">Вы выбрали:</div>
                 <div class="chips-container">${initialChips}</div>
@@ -787,7 +787,15 @@ window.startTokenizerQueue = function() {
     const sigTokens = tokens.filter(t => !/^[a-zA-Zа-яА-ЯёЁ]+$/.test(t.cleanText));
     const sig = sigTokens.map(t => /\d/.test(t.cleanText) ? 'N' : 'S').join('-');
 
-    // Отрисовываем интерфейс (Твоя верстка, адаптированная под новые индексы)
+    // Получаем все переводы для текущего языка
+    const tDataLink = translations[currentLang]["split_data_link"];
+    const tFound = translations[currentLang]["split_found_in_invoice"];
+    const tDistribute = translations[currentLang]["split_distribute_values"];
+    const tMatchesFor = translations[currentLang]["split_matches_for"];
+    const placeholderText = translations[currentLang]["split_click_above"];
+    const confirmBtnText = translations[currentLang]["split_confirm_structure"];
+
+    // Отрисовываем интерфейс
     const container = document.getElementById("smartMapperContainer");
     if (!container) return;
     container.innerHTML = "";
@@ -798,7 +806,7 @@ window.startTokenizerQueue = function() {
 
     const header = document.createElement("div");
     header.className = "smart-modal-header";
-    header.innerHTML = `Связь данных: <span style="color: var(--accent-blue);">${colName.toUpperCase()}</span>`;
+    header.innerHTML = `${tDataLink} <span style="color: var(--accent-blue);">${colName.toUpperCase()}</span>`;
     modal.appendChild(header);
 
     const body = document.createElement("div");
@@ -806,7 +814,7 @@ window.startTokenizerQueue = function() {
 
     const tokensSection = document.createElement("div");
     tokensSection.className = "tokenizer-section";
-    tokensSection.innerHTML = `<div class="smart-question">Найдено в накладной: <strong>${rawString}</strong></div>`;
+    tokensSection.innerHTML = `<div class="smart-question">${tFound} <strong>${rawString}</strong></div>`;
     
     const tokensContainer = document.createElement("div");
     tokensContainer.className = "tokens-visual-container";
@@ -814,8 +822,7 @@ window.startTokenizerQueue = function() {
     let activeTokensHtml = "";
     tokens.forEach((tok) => {
         if (tok.isActive) {
-            let tooltip = tok.matchedParams.length > 0 ? `Подходит для: ${tok.matchedParams.join(', ')}` : "";
-            // Используем новый универсальный индекс!
+            let tooltip = tok.matchedParams.length > 0 ? `${tMatchesFor} ${tok.matchedParams.join(', ')}` : "";
             activeTokensHtml += `<button class="token-btn active-token" data-indices="${tok.universalIndex}" title="${tooltip}">${tok.text}</button>`;
         } else {
             activeTokensHtml += `<span class="token-text passive-token">${tok.text}</span>`;
@@ -828,17 +835,12 @@ window.startTokenizerQueue = function() {
 
     const paramsSection = document.createElement("div");
     paramsSection.className = "tokenizer-section";
-    paramsSection.innerHTML = `<div class="smart-question" style="margin-top: 20px;">Распределите активные значения:</div>`;
+    paramsSection.innerHTML = `<div class="smart-question" style="margin-top: 20px;">${tDistribute}</div>`;
     
     const paramsGrid = document.createElement("div");
     paramsGrid.className = "params-match-grid";
 
-    // Получаем переводы для динамической вставки
-    const placeholderText = translations[currentLang]["split_click_above"];
-    const confirmBtnText = translations[currentLang]["split_confirm_structure"];
-
     targetParams.forEach(paramName => {
-        // Ищем токен, который подходит
         let suggestedToken = tokens.find(t => t.isActive && t.matchedParams.includes(paramName) && t.matchedParams.length === 1);
         let defaultVal = suggestedToken ? suggestedToken.text : "";
         let defaultIndices = suggestedToken ? suggestedToken.universalIndex : "";
@@ -885,7 +887,6 @@ window.startTokenizerQueue = function() {
                 selectedTokenBtn.classList.add('assigned');
                 selectedTokenBtn = null;
             } else {
-                // Используем переменную с переводом при сбросе значения
                 this.textContent = placeholderText;
                 this.dataset.assignedIndices = "";
                 this.classList.remove('filled');
@@ -915,7 +916,6 @@ window.startTokenizerQueue = function() {
                     }
                 }
                 
-                // Сохраняем универсальный индекс или массив индексов (если мультивыделение)
                 ruleMap[sysId] = indicesStr.split(',').map(Number);
             }
         });

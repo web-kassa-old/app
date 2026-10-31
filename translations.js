@@ -516,6 +516,11 @@ const translations = {
     split_distribute_values: "Распределите активные значения:",
     split_click_above: "Кликните значение выше...",
     split_confirm_structure: "ПОДТВЕРДИТЬ СТРУКТУРУ",
+    example_from_file: "Пример из файла:",
+    split_data_link: "Связь данных:",
+    split_found_in_invoice: "Найдено в накладной:",
+    split_distribute_values: "Распределите активные значения:",
+    split_matches_for: "Подходит для:"
   },
   kz: {
     btn_sale: "САТУ",
@@ -1034,5 +1039,10 @@ const translations = {
     split_distribute_values: "Белсенді мәндерді бөліңіз:",
     split_click_above: "Жоғарыдағы мәнді басыңыз...",
     split_confirm_structure: "ҚҰРЫЛЫМДЫ РАСТАУ",
+    example_from_file: "Файлдан мысал:",
+    split_data_link: "Деректер байланысы:",
+    split_found_in_invoice: "Жүкқұжатта табылды:",
+    split_distribute_values: "Белсенді мәндерді бөліңіз:",
+    split_matches_for: "Сәйкес келеді:"
   },
 };
