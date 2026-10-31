@@ -83,17 +83,29 @@ window.showComplexColumnSelector = function(headers, rows, templateData) {
         let originalName = header || `Колонка ${idx + 1}`;
         let colName = originalName;
 
-        // 🔥 ДОБАВЛЕНО: Интеллектуальный перевод колонки через словарь синонимов
-        if (header && typeof invoiceSynonyms !== "undefined") {
+        // 🔥 Интеллектуальный перевод колонки через словарь синонимов (Чистая и универсальная версия)
+        let activeDict = typeof invoiceSynonyms !== "undefined" ? invoiceSynonyms : {};
+        if (window.mapper2State && window.mapper2State.dictValues && Object.keys(window.mapper2State.dictValues).length > 0) {
+            activeDict = window.mapper2State.dictValues;
+        }
+
+        if (header && Object.keys(activeDict).length > 0) {
             let cleanHeader = String(header).toLowerCase().replace(/\s+/g, "");
             let matchedKey = null;
 
-            // Ищем шапку в словаре
-            for (let key in invoiceSynonyms) {
-                let synArray = invoiceSynonyms[key] || [];
+            for (let key in activeDict) {
+                let synRaw = activeDict[key] || [];
+                let synArray = [];
+                if (Array.isArray(synRaw)) {
+                    synRaw.forEach(s => synArray.push(...String(s).split(",")));
+                } else if (typeof synRaw === "string") {
+                    synArray = synRaw.split(",");
+                }
+
                 let isMatch = synArray.some(syn => {
-                    let cleanSyn = String(syn).toLowerCase().replace(/\s+/g, "");
-                    return cleanSyn && (cleanHeader.includes(cleanSyn) || cleanSyn.includes(cleanHeader));
+                    let cleanSyn = String(syn).trim().toLowerCase().replace(/\s+/g, "");
+                    // Строгое равенство (===) вместо includes, чтобы избежать ложных срабатываний
+                    return cleanSyn && cleanHeader === cleanSyn;
                 });
 
                 if (isMatch) {
@@ -102,21 +114,32 @@ window.showComplexColumnSelector = function(headers, rows, templateData) {
                 }
             }
 
-            // Если нашли - дописываем красивый перевод
             if (matchedKey && matchedKey !== header) {
                 let displayKey = matchedKey;
-                const niceNames = {
-                    "barcode": "Артикул / Код товара",
-                    "name": "Наименование / Бренд",
-                    "qty": "Количество / Остаток",
-                    "price": "Цена"
+                
+                // Универсальный словарь только для базовых системных полей
+                const baseNames = {
+                    "barcode": "Артикул / Штрихкод",
+                    "id": "Артикул / Код",
+                    "name": "Наименование",
+                    "brand": "Бренд",
+                    "qty": "Количество",
+                    "price": "Цена продажи",
+                    "cost": "Цена закупа",
+                    "category": "Категория"
                 };
-                if (niceNames[matchedKey]) displayKey = niceNames[matchedKey];
+
+                // Если это системный ключ - переводим, если кастомное слово (Размер, Слойность) - оставляем как есть
+                if (baseNames[matchedKey]) {
+                    displayKey = baseNames[matchedKey];
+                } else {
+                    displayKey = displayKey.charAt(0).toUpperCase() + displayKey.slice(1);
+                }
                 
                 colName = `${originalName} <span style="color: var(--accent-blue); font-size: 0.85em; font-weight: normal;">(${displayKey})</span>`;
             }
         }
-        // 🔥 КОНЕЦ ДОБАВЛЕНИЯ
+        // 🔥 КОНЕЦ БЛОКА ПЕРЕВОДА
 
         let sampleVal = getComplexExample(idx);
         
@@ -126,8 +149,6 @@ window.showComplexColumnSelector = function(headers, rows, templateData) {
             ? `<div class="complex-example"><span data-i18n="complex_example">Пример:</span> <span class="complex-tag">${sampleVal}</span></div>` 
             : `<div class="complex-example" style="opacity:0.5;" data-i18n="complex_empty">(Пустая колонка)</div>`;
         
-        // Обратите внимание: в value передаем originalName (чистое имя колонки), 
-        // чтобы логика парсера не сломалась, а на экран выводим colName (с переводом)
         html += `
             <label class="complex-label">
                 <input type="checkbox" class="complex-col-cb" value="${originalName}">
