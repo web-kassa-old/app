@@ -42,9 +42,9 @@ window.translateColumnHeader = function(header) {
     if (!header) return "";
     let activeDict = {};
     
-    if (typeof invoiceSynonyms !== "undefined") {
-        for (let key in invoiceSynonyms) {
-            let val = invoiceSynonyms[key];
+    if (window.invoiceSynonyms) {
+        for (let key in window.invoiceSynonyms) {
+            let val = window.invoiceSynonyms[key];
             activeDict[key] = Array.isArray(val) ? [...val] : String(val).split(",").map(s => s.trim());
         }
     }

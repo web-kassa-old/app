@@ -535,7 +535,7 @@ let reportState = { method: "all", type: "sale", view: "items" };
 let failedAttempts = parseInt(localStorage.getItem("pos_fails")) || 0;
 let blockUntil = parseInt(localStorage.getItem("pos_block")) || 0;
 
-let invoiceSynonyms = {};
+window.invoiceSynonyms = {};
 let currentCategory = "all";
 
 // === ВСТАВЛЯЕТЕ КОД СЮДА (Начало П1) ===
@@ -2140,7 +2140,7 @@ async function load(isFullSync = false) {
       localStorage.setItem("staff_cache", JSON.stringify(staffList));
     }
     if (data.synonyms && Object.keys(data.synonyms).length > 0)
-      invoiceSynonyms = data.synonyms;
+      window.invoiceSynonyms = data.synonyms;
     if (data.suppliers) {
       window.suppliersList = data.suppliers;
       localStorage.setItem("suppliers_cache", JSON.stringify(data.suppliers));
