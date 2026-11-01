@@ -41,68 +41,82 @@ function toggleIncomeModule() {
 window.translateColumnHeader = function(header) {
     if (!header) return "";
     let activeDict = {};
-    
-    if (typeof invoiceSynonyms !== "undefined") {
+
+    // 1. Ищем локальный словарь (работает в Токенизаторе)
+    if (typeof invoiceSynonyms !== "undefined" && invoiceSynonyms && Object.keys(invoiceSynonyms).length > 0) {
         for (let key in invoiceSynonyms) {
-            let val = invoiceSynonyms[key];
-            activeDict[key] = Array.isArray(val) ? [...val] : String(val).split(",").map(s => s.trim());
+            activeDict[key] = invoiceSynonyms[key];
+        }
+    } 
+    // 2. Ищем в глобальных настройках шаблона (спасает Сито, если данные уже пришли)
+    else if (window.currentTemplateData && window.currentTemplateData.synonyms) {
+        for (let key in window.currentTemplateData.synonyms) {
+            activeDict[key] = window.currentTemplateData.synonyms[key];
         }
     }
-    
+
+    let normalizedDict = {};
+    for (let key in activeDict) {
+        let val = activeDict[key];
+        normalizedDict[key] = Array.isArray(val) ? [...val] : String(val).split(",").map(s => s.trim());
+    }
+
+    // 3. Добавляем пользовательские сохраненные правила
     if (window.mapper2State && window.mapper2State.dictValues) {
         for (let key in window.mapper2State.dictValues) {
             let savedVal = window.mapper2State.dictValues[key];
             let savedArr = Array.isArray(savedVal) ? savedVal : String(savedVal).split(",").map(s => s.trim());
-            activeDict[key] = activeDict[key] ? [...new Set([...activeDict[key], ...savedArr])] : savedArr;
+            normalizedDict[key] = normalizedDict[key] ? [...new Set([...normalizedDict[key], ...savedArr])] : savedArr;
         }
     }
 
-    // 1. ПОИСК ПО ДИНАМИЧЕСКИМ СИНОНИМАМ (Для Токенизатора)
-    if (Object.keys(activeDict).length > 0) {
-        let cleanHeader = String(header).toLowerCase().replace(/\s+/g, "");
-        let matchedKey = null;
+    // 4. ЖЕЛЕЗНЫЙ РЕЗЕРВ: если сервер тормозит, используем вшитый словарь для базовых колонок
+    if (Object.keys(normalizedDict).length === 0) {
+        normalizedDict = {
+            "brand": ["Бренд", "品牌", "brand"],
+            "size": ["Размер", "Габариты", "规格", "size"],
+            "barcode": ["Штрихкод", "条码", "barcode"],
+            "id": ["Артикул", "Код", "品号", "id"],
+            "name": ["Наименование", "名称", "name"],
+            "qty": ["Количество", "数量", "qty"],
+            "price": ["Цена продажи", "单价", "price"],
+            "cost": ["Цена закупа", "cost"],
+            "category": ["Категория", "分类", "category"]
+        };
+    }
 
-        for (let key in activeDict) {
-            let isMatch = activeDict[key].some(syn => {
-                let cleanSyn = String(syn).toLowerCase().replace(/\s+/g, "");
-                return cleanSyn && cleanHeader === cleanSyn;
-            });
+    let cleanHeader = String(header).toLowerCase().replace(/\s+/g, "");
+    let matchedKey = null;
 
-            if (isMatch) {
-                matchedKey = key;
-                break;
-            }
-        }
+    for (let key in normalizedDict) {
+        let isMatch = normalizedDict[key].some(syn => {
+            let cleanSyn = String(syn).toLowerCase().replace(/\s+/g, "");
+            return cleanSyn && cleanHeader === cleanSyn;
+        });
 
-        if (matchedKey && matchedKey !== header) {
-            let displayKey = matchedKey;
-            const baseNames = {
-                "barcode": "Артикул / Штрихкод",
-                "id": "Артикул / Код",
-                "name": "Наименование",
-                "brand": "Бренд",
-                "qty": "Количество",
-                "price": "Цена продажи",
-                "cost": "Цена закупа",
-                "category": "Категория",
-                "size": "Размер / Габариты"
-            };
-
-            displayKey = baseNames[matchedKey] ? baseNames[matchedKey] : displayKey.charAt(0).toUpperCase() + displayKey.slice(1);
-            return `${header} <span style="color: var(--accent-blue); font-size: 0.85em; font-weight: normal;">(${displayKey})</span>`;
+        if (isMatch) {
+            matchedKey = key;
+            break;
         }
     }
 
-    // 2. РЕЗЕРВНЫЙ ПОИСК: Статический словарь интерфейса (Для Сита)
-    if (typeof translations !== "undefined" && typeof currentLang !== "undefined") {
-        let rawColName = String(header).toLowerCase().trim();
-        if (translations[currentLang] && translations[currentLang][rawColName]) {
-            let displayKey = translations[currentLang][rawColName];
-            return `${header} <span style="color: var(--accent-blue); font-size: 0.85em; font-weight: normal;">(${displayKey})</span>`;
-        }
+    if (matchedKey && matchedKey !== header) {
+        let displayKey = matchedKey;
+        const baseNames = {
+            "barcode": "Артикул / Штрихкод",
+            "id": "Артикул / Код",
+            "name": "Наименование",
+            "brand": "Бренд",
+            "qty": "Количество",
+            "price": "Цена продажи",
+            "cost": "Цена закупа",
+            "category": "Категория",
+            "size": "Размер / Габариты"
+        };
+        displayKey = baseNames[matchedKey] ? baseNames[matchedKey] : displayKey.charAt(0).toUpperCase() + displayKey.slice(1);
+        return `${header} <span style="color: var(--accent-blue); font-size: 0.85em; font-weight: normal;">(${displayKey})</span>`;
     }
 
-    // Если перевода нет нигде, возвращаем оригинал
     return header;
 };
 
