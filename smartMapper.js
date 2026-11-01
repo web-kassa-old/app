@@ -233,7 +233,7 @@ window.renderSmartMapperModal = function (complexColumns) {
 
         card.innerHTML = `
             <div class="smart-col-info">
-    <span data-i18n="smart_mapper_col_prefix">Колонка:</span> <span>${window.translateColumnHeader ? window.translateColumnHeader(col.colName) : col.colName}</span>
+    <span data-i18n="smart_mapper_col_prefix">Колонка:</span> <span>${window.translateColumnHeader ? window.translateColumnHeader(col.colName) : translatedName}</span>
     <div style="margin-top: 8px; font-size: 14px; color: var(--accent-yellow);">${translations[currentLang].example_from_file} <strong style="color:var(--text-main); font-family:monospace; font-size:16px;">${bestExample}</strong></div>
 </div>
             <div class="smart-chips-area">
