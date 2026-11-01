@@ -138,6 +138,10 @@ window.showComplexColumnSelector = function(headers, rows, templateData) {
              </p>`;
 
     html += `<div class="complex-list">`;
+
+    if (templateData && templateData.synonyms && typeof invoiceSynonyms !== "undefined") {
+        invoiceSynonyms = templateData.synonyms;
+    }
     
     headers.forEach((header, idx) => {
         let originalName = header || `Колонка ${idx + 1}`;
