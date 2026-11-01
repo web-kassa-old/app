@@ -57,6 +57,7 @@ window.translateColumnHeader = function(header) {
         }
     }
 
+    // 1. ПОИСК ПО ДИНАМИЧЕСКИМ СИНОНИМАМ (Для Токенизатора)
     if (Object.keys(activeDict).length > 0) {
         let cleanHeader = String(header).toLowerCase().replace(/\s+/g, "");
         let matchedKey = null;
@@ -88,12 +89,20 @@ window.translateColumnHeader = function(header) {
             };
 
             displayKey = baseNames[matchedKey] ? baseNames[matchedKey] : displayKey.charAt(0).toUpperCase() + displayKey.slice(1);
-            
-            // Возвращаем готовую HTML-строку с подсветкой
             return `${header} <span style="color: var(--accent-blue); font-size: 0.85em; font-weight: normal;">(${displayKey})</span>`;
         }
     }
-    // Если перевода нет, просто возвращаем оригинальное название
+
+    // 2. РЕЗЕРВНЫЙ ПОИСК: Статический словарь интерфейса (Для Сита)
+    if (typeof translations !== "undefined" && typeof currentLang !== "undefined") {
+        let rawColName = String(header).toLowerCase().trim();
+        if (translations[currentLang] && translations[currentLang][rawColName]) {
+            let displayKey = translations[currentLang][rawColName];
+            return `${header} <span style="color: var(--accent-blue); font-size: 0.85em; font-weight: normal;">(${displayKey})</span>`;
+        }
+    }
+
+    // Если перевода нет нигде, возвращаем оригинал
     return header;
 };
 
@@ -138,10 +147,6 @@ window.showComplexColumnSelector = function(headers, rows, templateData) {
              </p>`;
 
     html += `<div class="complex-list">`;
-
-    if (templateData && templateData.synonyms && typeof invoiceSynonyms !== "undefined") {
-        invoiceSynonyms = templateData.synonyms;
-    }
     
     headers.forEach((header, idx) => {
         let originalName = header || `Колонка ${idx + 1}`;
