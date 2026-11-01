@@ -42,7 +42,8 @@ window.translateColumnHeader = function(header) {
     if (!header) return "";
     let activeDict = {};
     
-    if (typeof invoiceSynonyms !== "undefined") {
+    // 1. Поиск по таблице синонимов (сработает в Токенизаторе)
+    if (typeof invoiceSynonyms !== "undefined" && invoiceSynonyms) {
         for (let key in invoiceSynonyms) {
             let val = invoiceSynonyms[key];
             activeDict[key] = Array.isArray(val) ? [...val] : String(val).split(",").map(s => s.trim());
@@ -88,12 +89,19 @@ window.translateColumnHeader = function(header) {
             };
 
             displayKey = baseNames[matchedKey] ? baseNames[matchedKey] : displayKey.charAt(0).toUpperCase() + displayKey.slice(1);
-            
-            // Возвращаем готовую HTML-строку с подсветкой
             return `${header} <span style="color: var(--accent-blue); font-size: 0.85em; font-weight: normal;">(${displayKey})</span>`;
         }
     }
-    // Если перевода нет, просто возвращаем оригинальное название
+
+    // 2. РЕЗЕРВНЫЙ ПОИСК по словарю интерфейса (сработает в Сито)
+    if (typeof translations !== "undefined" && typeof currentLang !== "undefined") {
+        let rawColName = String(header).toLowerCase().trim();
+        if (translations[currentLang] && translations[currentLang][rawColName]) {
+            let displayKey = translations[currentLang][rawColName];
+            return `${header} <span style="color: var(--accent-blue); font-size: 0.85em; font-weight: normal;">(${displayKey})</span>`;
+        }
+    }
+
     return header;
 };
 
