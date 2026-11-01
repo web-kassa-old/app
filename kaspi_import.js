@@ -41,82 +41,59 @@ function toggleIncomeModule() {
 window.translateColumnHeader = function(header) {
     if (!header) return "";
     let activeDict = {};
-
-    // 1. Ищем локальный словарь (работает в Токенизаторе)
-    if (typeof invoiceSynonyms !== "undefined" && invoiceSynonyms && Object.keys(invoiceSynonyms).length > 0) {
+    
+    if (typeof invoiceSynonyms !== "undefined") {
         for (let key in invoiceSynonyms) {
-            activeDict[key] = invoiceSynonyms[key];
-        }
-    } 
-    // 2. Ищем в глобальных настройках шаблона (спасает Сито, если данные уже пришли)
-    else if (window.currentTemplateData && window.currentTemplateData.synonyms) {
-        for (let key in window.currentTemplateData.synonyms) {
-            activeDict[key] = window.currentTemplateData.synonyms[key];
+            let val = invoiceSynonyms[key];
+            activeDict[key] = Array.isArray(val) ? [...val] : String(val).split(",").map(s => s.trim());
         }
     }
-
-    let normalizedDict = {};
-    for (let key in activeDict) {
-        let val = activeDict[key];
-        normalizedDict[key] = Array.isArray(val) ? [...val] : String(val).split(",").map(s => s.trim());
-    }
-
-    // 3. Добавляем пользовательские сохраненные правила
+    
     if (window.mapper2State && window.mapper2State.dictValues) {
         for (let key in window.mapper2State.dictValues) {
             let savedVal = window.mapper2State.dictValues[key];
             let savedArr = Array.isArray(savedVal) ? savedVal : String(savedVal).split(",").map(s => s.trim());
-            normalizedDict[key] = normalizedDict[key] ? [...new Set([...normalizedDict[key], ...savedArr])] : savedArr;
+            activeDict[key] = activeDict[key] ? [...new Set([...activeDict[key], ...savedArr])] : savedArr;
         }
     }
 
-    // 4. ЖЕЛЕЗНЫЙ РЕЗЕРВ: если сервер тормозит, используем вшитый словарь для базовых колонок
-    if (Object.keys(normalizedDict).length === 0) {
-        normalizedDict = {
-            "brand": ["Бренд", "品牌", "brand"],
-            "size": ["Размер", "Габариты", "规格", "size"],
-            "barcode": ["Штрихкод", "条码", "barcode"],
-            "id": ["Артикул", "Код", "品号", "id"],
-            "name": ["Наименование", "名称", "name"],
-            "qty": ["Количество", "数量", "qty"],
-            "price": ["Цена продажи", "单价", "price"],
-            "cost": ["Цена закупа", "cost"],
-            "category": ["Категория", "分类", "category"]
-        };
-    }
+    if (Object.keys(activeDict).length > 0) {
+        let cleanHeader = String(header).toLowerCase().replace(/\s+/g, "");
+        let matchedKey = null;
 
-    let cleanHeader = String(header).toLowerCase().replace(/\s+/g, "");
-    let matchedKey = null;
+        for (let key in activeDict) {
+            let isMatch = activeDict[key].some(syn => {
+                let cleanSyn = String(syn).toLowerCase().replace(/\s+/g, "");
+                return cleanSyn && cleanHeader === cleanSyn;
+            });
 
-    for (let key in normalizedDict) {
-        let isMatch = normalizedDict[key].some(syn => {
-            let cleanSyn = String(syn).toLowerCase().replace(/\s+/g, "");
-            return cleanSyn && cleanHeader === cleanSyn;
-        });
+            if (isMatch) {
+                matchedKey = key;
+                break;
+            }
+        }
 
-        if (isMatch) {
-            matchedKey = key;
-            break;
+        if (matchedKey && matchedKey !== header) {
+            let displayKey = matchedKey;
+            const baseNames = {
+                "barcode": "Артикул / Штрихкод",
+                "id": "Артикул / Код",
+                "name": "Наименование",
+                "brand": "Бренд",
+                "qty": "Количество",
+                "price": "Цена продажи",
+                "cost": "Цена закупа",
+                "category": "Категория",
+                "size": "Размер / Габариты"
+            };
+
+            displayKey = baseNames[matchedKey] ? baseNames[matchedKey] : displayKey.charAt(0).toUpperCase() + displayKey.slice(1);
+            
+            // Возвращаем готовую HTML-строку с подсветкой
+            return `${header} <span style="color: var(--accent-blue); font-size: 0.85em; font-weight: normal;">(${displayKey})</span>`;
         }
     }
-
-    if (matchedKey && matchedKey !== header) {
-        let displayKey = matchedKey;
-        const baseNames = {
-            "barcode": "Артикул / Штрихкод",
-            "id": "Артикул / Код",
-            "name": "Наименование",
-            "brand": "Бренд",
-            "qty": "Количество",
-            "price": "Цена продажи",
-            "cost": "Цена закупа",
-            "category": "Категория",
-            "size": "Размер / Габариты"
-        };
-        displayKey = baseNames[matchedKey] ? baseNames[matchedKey] : displayKey.charAt(0).toUpperCase() + displayKey.slice(1);
-        return `${header} <span style="color: var(--accent-blue); font-size: 0.85em; font-weight: normal;">(${displayKey})</span>`;
-    }
-
+    // Если перевода нет, просто возвращаем оригинальное название
     return header;
 };
 
