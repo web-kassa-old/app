@@ -496,17 +496,21 @@ window.processInvoiceFile = async function () {
       }
       window.mapper2State.fileHash = "hash_" + Math.abs(hashNum).toString(16);
 
-      // --- ВАЖНАЯ ПАУЗА: Ждем загрузки синонимов, если их еще нет ---
+      // --- ВАШ НОВЫЙ БЛОК С МАЯЧКАМИ НАЧИНАЕТСЯ ЗДЕСЬ ---
+      console.log("🚦 [МАЯЧОК 1] Начинаем проверку словаря перед Ситом. invoiceSynonyms:", typeof invoiceSynonyms !== "undefined" ? invoiceSynonyms : "НЕ СУЩЕСТВУЕТ");
+      
       if (typeof invoiceSynonyms === "undefined" || Object.keys(invoiceSynonyms).length === 0) {
         window.showLoading("Ожидание перевода колонок...");
-        // Ждем максимум 5 секунд (50 попыток по 100мс)
         for (let attempt = 0; attempt < 50; attempt++) {
             await new Promise(resolve => setTimeout(resolve, 100));
             if (typeof invoiceSynonyms !== "undefined" && Object.keys(invoiceSynonyms).length > 0) {
-                break; // Словарь загрузился, идем дальше!
+                console.log(`✅ [МАЯЧОК 2] Словарь получен на попытке ${attempt + 1}!`);
+                break;
             }
         }
       }
+      
+      console.log("🏁 [МАЯЧОК 3] Пауза окончена. Идем открывать Сито. invoiceSynonyms:", typeof invoiceSynonyms !== "undefined" ? invoiceSynonyms : "ВСЕ ЕЩЕ ПУСТО");
       
       window.hideLoading();
       window.currentTemplateData = templateData;

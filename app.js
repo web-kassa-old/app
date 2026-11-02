@@ -2139,8 +2139,10 @@ async function load(isFullSync = false) {
       staffList = data.staff;
       localStorage.setItem("staff_cache", JSON.stringify(staffList));
     }
-    if (data.synonyms && Object.keys(data.synonyms).length > 0)
-      invoiceSynonyms = data.synonyms;
+    if (data.synonyms && Object.keys(data.synonyms).length > 0) {
+    invoiceSynonyms = data.synonyms;
+    console.log("🔥 [МАЯЧОК 4] СЕРВЕР ОТВЕТИЛ! Словарь сохранен в переменную:", invoiceSynonyms);
+}
     if (data.suppliers) {
       window.suppliersList = data.suppliers;
       localStorage.setItem("suppliers_cache", JSON.stringify(data.suppliers));
