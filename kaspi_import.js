@@ -42,10 +42,17 @@ window.translateColumnHeader = function(header) {
     if (!header) return "";
     let activeDict = {};
     
-    // 1. Поиск по таблице синонимов (сработает в Токенизаторе)
-    if (typeof invoiceSynonyms !== "undefined" && invoiceSynonyms) {
-        for (let key in invoiceSynonyms) {
-            let val = invoiceSynonyms[key];
+    // БРОНЯ: Ищем словарь везде, где он мог успеть загрузиться
+    let sourceDict = null;
+    if (typeof invoiceSynonyms !== "undefined" && invoiceSynonyms && Object.keys(invoiceSynonyms).length > 0) {
+        sourceDict = invoiceSynonyms;
+    } else if (window.currentTemplateData && window.currentTemplateData.synonyms) {
+        sourceDict = window.currentTemplateData.synonyms;
+    }
+
+    if (sourceDict) {
+        for (let key in sourceDict) {
+            let val = sourceDict[key];
             activeDict[key] = Array.isArray(val) ? [...val] : String(val).split(",").map(s => s.trim());
         }
     }
@@ -93,7 +100,7 @@ window.translateColumnHeader = function(header) {
         }
     }
 
-    // 2. РЕЗЕРВНЫЙ ПОИСК по словарю интерфейса (сработает в Сито)
+    // Резерв по UI-словарю
     if (typeof translations !== "undefined" && typeof currentLang !== "undefined") {
         let rawColName = String(header).toLowerCase().trim();
         if (translations[currentLang] && translations[currentLang][rawColName]) {
