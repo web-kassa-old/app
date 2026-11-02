@@ -496,6 +496,18 @@ window.processInvoiceFile = async function () {
       }
       window.mapper2State.fileHash = "hash_" + Math.abs(hashNum).toString(16);
 
+      // --- ВАЖНАЯ ПАУЗА: Ждем загрузки синонимов, если их еще нет ---
+      if (typeof invoiceSynonyms === "undefined" || Object.keys(invoiceSynonyms).length === 0) {
+        window.showLoading("Ожидание перевода колонок...");
+        // Ждем максимум 5 секунд (50 попыток по 100мс)
+        for (let attempt = 0; attempt < 50; attempt++) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+            if (typeof invoiceSynonyms !== "undefined" && Object.keys(invoiceSynonyms).length > 0) {
+                break; // Словарь загрузился, идем дальше!
+            }
+        }
+      }
+      
       window.hideLoading();
       window.currentTemplateData = templateData;
 
@@ -781,8 +793,8 @@ window.renderMapper2Cards = function (templateData) {
     typeof invoiceSynonyms !== "undefined" ? invoiceSynonyms : {};
   const headersLower = (window.mapper2State.invoiceHeaders || []).map((h) =>
     String(h || "")
-    .trim()
-    .toLowerCase(),
+      .trim()
+      .toLowerCase(),
   );
 
   let htmlRequired = "";
@@ -865,9 +877,7 @@ window.renderMapper2Cards = function (templateData) {
     } else if (mappedIndex !== undefined) {
       statusClass = "status-filled";
 
-      // ИСПРАВЛЕНИЕ ОШИБКИ ЗДЕСЬ: находим реальный заголовок и переводим его
-      let originalHeader = window.mapper2State.invoiceHeaders[mappedIndex] || "";
-      let colName = window.translateColumnHeader(originalHeader);
+      let displayName = window.translateColumnHeader(header);
 
       // ⚡ Читаем правила И по ключу (Specs), И по имени (Ширина профиля)
       let splitData =
@@ -889,7 +899,7 @@ window.renderMapper2Cards = function (templateData) {
           ).trim();
           if (val) {
             sampleText = val;
-          break;
+            break;
           }
         }
 
@@ -1199,11 +1209,8 @@ window.openColumnSelector = function (sysKey, reqName, isKaspi) {
     let colName = String(rawColName || "").trim();
     if (!colName) colName = `[Колонка ${index + 1} Пустой заголовок]`;
 
-    // 🔥 ИСПРАВЛЕНИЕ ЗДЕСЬ: Переводим колонку для UI, но сохраняем чистый оригинал для скриптов
-    let translatedName = typeof window.translateColumnHeader === 'function' ? window.translateColumnHeader(colName) : colName;
-    
-    let displayColName = translatedName.replace(/[\r\n]+/g, " ");
-    let safeColName = colName.replace(/[\r\n]+/g, " ").replace(/'/g, "\\'").replace(/"/g, '\\"'); // В onclick уходит ОРИГИНАЛ
+    let displayColName = colName.replace(/[\r\n]+/g, " ");
+    let safeColName = displayColName.replace(/'/g, "\\'").replace(/"/g, '\\"');
 
     let previews = [];
     for (let i = 0; i < Math.min(10, window.mapper2State.invoiceRows.length); i++) {
