@@ -781,8 +781,8 @@ window.renderMapper2Cards = function (templateData) {
     typeof invoiceSynonyms !== "undefined" ? invoiceSynonyms : {};
   const headersLower = (window.mapper2State.invoiceHeaders || []).map((h) =>
     String(h || "")
-      .trim()
-      .toLowerCase(),
+    .trim()
+    .toLowerCase(),
   );
 
   let htmlRequired = "";
@@ -865,7 +865,9 @@ window.renderMapper2Cards = function (templateData) {
     } else if (mappedIndex !== undefined) {
       statusClass = "status-filled";
 
-      let displayName = window.translateColumnHeader(header);
+      // ИСПРАВЛЕНИЕ ОШИБКИ ЗДЕСЬ: находим реальный заголовок и переводим его
+      let originalHeader = window.mapper2State.invoiceHeaders[mappedIndex] || "";
+      let colName = window.translateColumnHeader(originalHeader);
 
       // ⚡ Читаем правила И по ключу (Specs), И по имени (Ширина профиля)
       let splitData =
@@ -887,7 +889,7 @@ window.renderMapper2Cards = function (templateData) {
           ).trim();
           if (val) {
             sampleText = val;
-            break;
+          break;
           }
         }
 
