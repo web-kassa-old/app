@@ -496,21 +496,33 @@ window.processInvoiceFile = async function () {
       }
       window.mapper2State.fileHash = "hash_" + Math.abs(hashNum).toString(16);
 
-      // --- ВАШ НОВЫЙ БЛОК С МАЯЧКАМИ НАЧИНАЕТСЯ ЗДЕСЬ ---
+      // --- ПРИНУДИТЕЛЬНАЯ ЗАГРУЗКА СЛОВАРЯ ---
       console.log("🚦 [МАЯЧОК 1] Начинаем проверку словаря перед Ситом. invoiceSynonyms:", typeof invoiceSynonyms !== "undefined" ? invoiceSynonyms : "НЕ СУЩЕСТВУЕТ");
       
       if (typeof invoiceSynonyms === "undefined" || Object.keys(invoiceSynonyms).length === 0) {
-        window.showLoading("Ожидание перевода колонок...");
-        for (let attempt = 0; attempt < 50; attempt++) {
-            await new Promise(resolve => setTimeout(resolve, 100));
-            if (typeof invoiceSynonyms !== "undefined" && Object.keys(invoiceSynonyms).length > 0) {
-                console.log(`✅ [МАЯЧОК 2] Словарь получен на попытке ${attempt + 1}!`);
-                break;
+        console.log("⚠️ Словаря нет! Принудительно запрашиваем у сервера...");
+        window.showLoading("Загрузка словаря переводов...");
+        
+        try {
+            const fetchUrl = `${typeof APPS_SCRIPT_URL !== "undefined" ? APPS_SCRIPT_URL : ""}?action=getInitialData&api_key=${typeof CLIENT_API_KEY !== "undefined" ? CLIENT_API_KEY : ""}&t=${Date.now()}&uid=${localStorage.getItem("user_uid") || ""}&role=${localStorage.getItem("user_role") || ""}&last_sync=0`;
+            
+            const res = await fetch(fetchUrl);
+            const text = await res.text();
+            
+            if (!text.trim().startsWith("<")) {
+                const data = JSON.parse(text);
+                if (data.synonyms && Object.keys(data.synonyms).length > 0) {
+                    window.invoiceSynonyms = data.synonyms;
+                    console.log("✅ [МАЯЧОК 2] Словарь успешно загружен принудительно!");
+                }
             }
+        } catch (err) {
+            console.error("❌ Ошибка принудительной загрузки словаря:", err);
         }
       }
       
       console.log("🏁 [МАЯЧОК 3] Пауза окончена. Идем открывать Сито. invoiceSynonyms:", typeof invoiceSynonyms !== "undefined" ? invoiceSynonyms : "ВСЕ ЕЩЕ ПУСТО");
+      // ---------------------------------
       
       window.hideLoading();
       window.currentTemplateData = templateData;
