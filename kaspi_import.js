@@ -285,9 +285,9 @@ window.processInvoiceFile = async function () {
     });
     const arrayBuffer = await dataPromise;
 
-    // 🔥 ПРЕПРОЦЕССИНГ ОБЪЕДИНЕННЫХ ЯЧЕЕК (SheetJS)
+    // 🔥 ПРЕПРОЦЕССИНГ ОБЪЕДИНЕННЫХ ЯЧЕЕК И ПОИСК ЛИСТОВ (SheetJS)
     const workbook = XLSX.read(arrayBuffer, { type: "array" });
-    let rows = [];
+    let validSheets = [];
     
     for (let sName of workbook.SheetNames) {
       let sheet = workbook.Sheets[sName];
@@ -295,12 +295,10 @@ window.processInvoiceFile = async function () {
       // 1. Распаковываем объединенные ячейки (!merges)
       if (sheet['!merges']) {
           sheet['!merges'].forEach(merge => {
-              // Берем значение из верхней левой ячейки диапазона
               let startCellAddress = XLSX.utils.encode_cell({c: merge.s.c, r: merge.s.r});
               let mainVal = sheet[startCellAddress] ? sheet[startCellAddress].v : undefined;
               
               if (mainVal !== undefined) {
-                  // Копируем во все остальные ячейки этого диапазона
                   for (let r = merge.s.r; r <= merge.e.r; r++) {
                       for (let c = merge.s.c; c <= merge.e.c; c++) {
                           if (r === merge.s.r && c === merge.s.c) continue; 
@@ -314,12 +312,87 @@ window.processInvoiceFile = async function () {
 
       let sRows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
       if (sRows && sRows.length > 0) {
-        rows = sRows;
-        break;
+        // Проверяем, есть ли на листе реальные данные, а не просто пустые строки
+        let hasContent = sRows.some(row => row.some(cell => String(cell || "").trim() !== ""));
+        if (hasContent) {
+            validSheets.push({ name: sName, rows: sRows });
+        }
       }
     }
     
-    if (rows.length === 0) throw new Error("Пустой файл");
+    if (validSheets.length === 0) throw new Error("Пустой файл (нет данных на листах)");
+
+    // ⚡ ВЫБОР ЛИСТА С ИСПОЛЬЗОВАНИЕМ PROMISE (СТАВИМ КОД НА ПАУЗУ)
+    let rows = await new Promise((resolve) => {
+        // Если лист всего один, не дергаем пользователя и идем дальше
+        if (validSheets.length === 1) {
+            resolve(validSheets[0].rows);
+            return;
+        }
+
+        // Если листов несколько - прячем системный лоадер и показываем окно выбора
+        window.hideLoading(); 
+        
+        const t = typeof translations !== 'undefined' && translations[currentLang] ? translations[currentLang] : {};
+        const titleText = t.select_sheet_title || "Выберите лист с данными";
+        const descText = t.select_sheet_desc || "В файле найдено несколько листов. Выберите тот, на котором находится таблица товаров:";
+        const cancelText = t.mapper_btn_cancel || "Отмена";
+
+        // Создаем оверлей в стиле приложения
+        const overlay = document.createElement('div');
+        overlay.id = "sheet-selector-overlay";
+        overlay.style = "position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); z-index: 999999; display: flex; align-items: center; justify-content: center;";
+        
+        const modal = document.createElement('div');
+        modal.style = "background: var(--bg-panel, #1e1e1e); border: 1px solid var(--border-light, #333); border-radius: 12px; padding: 20px; width: 90%; max-width: 420px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); color: var(--text-main, #fff); font-family: inherit;";
+        
+        let html = `
+            <div style="font-size: 16px; font-weight: bold; margin-bottom: 8px; color: var(--text-main);">${titleText}</div>
+            <div style="font-size: 12px; color: var(--text-muted, #999); margin-bottom: 20px; line-height: 1.4;">${descText}</div>
+            <div style="display: flex; flex-direction: column; gap: 10px; max-height: 50vh; overflow-y: auto; padding-right: 5px;">
+        `;
+
+        validSheets.forEach((sheetData, idx) => {
+            html += `
+                <button class="sheet-select-btn" data-idx="${idx}" style="background: var(--bg-card, #252525); border: 1px solid var(--border-light, #333); color: var(--text-main, #fff); padding: 14px 15px; border-radius: 8px; text-align: left; font-size: 14px; font-weight: bold; cursor: pointer; transition: 0.2s; display: flex; justify-content: space-between; align-items: center;">
+                    <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 70%;">📄 ${sheetData.name}</span>
+                    <span style="font-size: 11px; color: var(--text-muted, #777); font-weight: normal; background: rgba(255,255,255,0.05); padding: 2px 6px; border-radius: 4px;">Строк: ${sheetData.rows.length}</span>
+                </button>
+            `;
+        });
+
+        html += `</div>
+            <button id="cancel-sheet-select" style="margin-top: 20px; width: 100%; background: rgba(255, 68, 68, 0.1); border: 1px solid #ff4444; color: #ff4444; padding: 12px; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s;">
+                ${cancelText}
+            </button>
+        `;
+        
+        modal.innerHTML = html;
+        overlay.appendChild(modal);
+        document.body.appendChild(overlay);
+
+        // Интерактивность кнопок
+        const btns = modal.querySelectorAll('.sheet-select-btn');
+        btns.forEach(btn => {
+            btn.onmouseover = () => { btn.style.borderColor = "var(--accent-blue, #3498db)"; btn.style.background = "var(--bg-hover, #2a2a2a)"; };
+            btn.onmouseout = () => { btn.style.borderColor = "var(--border-light, #333)"; btn.style.background = "var(--bg-card, #252525)"; };
+            btn.onclick = () => {
+                document.body.removeChild(overlay);
+                window.showLoading("Подготовка данных..."); // Возвращаем системный лоадер
+                resolve(validSheets[btn.getAttribute('data-idx')].rows);
+            };
+        });
+
+        const cancelBtn = modal.querySelector('#cancel-sheet-select');
+        cancelBtn.onmouseover = () => { cancelBtn.style.background = "#ff4444"; cancelBtn.style.color = "#fff"; };
+        cancelBtn.onmouseout = () => { cancelBtn.style.background = "rgba(255, 68, 68, 0.1)"; cancelBtn.style.color = "#ff4444"; };
+        cancelBtn.onclick = () => {
+            document.body.removeChild(overlay);
+            resolve(null);
+        };
+    });
+
+    if (!rows) return; // Если пользователь нажал "Отмена", прерываем весь импорт
 
     let file_doc_no = "UNKNOWN";
     let file_supplier = "UNKNOWN";
