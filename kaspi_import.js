@@ -42,17 +42,10 @@ window.translateColumnHeader = function(header) {
     if (!header) return "";
     let activeDict = {};
     
-    // БРОНЯ: Ищем словарь везде, где он мог успеть загрузиться
-    let sourceDict = null;
-    if (typeof invoiceSynonyms !== "undefined" && invoiceSynonyms && Object.keys(invoiceSynonyms).length > 0) {
-        sourceDict = invoiceSynonyms;
-    } else if (window.currentTemplateData && window.currentTemplateData.synonyms) {
-        sourceDict = window.currentTemplateData.synonyms;
-    }
-
-    if (sourceDict) {
-        for (let key in sourceDict) {
-            let val = sourceDict[key];
+    // 1. Поиск по таблице синонимов (сработает в Токенизаторе)
+    if (typeof invoiceSynonyms !== "undefined" && invoiceSynonyms) {
+        for (let key in invoiceSynonyms) {
+            let val = invoiceSynonyms[key];
             activeDict[key] = Array.isArray(val) ? [...val] : String(val).split(",").map(s => s.trim());
         }
     }
@@ -100,7 +93,7 @@ window.translateColumnHeader = function(header) {
         }
     }
 
-    // Резерв по UI-словарю
+    // 2. РЕЗЕРВНЫЙ ПОИСК по словарю интерфейса (сработает в Сито)
     if (typeof translations !== "undefined" && typeof currentLang !== "undefined") {
         let rawColName = String(header).toLowerCase().trim();
         if (translations[currentLang] && translations[currentLang][rawColName]) {
@@ -1206,8 +1199,11 @@ window.openColumnSelector = function (sysKey, reqName, isKaspi) {
     let colName = String(rawColName || "").trim();
     if (!colName) colName = `[Колонка ${index + 1} Пустой заголовок]`;
 
-    let displayColName = colName.replace(/[\r\n]+/g, " ");
-    let safeColName = displayColName.replace(/'/g, "\\'").replace(/"/g, '\\"');
+    // 🔥 ИСПРАВЛЕНИЕ ЗДЕСЬ: Переводим колонку для UI, но сохраняем чистый оригинал для скриптов
+    let translatedName = typeof window.translateColumnHeader === 'function' ? window.translateColumnHeader(colName) : colName;
+    
+    let displayColName = translatedName.replace(/[\r\n]+/g, " ");
+    let safeColName = colName.replace(/[\r\n]+/g, " ").replace(/'/g, "\\'").replace(/"/g, '\\"'); // В onclick уходит ОРИГИНАЛ
 
     let previews = [];
     for (let i = 0; i < Math.min(10, window.mapper2State.invoiceRows.length); i++) {
