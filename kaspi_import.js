@@ -1230,27 +1230,14 @@ window.openColumnSelector = function (sysKey, reqName, isKaspi) {
     let colName = String(rawColName || "").trim();
     if (!colName) colName = `[Колонка ${index + 1} Пустой заголовок]`;
 
-    // 🛡️ БЕЗОПАСНЫЙ ПЕРЕВОД: Заставляем браузер вытащить чистый текст без тегов
+    // 🛡️ ИДЕАЛЬНЫЙ ПЕРЕВОД: Вытаскиваем чистый текст без тегов (формат со скобками уже встроен в функцию перевода)
     let displayColName = colName;
     if (typeof window.translateColumnHeader === 'function') {
         let translatedHtml = window.translateColumnHeader(colName);
         if (typeof translatedHtml === 'string') {
-            // Создаем виртуальный элемент для очистки HTML
             let tempDiv = document.createElement("div");
             tempDiv.innerHTML = translatedHtml;
-            let cleanText = tempDiv.textContent || tempDiv.innerText || colName;
-            
-            // Красивое форматирование: "Перевод (Оригинал)"
-            if (cleanText.includes('(') && cleanText.includes(')')) {
-                let match = cleanText.match(/\(([^)]+)\)/);
-                if (match && match[1]) {
-                    displayColName = match[1] + " (" + colName + ")";
-                } else {
-                    displayColName = cleanText;
-                }
-            } else {
-                displayColName = cleanText;
-            }
+            displayColName = tempDiv.textContent || tempDiv.innerText || colName;
         }
     }
     
