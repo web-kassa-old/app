@@ -1344,7 +1344,7 @@ window.openColumnSelector = function (sysKey, reqName, isKaspi) {
     let colName = String(rawColName || "").trim();
     if (!colName) colName = `[Колонка ${index + 1} Пустой заголовок]`;
 
-    // 🛡️ ИДЕАЛЬНЫЙ ПЕРЕВОД: Вытаскиваем чистый текст без тегов (формат со скобками уже встроен в функцию перевода)
+    // 🛡️ ИДЕАЛЬНЫЙ ПЕРЕВОД: Вытаскиваем чистый текст без тегов
     let displayColName = colName;
     if (typeof window.translateColumnHeader === 'function') {
         let translatedHtml = window.translateColumnHeader(colName);
@@ -1357,6 +1357,10 @@ window.openColumnSelector = function (sysKey, reqName, isKaspi) {
     
     // Очищаем от переносов строк для верстки
     displayColName = displayColName.replace(/[\r\n]+/g, " ");
+    
+    // 🔥 РАСКРАСКА ПЕРЕВОДА: Оборачиваем текст в скобках в синий цвет
+    displayColName = displayColName.replace(/\(([^)]+)\)/g, '<span style="color: var(--accent-blue, #3498db); font-weight: normal; opacity: 0.9;">($1)</span>');
+    
     // В безопасное имя всегда отдаем ОРИГИНАЛ
     let safeColName = colName.replace(/[\r\n]+/g, " ").replace(/'/g, "\\'").replace(/"/g, '\\"');
 
