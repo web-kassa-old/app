@@ -656,7 +656,6 @@ window.navigateBack = function () {
 // 2. ОТРИСОВКА КАРТОЧЕК НА ГЛАВНОМ ЭКРАНЕ
 window.renderMapper2Cards = function (templateData) {
   // === КЭШИРОВАНИЕ ДАННЫХ ===
-  // Запоминаем данные при первом вызове, чтобы перерисовка работала при вызове без аргументов
   if (templateData) {
     window.lastTemplateData = templateData;
   } else {
@@ -811,7 +810,8 @@ window.renderMapper2Cards = function (templateData) {
 
   const globalSynonyms =
     typeof invoiceSynonyms !== "undefined" ? invoiceSynonyms : {};
-  const headersLower = (window.mapper2State.invoiceHeaders || []).map((h) =>
+  const rawHeaders = window.mapper2State.invoiceHeaders || [];
+  const headersLower = rawHeaders.map((h) =>
     String(h || "")
       .trim()
       .toLowerCase(),
@@ -889,17 +889,32 @@ window.renderMapper2Cards = function (templateData) {
       statusClass = "status-filled";
       let shortVal =
         dictValue.length > 15 ? dictValue.substring(0, 15) + "..." : dictValue;
-      // ИСПРАВЛЕНИЕ 1: Добавляем галочку и красим кнопку для словаря
       statusText = `✓ ${shortVal}`;
       statusI18n = "";
       statusStyle =
         "border: 1px solid var(--accent-green, #2ecc71); color: var(--accent-green, #2ecc71); background: var(--bg-success-dim, rgba(46, 204, 113, 0.15)); font-weight: bold;";
-    } else if (mappedIndex !== undefined) {
+    } else if (mappedIndex !== undefined && mappedIndex >= 0 && mappedIndex < rawHeaders.length) {
       statusClass = "status-filled";
+      
+      // ИСПРАВЛЕНИЕ: Берем правильный заголовок по индексу
+      let rawHeaderName = rawHeaders[mappedIndex];
+      let displayName = rawHeaderName;
 
-      let displayName = window.translateColumnHeader(header);
+      // ПЕРЕВОД: Безопасное получение чистого текста
+      if (typeof window.translateColumnHeader === 'function') {
+          let translatedHtml = window.translateColumnHeader(rawHeaderName);
+          if (typeof translatedHtml === 'string') {
+              if (translatedHtml.includes('</span>') && translatedHtml.includes('(') && translatedHtml.includes(')')) {
+                  let match = translatedHtml.match(/\(([^)]+)\)/);
+                  if (match && match[1]) {
+                      displayName = match[1] + " (" + rawHeaderName + ")";
+                  }
+              } else {
+                  displayName = translatedHtml.replace(/<[^>]*>?/gm, '');
+              }
+          }
+      }
 
-      // ⚡ Читаем правила И по ключу (Specs), И по имени (Ширина профиля)
       let splitData =
         window.mapper2State.splitRules &&
         (window.mapper2State.splitRules[req.name] || window.mapper2State.splitRules[req.sysKey]);
@@ -924,25 +939,21 @@ window.renderMapper2Cards = function (templateData) {
         }
 
         if (sampleText) {
-          // ⚡ Строго та же регулярка, что и в Токенизаторе
           const regex = /\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g;
           let tokens = sampleText.match(regex) || [];
           
-          // Генерируем сигнатуру для превью
           const sig = tokens.map(t => {
             if (/\d/.test(t)) return 'D';
             if (/[a-zA-Zа-яА-ЯёЁ]/.test(t)) return 'L';
             return '.';
           }).join('-');
           
-          // ⚡ ДОСТАЕМ ИНДЕКСЫ (поддерживаем и старый массив, и новые сигнатуры)
           let rawIndices = [];
           if (Array.isArray(splitData)) {
-            rawIndices = splitData; // Старый формат
+            rawIndices = splitData;
           } else if (splitData[sig]) {
-            rawIndices = splitData[sig]; // Новый формат по точной сигнатуре
+            rawIndices = splitData[sig];
           } else if (Object.keys(splitData).length > 0) {
-            // Фолбэк для превью: берем первое попавшееся правило, если сигнатура образца не совпала
             let firstKey = Object.keys(splitData)[0];
             rawIndices = Array.isArray(splitData[firstKey]) ? splitData[firstKey] : [];
           }
@@ -954,7 +965,6 @@ window.renderMapper2Cards = function (templateData) {
             return parseInt(idx);
           }).filter(n => !isNaN(n));
 
-          // Убираем дубликаты и сортируем по порядку
           validIndices = [...new Set(validIndices)].filter(n => n >= 0 && n < tokens.length).sort((a, b) => a - b);
 
           validIndices.forEach(i => {
@@ -972,7 +982,7 @@ window.renderMapper2Cards = function (templateData) {
             .join("");
         }
         
-        statusText = `✂ ${gluedText || colName}`;
+        statusText = `✂ ${gluedText || displayName}`;
         statusI18n = "";
         statusStyle =
           "border: 1px solid var(--accent-green, #2ecc71); color: var(--accent-green, #2ecc71); background: var(--bg-success-dim, rgba(46, 204, 113, 0.15)); font-weight: bold;";
@@ -984,8 +994,8 @@ window.renderMapper2Cards = function (templateData) {
                     </div>`;
         }
       } else {
-        // ИСПРАВЛЕНИЕ 3: Меняем текст кнопки для обычного маппинга
-        statusText = `✓ ${colName}`;
+        // Отображаем переведенное имя!
+        statusText = `✓ ${displayName}`;
         statusI18n = "";
         statusStyle =
           "border: 1px solid var(--accent-green, #2ecc71); color: var(--accent-green, #2ecc71); background: var(--bg-success-dim, rgba(46, 204, 113, 0.15)); font-weight: bold;";
@@ -1058,24 +1068,20 @@ window.renderMapper2Cards = function (templateData) {
       applyBtn.style.display = "block";
 
       if (window.isKaspiExportMode) {
-          // ПЕРЕХВАТЧИК: Оборачиваем родную функцию проверки
           if (!window.originalCheckMapperReadiness) {
               window.originalCheckMapperReadiness = window.checkMapperReadiness;
               
               window.checkMapperReadiness = function() {
-                  // Выполняем родную проверку
                   if (window.originalCheckMapperReadiness) window.originalCheckMapperReadiness();
                   
                   const btn = document.getElementById("applyMapper2Btn");
                   if (btn && window.isKaspiExportMode) {
                       const btnContainer = btn.parentElement;
                       
-                      // 1. ВЕШАЕМ ПРАВИЛЬНЫЙ АТРИБУТ ИЗ ТВОЕГО СЛОВАРЯ
                       const btnSpan = btn.querySelector("span");
                       const target = btnSpan || btn;
                       target.setAttribute("data-i18n", "kaspi_confirm_template");
                       
-                      // 2. КРАСИМ В СИНИЙ (только активную) ИСПОЛЬЗУЯ !important
                       if (!btn.classList.contains("disabled") && !btn.classList.contains("btn-disabled")) {
                           btn.style.setProperty("background", "var(--accent-blue, #2196f3)", "important");
                           btn.style.setProperty("border-color", "var(--accent-blue, #2196f3)", "important");
@@ -1084,13 +1090,11 @@ window.renderMapper2Cards = function (templateData) {
                           btn.style.borderColor = "";
                       }
                       
-                      // 3. Вызываем вашу системную функцию перевода
                       if (typeof window.applyLanguage === 'function') {
                           window.applyLanguage(typeof currentLang !== 'undefined' ? currentLang : 'ru');
                       }
                       
                       if (btnContainer) {
-                          // ДВОРНИК: Прячем все лишнее системное
                           const allOldBtns = btnContainer.querySelectorAll("button");
                           allOldBtns.forEach(b => {
                               if (b.id !== "applyMapper2Btn" && b.id !== "kaspiMapperBackBtn") {
@@ -1102,7 +1106,6 @@ window.renderMapper2Cards = function (templateData) {
                           if (!backBtn) {
                               backBtn = document.createElement("button");
                               backBtn.id = "kaspiMapperBackBtn";
-                              // ВЕШАЕМ АТРИБУТ НАЗАД
                               backBtn.setAttribute("data-i18n", "kaspi_mapper_back");
                               
                               backBtn.style.background = "transparent";
@@ -1119,7 +1122,6 @@ window.renderMapper2Cards = function (templateData) {
                               };
                               btnContainer.insertBefore(backBtn, btn);
                               
-                              // Вызываем перевод для новой кнопки
                               if (typeof window.applyLanguage === 'function') {
                                   window.applyLanguage(typeof currentLang !== 'undefined' ? currentLang : 'ru');
                               }
@@ -1138,7 +1140,6 @@ window.renderMapper2Cards = function (templateData) {
           if (typeof window.checkMapperReadiness === "function") window.checkMapperReadiness();
           
       } else {
-          // ЕСЛИ ЭТО ОБЫЧНАЯ ПРИЕМКА ТОВАРА: сбрасываем всё к оригиналу
           if (typeof window.checkMapperReadiness === "function") window.checkMapperReadiness();
           
           const backBtn = document.getElementById("kaspiMapperBackBtn");
@@ -1152,7 +1153,6 @@ window.renderMapper2Cards = function (templateData) {
           const target = btnSpan || applyBtn;
           target.setAttribute("data-i18n", "inc_build_invoice");
           
-          // Вызываем перевод, чтобы он вернул текст "Собрать накладную" на нужном языке
           if (typeof window.applyLanguage === 'function') {
               window.applyLanguage(typeof currentLang !== 'undefined' ? currentLang : 'ru');
           }
