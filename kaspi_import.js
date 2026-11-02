@@ -526,7 +526,15 @@ window.processInvoiceFile = async function () {
       let smartHeaders = window.mapper2State.invoiceHeaders || [];
       let smartRows = window.mapper2State.invoiceRows || [];
 
-      window.showComplexColumnSelector(smartHeaders, smartRows, templateData);
+      // 🔥 МАРШРУТИЗАТОР РЕЖИМОВ
+      if (window.isKaspiExportMode) {
+          // Режим "База + Kaspi": запускаем умное Сито
+          window.showComplexColumnSelector(smartHeaders, smartRows, templateData);
+      } else {
+          // Режим "Только в базу": пропускаем Сито и сразу открываем простой Маппер
+          window.renderMapper2Cards(templateData);
+      }
+      
     } else {
       throw new Error("Не удалось найти таблицу с товарами");
     }
@@ -666,11 +674,13 @@ window.renderMapper2Cards = function (templateData) {
   window.mapper2State.dictValues = window.mapper2State.dictValues || {};
   window.mapper2State.splitRules = window.mapper2State.splitRules || {};
 
+  // Применяем умные правила только если включен режим Kaspi
   if (
     window.mapper2State.smartRules &&
     templateData &&
     templateData.humanNames &&
-    templateData.systemKeys
+    templateData.systemKeys &&
+    window.isKaspiExportMode
   ) {
     const headers = window.mapper2State.invoiceHeaders || [];
 
@@ -713,7 +723,8 @@ window.renderMapper2Cards = function (templateData) {
     }
   }
 
-  if (templateData && templateData.systemKeys) {
+  // Выводим Kaspi-требования только если включен режим Kaspi
+  if (templateData && templateData.systemKeys && window.isKaspiExportMode) {
     const { humanNames, systemKeys, requirements } = templateData;
     window.mapper2State.sysToHumanMap = {};
 
