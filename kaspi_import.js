@@ -42,13 +42,12 @@ window.translateColumnHeader = function(header) {
     if (!header) return "";
     let activeDict = {};
     
-    let sourceDict = (typeof invoiceSynonyms !== "undefined" && invoiceSynonyms && Object.keys(invoiceSynonyms).length > 0) 
-        ? invoiceSynonyms 
-        : (window.currentTemplateData && window.currentTemplateData.synonyms ? window.currentTemplateData.synonyms : {});
-
-    for (let key in sourceDict) {
-        let val = sourceDict[key];
-        activeDict[key] = Array.isArray(val) ? [...val] : String(val).split(",").map(s => s.trim());
+    // 1. Поиск по таблице синонимов (сработает в Токенизаторе)
+    if (typeof invoiceSynonyms !== "undefined" && invoiceSynonyms) {
+        for (let key in invoiceSynonyms) {
+            let val = invoiceSynonyms[key];
+            activeDict[key] = Array.isArray(val) ? [...val] : String(val).split(",").map(s => s.trim());
+        }
     }
     
     if (window.mapper2State && window.mapper2State.dictValues) {
@@ -61,17 +60,48 @@ window.translateColumnHeader = function(header) {
 
     if (Object.keys(activeDict).length > 0) {
         let cleanHeader = String(header).toLowerCase().replace(/\s+/g, "");
+        let matchedKey = null;
+
         for (let key in activeDict) {
             let isMatch = activeDict[key].some(syn => {
                 let cleanSyn = String(syn).toLowerCase().replace(/\s+/g, "");
                 return cleanSyn && cleanHeader === cleanSyn;
             });
 
-            if (isMatch && key !== header) {
-                return `${header} <span style="color: var(--accent-blue); font-size: 0.85em; font-weight: normal;">(${key.charAt(0).toUpperCase() + key.slice(1)})</span>`;
+            if (isMatch) {
+                matchedKey = key;
+                break;
             }
         }
+
+        if (matchedKey && matchedKey !== header) {
+            let displayKey = matchedKey;
+            const baseNames = {
+                "barcode": "Артикул / Штрихкод",
+                "id": "Артикул / Код",
+                "name": "Наименование",
+                "brand": "Бренд",
+                "qty": "Количество",
+                "price": "Цена продажи",
+                "cost": "Цена закупа",
+                "category": "Категория",
+                "size": "Размер / Габариты"
+            };
+
+            displayKey = baseNames[matchedKey] ? baseNames[matchedKey] : displayKey.charAt(0).toUpperCase() + displayKey.slice(1);
+            return `${header} <span style="color: var(--accent-blue); font-size: 0.85em; font-weight: normal;">(${displayKey})</span>`;
+        }
     }
+
+    // 2. РЕЗЕРВНЫЙ ПОИСК по словарю интерфейса (сработает в Сито)
+    if (typeof translations !== "undefined" && typeof currentLang !== "undefined") {
+        let rawColName = String(header).toLowerCase().trim();
+        if (translations[currentLang] && translations[currentLang][rawColName]) {
+            let displayKey = translations[currentLang][rawColName];
+            return `${header} <span style="color: var(--accent-blue); font-size: 0.85em; font-weight: normal;">(${displayKey})</span>`;
+        }
+    }
+
     return header;
 };
 
