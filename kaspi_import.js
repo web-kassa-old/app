@@ -1360,14 +1360,15 @@ window.openColumnSelector = function (sysKey, reqName, isKaspi) {
     
     // 🔥 РАСКРАСКА ПЕРЕВОДА: Оборачиваем текст в скобках в синий цвет
     displayColName = displayColName.replace(/\(([^)]+)\)/g, '<span style="color: var(--accent-blue, #3498db); font-weight: normal; opacity: 0.9;">($1)</span>');
-    
+
     // В безопасное имя всегда отдаем ОРИГИНАЛ
     let safeColName = colName.replace(/[\r\n]+/g, " ").replace(/'/g, "\\'").replace(/"/g, '\\"');
 
     let previews = [];
     for (let i = 0; i < Math.min(10, window.mapper2State.invoiceRows.length); i++) {
       let val = String(window.mapper2State.invoiceRows[i][index] || "").trim();
-      if (val && previews.length < 3 && !previews.some((p) => p.orig === val)) {
+      // Убрана проверка на дубликаты, теперь всегда берем первые 3 заполненные строки
+      if (val && previews.length < 3) {
         previews.push({ orig: val });
       }
     }
