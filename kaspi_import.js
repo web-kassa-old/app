@@ -323,12 +323,16 @@ window.processInvoiceFile = async function () {
     if (validSheets.length === 0) throw new Error("Пустой файл (нет данных на листах)");
 
     // ⚡ ВЫБОР ЛИСТА С ИСПОЛЬЗОВАНИЕМ PROMISE (СТАВИМ КОД НА ПАУЗУ)
-    let rows = await new Promise((resolve) => {
+    let selectedSheetInfo = await new Promise((resolve) => {
         // Если лист всего один, не дергаем пользователя и идем дальше
         if (validSheets.length === 1) {
-            resolve(validSheets[0].rows);
+            resolve({ name: validSheets[0].name, rows: validSheets[0].rows });
             return;
         }
+
+        // Инициализируем реестр обработанных листов для этого файла
+        const fileRegistryKey = `processed_${window.mapper2State.fileName}`;
+        const processedSheets = JSON.parse(sessionStorage.getItem(fileRegistryKey) || "[]");
 
         // Если листов несколько - прячем системный лоадер и показываем окно выбора
         window.hideLoading(); 
@@ -353,9 +357,16 @@ window.processInvoiceFile = async function () {
         `;
 
         validSheets.forEach((sheetData, idx) => {
+            const isProcessed = processedSheets.includes(sheetData.name);
+            const btnStyle = isProcessed 
+                ? "background: rgba(76, 175, 80, 0.1); border: 1px solid rgba(76, 175, 80, 0.3); color: var(--text-main, #fff); padding: 14px 15px; border-radius: 8px; text-align: left; font-size: 14px; font-weight: bold; cursor: pointer; transition: 0.2s; display: flex; justify-content: space-between; align-items: center; opacity: 0.8;"
+                : "background: var(--bg-card, #252525); border: 1px solid var(--border-light, #333); color: var(--text-main, #fff); padding: 14px 15px; border-radius: 8px; text-align: left; font-size: 14px; font-weight: bold; cursor: pointer; transition: 0.2s; display: flex; justify-content: space-between; align-items: center;";
+            
+            const icon = isProcessed ? "✅" : "📄";
+
             html += `
-                <button class="sheet-select-btn" data-idx="${idx}" style="background: var(--bg-card, #252525); border: 1px solid var(--border-light, #333); color: var(--text-main, #fff); padding: 14px 15px; border-radius: 8px; text-align: left; font-size: 14px; font-weight: bold; cursor: pointer; transition: 0.2s; display: flex; justify-content: space-between; align-items: center;">
-                    <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 70%;">📄 ${sheetData.name}</span>
+                <button class="sheet-select-btn" data-idx="${idx}" data-name="${sheetData.name}" style="${btnStyle}">
+                    <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 70%;">${icon} ${sheetData.name}</span>
                     <span style="font-size: 11px; color: var(--text-muted, #777); font-weight: normal; background: rgba(255,255,255,0.05); padding: 2px 6px; border-radius: 4px;">Строк: ${sheetData.rows.length}</span>
                 </button>
             `;
@@ -374,12 +385,27 @@ window.processInvoiceFile = async function () {
         // Интерактивность кнопок
         const btns = modal.querySelectorAll('.sheet-select-btn');
         btns.forEach(btn => {
-            btn.onmouseover = () => { btn.style.borderColor = "var(--accent-blue, #3498db)"; btn.style.background = "var(--bg-hover, #2a2a2a)"; };
-            btn.onmouseout = () => { btn.style.borderColor = "var(--border-light, #333)"; btn.style.background = "var(--bg-card, #252525)"; };
+            const isProcessed = processedSheets.includes(btn.getAttribute('data-name'));
+            
+            btn.onmouseover = () => { 
+                btn.style.borderColor = isProcessed ? "var(--accent-green, #4CAF50)" : "var(--accent-blue, #3498db)"; 
+                btn.style.background = isProcessed ? "rgba(76, 175, 80, 0.2)" : "var(--bg-hover, #2a2a2a)"; 
+            };
+            btn.onmouseout = () => { 
+                btn.style.borderColor = isProcessed ? "rgba(76, 175, 80, 0.3)" : "var(--border-light, #333)"; 
+                btn.style.background = isProcessed ? "rgba(76, 175, 80, 0.1)" : "var(--bg-card, #252525)"; 
+            };
             btn.onclick = () => {
+                const sheetName = btn.getAttribute('data-name');
+                // Записываем лист в реестр обработанных
+                if (!processedSheets.includes(sheetName)) {
+                    processedSheets.push(sheetName);
+                    sessionStorage.setItem(fileRegistryKey, JSON.stringify(processedSheets));
+                }
+                
                 document.body.removeChild(overlay);
                 window.showLoading("Подготовка данных..."); // Возвращаем системный лоадер
-                resolve(validSheets[btn.getAttribute('data-idx')].rows);
+                resolve({ name: sheetName, rows: validSheets[btn.getAttribute('data-idx')].rows });
             };
         });
 
@@ -392,7 +418,10 @@ window.processInvoiceFile = async function () {
         };
     });
 
-    if (!rows) return; // Если пользователь нажал "Отмена", прерываем весь импорт
+    if (!selectedSheetInfo) return; // Если пользователь нажал "Отмена", прерываем весь импорт
+
+    let rows = selectedSheetInfo.rows;
+    let selectedSheetName = selectedSheetInfo.name;
 
     let file_doc_no = "UNKNOWN";
     let file_supplier = "UNKNOWN";
@@ -561,7 +590,8 @@ window.processInvoiceFile = async function () {
           });
       }
 
-      let fileContentStr = window.mapper2State.docNo + "_" + window.mapper2State.supplier + "_" + JSON.stringify(window.mapper2State.invoiceRows.slice(0, 5));
+      // Добавляем selectedSheetName для уникальности каждого листа
+      let fileContentStr = window.mapper2State.docNo + "_" + window.mapper2State.supplier + "_" + selectedSheetName + "_" + JSON.stringify(window.mapper2State.invoiceRows.slice(0, 5));
       let hashNum = 0;
       for (let i = 0; i < fileContentStr.length; i++) {
         hashNum = (hashNum << 5) - hashNum + fileContentStr.charCodeAt(i);
