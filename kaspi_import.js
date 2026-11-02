@@ -496,11 +496,11 @@ window.processInvoiceFile = async function () {
       }
       window.mapper2State.fileHash = "hash_" + Math.abs(hashNum).toString(16);
 
-      // --- ПРИНУДИТЕЛЬНАЯ ЗАГРУЗКА СЛОВАРЯ ---
-      console.log("🚦 [МАЯЧОК 1] Начинаем проверку словаря перед Ситом. invoiceSynonyms:", typeof invoiceSynonyms !== "undefined" ? invoiceSynonyms : "НЕ СУЩЕСТВУЕТ");
+      // --- ПРИНУДИТЕЛЬНАЯ ЗАГРУЗКА СЛОВАРЯ ПЕРЕД СИТОМ ---
+      console.log("🚦 [МАЯЧОК 1] Проверка словаря...");
       
       if (typeof invoiceSynonyms === "undefined" || Object.keys(invoiceSynonyms).length === 0) {
-        console.log("⚠️ Словаря нет! Принудительно запрашиваем у сервера...");
+        console.log("⚠️ Словарь еще не загружен сервером. Запрашиваем принудительно...");
         window.showLoading("Загрузка словаря переводов...");
         
         try {
@@ -512,16 +512,20 @@ window.processInvoiceFile = async function () {
             if (!text.trim().startsWith("<")) {
                 const data = JSON.parse(text);
                 if (data.synonyms && Object.keys(data.synonyms).length > 0) {
-                    window.invoiceSynonyms = data.synonyms;
-                    console.log("✅ [МАЯЧОК 2] Словарь успешно загружен принудительно!");
+                    // Вливаем данные в СУЩЕСТВУЮЩИЙ объект, чтобы все окна его увидели
+                    if (typeof invoiceSynonyms !== "undefined") {
+                        Object.assign(invoiceSynonyms, data.synonyms);
+                    }
+                    window.invoiceSynonyms = typeof invoiceSynonyms !== "undefined" ? invoiceSynonyms : data.synonyms;
+                    console.log("✅ [МАЯЧОК 2] Словарь получен!");
                 }
             }
         } catch (err) {
-            console.error("❌ Ошибка принудительной загрузки словаря:", err);
+            console.error("❌ Ошибка:", err);
         }
       }
       
-      console.log("🏁 [МАЯЧОК 3] Пауза окончена. Идем открывать Сито. invoiceSynonyms:", typeof invoiceSynonyms !== "undefined" ? invoiceSynonyms : "ВСЕ ЕЩЕ ПУСТО");
+      console.log("🏁 [МАЯЧОК 3] Идем открывать Сито. Словарь загружен.");
       // ---------------------------------
       
       window.hideLoading();
