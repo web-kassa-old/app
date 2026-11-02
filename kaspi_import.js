@@ -900,17 +900,26 @@ window.renderMapper2Cards = function (templateData) {
       let rawHeaderName = rawHeaders[mappedIndex];
       let displayName = rawHeaderName;
 
-      // ПЕРЕВОД: Безопасное получение чистого текста
+      // 🛡️ НАДЕЖНЫЙ ПЕРЕВОД: Заставляем браузер вытащить чистый текст из HTML
       if (typeof window.translateColumnHeader === 'function') {
-          let translatedHtml = window.translateColumnHeader(rawHeaderName);
+          let translatedHtml = window.translateColumnHeader(rawHeaderName); // В openColumnSelector тут переменная colName
           if (typeof translatedHtml === 'string') {
-              if (translatedHtml.includes('</span>') && translatedHtml.includes('(') && translatedHtml.includes(')')) {
-                  let match = translatedHtml.match(/\(([^)]+)\)/);
+              // 1. Создаем виртуальный элемент
+              let tempDiv = document.createElement("div");
+              tempDiv.innerHTML = translatedHtml;
+              // 2. Достаем 100% чистый текст без единого тега или стиля
+              let cleanText = tempDiv.textContent || tempDiv.innerText || rawHeaderName;
+              
+              // 3. Форматируем для красоты
+              if (cleanText.includes('(') && cleanText.includes(')')) {
+                  let match = cleanText.match(/\(([^)]+)\)/);
                   if (match && match[1]) {
                       displayName = match[1] + " (" + rawHeaderName + ")";
+                  } else {
+                      displayName = cleanText;
                   }
               } else {
-                  displayName = translatedHtml.replace(/<[^>]*>?/gm, '');
+                  displayName = cleanText;
               }
           }
       }
@@ -1229,8 +1238,34 @@ window.openColumnSelector = function (sysKey, reqName, isKaspi) {
     let colName = String(rawColName || "").trim();
     if (!colName) colName = `[Колонка ${index + 1} Пустой заголовок]`;
 
-    let displayColName = colName.replace(/[\r\n]+/g, " ");
-    let safeColName = displayColName.replace(/'/g, "\\'").replace(/"/g, '\\"');
+    // 🛡️ БЕЗОПАСНЫЙ ПЕРЕВОД: Заставляем браузер вытащить чистый текст без тегов
+    let displayColName = colName;
+    if (typeof window.translateColumnHeader === 'function') {
+        let translatedHtml = window.translateColumnHeader(colName);
+        if (typeof translatedHtml === 'string') {
+            // Создаем виртуальный элемент для очистки HTML
+            let tempDiv = document.createElement("div");
+            tempDiv.innerHTML = translatedHtml;
+            let cleanText = tempDiv.textContent || tempDiv.innerText || colName;
+            
+            // Красивое форматирование: "Перевод (Оригинал)"
+            if (cleanText.includes('(') && cleanText.includes(')')) {
+                let match = cleanText.match(/\(([^)]+)\)/);
+                if (match && match[1]) {
+                    displayColName = match[1] + " (" + colName + ")";
+                } else {
+                    displayColName = cleanText;
+                }
+            } else {
+                displayColName = cleanText;
+            }
+        }
+    }
+    
+    // Очищаем от переносов строк для верстки
+    displayColName = displayColName.replace(/[\r\n]+/g, " ");
+    // В безопасное имя всегда отдаем ОРИГИНАЛ
+    let safeColName = colName.replace(/[\r\n]+/g, " ").replace(/'/g, "\\'").replace(/"/g, '\\"');
 
     let previews = [];
     for (let i = 0; i < Math.min(10, window.mapper2State.invoiceRows.length); i++) {
