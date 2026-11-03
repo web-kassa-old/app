@@ -566,77 +566,76 @@ window.processInvoiceFile = async function () {
 
     // 🔥 АВТО-ОПРЕДЕЛЕНИЕ ГРАНИЦ ДАННЫХ И СКЛЕЙКА ШАПКИ
     let firstDataRowIdx = -1;
-    let globalSyns =
-      typeof invoiceSynonyms !== "undefined" ? invoiceSynonyms : {};
+    let headerIdx = -1;
+    let globalSyns = typeof invoiceSynonyms !== "undefined" ? invoiceSynonyms : {};
+    
+    // Собираем ключевые слова для поиска шапки (code, brand, qty, price и их синонимы)
     let searchKeys = [];
     ["price", "barcode", "name", "qty"].forEach((k) => {
       if (globalSyns[k]) searchKeys = searchKeys.concat(globalSyns[k]);
     });
-    searchKeys = searchKeys.map((s) =>
-      String(s).toLowerCase().replace(/\s+/g, ""),
-    );
+    // Добавляем жесткие маркеры, типичные для инвойсов
+    searchKeys = searchKeys.concat(["code", "brand", "description", "quantity", "unit price", "amount", "штрихкод", "наименование", "кол-во", "цена"]);
+    
+    searchKeys = searchKeys.map((s) => String(s).toLowerCase().replace(/\s+/g, ""));
 
-    for (let i = 0; i < Math.min(50, rows.length); i++) {
+    // Ищем строку, в которой больше всего совпадений с маркерами шапки
+    let maxMatches = 0;
+    
+    for (let i = 0; i < Math.min(30, rows.length); i++) {
       let row = rows[i] || [];
+      let matchCount = 0;
+      
+      row.forEach(cell => {
+         let cleanCell = String(cell).toLowerCase().replace(/\s+/g, "");
+         if (cleanCell && searchKeys.some(key => cleanCell.includes(key))) {
+            matchCount++;
+         }
+      });
 
-      let filledCellsCount = row.filter((c) => String(c).trim() !== "").length;
-      let numCount = row.filter((c) => {
-        let val = String(c).trim().replace(/,/g, "");
-        return val !== "" && !isNaN(Number(val));
-      }).length;
-      let hasTotal = row.some(
-        (c) =>
-          String(c).toUpperCase()?.includes("TOTAL") ||
-          String(c).toUpperCase()?.includes("ИТОГО"),
-      );
+      // Если в строке найдено хотя бы 2 слова из шапки (например, Code и Quantity)
+      if (matchCount >= 2 && matchCount > maxMatches) {
+         maxMatches = matchCount;
+         headerIdx = i;
+      }
+    }
 
-      if (filledCellsCount >= 4 && numCount >= 1 && !hasTotal) {
-        let isFormulaRow = row.some(
-          (c) =>
-            String(c).toUpperCase()?.includes("G=A-B-C") || String(c) === "A",
-        );
-        if (!isFormulaRow) {
-          firstDataRowIdx = i;
+    // Если шапку по маркерам не нашли, пробуем старый метод (ищем первую строку с числами)
+    if (headerIdx === -1) {
+      for (let i = 0; i < Math.min(50, rows.length); i++) {
+        let row = rows[i] || [];
+        let filledCellsCount = row.filter((c) => String(c).trim() !== "").length;
+        let numCount = row.filter((c) => {
+          let val = String(c).trim().replace(/,/g, "");
+          return val !== "" && !isNaN(Number(val));
+        }).length;
+        
+        let hasTotal = row.some((c) => String(c).toUpperCase()?.includes("TOTAL") || String(c).toUpperCase()?.includes("ИТОГО"));
+
+        if (filledCellsCount >= 4 && numCount >= 1 && !hasTotal) {
+          headerIdx = i > 0 ? i - 1 : 0;
           break;
         }
       }
     }
 
-    if (firstDataRowIdx > 0) {
-      let headerIdx = firstDataRowIdx - 1;
-
-      // Обходим мусорные строки (вроде G=A-B-C) вверх
-      while (headerIdx >= 0) {
-        let checkRow = rows[headerIdx] || [];
-        let isJunk = checkRow.some(
-          (c) =>
-            String(c).toUpperCase()?.includes("G=A-B-C") || String(c) === "A",
-        );
-        if (isJunk) {
-          headerIdx--;
-        } else {
-          break;
-        }
-      }
+    if (headerIdx >= 0) {
+      firstDataRowIdx = headerIdx + 1; // Данные начинаются сразу под шапкой
 
       // Склеиваем шапку (двухэтажную, если есть)
       let rawHeaders = rows[headerIdx] || [];
       let upperHeaders = headerIdx > 0 ? rows[headerIdx - 1] || [] : [];
 
       window.mapper2State.invoiceHeaders = rawHeaders.map((bottomText, idx) => {
-        let topText = String(upperHeaders[idx] || "")
-          .replace(/[\r\n]+/g, " ")
-          .trim();
-        let botText = String(bottomText || "")
-          .replace(/[\r\n]+/g, " ")
-          .trim();
+        let topText = String(upperHeaders[idx] || "").replace(/[\r\n]+/g, " ").trim();
+        let botText = String(bottomText || "").replace(/[\r\n]+/g, " ").trim();
 
-        if (
-          topText &&
-          botText &&
-          topText.toLowerCase() !== botText.toLowerCase()
-        ) {
-          return `${topText} ${botText}`; // Например "Размеры Ширина"
+        // Проверяем, не является ли верхняя строка куском договора. 
+        // Если она слишком длинная (больше 30 символов), игнорируем её.
+        if (topText.length > 30) topText = "";
+
+        if (topText && botText && topText.toLowerCase() !== botText.toLowerCase()) {
+          return `${topText} ${botText}`;
         }
         return botText || topText;
       });

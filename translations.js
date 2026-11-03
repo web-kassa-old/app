@@ -535,6 +535,8 @@ const translations = {
     cat_rename_err: "Ошибка переименования: ",
     cat_rename_fail: "Сбой при обработке: ",
     loading_wait: "Подождите...",
+    mapper_invoice_cols: "КОЛОНКИ ИЗ НАКЛАДНОЙ",
+    mapper_clear: "Очистить",
   },
   kz: {
     btn_sale: "САТУ",
@@ -1072,5 +1074,7 @@ const translations = {
     cat_rename_err: "Қайта атау қатесі: ",
     cat_rename_fail: "Өңдеу кезіндегі қате: ",
     loading_wait: "Күте тұрыңыз...",
+    mapper_invoice_cols: "ЖҮКҚҰЖАТ БАҒАНДАРЫ",
+    mapper_clear: "Тазарту",
   },
 };
