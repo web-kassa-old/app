@@ -4045,33 +4045,26 @@ function triggerCategoryRename() {
     };
 
     smartFetch(APPS_SCRIPT_URL, payload, 'cache_rename_category')
-      .then(response => {
+      .then(async response => {
         if (typeof hideLoading === 'function') hideLoading();
         
         if (response && response.success) {
           
-          // 1. Визуализация как при долгом тапе
-          document.body.style.transition = "background-color 0.1s ease";
+          // 1. Моргание красным экраном для визуализации
+          document.body.style.transition = "background-color 0.3s ease";
+          const originalColor = document.body.style.backgroundColor;
           document.body.style.backgroundColor = "var(--accent-red)";
-          document.body.innerHTML = `
-            <div style="height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center; color: white;">
-                <div style="font-size: 60px; margin-bottom: 20px;">🔄</div>
-                <h2 style="font-family: sans-serif;">Обновление базы...</h2>
-            </div>
-          `;
           
-          // 2. Секрет из forceAppUpdate: выжигаем только localStorage, 
-          // sessionStorage НЕ ТРОГАЕМ, чтобы не сломать Google Auth
-          try {
-            localStorage.clear();
-          } catch (e) {
-            console.warn("Ошибка при очистке:", e);
-          }
-          
-          // 3. Безопасная перезагрузка без потери исходной ссылки
           setTimeout(() => {
-            window.location.replace(window.location.href.split("#")[0]);
-          }, 500);
+            document.body.style.backgroundColor = originalColor || "";
+          }, 400);
+
+          // 2. Бесшовное стягивание свежих данных с сервера (как при вашей кнопке)
+          if (typeof refreshPosData === 'function') {
+            await refreshPosData(false, true); // true для полного обновления
+          } else if (typeof load === 'function') {
+            await load(true);
+          }
 
         } else {
           alert("Ошибка переименования: " + (response ? response.error : "Ответ не получен"));
