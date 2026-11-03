@@ -3898,6 +3898,7 @@ let targetMarkupCategory = null;
 let catHoldTimer = null;
 let isCatHold = false;
 
+// Перехватываем таймер
 function startCatHold(catName, e) {
   if (!currentUser || currentUser.role !== "manager") return;
 
@@ -3905,7 +3906,9 @@ function startCatHold(catName, e) {
   catHoldTimer = setTimeout(() => {
     isCatHold = true;
     if (navigator.vibrate) navigator.vibrate([50, 50, 50]);
-    openCategoryMarkup(catName);
+    
+    // Вместо openCategoryMarkup теперь открываем Action Menu
+    openCategoryActionMenu(catName);
   }, 1000);
 }
 
@@ -3996,6 +3999,74 @@ function applyCategoryMarkup() {
     if (navigator.vibrate) navigator.vibrate([30, 50, 30]);
   } else {
     alert(translations[currentLang].markup_no_cost);
+  }
+}
+
+// === НОВЫЙ БЛОК ЛОГИКИ МЕНЮ ДЕЙСТВИЙ ===
+let actionMenuTargetCategory = "";
+
+function openCategoryActionMenu(catName) {
+  actionMenuTargetCategory = catName;
+  
+  // Выводим имя (категорию "Все" переименовать нельзя, скроем кнопку)
+  const t = typeof translations !== 'undefined' && translations[currentLang] ? translations[currentLang] : {};
+  document.getElementById("action-menu-category-name").innerText = 
+    catName === "all" ? (t.cat_all || "Все") : catName;
+    
+  document.getElementById("btn-action-rename").style.display = catName === "all" ? "none" : "block";
+  document.getElementById("category-action-menu-modal").style.display = "flex";
+}
+
+function closeCategoryActionMenu() {
+  document.getElementById("category-action-menu-modal").style.display = "none";
+}
+
+function triggerCategoryMarkup() {
+  closeCategoryActionMenu();
+  // Передаем эстафету старой функции
+  openCategoryMarkup(actionMenuTargetCategory);
+}
+
+function triggerCategoryRename() {
+  closeCategoryActionMenu();
+  
+  // Запрашиваем новое имя
+  const newName = prompt(`Введите новое название для категории "${actionMenuTargetCategory}":`, actionMenuTargetCategory);
+  
+  if (newName && newName.trim() !== "" && newName.trim() !== actionMenuTargetCategory) {
+    const finalNewName = newName.trim();
+    
+    // Показываем лоадер (использую вашу функцию showLoading, если она есть)
+    if (typeof showLoading === 'function') showLoading();
+    
+    // Формируем payload для отправки на бэкенд
+    const payload = {
+      api_key: localStorage.getItem('api_key'), // ваш способ хранения ключа
+      action: 'rename_category',
+      old_name: actionMenuTargetCategory,
+      new_name: finalNewName
+    };
+
+    // Отправляем запрос (использую ваш стандартный smartFetch, судя по списку функций)
+    smartFetch(payload)
+      .then(response => {
+        if (typeof hideLoading === 'function') hideLoading();
+        if (response && response.success) {
+          // Если используете Swal, можно заменить на Swal.fire
+          alert(`Категория успешно переименована в "${finalNewName}" (Обновлено строк: ${response.updated})`);
+          
+          // Обновляем данные фронтенда, чтобы новая категория появилась
+          if (typeof refreshPosData === 'function') {
+            refreshPosData(); 
+          }
+        } else {
+          alert("Ошибка переименования: " + (response.error || "Неизвестная ошибка"));
+        }
+      })
+      .catch(err => {
+        if (typeof hideLoading === 'function') hideLoading();
+        alert("Сбой сети: " + err.message);
+      });
   }
 }
 
