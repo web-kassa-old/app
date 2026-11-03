@@ -4050,7 +4050,7 @@ function triggerCategoryRename() {
         
         if (response && response.success) {
           
-          // Включаем вашу визуализацию обновления
+          // 1. Визуализация как при долгом тапе
           document.body.style.transition = "background-color 0.1s ease";
           document.body.style.backgroundColor = "var(--accent-red)";
           document.body.innerHTML = `
@@ -4060,11 +4060,17 @@ function triggerCategoryRename() {
             </div>
           `;
           
-          // БЕЗ localStorage.clear()! 
-          // Просто делаем жесткую перезагрузку страницы через полсекунды.
-          // Ключи останутся на месте, и приложение загрузится уже с новыми данными.
+          // 2. Секрет из forceAppUpdate: выжигаем только localStorage, 
+          // sessionStorage НЕ ТРОГАЕМ, чтобы не сломать Google Auth
+          try {
+            localStorage.clear();
+          } catch (e) {
+            console.warn("Ошибка при очистке:", e);
+          }
+          
+          // 3. Безопасная перезагрузка без потери исходной ссылки
           setTimeout(() => {
-            window.location.reload(true);
+            window.location.replace(window.location.href.split("#")[0]);
           }, 500);
 
         } else {
