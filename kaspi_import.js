@@ -640,28 +640,41 @@ window.processInvoiceFile = async function () {
         return botText || topText;
       });
 
-      // Передаем в парсер только полезные данные, отсекая случайные пустые строки
+      // Передаем в парсер только полезные данные, отсекая случайные пустые строки и подвал (контракты/итоги)
       let validRows = [];
-      let emptyCount = 0;
+      let strikes = 0; // Счетчик невалидных строк подряд
 
       for (let i = firstDataRowIdx; i < rows.length; i++) {
         let row = rows[i] || [];
-        let isEmpty = row.every((cell) => String(cell || "").trim() === "");
-        let isTotal = row.some(
-          (c) =>
-            String(c).toUpperCase()?.includes("TOTAL") ||
-            String(c).toUpperCase()?.includes("ИТОГО"),
-        );
+        
+        // 1. Считаем сколько ячеек реально заполнено данными
+        let filledCellsCount = row.filter((c) => String(c).trim() !== "").length;
+        
+        // 2. Ищем аномально длинный текст (признак условий договора)
+        let hasHugeText = row.some((c) => String(c).trim().length > 150);
 
-        if (isTotal) break;
+        // 3. Считаем количество числовых ячеек
+        let numCount = row.filter((c) => {
+          let val = String(c).trim().replace(/,/g, "");
+          return val !== "" && !isNaN(Number(val));
+        }).length;
 
-        if (isEmpty) {
-          emptyCount++;
-          if (emptyCount >= 3) break; // Три пустые строки = конец таблицы
-          continue;
-        } else {
-          emptyCount = 0;
+        // ПРАВИЛА ВАЛИДНОСТИ СТРОКИ:
+        // - Должно быть заполнено не менее 3 ячеек (например: артикул, кол-во, цена)
+        // - Должно быть хотя бы одно число
+        // - Не должно быть огромных кусков текста
+        let isValidRow = (filledCellsCount >= 3) && (numCount >= 1) && !hasHugeText;
+
+        if (isValidRow) {
           validRows.push(row);
+          strikes = 0; // Сбрасываем страйки, если строка хорошая
+        } else {
+          strikes++;
+          if (strikes >= 2) {
+            // Если 2 строки подряд оказались пустыми или мусорными, 
+            // считаем, что таблица закончилась.
+            break;
+          }
         }
       }
 
