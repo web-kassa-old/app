@@ -4030,42 +4030,40 @@ function triggerCategoryMarkup() {
 function triggerCategoryRename() {
   closeCategoryActionMenu();
   
-  // Запрашиваем новое имя
   const newName = prompt(`Введите новое название для категории "${actionMenuTargetCategory}":`, actionMenuTargetCategory);
   
   if (newName && newName.trim() !== "" && newName.trim() !== actionMenuTargetCategory) {
     const finalNewName = newName.trim();
     
-    // Показываем лоадер (использую вашу функцию showLoading, если она есть)
     if (typeof showLoading === 'function') showLoading();
     
-    // Формируем payload для отправки на бэкенд
     const payload = {
-      api_key: localStorage.getItem('api_key'), // ваш способ хранения ключа
+      api_key: CLIENT_API_KEY, // <-- Используем вашу переменную ключа
       action: 'rename_category',
       old_name: actionMenuTargetCategory,
       new_name: finalNewName
     };
 
-    // Отправляем запрос (использую ваш стандартный smartFetch, судя по списку функций)
-    smartFetch(payload)
+    // <-- Используем APPS_SCRIPT_URL из вашего конфига
+    smartFetch(APPS_SCRIPT_URL, payload, 'cache_rename_category')
       .then(response => {
         if (typeof hideLoading === 'function') hideLoading();
+        
         if (response && response.success) {
-          // Если используете Swal, можно заменить на Swal.fire
-          alert(`Категория успешно переименована в "${finalNewName}" (Обновлено строк: ${response.updated})`);
+          alert(`Категория успешно переименована! Обновлено строк: ${response.updated}`);
           
-          // Обновляем данные фронтенда, чтобы новая категория появилась
+          // Обновляем данные интерфейса, чтобы новая категория появилась
           if (typeof refreshPosData === 'function') {
             refreshPosData(); 
           }
         } else {
-          alert("Ошибка переименования: " + (response.error || "Неизвестная ошибка"));
+          const errMsg = response ? response.error : "Ответ не получен";
+          alert("Ошибка переименования: " + errMsg);
         }
       })
       .catch(err => {
         if (typeof hideLoading === 'function') hideLoading();
-        alert("Сбой сети: " + err.message);
+        alert("Сбой фронтенда при обработке: " + err.message);
       });
   }
 }
