@@ -4050,7 +4050,7 @@ function triggerCategoryRename() {
         
         if (response && response.success) {
           
-          // ЗАПУСКАЕМ ВАШ ПРОЦЕСС ГЛОБАЛЬНОГО ОБНОВЛЕНИЯ (как при долгом тапе)
+          // Включаем вашу визуализацию обновления
           document.body.style.transition = "background-color 0.1s ease";
           document.body.style.backgroundColor = "var(--accent-red)";
           document.body.innerHTML = `
@@ -4060,18 +4060,15 @@ function triggerCategoryRename() {
             </div>
           `;
           
-          // Полностью сносим кэш (как в вашем startResetHold)
-          localStorage.clear();
-          sessionStorage.clear();
-
-          // Перезагружаем страницу через полсекунды
+          // БЕЗ localStorage.clear()! 
+          // Просто делаем жесткую перезагрузку страницы через полсекунды.
+          // Ключи останутся на месте, и приложение загрузится уже с новыми данными.
           setTimeout(() => {
             window.location.reload(true);
           }, 500);
 
         } else {
-          const errMsg = response ? response.error : "Ответ не получен";
-          alert("Ошибка переименования: " + errMsg);
+          alert("Ошибка переименования: " + (response ? response.error : "Ответ не получен"));
         }
       })
       .catch(err => {
