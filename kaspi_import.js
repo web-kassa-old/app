@@ -3,14 +3,14 @@ window.parsedInvoiceData = [];
 window.invoiceGroups = {};
 
 // Обработчик загрузки нового шаблона Kaspi при выборе "Новый шаблон"
-document.addEventListener("change", function(e) {
-    if (e.target && e.target.id === "kaspiTemplateSelect") {
-        if (e.target.value === "new") {
-            const modal = document.getElementById("newTemplateModal");
-            if (modal) modal.style.display = "flex";
-            e.target.value = ""; // Сбрасываем, чтобы можно было выбрать снова
-        }
+document.addEventListener("change", function (e) {
+  if (e.target && e.target.id === "kaspiTemplateSelect") {
+    if (e.target.value === "new") {
+      const modal = document.getElementById("newTemplateModal");
+      if (modal) modal.style.display = "flex";
+      e.target.value = ""; // Сбрасываем, чтобы можно было выбрать снова
     }
+  }
 });
 
 function toggleIncomeModule() {
@@ -24,7 +24,7 @@ function toggleIncomeModule() {
   // 🔥 ЖЕСТКИЙ СБРОС: Включаем режим ОБЫЧНОЙ ПРИЕМКИ
   window.isKaspiExportMode = false;
   window.currentExportHash = null;
-  window.kaspiExportItems = []; 
+  window.kaspiExportItems = [];
 
   if (modal.style.display === "none" || modal.style.display === "") {
     // Принудительно включаем Шаг 1 перед открытием (true означает, что шаг не пишется в историю дублем)
@@ -38,128 +38,143 @@ function toggleIncomeModule() {
 }
 
 // 🔥 Универсальная функция перевода шапок
-window.translateColumnHeader = function(header) {
-    if (!header) return "";
-    let activeDict = {};
-    
-    // 1. Поиск по таблице синонимов (сработает в Токенизаторе)
-    if (typeof invoiceSynonyms !== "undefined" && invoiceSynonyms) {
-        for (let key in invoiceSynonyms) {
-            let val = invoiceSynonyms[key];
-            activeDict[key] = Array.isArray(val) ? [...val] : String(val).split(",").map(s => s.trim());
-        }
+window.translateColumnHeader = function (header) {
+  if (!header) return "";
+  let activeDict = {};
+
+  // 1. Поиск по таблице синонимов (сработает в Токенизаторе)
+  if (typeof invoiceSynonyms !== "undefined" && invoiceSynonyms) {
+    for (let key in invoiceSynonyms) {
+      let val = invoiceSynonyms[key];
+      activeDict[key] = Array.isArray(val)
+        ? [...val]
+        : String(val)
+            .split(",")
+            .map((s) => s.trim());
     }
-    
-    if (window.mapper2State && window.mapper2State.dictValues) {
-        for (let key in window.mapper2State.dictValues) {
-            let savedVal = window.mapper2State.dictValues[key];
-            let savedArr = Array.isArray(savedVal) ? savedVal : String(savedVal).split(",").map(s => s.trim());
-            activeDict[key] = activeDict[key] ? [...new Set([...activeDict[key], ...savedArr])] : savedArr;
-        }
+  }
+
+  if (window.mapper2State && window.mapper2State.dictValues) {
+    for (let key in window.mapper2State.dictValues) {
+      let savedVal = window.mapper2State.dictValues[key];
+      let savedArr = Array.isArray(savedVal)
+        ? savedVal
+        : String(savedVal)
+            .split(",")
+            .map((s) => s.trim());
+      activeDict[key] = activeDict[key]
+        ? [...new Set([...activeDict[key], ...savedArr])]
+        : savedArr;
     }
+  }
 
-    if (Object.keys(activeDict).length > 0) {
-        let cleanHeader = String(header).toLowerCase().replace(/\s+/g, "");
-        let matchedKey = null;
+  if (Object.keys(activeDict).length > 0) {
+    let cleanHeader = String(header).toLowerCase().replace(/\s+/g, "");
+    let matchedKey = null;
 
-        for (let key in activeDict) {
-            let isMatch = activeDict[key].some(syn => {
-                let cleanSyn = String(syn).toLowerCase().replace(/\s+/g, "");
-                return cleanSyn && cleanHeader === cleanSyn;
-            });
+    for (let key in activeDict) {
+      let isMatch = activeDict[key].some((syn) => {
+        let cleanSyn = String(syn).toLowerCase().replace(/\s+/g, "");
+        return cleanSyn && cleanHeader === cleanSyn;
+      });
 
-            if (isMatch) {
-                matchedKey = key;
-                break;
-            }
-        }
-
-        if (matchedKey && matchedKey !== header) {
-            let displayKey = matchedKey;
-            const baseNames = {
-                "barcode": "Артикул / Штрихкод",
-                "id": "Артикул / Код",
-                "name": "Наименование",
-                "brand": "Бренд",
-                "qty": "Количество",
-                "price": "Цена продажи",
-                "cost": "Цена закупа",
-                "category": "Категория",
-                "size": "Размер / Габариты"
-            };
-
-            displayKey = baseNames[matchedKey] ? baseNames[matchedKey] : displayKey.charAt(0).toUpperCase() + displayKey.slice(1);
-            return `${header} <span style="color: var(--accent-blue); font-size: 0.85em; font-weight: normal;">(${displayKey})</span>`;
-        }
+      if (isMatch) {
+        matchedKey = key;
+        break;
+      }
     }
 
-    // 2. РЕЗЕРВНЫЙ ПОИСК по словарю интерфейса (сработает в Сито)
-    if (typeof translations !== "undefined" && typeof currentLang !== "undefined") {
-        let rawColName = String(header).toLowerCase().trim();
-        if (translations[currentLang] && translations[currentLang][rawColName]) {
-            let displayKey = translations[currentLang][rawColName];
-            return `${header} <span style="color: var(--accent-blue); font-size: 0.85em; font-weight: normal;">(${displayKey})</span>`;
-        }
-    }
+    if (matchedKey && matchedKey !== header) {
+      let displayKey = matchedKey;
+      const baseNames = {
+        barcode: "Артикул / Штрихкод",
+        id: "Артикул / Код",
+        name: "Наименование",
+        brand: "Бренд",
+        qty: "Количество",
+        price: "Цена продажи",
+        cost: "Цена закупа",
+        category: "Категория",
+        size: "Размер / Габариты",
+      };
 
-    return header;
+      displayKey = baseNames[matchedKey]
+        ? baseNames[matchedKey]
+        : displayKey.charAt(0).toUpperCase() + displayKey.slice(1);
+      return `${header} <span style="color: var(--accent-blue); font-size: 0.85em; font-weight: normal;">(${displayKey})</span>`;
+    }
+  }
+
+  // 2. РЕЗЕРВНЫЙ ПОИСК по словарю интерфейса (сработает в Сито)
+  if (
+    typeof translations !== "undefined" &&
+    typeof currentLang !== "undefined"
+  ) {
+    let rawColName = String(header).toLowerCase().trim();
+    if (translations[currentLang] && translations[currentLang][rawColName]) {
+      let displayKey = translations[currentLang][rawColName];
+      return `${header} <span style="color: var(--accent-blue); font-size: 0.85em; font-weight: normal;">(${displayKey})</span>`;
+    }
+  }
+
+  return header;
 };
 
-window.showComplexColumnSelector = function(headers, rows, templateData) {
-    const overlay = document.createElement("div");
-    overlay.className = "complex-overlay";
-    overlay.id = "complexColsOverlay";
+window.showComplexColumnSelector = function (headers, rows, templateData) {
+  const overlay = document.createElement("div");
+  overlay.className = "complex-overlay";
+  overlay.id = "complexColsOverlay";
 
-    const modal = document.createElement("div");
-    modal.className = "complex-modal";
+  const modal = document.createElement("div");
+  modal.className = "complex-modal";
 
-    // Умный поиск примера по ЧИСТЫМ строкам
-    const getComplexExample = (colIdx) => {
-        let bestVal = "";
-        let maxScore = -1;
-        
-        for (let i = 0; i < rows.length; i++) {
-            if (!rows[i]) continue;
-            let val = String(rows[i][colIdx] || "").trim();
-            if (!val) continue;
-            
-            let score = 0;
-            // Ищем реальные признаки сложных параметров
-            if (/[\/\\]/.test(val)) score += 50; // Слэши - главный маркер
-            if (/[xXхХ*]/.test(val)) score += 40; // Габариты
-            if (/[a-zA-Zа-яА-Я]/.test(val) && /[0-9]/.test(val)) score += 30; // Буквы + Цифры
-            if (/\s/.test(val)) score += 20; // Пробелы
-            score += val.length; 
-            
-            if (score > maxScore) {
-                maxScore = score;
-                bestVal = val;
-            }
-        }
-        return bestVal;
-    };
+  // Умный поиск примера по ЧИСТЫМ строкам
+  const getComplexExample = (colIdx) => {
+    let bestVal = "";
+    let maxScore = -1;
 
-    let html = `<h3 class="complex-title" data-i18n="complex_title">Настройка сложных колонок</h3>`;
-    html += `<p class="complex-desc" data-i18n="complex_desc">
+    for (let i = 0; i < rows.length; i++) {
+      if (!rows[i]) continue;
+      let val = String(rows[i][colIdx] || "").trim();
+      if (!val) continue;
+
+      let score = 0;
+      // Ищем реальные признаки сложных параметров
+      if (/[\/\\]/.test(val)) score += 50; // Слэши - главный маркер
+      if (/[xXхХ*]/.test(val)) score += 40; // Габариты
+      if (/[a-zA-Zа-яА-Я]/.test(val) && /[0-9]/.test(val)) score += 30; // Буквы + Цифры
+      if (/\s/.test(val)) score += 20; // Пробелы
+      score += val.length;
+
+      if (score > maxScore) {
+        maxScore = score;
+        bestVal = val;
+      }
+    }
+    return bestVal;
+  };
+
+  let html = `<h3 class="complex-title" data-i18n="complex_title">Настройка сложных колонок</h3>`;
+  html += `<p class="complex-desc" data-i18n="complex_desc">
                 Отметьте галочкой колонки, в которых склеено несколько параметров (например, Габариты или Размер). 
                 Остальные колонки скрипт загрузит напрямую.
              </p>`;
 
-    html += `<div class="complex-list">`;
-    
-    headers.forEach((header, idx) => {
-        let originalName = header || `Колонка ${idx + 1}`;
-let colName = window.translateColumnHeader(originalName);
+  html += `<div class="complex-list">`;
 
-        let sampleVal = getComplexExample(idx);
-        
-        if (sampleVal.length > 40) sampleVal = sampleVal.substring(0, 40) + "...";
-        
-        let displayVal = sampleVal 
-            ? `<div class="complex-example"><span data-i18n="complex_example">Пример:</span> <span class="complex-tag">${sampleVal}</span></div>` 
-            : `<div class="complex-example" style="opacity:0.5;" data-i18n="complex_empty">(Пустая колонка)</div>`;
-        
-        html += `
+  headers.forEach((header, idx) => {
+    let originalName = header || `Колонка ${idx + 1}`;
+    let colName = window.translateColumnHeader(originalName);
+
+    let sampleVal = getComplexExample(idx);
+
+    if (sampleVal.length > 40) sampleVal = sampleVal.substring(0, 40) + "...";
+
+    let displayVal = sampleVal
+      ? `<div class="complex-example"><span data-i18n="complex_example">Пример:</span> <span class="complex-tag">${sampleVal}</span></div>`
+      : `<div class="complex-example" style="opacity:0.5;" data-i18n="complex_empty">(Пустая колонка)</div>`;
+
+    html += `
             <label class="complex-label">
                 <input type="checkbox" class="complex-col-cb" value="${originalName}">
                 <div style="flex: 1;">
@@ -168,47 +183,51 @@ let colName = window.translateColumnHeader(originalName);
                 </div>
             </label>
         `;
-    });
+  });
 
-    html += `</div>`;
-    html += `<div style="display:flex; justify-content:space-between; margin-top:20px;">
+  html += `</div>`;
+  html += `<div style="display:flex; justify-content:space-between; margin-top:20px;">
                 <button id="btnComplexBack" class="complex-btn" style="background: var(--bg-card); color: var(--text-main); border: 1px solid var(--border-main);" data-i18n="inc_back">🡠 НАЗАД</button>
                 <button id="btnComplexNext" class="complex-btn" data-i18n="btn_next">ДАЛЕЕ ➔</button>
              </div>`;
 
-    modal.innerHTML = html;
-    overlay.appendChild(modal);
-    document.body.appendChild(overlay);
+  modal.innerHTML = html;
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
 
-    if (typeof window.applyLanguage === "function") {
-        window.applyLanguage();
+  if (typeof window.applyLanguage === "function") {
+    window.applyLanguage();
+  }
+
+  // Обработчик кнопки НАЗАД
+  document.getElementById("btnComplexBack").addEventListener("click", () => {
+    document.body.removeChild(overlay);
+    if (typeof window.navigateIncomeStep === "function")
+      window.navigateIncomeStep(1);
+  });
+
+  // Обработчик кнопки ДАЛЕЕ
+  document.getElementById("btnComplexNext").addEventListener("click", () => {
+    const checkboxes = modal.querySelectorAll(".complex-col-cb:checked");
+    const selected = Array.from(checkboxes).map((cb) => cb.value);
+
+    window.complexColumnsToTokenize = selected;
+    window.mapper2State.lastComplexColumns = selected;
+
+    document.body.removeChild(overlay);
+
+    if (selected.length > 0) {
+      window.navigateIncomeStep("smart");
+      if (typeof window.renderSmartMapper === "function")
+        window.renderSmartMapper();
+      else if (typeof window.initSmartMapper === "function")
+        window.initSmartMapper();
+    } else {
+      window.navigateIncomeStep(2);
+      if (typeof window.renderMapper2Cards === "function")
+        window.renderMapper2Cards(templateData);
     }
-
-    // Обработчик кнопки НАЗАД
-    document.getElementById("btnComplexBack").addEventListener("click", () => {
-        document.body.removeChild(overlay);
-        if (typeof window.navigateIncomeStep === "function") window.navigateIncomeStep(1);
-    });
-
-    // Обработчик кнопки ДАЛЕЕ
-    document.getElementById("btnComplexNext").addEventListener("click", () => {
-        const checkboxes = modal.querySelectorAll(".complex-col-cb:checked");
-        const selected = Array.from(checkboxes).map(cb => cb.value);
-
-        window.complexColumnsToTokenize = selected;
-        window.mapper2State.lastComplexColumns = selected; 
-        
-        document.body.removeChild(overlay);
-
-        if (selected.length > 0) {
-            window.navigateIncomeStep("smart");
-            if (typeof window.renderSmartMapper === "function") window.renderSmartMapper();
-            else if (typeof window.initSmartMapper === "function") window.initSmartMapper();
-        } else {
-            window.navigateIncomeStep(2);
-            if (typeof window.renderMapper2Cards === "function") window.renderMapper2Cards(templateData);
-        }
-    });
+  });
 };
 
 // 1. ЧТЕНИЕ ФАЙЛА И ПОИСК ТАБЛИЦЫ
@@ -218,9 +237,11 @@ window.processInvoiceFile = async function () {
     return alert(translations[currentLang]?.inc_no_file || "Выберите файл");
 
   // ⚡ 1. ЖЕСТКИЙ СБРОС СОСТОЯНИЯ
-  const preservedDict = window.mapper2State?.dictValues || (typeof invoiceSynonyms !== "undefined" ? invoiceSynonyms : {});
+  const preservedDict =
+    window.mapper2State?.dictValues ||
+    (typeof invoiceSynonyms !== "undefined" ? invoiceSynonyms : {});
   window.mapper2State = {
-    dictValues: preservedDict
+    dictValues: preservedDict,
   };
 
   let templateData = null;
@@ -237,7 +258,10 @@ window.processInvoiceFile = async function () {
       templateData = window.kaspiTemplateCache[templateName];
       window.showLoading("Чтение накладной...");
     } else {
-      let tText = typeof translations !== "undefined" && translations[currentLang] && translations[currentLang].kaspi_download_tpl
+      let tText =
+        typeof translations !== "undefined" &&
+        translations[currentLang] &&
+        translations[currentLang].kaspi_download_tpl
           ? translations[currentLang].kaspi_download_tpl
           : "Скачивание структуры шаблона...";
       window.showLoading(tText);
@@ -250,9 +274,12 @@ window.processInvoiceFile = async function () {
         };
         const res = await window.smartFetch(GATEWAY_URL, payload);
         const headersRaw = res.headersJson || res.headers_json || res.headers;
-        
+
         if (res && res.success && headersRaw) {
-          templateData = typeof headersRaw === "string" ? JSON.parse(headersRaw) : headersRaw;
+          templateData =
+            typeof headersRaw === "string"
+              ? JSON.parse(headersRaw)
+              : headersRaw;
           if (res.memoryJson) templateData.memoryJson = res.memoryJson;
           window.kaspiTemplateCache[templateName] = templateData;
         } else {
@@ -288,135 +315,178 @@ window.processInvoiceFile = async function () {
     // 🔥 ПРЕПРОЦЕССИНГ ОБЪЕДИНЕННЫХ ЯЧЕЕК И ПОИСК ЛИСТОВ (SheetJS)
     const workbook = XLSX.read(arrayBuffer, { type: "array" });
     let validSheets = [];
-    
+
     for (let sName of workbook.SheetNames) {
       let sheet = workbook.Sheets[sName];
-      
+
       // 1. Распаковываем объединенные ячейки (!merges)
-      if (sheet['!merges']) {
-          sheet['!merges'].forEach(merge => {
-              let startCellAddress = XLSX.utils.encode_cell({c: merge.s.c, r: merge.s.r});
-              let mainVal = sheet[startCellAddress] ? sheet[startCellAddress].v : undefined;
-              
-              if (mainVal !== undefined) {
-                  for (let r = merge.s.r; r <= merge.e.r; r++) {
-                      for (let c = merge.s.c; c <= merge.e.c; c++) {
-                          if (r === merge.s.r && c === merge.s.c) continue; 
-                          let targetCell = XLSX.utils.encode_cell({c: c, r: r});
-                          sheet[targetCell] = { t: 's', v: mainVal };
-                      }
-                  }
-              }
+      if (sheet["!merges"]) {
+        sheet["!merges"].forEach((merge) => {
+          let startCellAddress = XLSX.utils.encode_cell({
+            c: merge.s.c,
+            r: merge.s.r,
           });
+          let mainVal = sheet[startCellAddress]
+            ? sheet[startCellAddress].v
+            : undefined;
+
+          if (mainVal !== undefined) {
+            for (let r = merge.s.r; r <= merge.e.r; r++) {
+              for (let c = merge.s.c; c <= merge.e.c; c++) {
+                if (r === merge.s.r && c === merge.s.c) continue;
+                let targetCell = XLSX.utils.encode_cell({ c: c, r: r });
+                sheet[targetCell] = { t: "s", v: mainVal };
+              }
+            }
+          }
+        });
       }
 
       let sRows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
       if (sRows && sRows.length > 0) {
         // Проверяем, есть ли на листе реальные данные, а не просто пустые строки
-        let hasContent = sRows.some(row => row.some(cell => String(cell || "").trim() !== ""));
+        let hasContent = sRows.some((row) =>
+          row.some((cell) => String(cell || "").trim() !== ""),
+        );
         if (hasContent) {
-            validSheets.push({ name: sName, rows: sRows });
+          validSheets.push({ name: sName, rows: sRows });
         }
       }
     }
-    
-    const tLang = typeof translations !== 'undefined' && translations[currentLang] ? translations[currentLang] : {};
-    if (validSheets.length === 0) throw new Error(tLang.inc_empty_file || "Пустой файл");
+
+    const tLang =
+      typeof translations !== "undefined" && translations[currentLang]
+        ? translations[currentLang]
+        : {};
+    if (validSheets.length === 0)
+      throw new Error(tLang.inc_empty_file || "Пустой файл");
 
     // ⚡ ВЫБОР ЛИСТА С ИСПОЛЬЗОВАНИЕМ PROMISE (СТАВИМ КОД НА ПАУЗУ)
     let selectedSheetInfo = await new Promise((resolve) => {
-        // Если лист всего один, не дергаем пользователя и идем дальше
-        if (validSheets.length === 1) {
-            resolve({ name: validSheets[0].name, rows: validSheets[0].rows });
-            return;
-        }
+      // Если лист всего один, не дергаем пользователя и идем дальше
+      if (validSheets.length === 1) {
+        resolve({ name: validSheets[0].name, rows: validSheets[0].rows });
+        return;
+      }
 
-        // Инициализируем реестр обработанных листов для этого файла
-        const fileRegistryKey = `processed_${window.mapper2State.fileName}`;
-        const processedSheets = JSON.parse(sessionStorage.getItem(fileRegistryKey) || "[]");
+      // Инициализируем реестр обработанных листов для этого файла
+      const fileRegistryKey = `processed_${window.mapper2State.fileName}`;
+      const processedSheets = JSON.parse(
+        sessionStorage.getItem(fileRegistryKey) || "[]",
+      );
 
-        // Если листов несколько - прячем системный лоадер и показываем окно выбора
-        window.hideLoading(); 
-        
-        const t = typeof translations !== 'undefined' && translations[currentLang] ? translations[currentLang] : {};
-        const titleText = t.select_sheet_title || "Выберите лист с данными";
-        const descText = t.select_sheet_desc || "В файле найдено несколько листов. Выберите тот, на котором находится таблица товаров:";
-        const cancelText = t.mapper_btn_cancel || "Отмена";
+      // Если листов несколько - прячем системный лоадер и показываем окно выбора
+      window.hideLoading();
 
-        // Создаем оверлей в стиле приложения
-        const overlay = document.createElement('div');
-        overlay.id = "sheet-selector-overlay";
-        overlay.style = "position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); z-index: 999999; display: flex; align-items: center; justify-content: center;";
-        
-        const modal = document.createElement('div');
-        modal.style = "background: var(--bg-panel, #1e1e1e); border: 1px solid var(--border-light, #333); border-radius: 12px; padding: 20px; width: 90%; max-width: 420px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); color: var(--text-main, #fff); font-family: inherit;";
-        
-        let html = `
+      const t =
+        typeof translations !== "undefined" && translations[currentLang]
+          ? translations[currentLang]
+          : {};
+      const titleText = t.select_sheet_title || "Выберите лист с данными";
+      const descText =
+        t.select_sheet_desc ||
+        "В файле найдено несколько листов. Выберите тот, на котором находится таблица товаров:";
+      const cancelText = t.btn_cancel || "ОТМЕНА";
+      const rowsText = t.inc_sheet_rows || "Строк:";
+
+      // Создаем оверлей в стиле приложения
+      const overlay = document.createElement("div");
+      overlay.id = "sheet-selector-overlay";
+      overlay.style =
+        "position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); z-index: 999999; display: flex; align-items: center; justify-content: center;";
+
+      const modal = document.createElement("div");
+      modal.style =
+        "background: var(--bg-panel, #1e1e1e); border: 1px solid var(--border-light, #333); border-radius: 12px; padding: 20px; width: 90%; max-width: 420px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); color: var(--text-main, #fff); font-family: inherit;";
+
+      let html = `
             <div style="font-size: 16px; font-weight: bold; margin-bottom: 8px; color: var(--text-main);">${titleText}</div>
             <div style="font-size: 12px; color: var(--text-muted, #999); margin-bottom: 20px; line-height: 1.4;">${descText}</div>
             <div style="display: flex; flex-direction: column; gap: 10px; max-height: 50vh; overflow-y: auto; padding-right: 5px;">
         `;
 
-        validSheets.forEach((sheetData, idx) => {
-            const isProcessed = processedSheets.includes(sheetData.name);
-            const btnStyle = isProcessed 
-                ? "background: rgba(76, 175, 80, 0.1); border: 1px solid rgba(76, 175, 80, 0.3); color: var(--text-main, #fff); padding: 14px 15px; border-radius: 8px; text-align: left; font-size: 14px; font-weight: bold; cursor: pointer; transition: 0.2s; display: flex; justify-content: space-between; align-items: center; opacity: 0.8;"
-                : "background: var(--bg-card, #252525); border: 1px solid var(--border-light, #333); color: var(--text-main, #fff); padding: 14px 15px; border-radius: 8px; text-align: left; font-size: 14px; font-weight: bold; cursor: pointer; transition: 0.2s; display: flex; justify-content: space-between; align-items: center;";
-            
-            const icon = isProcessed ? "✅" : "📄";
+      validSheets.forEach((sheetData, idx) => {
+        const isProcessed = processedSheets.includes(sheetData.name);
+        const btnStyle = isProcessed
+          ? "background: rgba(76, 175, 80, 0.1); border: 1px solid rgba(76, 175, 80, 0.3); color: var(--text-main, #fff); padding: 14px 15px; border-radius: 8px; text-align: left; font-size: 14px; font-weight: bold; cursor: pointer; transition: 0.2s; display: flex; justify-content: space-between; align-items: center; opacity: 0.8;"
+          : "background: var(--bg-card, #252525); border: 1px solid var(--border-light, #333); color: var(--text-main, #fff); padding: 14px 15px; border-radius: 8px; text-align: left; font-size: 14px; font-weight: bold; cursor: pointer; transition: 0.2s; display: flex; justify-content: space-between; align-items: center;";
 
-            html += `
+        const icon = isProcessed ? "✅" : "📄";
+
+        html += `
                 <button class="sheet-select-btn" data-idx="${idx}" data-name="${sheetData.name}" style="${btnStyle}">
                     <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 70%;">${icon} ${sheetData.name}</span>
-                    <span style="font-size: 11px; color: var(--text-muted, #777); font-weight: normal; background: rgba(255,255,255,0.05); padding: 2px 6px; border-radius: 4px;">Строк: ${sheetData.rows.length}</span>
+                    <span style="font-size: 11px; color: var(--text-muted, #777); font-weight: normal; background: rgba(255,255,255,0.05); padding: 2px 6px; border-radius: 4px;">${rowsText} ${sheetData.rows.length}</span>
                 </button>
             `;
-        });
+      });
 
-        html += `</div>
+      html += `</div>
             <button id="cancel-sheet-select" style="margin-top: 20px; width: 100%; background: rgba(255, 68, 68, 0.1); border: 1px solid #ff4444; color: #ff4444; padding: 12px; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s;">
                 ${cancelText}
             </button>
         `;
-        
-        modal.innerHTML = html;
-        overlay.appendChild(modal);
-        document.body.appendChild(overlay);
 
-        // Интерактивность кнопок
-        const btns = modal.querySelectorAll('.sheet-select-btn');
-        btns.forEach(btn => {
-            const isProcessed = processedSheets.includes(btn.getAttribute('data-name'));
-            
-            btn.onmouseover = () => { 
-                btn.style.borderColor = isProcessed ? "var(--accent-green, #4CAF50)" : "var(--accent-blue, #3498db)"; 
-                btn.style.background = isProcessed ? "rgba(76, 175, 80, 0.2)" : "var(--bg-hover, #2a2a2a)"; 
-            };
-            btn.onmouseout = () => { 
-                btn.style.borderColor = isProcessed ? "rgba(76, 175, 80, 0.3)" : "var(--border-light, #333)"; 
-                btn.style.background = isProcessed ? "rgba(76, 175, 80, 0.1)" : "var(--bg-card, #252525)"; 
-            };
-            btn.onclick = () => {
-                const sheetName = btn.getAttribute('data-name');
-                // Записываем лист в реестр обработанных
-                if (!processedSheets.includes(sheetName)) {
-                    processedSheets.push(sheetName);
-                    sessionStorage.setItem(fileRegistryKey, JSON.stringify(processedSheets));
-                }
-                
-                document.body.removeChild(overlay);
-                window.showLoading(t.inc_preparing_data || "Подготовка данных..."); // Возвращаем системный лоадер
-                resolve({ name: sheetName, rows: validSheets[btn.getAttribute('data-idx')].rows });
-            };
-        });
+      modal.innerHTML = html;
+      overlay.appendChild(modal);
+      document.body.appendChild(overlay);
 
-        const cancelBtn = modal.querySelector('#cancel-sheet-select');
-        cancelBtn.onmouseover = () => { cancelBtn.style.background = "#ff4444"; cancelBtn.style.color = "#fff"; };
-        cancelBtn.onmouseout = () => { cancelBtn.style.background = "rgba(255, 68, 68, 0.1)"; cancelBtn.style.color = "#ff4444"; };
-        cancelBtn.onclick = () => {
-            document.body.removeChild(overlay);
-            resolve(null);
+      // Интерактивность кнопок
+      const btns = modal.querySelectorAll(".sheet-select-btn");
+      btns.forEach((btn) => {
+        const isProcessed = processedSheets.includes(
+          btn.getAttribute("data-name"),
+        );
+
+        btn.onmouseover = () => {
+          btn.style.borderColor = isProcessed
+            ? "var(--accent-green, #4CAF50)"
+            : "var(--accent-blue, #3498db)";
+          btn.style.background = isProcessed
+            ? "rgba(76, 175, 80, 0.2)"
+            : "var(--bg-hover, #2a2a2a)";
         };
+        btn.onmouseout = () => {
+          btn.style.borderColor = isProcessed
+            ? "rgba(76, 175, 80, 0.3)"
+            : "var(--border-light, #333)";
+          btn.style.background = isProcessed
+            ? "rgba(76, 175, 80, 0.1)"
+            : "var(--bg-card, #252525)";
+        };
+        btn.onclick = () => {
+          const sheetName = btn.getAttribute("data-name");
+          // Записываем лист в реестр обработанных
+          if (!processedSheets.includes(sheetName)) {
+            processedSheets.push(sheetName);
+            sessionStorage.setItem(
+              fileRegistryKey,
+              JSON.stringify(processedSheets),
+            );
+          }
+
+          document.body.removeChild(overlay);
+          window.showLoading(t.inc_preparing_data || "Подготовка данных..."); // Возвращаем системный лоадер
+          resolve({
+            name: sheetName,
+            rows: validSheets[btn.getAttribute("data-idx")].rows,
+          });
+        };
+      });
+
+      const cancelBtn = modal.querySelector("#cancel-sheet-select");
+      cancelBtn.onmouseover = () => {
+        cancelBtn.style.background = "#ff4444";
+        cancelBtn.style.color = "#fff";
+      };
+      cancelBtn.onmouseout = () => {
+        cancelBtn.style.background = "rgba(255, 68, 68, 0.1)";
+        cancelBtn.style.color = "#ff4444";
+      };
+      cancelBtn.onclick = () => {
+        document.body.removeChild(overlay);
+        resolve(null);
+      };
     });
 
     if (!selectedSheetInfo) return; // Если пользователь нажал "Отмена", прерываем весь импорт
@@ -427,12 +497,26 @@ window.processInvoiceFile = async function () {
     let file_doc_no = "UNKNOWN";
     let file_supplier = "UNKNOWN";
     let dict = window.mapper2State.dictValues;
-    
-    let supSyns = [].concat(dict["Поиск имени поставщика"] || [], dict["supplier_keywords"] || [], ["supplier", "vendor", "the seller", "поставщик"])
-      .map((s) => String(s).replace(/\s+/g, "").toLowerCase()).filter(Boolean);
-      
-    let docSyns = [].concat(dict["Номер накладной"] || [], dict["invoice_no"] || [], ["invoice no", "invoice", "doc", "инвойс", "№ накл"])
-      .map((s) => String(s).replace(/\s+/g, "").toLowerCase()).filter(Boolean);
+
+    let supSyns = []
+      .concat(
+        dict["Поиск имени поставщика"] || [],
+        dict["supplier_keywords"] || [],
+        ["supplier", "vendor", "the seller", "поставщик"],
+      )
+      .map((s) => String(s).replace(/\s+/g, "").toLowerCase())
+      .filter(Boolean);
+
+    let docSyns = []
+      .concat(dict["Номер накладной"] || [], dict["invoice_no"] || [], [
+        "invoice no",
+        "invoice",
+        "doc",
+        "инвойс",
+        "№ накл",
+      ])
+      .map((s) => String(s).replace(/\s+/g, "").toLowerCase())
+      .filter(Boolean);
 
     for (let i = 0; i < Math.min(15, rows.length); i++) {
       let row = rows[i] || [];
@@ -444,7 +528,8 @@ window.processInvoiceFile = async function () {
         if (supSyns.some((syn) => cleanCell?.includes(syn))) {
           if (rawCell?.includes(":")) {
             let parts = rawCell.split(":");
-            if (parts[1] && parts[1].trim()) file_supplier = parts[1].trim().replace(/^"|"$/g, "");
+            if (parts[1] && parts[1].trim())
+              file_supplier = parts[1].trim().replace(/^"|"$/g, "");
           }
           if (file_supplier === "UNKNOWN") {
             for (let k = j + 1; k < row.length; k++) {
@@ -459,7 +544,8 @@ window.processInvoiceFile = async function () {
         if (docSyns.some((syn) => cleanCell?.includes(syn))) {
           if (rawCell?.includes(":")) {
             let parts = rawCell.split(":");
-            if (parts[1] && parts[1].trim()) file_doc_no = parts[1].trim().replace(/^"|"$/g, "");
+            if (parts[1] && parts[1].trim())
+              file_doc_no = parts[1].trim().replace(/^"|"$/g, "");
           }
           if (file_doc_no === "UNKNOWN" || file_doc_no === "") {
             let val = String(row[j + 1] || "").trim();
@@ -469,7 +555,8 @@ window.processInvoiceFile = async function () {
       }
     }
 
-    window.mapper2State.supplier = file_supplier !== "UNKNOWN" ? file_supplier : "Не указан";
+    window.mapper2State.supplier =
+      file_supplier !== "UNKNOWN" ? file_supplier : "Не указан";
     if (file_doc_no !== "UNKNOWN" && file_doc_no !== "") {
       window.mapper2State.docNo = file_doc_no;
     } else {
@@ -479,120 +566,175 @@ window.processInvoiceFile = async function () {
 
     // 🔥 АВТО-ОПРЕДЕЛЕНИЕ ГРАНИЦ ДАННЫХ И СКЛЕЙКА ШАПКИ
     let firstDataRowIdx = -1;
-    let globalSyns = typeof invoiceSynonyms !== "undefined" ? invoiceSynonyms : {};
+    let globalSyns =
+      typeof invoiceSynonyms !== "undefined" ? invoiceSynonyms : {};
     let searchKeys = [];
-    ["price", "barcode", "name", "qty"].forEach(k => {
-        if (globalSyns[k]) searchKeys = searchKeys.concat(globalSyns[k]);
+    ["price", "barcode", "name", "qty"].forEach((k) => {
+      if (globalSyns[k]) searchKeys = searchKeys.concat(globalSyns[k]);
     });
-    searchKeys = searchKeys.map(s => String(s).toLowerCase().replace(/\s+/g, ""));
+    searchKeys = searchKeys.map((s) =>
+      String(s).toLowerCase().replace(/\s+/g, ""),
+    );
 
     for (let i = 0; i < Math.min(50, rows.length); i++) {
       let row = rows[i] || [];
-      
+
       let filledCellsCount = row.filter((c) => String(c).trim() !== "").length;
       let numCount = row.filter((c) => {
         let val = String(c).trim().replace(/,/g, "");
         return val !== "" && !isNaN(Number(val));
       }).length;
-      let hasTotal = row.some(c => String(c).toUpperCase()?.includes("TOTAL") || String(c).toUpperCase()?.includes("ИТОГО"));
+      let hasTotal = row.some(
+        (c) =>
+          String(c).toUpperCase()?.includes("TOTAL") ||
+          String(c).toUpperCase()?.includes("ИТОГО"),
+      );
 
       if (filledCellsCount >= 4 && numCount >= 1 && !hasTotal) {
-        let isFormulaRow = row.some(c => String(c).toUpperCase()?.includes("G=A-B-C") || String(c) === "A");
+        let isFormulaRow = row.some(
+          (c) =>
+            String(c).toUpperCase()?.includes("G=A-B-C") || String(c) === "A",
+        );
         if (!isFormulaRow) {
-           firstDataRowIdx = i;
-           break;
+          firstDataRowIdx = i;
+          break;
         }
       }
     }
 
     if (firstDataRowIdx > 0) {
       let headerIdx = firstDataRowIdx - 1;
-      
+
       // Обходим мусорные строки (вроде G=A-B-C) вверх
       while (headerIdx >= 0) {
-          let checkRow = rows[headerIdx] || [];
-          let isJunk = checkRow.some(c => String(c).toUpperCase()?.includes("G=A-B-C") || String(c) === "A");
-          if (isJunk) {
-              headerIdx--;
-          } else {
-              break;
-          }
+        let checkRow = rows[headerIdx] || [];
+        let isJunk = checkRow.some(
+          (c) =>
+            String(c).toUpperCase()?.includes("G=A-B-C") || String(c) === "A",
+        );
+        if (isJunk) {
+          headerIdx--;
+        } else {
+          break;
+        }
       }
-      
+
       // Склеиваем шапку (двухэтажную, если есть)
       let rawHeaders = rows[headerIdx] || [];
-      let upperHeaders = headerIdx > 0 ? (rows[headerIdx - 1] || []) : [];
-      
+      let upperHeaders = headerIdx > 0 ? rows[headerIdx - 1] || [] : [];
+
       window.mapper2State.invoiceHeaders = rawHeaders.map((bottomText, idx) => {
-          let topText = String(upperHeaders[idx] || "").replace(/[\r\n]+/g, " ").trim();
-          let botText = String(bottomText || "").replace(/[\r\n]+/g, " ").trim();
-          
-          if (topText && botText && topText.toLowerCase() !== botText.toLowerCase()) {
-             return `${topText} ${botText}`; // Например "Размеры Ширина"
-          }
-          return botText || topText;
+        let topText = String(upperHeaders[idx] || "")
+          .replace(/[\r\n]+/g, " ")
+          .trim();
+        let botText = String(bottomText || "")
+          .replace(/[\r\n]+/g, " ")
+          .trim();
+
+        if (
+          topText &&
+          botText &&
+          topText.toLowerCase() !== botText.toLowerCase()
+        ) {
+          return `${topText} ${botText}`; // Например "Размеры Ширина"
+        }
+        return botText || topText;
       });
 
       // Передаем в парсер только полезные данные, отсекая случайные пустые строки
       let validRows = [];
       let emptyCount = 0;
-      
+
       for (let i = firstDataRowIdx; i < rows.length; i++) {
-          let row = rows[i] || [];
-          let isEmpty = row.every(cell => String(cell || "").trim() === "");
-          let isTotal = row.some(c => String(c).toUpperCase()?.includes("TOTAL") || String(c).toUpperCase()?.includes("ИТОГО"));
-          
-          if (isTotal) break;
-          
-          if (isEmpty) {
-              emptyCount++;
-              if (emptyCount >= 3) break; // Три пустые строки = конец таблицы
-              continue;
-          } else {
-              emptyCount = 0;
-              validRows.push(row);
-          }
+        let row = rows[i] || [];
+        let isEmpty = row.every((cell) => String(cell || "").trim() === "");
+        let isTotal = row.some(
+          (c) =>
+            String(c).toUpperCase()?.includes("TOTAL") ||
+            String(c).toUpperCase()?.includes("ИТОГО"),
+        );
+
+        if (isTotal) break;
+
+        if (isEmpty) {
+          emptyCount++;
+          if (emptyCount >= 3) break; // Три пустые строки = конец таблицы
+          continue;
+        } else {
+          emptyCount = 0;
+          validRows.push(row);
+        }
       }
-      
+
       window.mapper2State.invoiceRows = validRows;
-      let headersToSearch = window.mapper2State.invoiceHeaders.map(h => String(h).toLowerCase().replace(/\s+/g, ""));
+      let headersToSearch = window.mapper2State.invoiceHeaders.map((h) =>
+        String(h).toLowerCase().replace(/\s+/g, ""),
+      );
 
       const findCol = (keys, fallbacks) => {
-          let syns = [];
-          keys.forEach(k => {
-              if (globalSyns[k]) syns = syns.concat(globalSyns[k]);
-          });
-          syns = syns.concat(fallbacks).map(s => String(s).toLowerCase().replace(/\s+/g, "")).filter(Boolean);
-          return headersToSearch.findIndex(h => syns.some(syn => h?.includes(syn)));
+        let syns = [];
+        keys.forEach((k) => {
+          if (globalSyns[k]) syns = syns.concat(globalSyns[k]);
+        });
+        syns = syns
+          .concat(fallbacks)
+          .map((s) => String(s).toLowerCase().replace(/\s+/g, ""))
+          .filter(Boolean);
+        return headersToSearch.findIndex((h) =>
+          syns.some((syn) => h?.includes(syn)),
+        );
       };
 
-      let priceIdx = findCol(["price", "Розничная цена", "Закупочная цена"], ["usd", "цена", "стоимость", "amount"]);
-      let idIdx = findCol(["barcode", "Артикул / Код товара", "id", "code"], ["артикул", "штрихкод"]);
-      let nameIdx = findCol(["name", "Бренд / Производитель", "Наименование товара"], ["brand", "бренд", "наименование", "товар"]);
+      let priceIdx = findCol(
+        ["price", "Розничная цена", "Закупочная цена"],
+        ["usd", "цена", "стоимость", "amount"],
+      );
+      let idIdx = findCol(
+        ["barcode", "Артикул / Код товара", "id", "code"],
+        ["артикул", "штрихкод"],
+      );
+      let nameIdx = findCol(
+        ["name", "Бренд / Производитель", "Наименование товара"],
+        ["brand", "бренд", "наименование", "товар"],
+      );
 
       if (priceIdx !== -1 && (idIdx !== -1 || nameIdx !== -1)) {
-          window.mapper2State.invoiceRows = window.mapper2State.invoiceRows.filter(row => {
-              if (!row || row.length === 0) return false;
+        window.mapper2State.invoiceRows =
+          window.mapper2State.invoiceRows.filter((row) => {
+            if (!row || row.length === 0) return false;
 
-              let rawPrice = String(row[priceIdx] || "").replace(",", ".").replace(/[^0-9.-]/g, "");
-              let price = parseFloat(rawPrice);
-              if (isNaN(price) || price <= 0) return false; 
+            let rawPrice = String(row[priceIdx] || "")
+              .replace(",", ".")
+              .replace(/[^0-9.-]/g, "");
+            let price = parseFloat(rawPrice);
+            if (isNaN(price) || price <= 0) return false;
 
-              let rawId = idIdx !== -1 ? String(row[idIdx] || "").trim() : "";
-              let rawName = nameIdx !== -1 ? String(row[nameIdx] || "").trim() : "";
-              let hasIdentifier = rawId !== "" || rawName !== "";
-              
-              if (!hasIdentifier) return false;
-              if (rawId.toUpperCase()?.includes("TOTAL") || rawName.toUpperCase()?.includes("TOTAL")) {
-                  return false; 
-              }
+            let rawId = idIdx !== -1 ? String(row[idIdx] || "").trim() : "";
+            let rawName =
+              nameIdx !== -1 ? String(row[nameIdx] || "").trim() : "";
+            let hasIdentifier = rawId !== "" || rawName !== "";
 
-              return true; 
+            if (!hasIdentifier) return false;
+            if (
+              rawId.toUpperCase()?.includes("TOTAL") ||
+              rawName.toUpperCase()?.includes("TOTAL")
+            ) {
+              return false;
+            }
+
+            return true;
           });
       }
 
       // Добавляем selectedSheetName для уникальности каждого листа
-      let fileContentStr = window.mapper2State.docNo + "_" + window.mapper2State.supplier + "_" + selectedSheetName + "_" + JSON.stringify(window.mapper2State.invoiceRows.slice(0, 5));
+      let fileContentStr =
+        window.mapper2State.docNo +
+        "_" +
+        window.mapper2State.supplier +
+        "_" +
+        selectedSheetName +
+        "_" +
+        JSON.stringify(window.mapper2State.invoiceRows.slice(0, 5));
       let hashNum = 0;
       for (let i = 0; i < fileContentStr.length; i++) {
         hashNum = (hashNum << 5) - hashNum + fileContentStr.charCodeAt(i);
@@ -601,30 +743,39 @@ window.processInvoiceFile = async function () {
       window.mapper2State.fileHash = "hash_" + Math.abs(hashNum).toString(16);
 
       // --- ПРИНУДИТЕЛЬНАЯ ЗАГРУЗКА СЛОВАРЯ ---
-      if (typeof invoiceSynonyms === "undefined" || Object.keys(invoiceSynonyms).length === 0) {
-        const dictText = typeof translations !== 'undefined' && translations[currentLang] ? translations[currentLang].inc_loading_dict : "Загрузка словаря переводов...";
+      if (
+        typeof invoiceSynonyms === "undefined" ||
+        Object.keys(invoiceSynonyms).length === 0
+      ) {
+        const dictText =
+          typeof translations !== "undefined" && translations[currentLang]
+            ? translations[currentLang].inc_loading_dict
+            : "Загрузка словаря переводов...";
         window.showLoading(dictText);
-        
+
         try {
-            const fetchUrl = `${typeof APPS_SCRIPT_URL !== "undefined" ? APPS_SCRIPT_URL : ""}?action=getInitialData&api_key=${typeof CLIENT_API_KEY !== "undefined" ? CLIENT_API_KEY : ""}&t=${Date.now()}&uid=${localStorage.getItem("user_uid") || ""}&role=${localStorage.getItem("user_role") || ""}&last_sync=0`;
-            
-            const res = await fetch(fetchUrl);
-            const text = await res.text();
-            
-            if (!text.trim().startsWith("<")) {
-                const data = JSON.parse(text);
-                if (data.synonyms && Object.keys(data.synonyms).length > 0) {
-                    if (typeof invoiceSynonyms !== "undefined") {
-                        Object.assign(invoiceSynonyms, data.synonyms);
-                    }
-                    window.invoiceSynonyms = typeof invoiceSynonyms !== "undefined" ? invoiceSynonyms : data.synonyms;
-                }
+          const fetchUrl = `${typeof APPS_SCRIPT_URL !== "undefined" ? APPS_SCRIPT_URL : ""}?action=getInitialData&api_key=${typeof CLIENT_API_KEY !== "undefined" ? CLIENT_API_KEY : ""}&t=${Date.now()}&uid=${localStorage.getItem("user_uid") || ""}&role=${localStorage.getItem("user_role") || ""}&last_sync=0`;
+
+          const res = await fetch(fetchUrl);
+          const text = await res.text();
+
+          if (!text.trim().startsWith("<")) {
+            const data = JSON.parse(text);
+            if (data.synonyms && Object.keys(data.synonyms).length > 0) {
+              if (typeof invoiceSynonyms !== "undefined") {
+                Object.assign(invoiceSynonyms, data.synonyms);
+              }
+              window.invoiceSynonyms =
+                typeof invoiceSynonyms !== "undefined"
+                  ? invoiceSynonyms
+                  : data.synonyms;
             }
+          }
         } catch (err) {
-            console.error("Ошибка загрузки словаря:", err);
+          console.error("Ошибка загрузки словаря:", err);
         }
       }
-      
+
       window.hideLoading();
       window.currentTemplateData = templateData;
 
@@ -633,13 +784,12 @@ window.processInvoiceFile = async function () {
 
       // 🔥 МАРШРУТИЗАТОР РЕЖИМОВ
       if (window.isKaspiExportMode) {
-          // Режим "База + Kaspi": запускаем умное Сито
-          window.showComplexColumnSelector(smartHeaders, smartRows, templateData);
+        // Режим "База + Kaspi": запускаем умное Сито
+        window.showComplexColumnSelector(smartHeaders, smartRows, templateData);
       } else {
-          // Режим "Только в базу": пропускаем Сито и сразу открываем простой Маппер
-          window.renderMapper2Cards(templateData);
+        // Режим "Только в базу": пропускаем Сито и сразу открываем простой Маппер
+        window.renderMapper2Cards(templateData);
       }
-      
     } else {
       throw new Error("Не удалось найти таблицу с товарами");
     }
@@ -652,13 +802,13 @@ window.processInvoiceFile = async function () {
 
 // === РОУТЕР ШАГОВ ПРИЕМКИ (ОБНОВЛЕННЫЙ) ===
 window.navigateIncomeStep = function (stepNumber, isBack = false) {
-
   // 1. Ведем запись в историю (если идем вперед)
   window.mapper2State = window.mapper2State || {};
   window.mapper2State.history = window.mapper2State.history || [];
 
   if (!isBack) {
-    const lastStep = window.mapper2State.history[window.mapper2State.history.length - 1];
+    const lastStep =
+      window.mapper2State.history[window.mapper2State.history.length - 1];
     if (lastStep !== stepNumber) {
       window.mapper2State.history.push(stepNumber);
     }
@@ -709,9 +859,12 @@ window.navigateIncomeStep = function (stepNumber, isBack = false) {
     if (smartContainer) {
       smartContainer.style.display = "flex"; // ⚡ Принудительно делаем видимым!
       smartContainer.className = "smart-mapper-overlay";
-      
+
       // Вызываем отрисовку
-      if (window.renderSmartMapperModal && window.mapper2State.lastComplexColumns) {
+      if (
+        window.renderSmartMapperModal &&
+        window.mapper2State.lastComplexColumns
+      ) {
         window.renderSmartMapperModal(window.mapper2State.lastComplexColumns);
       } else if (typeof window.initSmartMapper === "function") {
         window.initSmartMapper();
@@ -722,9 +875,12 @@ window.navigateIncomeStep = function (stepNumber, isBack = false) {
     step2.style.display = "flex";
     if (tabs) tabs.style.display = "none";
     if (currency) currency.style.display = "none";
-    
+
     // ⚡ ПРИНУДИТЕЛЬНАЯ ОТРИСОВКА МАППЕРА ПРИ ВОЗВРАТЕ
-    if (typeof window.renderMapper2Cards === "function" && window.currentTemplateData) {
+    if (
+      typeof window.renderMapper2Cards === "function" &&
+      window.currentTemplateData
+    ) {
       window.renderMapper2Cards(window.currentTemplateData);
     }
   } else if (stepNumber === 3 && step3) {
@@ -820,8 +976,13 @@ window.renderMapper2Cards = function (templateData) {
       window.mapper2State.rawMemoryJson = JSON.stringify(learnedSynonyms);
       if (learnedSynonyms._splitRules) {
         // ⚡ НЕ стираем свежие правила из Токенизатора! Только дополняем их старыми из памяти.
-        const memorySplits = JSON.parse(JSON.stringify(learnedSynonyms._splitRules));
-        window.mapper2State.splitRules = { ...memorySplits, ...window.mapper2State.splitRules };
+        const memorySplits = JSON.parse(
+          JSON.stringify(learnedSynonyms._splitRules),
+        );
+        window.mapper2State.splitRules = {
+          ...memorySplits,
+          ...window.mapper2State.splitRules,
+        };
       }
     } catch (e) {
       console.error("Ошибка парсинга памяти", e);
@@ -1001,42 +1162,48 @@ window.renderMapper2Cards = function (templateData) {
       statusI18n = "";
       statusStyle =
         "border: 1px solid var(--accent-green, #2ecc71); color: var(--accent-green, #2ecc71); background: var(--bg-success-dim, rgba(46, 204, 113, 0.15)); font-weight: bold;";
-    } else if (mappedIndex !== undefined && mappedIndex >= 0 && mappedIndex < rawHeaders.length) {
+    } else if (
+      mappedIndex !== undefined &&
+      mappedIndex >= 0 &&
+      mappedIndex < rawHeaders.length
+    ) {
       statusClass = "status-filled";
-      
+
       // ИСПРАВЛЕНИЕ: Берем правильный заголовок по индексу
       let rawHeaderName = rawHeaders[mappedIndex];
       let displayName = rawHeaderName;
 
       // 🛡️ НАДЕЖНЫЙ ПЕРЕВОД: Заставляем браузер вытащить чистый текст из HTML
-      if (typeof window.translateColumnHeader === 'function') {
-          let translatedHtml = window.translateColumnHeader(rawHeaderName); // В openColumnSelector тут переменная colName
-          if (typeof translatedHtml === 'string') {
-              // 1. Создаем виртуальный элемент
-              let tempDiv = document.createElement("div");
-              tempDiv.innerHTML = translatedHtml;
-              // 2. Достаем 100% чистый текст без единого тега или стиля
-              let cleanText = tempDiv.textContent || tempDiv.innerText || rawHeaderName;
-              
-              // 3. Форматируем для красоты
-              if (cleanText.includes('(') && cleanText.includes(')')) {
-                  let match = cleanText.match(/\(([^)]+)\)/);
-                  if (match && match[1]) {
-                      displayName = match[1] + " (" + rawHeaderName + ")";
-                  } else {
-                      displayName = cleanText;
-                  }
-              } else {
-                  displayName = cleanText;
-              }
+      if (typeof window.translateColumnHeader === "function") {
+        let translatedHtml = window.translateColumnHeader(rawHeaderName); // В openColumnSelector тут переменная colName
+        if (typeof translatedHtml === "string") {
+          // 1. Создаем виртуальный элемент
+          let tempDiv = document.createElement("div");
+          tempDiv.innerHTML = translatedHtml;
+          // 2. Достаем 100% чистый текст без единого тега или стиля
+          let cleanText =
+            tempDiv.textContent || tempDiv.innerText || rawHeaderName;
+
+          // 3. Форматируем для красоты
+          if (cleanText.includes("(") && cleanText.includes(")")) {
+            let match = cleanText.match(/\(([^)]+)\)/);
+            if (match && match[1]) {
+              displayName = match[1] + " (" + rawHeaderName + ")";
+            } else {
+              displayName = cleanText;
+            }
+          } else {
+            displayName = cleanText;
           }
+        }
       }
 
       let splitData =
         window.mapper2State.splitRules &&
-        (window.mapper2State.splitRules[req.name] || window.mapper2State.splitRules[req.sysKey]);
-        
-      if (splitData) { 
+        (window.mapper2State.splitRules[req.name] ||
+          window.mapper2State.splitRules[req.sysKey]);
+
+      if (splitData) {
         let sampleText = "";
         let gluedText = "";
         let highlighted = "";
@@ -1058,13 +1225,15 @@ window.renderMapper2Cards = function (templateData) {
         if (sampleText) {
           const regex = /\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g;
           let tokens = sampleText.match(regex) || [];
-          
-          const sig = tokens.map(t => {
-            if (/\d/.test(t)) return 'D';
-            if (/[a-zA-Zа-яА-ЯёЁ]/.test(t)) return 'L';
-            return '.';
-          }).join('-');
-          
+
+          const sig = tokens
+            .map((t) => {
+              if (/\d/.test(t)) return "D";
+              if (/[a-zA-Zа-яА-ЯёЁ]/.test(t)) return "L";
+              return ".";
+            })
+            .join("-");
+
           let rawIndices = [];
           if (Array.isArray(splitData)) {
             rawIndices = splitData;
@@ -1072,19 +1241,27 @@ window.renderMapper2Cards = function (templateData) {
             rawIndices = splitData[sig];
           } else if (Object.keys(splitData).length > 0) {
             let firstKey = Object.keys(splitData)[0];
-            rawIndices = Array.isArray(splitData[firstKey]) ? splitData[firstKey] : [];
+            rawIndices = Array.isArray(splitData[firstKey])
+              ? splitData[firstKey]
+              : [];
           }
 
-          let validIndices = rawIndices.map(idx => {
-            if (typeof idx === 'object' && idx !== null) {
-              return idx.index !== undefined ? parseInt(idx.index) : parseInt(idx.i);
-            }
-            return parseInt(idx);
-          }).filter(n => !isNaN(n));
+          let validIndices = rawIndices
+            .map((idx) => {
+              if (typeof idx === "object" && idx !== null) {
+                return idx.index !== undefined
+                  ? parseInt(idx.index)
+                  : parseInt(idx.i);
+              }
+              return parseInt(idx);
+            })
+            .filter((n) => !isNaN(n));
 
-          validIndices = [...new Set(validIndices)].filter(n => n >= 0 && n < tokens.length).sort((a, b) => a - b);
+          validIndices = [...new Set(validIndices)]
+            .filter((n) => n >= 0 && n < tokens.length)
+            .sort((a, b) => a - b);
 
-          validIndices.forEach(i => {
+          validIndices.forEach((i) => {
             if (tokens[i] !== undefined) gluedText += tokens[i];
           });
 
@@ -1098,7 +1275,7 @@ window.renderMapper2Cards = function (templateData) {
             })
             .join("");
         }
-        
+
         statusText = `✂ ${gluedText || displayName}`;
         statusI18n = "";
         statusStyle =
@@ -1177,113 +1354,135 @@ window.renderMapper2Cards = function (templateData) {
   if (currency) currency.style.display = "none";
 
   document.getElementById("mapper2Area").style.display = "flex";
-  
+
   // 🔥 ЛОГИКА ДЛЯ РЕЖИМА ЭКСПОРТА И ПЕРЕВОДОВ (КНОПКИ ВНИЗУ МАППЕРА)
   const applyBtn = document.getElementById("applyMapper2Btn");
-  
+
   if (applyBtn) {
-      applyBtn.style.display = "block";
+    applyBtn.style.display = "block";
 
-      if (window.isKaspiExportMode) {
-          if (!window.originalCheckMapperReadiness) {
-              window.originalCheckMapperReadiness = window.checkMapperReadiness;
-              
-              window.checkMapperReadiness = function() {
-                  if (window.originalCheckMapperReadiness) window.originalCheckMapperReadiness();
-                  
-                  const btn = document.getElementById("applyMapper2Btn");
-                  if (btn && window.isKaspiExportMode) {
-                      const btnContainer = btn.parentElement;
-                      
-                      const btnSpan = btn.querySelector("span");
-                      const target = btnSpan || btn;
-                      target.setAttribute("data-i18n", "kaspi_confirm_template");
-                      
-                      if (!btn.classList.contains("disabled") && !btn.classList.contains("btn-disabled")) {
-                          btn.style.setProperty("background", "var(--accent-blue, #2196f3)", "important");
-                          btn.style.setProperty("border-color", "var(--accent-blue, #2196f3)", "important");
-                      } else {
-                          btn.style.background = ""; 
-                          btn.style.borderColor = "";
-                      }
-                      
-                      if (typeof window.applyLanguage === 'function') {
-                          window.applyLanguage(typeof currentLang !== 'undefined' ? currentLang : 'ru');
-                      }
-                      
-                      if (btnContainer) {
-                          const allOldBtns = btnContainer.querySelectorAll("button");
-                          allOldBtns.forEach(b => {
-                              if (b.id !== "applyMapper2Btn" && b.id !== "kaspiMapperBackBtn") {
-                                  b.style.display = "none";
-                              }
-                          });
+    if (window.isKaspiExportMode) {
+      if (!window.originalCheckMapperReadiness) {
+        window.originalCheckMapperReadiness = window.checkMapperReadiness;
 
-                          let backBtn = document.getElementById("kaspiMapperBackBtn");
-                          if (!backBtn) {
-                              backBtn = document.createElement("button");
-                              backBtn.id = "kaspiMapperBackBtn";
-                              backBtn.setAttribute("data-i18n", "kaspi_mapper_back");
-                              
-                              backBtn.style.background = "transparent";
-                              backBtn.style.color = "var(--text-main)";
-                              backBtn.style.border = "1px solid var(--border-light)";
-                              backBtn.style.padding = "12px 15px";
-                              backBtn.style.borderRadius = "6px";
-                              backBtn.style.fontWeight = "bold";
-                              backBtn.style.cursor = "pointer";
-                              backBtn.onclick = function() {
-                                  document.getElementById("mapper2Area").style.display = "none";
-                                  const exportModal = document.getElementById("export-modal");
-                                  if (exportModal) exportModal.style.display = "flex"; 
-                              };
-                              btnContainer.insertBefore(backBtn, btn);
-                              
-                              if (typeof window.applyLanguage === 'function') {
-                                  window.applyLanguage(typeof currentLang !== 'undefined' ? currentLang : 'ru');
-                              }
-                          }
-                          
-                          btnContainer.style.display = "flex";
-                          btnContainer.style.gap = "10px";
-                          backBtn.style.display = "block";
-                          backBtn.style.flex = "1";
-                          btn.style.flex = "2";
-                      }
-                  }
-              };
-          }
-          
-          if (typeof window.checkMapperReadiness === "function") window.checkMapperReadiness();
-          
-      } else {
-          if (typeof window.checkMapperReadiness === "function") window.checkMapperReadiness();
-          
-          const backBtn = document.getElementById("kaspiMapperBackBtn");
-          if (backBtn) backBtn.remove();
-          
-          applyBtn.style.flex = ""; 
-          applyBtn.style.background = "";
-          applyBtn.style.borderColor = "";
+        window.checkMapperReadiness = function () {
+          if (window.originalCheckMapperReadiness)
+            window.originalCheckMapperReadiness();
 
-          const btnSpan = applyBtn.querySelector("span");
-          const target = btnSpan || applyBtn;
-          target.setAttribute("data-i18n", "inc_build_invoice");
-          
-          if (typeof window.applyLanguage === 'function') {
-              window.applyLanguage(typeof currentLang !== 'undefined' ? currentLang : 'ru');
-          }
-          
-          const btnContainer = applyBtn.parentElement;
-          if (btnContainer) {
+          const btn = document.getElementById("applyMapper2Btn");
+          if (btn && window.isKaspiExportMode) {
+            const btnContainer = btn.parentElement;
+
+            const btnSpan = btn.querySelector("span");
+            const target = btnSpan || btn;
+            target.setAttribute("data-i18n", "kaspi_confirm_template");
+
+            if (
+              !btn.classList.contains("disabled") &&
+              !btn.classList.contains("btn-disabled")
+            ) {
+              btn.style.setProperty(
+                "background",
+                "var(--accent-blue, #2196f3)",
+                "important",
+              );
+              btn.style.setProperty(
+                "border-color",
+                "var(--accent-blue, #2196f3)",
+                "important",
+              );
+            } else {
+              btn.style.background = "";
+              btn.style.borderColor = "";
+            }
+
+            if (typeof window.applyLanguage === "function") {
+              window.applyLanguage(
+                typeof currentLang !== "undefined" ? currentLang : "ru",
+              );
+            }
+
+            if (btnContainer) {
               const allOldBtns = btnContainer.querySelectorAll("button");
-              allOldBtns.forEach(b => {
-                  if (b.id !== "applyMapper2Btn" && b.id !== "kaspiMapperBackBtn") {
-                      b.style.display = ""; 
-                  }
+              allOldBtns.forEach((b) => {
+                if (
+                  b.id !== "applyMapper2Btn" &&
+                  b.id !== "kaspiMapperBackBtn"
+                ) {
+                  b.style.display = "none";
+                }
               });
+
+              let backBtn = document.getElementById("kaspiMapperBackBtn");
+              if (!backBtn) {
+                backBtn = document.createElement("button");
+                backBtn.id = "kaspiMapperBackBtn";
+                backBtn.setAttribute("data-i18n", "kaspi_mapper_back");
+
+                backBtn.style.background = "transparent";
+                backBtn.style.color = "var(--text-main)";
+                backBtn.style.border = "1px solid var(--border-light)";
+                backBtn.style.padding = "12px 15px";
+                backBtn.style.borderRadius = "6px";
+                backBtn.style.fontWeight = "bold";
+                backBtn.style.cursor = "pointer";
+                backBtn.onclick = function () {
+                  document.getElementById("mapper2Area").style.display = "none";
+                  const exportModal = document.getElementById("export-modal");
+                  if (exportModal) exportModal.style.display = "flex";
+                };
+                btnContainer.insertBefore(backBtn, btn);
+
+                if (typeof window.applyLanguage === "function") {
+                  window.applyLanguage(
+                    typeof currentLang !== "undefined" ? currentLang : "ru",
+                  );
+                }
+              }
+
+              btnContainer.style.display = "flex";
+              btnContainer.style.gap = "10px";
+              backBtn.style.display = "block";
+              backBtn.style.flex = "1";
+              btn.style.flex = "2";
+            }
           }
+        };
       }
+
+      if (typeof window.checkMapperReadiness === "function")
+        window.checkMapperReadiness();
+    } else {
+      if (typeof window.checkMapperReadiness === "function")
+        window.checkMapperReadiness();
+
+      const backBtn = document.getElementById("kaspiMapperBackBtn");
+      if (backBtn) backBtn.remove();
+
+      applyBtn.style.flex = "";
+      applyBtn.style.background = "";
+      applyBtn.style.borderColor = "";
+
+      const btnSpan = applyBtn.querySelector("span");
+      const target = btnSpan || applyBtn;
+      target.setAttribute("data-i18n", "inc_build_invoice");
+
+      if (typeof window.applyLanguage === "function") {
+        window.applyLanguage(
+          typeof currentLang !== "undefined" ? currentLang : "ru",
+        );
+      }
+
+      const btnContainer = applyBtn.parentElement;
+      if (btnContainer) {
+        const allOldBtns = btnContainer.querySelectorAll("button");
+        allOldBtns.forEach((b) => {
+          if (b.id !== "applyMapper2Btn" && b.id !== "kaspiMapperBackBtn") {
+            b.style.display = "";
+          }
+        });
+      }
+    }
   }
 };
 
@@ -1292,24 +1491,28 @@ window.openColumnSelector = function (sysKey, reqName, isKaspi) {
   window.mapper2State.currentSysKey = sysKey;
   window.mapper2State.currentReqName = reqName;
 
-  document.getElementById("sheet-title").innerText = translations[currentLang].mapper_source + reqName;
+  document.getElementById("sheet-title").innerText =
+    translations[currentLang].mapper_source + reqName;
 
   const colList = document.getElementById("sheet-col-list");
 
   // 🔥 УМНАЯ ПРОВЕРКА: Есть ли у этого поля реальный справочник в Kaspi?
-  let hasDict = window.kaspiDicts && window.kaspiDicts[reqName] && window.kaspiDicts[reqName].length > 0;
+  let hasDict =
+    window.kaspiDicts &&
+    window.kaspiDicts[reqName] &&
+    window.kaspiDicts[reqName].length > 0;
 
   let dictBtnHtml = "";
   if (isKaspi) {
-      if (hasDict) {
-          // Если справочник есть — показываем стандартную кнопку поиска
-          dictBtnHtml = `<button onclick="window.openKaspiDictSearch()" style="background: var(--accent-green, #4CAF50); border: none; color: #000; padding: 5px 12px; border-radius: 4px; font-size: 11px; font-weight: bold; cursor: pointer; margin-right: 8px;">
+    if (hasDict) {
+      // Если справочник есть — показываем стандартную кнопку поиска
+      dictBtnHtml = `<button onclick="window.openKaspiDictSearch()" style="background: var(--accent-green, #4CAF50); border: none; color: #000; padding: 5px 12px; border-radius: 4px; font-size: 11px; font-weight: bold; cursor: pointer; margin-right: 8px;">
           🔍 <span data-i18n="mapper_btn_dict">Справочник</span></button>`;
-      } else {
-          // Если справочника НЕТ — даем кнопку ручного ввода константы!
-          dictBtnHtml = `<button onclick="window.setManualConstantValue('${sysKey}', '${reqName.replace(/'/g, "\\'")}')" style="background: var(--accent-blue, #3498db); border: none; color: #fff; padding: 5px 12px; border-radius: 4px; font-size: 11px; font-weight: bold; cursor: pointer; margin-right: 8px;">
+    } else {
+      // Если справочника НЕТ — даем кнопку ручного ввода константы!
+      dictBtnHtml = `<button onclick="window.setManualConstantValue('${sysKey}', '${reqName.replace(/'/g, "\\'")}')" style="background: var(--accent-blue, #3498db); border: none; color: #fff; padding: 5px 12px; border-radius: 4px; font-size: 11px; font-weight: bold; cursor: pointer; margin-right: 8px;">
           ✍️ Ввести вручную</button>`;
-      }
+    }
   }
 
   colList.innerHTML = `
@@ -1325,8 +1528,12 @@ window.openColumnSelector = function (sysKey, reqName, isKaspi) {
         </div>
     </div>`;
 
-  let currentlyMappedIndex = window.mapper2State.colMap ? window.mapper2State.colMap[sysKey] : undefined;
-  let currentSplitRule = window.mapper2State.splitRules ? window.mapper2State.splitRules[sysKey] : null;
+  let currentlyMappedIndex = window.mapper2State.colMap
+    ? window.mapper2State.colMap[sysKey]
+    : undefined;
+  let currentSplitRule = window.mapper2State.splitRules
+    ? window.mapper2State.splitRules[sysKey]
+    : null;
   let splitRules = window.mapper2State.splitRules || {};
   let usedByOthers = {};
 
@@ -1348,26 +1555,36 @@ window.openColumnSelector = function (sysKey, reqName, isKaspi) {
 
     // 🛡️ ИДЕАЛЬНЫЙ ПЕРЕВОД: Вытаскиваем чистый текст без тегов
     let displayColName = colName;
-    if (typeof window.translateColumnHeader === 'function') {
-        let translatedHtml = window.translateColumnHeader(colName);
-        if (typeof translatedHtml === 'string') {
-            let tempDiv = document.createElement("div");
-            tempDiv.innerHTML = translatedHtml;
-            displayColName = tempDiv.textContent || tempDiv.innerText || colName;
-        }
+    if (typeof window.translateColumnHeader === "function") {
+      let translatedHtml = window.translateColumnHeader(colName);
+      if (typeof translatedHtml === "string") {
+        let tempDiv = document.createElement("div");
+        tempDiv.innerHTML = translatedHtml;
+        displayColName = tempDiv.textContent || tempDiv.innerText || colName;
+      }
     }
-    
+
     // Очищаем от переносов строк для верстки
     displayColName = displayColName.replace(/[\r\n]+/g, " ");
-    
+
     // 🔥 РАСКРАСКА ПЕРЕВОДА: Оборачиваем текст в скобках в синий цвет
-    displayColName = displayColName.replace(/\(([^)]+)\)/g, '<span style="color: var(--accent-blue, #3498db); font-weight: normal; opacity: 0.9;">($1)</span>');
+    displayColName = displayColName.replace(
+      /\(([^)]+)\)/g,
+      '<span style="color: var(--accent-blue, #3498db); font-weight: normal; opacity: 0.9;">($1)</span>',
+    );
 
     // В безопасное имя всегда отдаем ОРИГИНАЛ
-    let safeColName = colName.replace(/[\r\n]+/g, " ").replace(/'/g, "\\'").replace(/"/g, '\\"');
+    let safeColName = colName
+      .replace(/[\r\n]+/g, " ")
+      .replace(/'/g, "\\'")
+      .replace(/"/g, '\\"');
 
     let previews = [];
-    for (let i = 0; i < Math.min(10, window.mapper2State.invoiceRows.length); i++) {
+    for (
+      let i = 0;
+      i < Math.min(10, window.mapper2State.invoiceRows.length);
+      i++
+    ) {
       let val = String(window.mapper2State.invoiceRows[i][index] || "").trim();
       // Убрана проверка на дубликаты, теперь всегда берем первые 3 заполненные строки
       if (val && previews.length < 3) {
@@ -1378,7 +1595,8 @@ window.openColumnSelector = function (sysKey, reqName, isKaspi) {
     if (rawColName === "" && previews.length === 0) return;
 
     let isSelected = currentlyMappedIndex === index;
-    let isUsedByOther = usedByOthers[index] !== undefined && usedByOthers[index].length > 0;
+    let isUsedByOther =
+      usedByOthers[index] !== undefined && usedByOthers[index].length > 0;
 
     let takenTokens = new Set();
     let isFullyTaken = false;
@@ -1399,8 +1617,10 @@ window.openColumnSelector = function (sysKey, reqName, isKaspi) {
       let text = p.orig;
       let tokens = text.match(regex) || [];
 
-      let highlightedHtml = tokens.map((tok, i) => {
-          let isCurrentSplit = isSelected && currentSplitRule && currentSplitRule.includes(i);
+      let highlightedHtml = tokens
+        .map((tok, i) => {
+          let isCurrentSplit =
+            isSelected && currentSplitRule && currentSplitRule.includes(i);
           let isTakenByOther = isFullyTaken || takenTokens.has(i);
 
           if (isCurrentSplit) {
@@ -1410,7 +1630,8 @@ window.openColumnSelector = function (sysKey, reqName, isKaspi) {
           } else {
             return tok;
           }
-        }).join("");
+        })
+        .join("");
 
       if (isSelected && (!currentSplitRule || currentSplitRule.length === 0)) {
         highlightedHtml = `<b style="color:var(--accent-green, #4CAF50);">${text}</b>`;
@@ -1419,19 +1640,35 @@ window.openColumnSelector = function (sysKey, reqName, isKaspi) {
       previewHtmlArr.push("- " + highlightedHtml);
     });
 
-    let previewText = previewHtmlArr.length > 0 ? previewHtmlArr.join("<br>") : "Пустая колонка (нет данных)";
-    let safePreview = previews[0] ? String(previews[0].orig).replace(/[\r\n]+/g, " ").replace(/'/g, "\\'").replace(/"/g, '\\"') : "";
+    let previewText =
+      previewHtmlArr.length > 0
+        ? previewHtmlArr.join("<br>")
+        : "Пустая колонка (нет данных)";
+    let safePreview = previews[0]
+      ? String(previews[0].orig)
+          .replace(/[\r\n]+/g, " ")
+          .replace(/'/g, "\\'")
+          .replace(/"/g, '\\"')
+      : "";
 
-    let itemStyle = "background: var(--bg-card, #252525); border: 1px solid var(--border-light, #333); border-radius: 6px; padding: 10px; margin-bottom: 10px; transition: 0.2s;";
+    let itemStyle =
+      "background: var(--bg-card, #252525); border: 1px solid var(--border-light, #333); border-radius: 6px; padding: 10px; margin-bottom: 10px; transition: 0.2s;";
     let badgeHtml = "";
 
     if (isSelected) {
-      itemStyle = "border: 2px solid var(--accent-green, #4CAF50); background: rgba(76, 175, 80, 0.05); border-radius: 6px; padding: 10px; margin-bottom: 10px;";
-      let splitNote = currentSplitRule && currentSplitRule.length > 0 ? " (Часть)" : " (Целиком)";
+      itemStyle =
+        "border: 2px solid var(--accent-green, #4CAF50); background: rgba(76, 175, 80, 0.05); border-radius: 6px; padding: 10px; margin-bottom: 10px;";
+      let splitNote =
+        currentSplitRule && currentSplitRule.length > 0
+          ? " (Часть)"
+          : " (Целиком)";
       badgeHtml = `<div style="font-size: 10px; margin-bottom: 8px;"><span style="background: var(--accent-green, #4CAF50); color: #000; padding: 3px 8px; border-radius: 4px; font-weight: bold;">📌 ВЫБРАНО${splitNote.toUpperCase()}</span></div>`;
     } else if (isUsedByOther) {
-      itemStyle = "background: #151515; border: 1px solid #222; border-radius: 6px; padding: 10px; margin-bottom: 10px; opacity: 0.9;";
-      let usedLabel = isFullyTaken ? `⚠️ ${translations[currentLang].mapper_busy_full}` : `⚠️ ${translations[currentLang].mapper_busy_part}`;
+      itemStyle =
+        "background: #151515; border: 1px solid #222; border-radius: 6px; padding: 10px; margin-bottom: 10px; opacity: 0.9;";
+      let usedLabel = isFullyTaken
+        ? `⚠️ ${translations[currentLang].mapper_busy_full}`
+        : `⚠️ ${translations[currentLang].mapper_busy_part}`;
       badgeHtml = `<div style="font-size: 10px; margin-bottom: 8px;"><span style="background: rgba(255, 152, 0, 0.15); border: 1px solid rgba(255, 152, 0, 0.4); color: #ff9800; padding: 3px 8px; border-radius: 4px; font-weight: bold;">${usedLabel}</span></div>`;
     }
 
@@ -1458,26 +1695,34 @@ window.openColumnSelector = function (sysKey, reqName, isKaspi) {
   });
 
   document.getElementById("sheet-overlay").style.display = "block";
-  setTimeout(() => (document.getElementById("sheet-overlay").style.opacity = "1"), 10);
+  setTimeout(
+    () => (document.getElementById("sheet-overlay").style.opacity = "1"),
+    10,
+  );
   document.getElementById("bottom-sheet").style.transform = "translateY(0)";
 };
 
-window.setManualConstantValue = function(sysKey, reqName) {
-    let val = prompt(`Введите постоянное значение для поля "${reqName}"\n(Оно будет применено ко всем товарам в накладной):`);
-    if (val !== null && val.trim() !== "") {
-        window.mapper2State.dictValues = window.mapper2State.dictValues || {};
-        window.mapper2State.dictValues[sysKey] = val.trim();
-        
-        // Скрываем окно селектора колонок
-        document.getElementById('sheet-overlay').style.opacity = '0';
-        document.getElementById('bottom-sheet').style.transform = 'translateY(100%)';
-        setTimeout(() => { document.getElementById('sheet-overlay').style.display = 'none'; }, 300);
-        
-        // Обновляем интерфейс (поле станет зеленым, кнопка разблокируется)
-        if (typeof window.renderMapper2Cards === 'function') {
-            window.renderMapper2Cards();
-        }
+window.setManualConstantValue = function (sysKey, reqName) {
+  let val = prompt(
+    `Введите постоянное значение для поля "${reqName}"\n(Оно будет применено ко всем товарам в накладной):`,
+  );
+  if (val !== null && val.trim() !== "") {
+    window.mapper2State.dictValues = window.mapper2State.dictValues || {};
+    window.mapper2State.dictValues[sysKey] = val.trim();
+
+    // Скрываем окно селектора колонок
+    document.getElementById("sheet-overlay").style.opacity = "0";
+    document.getElementById("bottom-sheet").style.transform =
+      "translateY(100%)";
+    setTimeout(() => {
+      document.getElementById("sheet-overlay").style.display = "none";
+    }, 300);
+
+    // Обновляем интерфейс (поле станет зеленым, кнопка разблокируется)
+    if (typeof window.renderMapper2Cards === "function") {
+      window.renderMapper2Cards();
     }
+  }
 };
 
 window.selectMapper2Col = function (colIndex, colName) {
@@ -2001,21 +2246,34 @@ window.applyMapper2Logic = function () {
   const colMap = state.colMap || {};
   const dict = state.dictValues || {};
 
-  const isKaspiMode = window.isKaspiExportMode || window.currentImportMode === "kaspi";
+  const isKaspiMode =
+    window.isKaspiExportMode || window.currentImportMode === "kaspi";
 
   const hasQty = colMap["qty"] !== undefined || dict["qty"] !== undefined;
-  const hasPrice = colMap["price"] !== undefined || colMap["cost"] !== undefined || 
-                   dict["price"] !== undefined || dict["cost"] !== undefined;
-  const hasName = colMap["name"] !== undefined || colMap["model"] !== undefined || 
-                  dict["name"] !== undefined || dict["model"] !== undefined;
+  const hasPrice =
+    colMap["price"] !== undefined ||
+    colMap["cost"] !== undefined ||
+    dict["price"] !== undefined ||
+    dict["cost"] !== undefined;
+  const hasName =
+    colMap["name"] !== undefined ||
+    colMap["model"] !== undefined ||
+    dict["name"] !== undefined ||
+    dict["model"] !== undefined;
 
   if (!isKaspiMode) {
-      if (!hasQty || !hasPrice || !hasName) {
-        const lang = window.currentLang || localStorage.getItem("pos_lang") || "ru";
-        const tr = typeof translations !== "undefined" && translations[lang] ? translations[lang] : {};
-        const errorMsg = tr.mapper_err_missing_cols || "⚠️ Обязательно привяжите колонки (или введите вручную):\n1. Наименование (или model)\n2. Количество (qty)\n3. Цена (price/cost)";
-        return alert(errorMsg);
-      }
+    if (!hasQty || !hasPrice || !hasName) {
+      const lang =
+        window.currentLang || localStorage.getItem("pos_lang") || "ru";
+      const tr =
+        typeof translations !== "undefined" && translations[lang]
+          ? translations[lang]
+          : {};
+      const errorMsg =
+        tr.mapper_err_missing_cols ||
+        "⚠️ Обязательно привяжите колонки (или введите вручную):\n1. Наименование (или model)\n2. Количество (qty)\n3. Цена (price/cost)";
+      return alert(errorMsg);
+    }
   }
 
   if (window.currentImportMode === "kaspi") {
@@ -2023,7 +2281,9 @@ window.applyMapper2Logic = function () {
     const templateName = templateSelect ? templateSelect.value : "";
     if (templateName) {
       let currentMemory = {};
-      try { currentMemory = JSON.parse(window.mapper2State.rawMemoryJson || "{}"); } catch (e) {}
+      try {
+        currentMemory = JSON.parse(window.mapper2State.rawMemoryJson || "{}");
+      } catch (e) {}
       let memoryUpdated = false;
 
       Object.keys(state.colMap).forEach((sysKey) => {
@@ -2053,7 +2313,9 @@ window.applyMapper2Logic = function () {
           category: templateName,
           memoryJson: JSON.stringify(currentMemory),
         };
-        window.smartFetch(GATEWAY_URL, payload).catch((e) => console.error("Ошибка обновления словаря", e));
+        window
+          .smartFetch(GATEWAY_URL, payload)
+          .catch((e) => console.error("Ошибка обновления словаря", e));
       }
     }
   }
@@ -2063,10 +2325,14 @@ window.applyMapper2Logic = function () {
   window.invoiceGroups[state.docNo] = {
     supplier: state.supplier,
     items: [],
-    originalFiles: [{ fileName: state.fileName, fileBase64: state.originalBase64 }],
+    originalFiles: [
+      { fileName: state.fileName, fileBase64: state.originalBase64 },
+    ],
   };
 
-  let mappedIndices = Object.values(state.colMap).filter((v) => v !== undefined);
+  let mappedIndices = Object.values(state.colMap).filter(
+    (v) => v !== undefined,
+  );
 
   window.mapper2State.quarantine = [];
 
@@ -2074,54 +2340,78 @@ window.applyMapper2Logic = function () {
     if (!row || row.length === 0) return;
 
     const getValue = (primaryKey, kaspiKey) => {
-      if (state.dictValues && state.dictValues[primaryKey]) return state.dictValues[primaryKey];
-      if (kaspiKey && state.dictValues && state.dictValues[kaspiKey]) return state.dictValues[kaspiKey];
+      if (state.dictValues && state.dictValues[primaryKey])
+        return state.dictValues[primaryKey];
+      if (kaspiKey && state.dictValues && state.dictValues[kaspiKey])
+        return state.dictValues[kaspiKey];
 
       let colIdx = state.colMap[primaryKey];
       if (colIdx === undefined && kaspiKey) colIdx = state.colMap[kaspiKey];
       if (colIdx === undefined) return "";
 
       let rawVal = String(row[colIdx] || "").trim();
-      let excelHeader = state.invoiceHeaders ? state.invoiceHeaders[colIdx] : "";
+      let excelHeader = state.invoiceHeaders
+        ? state.invoiceHeaders[colIdx]
+        : "";
 
       if (state.splitRules && typeof parseAndMatchTokens === "function") {
-        let tokenObjects = parseAndMatchTokens(rawVal, excelHeader || primaryKey);
+        let tokenObjects = parseAndMatchTokens(
+          rawVal,
+          excelHeader || primaryKey,
+        );
 
         if (tokenObjects.length > 0) {
-          let anchorIndex = tokenObjects.findIndex(t => /\d/.test(t.cleanText));
+          let anchorIndex = tokenObjects.findIndex((t) =>
+            /\d/.test(t.cleanText),
+          );
           if (anchorIndex === -1) anchorIndex = 0;
 
           tokenObjects.forEach((tok, idx) => {
-              tok.universalIndex = 100 + (idx - anchorIndex);
+            tok.universalIndex = 100 + (idx - anchorIndex);
           });
 
-          const sigTokens = tokenObjects.filter(t => !/^[a-zA-Zа-яА-ЯёЁ]+$/.test(t.cleanText));
-          const sig = sigTokens.map(t => /\d/.test(t.cleanText) ? 'N' : 'S').join('-');
+          const sigTokens = tokenObjects.filter(
+            (t) => !/^[a-zA-Zа-яА-ЯёЁ]+$/.test(t.cleanText),
+          );
+          const sig = sigTokens
+            .map((t) => (/\d/.test(t.cleanText) ? "N" : "S"))
+            .join("-");
 
           let targetIndices = null;
           let sigFound = false;
-          
-          if (state.splitRules[excelHeader] && state.splitRules[excelHeader][sig]) {
-              sigFound = true;
-              targetIndices = state.splitRules[excelHeader][sig][primaryKey];
+
+          if (
+            state.splitRules[excelHeader] &&
+            state.splitRules[excelHeader][sig]
+          ) {
+            sigFound = true;
+            targetIndices = state.splitRules[excelHeader][sig][primaryKey];
           }
-          if (!targetIndices && state.splitRules[primaryKey] && state.splitRules[primaryKey][sig]) {
-              sigFound = true;
-              targetIndices = state.splitRules[primaryKey][sig];
+          if (
+            !targetIndices &&
+            state.splitRules[primaryKey] &&
+            state.splitRules[primaryKey][sig]
+          ) {
+            sigFound = true;
+            targetIndices = state.splitRules[primaryKey][sig];
           }
 
           if (sigFound) {
-             if (targetIndices !== undefined && targetIndices !== null) {
-                 let resultArr = [];
-                 let indicesArray = Array.isArray(targetIndices) ? targetIndices : [targetIndices];
-                 
-                 indicesArray.forEach((targetIdx) => {
-                   let matchedTok = tokenObjects.find(t => t.universalIndex === targetIdx);
-                   if (matchedTok) resultArr.push(matchedTok.text);
-                 });
-                 return resultArr.join(""); 
-             }
-             return ""; 
+            if (targetIndices !== undefined && targetIndices !== null) {
+              let resultArr = [];
+              let indicesArray = Array.isArray(targetIndices)
+                ? targetIndices
+                : [targetIndices];
+
+              indicesArray.forEach((targetIdx) => {
+                let matchedTok = tokenObjects.find(
+                  (t) => t.universalIndex === targetIdx,
+                );
+                if (matchedTok) resultArr.push(matchedTok.text);
+              });
+              return resultArr.join("");
+            }
+            return "";
           }
         }
       }
@@ -2137,12 +2427,14 @@ window.applyMapper2Logic = function () {
     let price = parseFloat(String(rawPrice).replace(",", "."));
 
     if (!isKaspiMode && (isNaN(price) || price <= 0)) {
-        return; 
+      return;
     }
 
-    let hasIdentifier = (rawId && String(rawId).trim() !== "") || (rawName && String(rawName).trim() !== "");
+    let hasIdentifier =
+      (rawId && String(rawId).trim() !== "") ||
+      (rawName && String(rawName).trim() !== "");
     if (!isKaspiMode && !hasIdentifier) {
-        return; 
+      return;
     }
 
     let barcode = /^\d{8,13}$/.test(rawId) ? rawId : "";
@@ -2160,7 +2452,9 @@ window.applyMapper2Logic = function () {
     let rawCbm = getValue("cbm");
     let cbm = rawCbm ? parseFloat(String(rawCbm).replace(",", ".")) : "";
     let rawWeight = getValue("weight");
-    let weight = rawWeight ? parseFloat(String(rawWeight).replace(",", ".")) : "";
+    let weight = rawWeight
+      ? parseFloat(String(rawWeight).replace(",", "."))
+      : "";
 
     let attributesObj = {};
     let itemHasCollisions = false;
@@ -2170,10 +2464,30 @@ window.applyMapper2Logic = function () {
       let lowerKey = String(key).toLowerCase();
       let rawValue = getValue(key);
 
-      if (["qty", "price", "cost", "name", "model", "barcode", "cbm", "weight", "item_id", "item_name", "id", "sku", "merchant_sku"]?.includes(lowerKey)) return;
+      if (
+        [
+          "qty",
+          "price",
+          "cost",
+          "name",
+          "model",
+          "barcode",
+          "cbm",
+          "weight",
+          "item_id",
+          "item_name",
+          "id",
+          "sku",
+          "merchant_sku",
+        ]?.includes(lowerKey)
+      )
+        return;
       if (!rawValue) return;
 
-      let humanName = (state.sysToHumanMap && state.sysToHumanMap[key]) ? state.sysToHumanMap[key] : key;
+      let humanName =
+        state.sysToHumanMap && state.sysToHumanMap[key]
+          ? state.sysToHumanMap[key]
+          : key;
       let searchString = rawValue;
 
       let dict = window.kaspiDicts && window.kaspiDicts[humanName];
@@ -2189,8 +2503,11 @@ window.applyMapper2Logic = function () {
 
           if (
             strDv.toLowerCase() === String(searchString).trim().toLowerCase() ||
-            baseDv.toLowerCase() === String(searchString).trim().toLowerCase() ||
-            (isStrictNumber && !isNaN(parseFloat(baseDv)) && parseFloat(baseDv) === parseFloat(searchString))
+            baseDv.toLowerCase() ===
+              String(searchString).trim().toLowerCase() ||
+            (isStrictNumber &&
+              !isNaN(parseFloat(baseDv)) &&
+              parseFloat(baseDv) === parseFloat(searchString))
           ) {
             matchedDictValue = strDv;
             foundMatch = true;
@@ -2199,17 +2516,26 @@ window.applyMapper2Logic = function () {
         }
       }
 
-      if (window.currentImportMode === "kaspi" && hasDictionary && !foundMatch) {
+      if (
+        window.currentImportMode === "kaspi" &&
+        hasDictionary &&
+        !foundMatch
+      ) {
         let colIdx = state.colMap[key];
-        let excelHeader = colIdx !== undefined && state.invoiceHeaders ? state.invoiceHeaders[colIdx] : "";
-        
+        let excelHeader =
+          colIdx !== undefined && state.invoiceHeaders
+            ? state.invoiceHeaders[colIdx]
+            : "";
+
         let isComplex = window.complexColumnsToTokenize?.includes(excelHeader);
 
         let isAlreadyProcessed = false;
         if (state.splitRules) {
-            if (state.splitRules[key]) isAlreadyProcessed = true;
-            if (humanName && state.splitRules[humanName]) isAlreadyProcessed = true;
-            if (excelHeader && state.splitRules[excelHeader]) isAlreadyProcessed = true;
+          if (state.splitRules[key]) isAlreadyProcessed = true;
+          if (humanName && state.splitRules[humanName])
+            isAlreadyProcessed = true;
+          if (excelHeader && state.splitRules[excelHeader])
+            isAlreadyProcessed = true;
         }
 
         if (isComplex && !isAlreadyProcessed) {
@@ -2221,60 +2547,97 @@ window.applyMapper2Logic = function () {
             excelColumnName: excelHeader || "ДАННЫЕ ИЗ НАКЛАДНОЙ",
           });
         } else {
-          if (!["item_id", "item_name", "id", "sku", "qty", "price", "barcode"]?.includes(String(humanName).toLowerCase())) {
-             attributesObj[humanName] = rawValue;
+          if (
+            ![
+              "item_id",
+              "item_name",
+              "id",
+              "sku",
+              "qty",
+              "price",
+              "barcode",
+            ]?.includes(String(humanName).toLowerCase())
+          ) {
+            attributesObj[humanName] = rawValue;
           }
         }
-        return; 
+        return;
       }
 
-      if (!["item_id", "item_name", "id", "sku", "qty", "price", "barcode"]?.includes(String(humanName).toLowerCase())) {
-         attributesObj[humanName] = matchedDictValue;
+      if (
+        ![
+          "item_id",
+          "item_name",
+          "id",
+          "sku",
+          "qty",
+          "price",
+          "barcode",
+        ]?.includes(String(humanName).toLowerCase())
+      ) {
+        attributesObj[humanName] = matchedDictValue;
       }
     };
 
     let allKeys = new Set(Object.keys(state.colMap));
-    if (state.dictValues) Object.keys(state.dictValues).forEach((k) => allKeys.add(k));
-    if (state.splitRules) Object.keys(state.splitRules).forEach((k) => allKeys.add(k));
+    if (state.dictValues)
+      Object.keys(state.dictValues).forEach((k) => allKeys.add(k));
+    if (state.splitRules)
+      Object.keys(state.splitRules).forEach((k) => allKeys.add(k));
 
     allKeys.forEach((key) => processAttribute(key));
 
     let cleanAttributesObj = Object.assign({}, attributesObj);
-    delete cleanAttributesObj['Артикул'];
-    delete cleanAttributesObj['Название модели'];
-    delete cleanAttributesObj['sku'];
-    delete cleanAttributesObj['title'];
+    delete cleanAttributesObj["Артикул"];
+    delete cleanAttributesObj["Название модели"];
+    delete cleanAttributesObj["sku"];
+    delete cleanAttributesObj["title"];
 
-    let finalAttributes = Object.keys(cleanAttributesObj).length > 0 ? JSON.stringify(cleanAttributesObj) : "";
+    let finalAttributes =
+      Object.keys(cleanAttributesObj).length > 0
+        ? JSON.stringify(cleanAttributesObj)
+        : "";
 
     const templateDropdown = document.getElementById("kaspiTemplateSelect");
-    const activeCategoryText = templateDropdown && templateDropdown.selectedIndex !== -1 
-      ? templateDropdown.options[templateDropdown.selectedIndex].text.trim() 
-      : "Новые товары";
+    const activeCategoryText =
+      templateDropdown && templateDropdown.selectedIndex !== -1
+        ? templateDropdown.options[templateDropdown.selectedIndex].text.trim()
+        : "Новые товары";
 
-    let origItem = (window.kaspiExportItems && window.kaspiExportItems[index]) ? window.kaspiExportItems[index] : {};
-    let realDocNo = origItem.doc_no || origItem.invoice_no || origItem.document_id || origItem.docId || state.docNo;
+    let origItem =
+      window.kaspiExportItems && window.kaspiExportItems[index]
+        ? window.kaspiExportItems[index]
+        : {};
+    let realDocNo =
+      origItem.doc_no ||
+      origItem.invoice_no ||
+      origItem.document_id ||
+      origItem.docId ||
+      state.docNo;
     let realItemId = origItem.item_id || origItem.sku || rawId;
 
     const itemData = {
       doc_no: realDocNo,
       supplier: state.supplier,
-      item_id: realItemId, 
+      item_id: realItemId,
       item_name: name,
       qty: qty,
-      cost: isNaN(price) ? 0 : price, 
+      cost: isNaN(price) ? 0 : price,
       cbm: cbm,
       weight: weight,
       raw_logistics: rawLogisticsStr.trim(),
-      staff_id: typeof currentUser !== "undefined" && currentUser ? currentUser.uid : "Auto-Import",
-      id: realItemId,       
+      staff_id:
+        typeof currentUser !== "undefined" && currentUser
+          ? currentUser.uid
+          : "Auto-Import",
+      id: realItemId,
       name: name,
       desc: name,
       description: name,
-      barcode: origItem.barcode || barcode, 
-      category: activeCategoryText, 
-      sku: realItemId,      
-      title: name, 
+      barcode: origItem.barcode || barcode,
+      category: activeCategoryText,
+      sku: realItemId,
+      title: name,
       attributes: finalAttributes,
       _hasCollisions: itemHasCollisions,
       _collisionsList: itemCollisionsList,
@@ -2282,16 +2645,18 @@ window.applyMapper2Logic = function () {
     };
 
     window.parsedInvoiceData.push(itemData);
-    
+
     if (!window.invoiceGroups[realDocNo]) {
-        window.invoiceGroups[realDocNo] = { items: [] };
+      window.invoiceGroups[realDocNo] = { items: [] };
     }
     window.invoiceGroups[realDocNo].items.push(itemData);
 
     if (itemHasCollisions) {
       itemCollisionsList.forEach((collision) => {
         const exists = window.mapper2State.quarantine.find(
-          (q) => q.rawString === collision.rawString && q.sysKey === collision.sysKey
+          (q) =>
+            q.rawString === collision.rawString &&
+            q.sysKey === collision.sysKey,
         );
         if (!exists) {
           window.mapper2State.quarantine.push(collision);
@@ -2301,10 +2666,15 @@ window.applyMapper2Logic = function () {
   });
 
   if (window.parsedInvoiceData.length === 0 && !isKaspiMode) {
-    return alert("Не удалось сформировать товары. Убедитесь, что в колонках «Количество» и «Цена» находятся ТОЛЬКО цифры.");
+    return alert(
+      "Не удалось сформировать товары. Убедитесь, что в колонках «Количество» и «Цена» находятся ТОЛЬКО цифры.",
+    );
   }
 
-  if (window.mapper2State.quarantine && window.mapper2State.quarantine.length > 0) {
+  if (
+    window.mapper2State.quarantine &&
+    window.mapper2State.quarantine.length > 0
+  ) {
     if (typeof window.startTokenizerQueue === "function") {
       window.startTokenizerQueue();
     } else {
@@ -2326,17 +2696,21 @@ window.applyMapper2Logic = function () {
 
     const previewArea = document.getElementById("invoicePreviewArea");
     if (previewArea) {
-       const allBtns = previewArea.querySelectorAll("button");
-       allBtns.forEach(b => {
-           const text = b.innerText.toUpperCase();
-           if (text?.includes("ДИСК") || text?.includes("СБРОС") || text?.includes("ПЕРЕЗАЛИТЬ")) {
-               b.style.display = "none";
-           }
-       });
+      const allBtns = previewArea.querySelectorAll("button");
+      allBtns.forEach((b) => {
+        const text = b.innerText.toUpperCase();
+        if (
+          text?.includes("ДИСК") ||
+          text?.includes("СБРОС") ||
+          text?.includes("ПЕРЕЗАЛИТЬ")
+        ) {
+          b.style.display = "none";
+        }
+      });
     }
   } else {
     const sendBtn = document.getElementById("sendInvoiceBtn");
-    if (sendBtn) sendBtn.style.display = "flex"; 
+    if (sendBtn) sendBtn.style.display = "flex";
 
     const exportBtns = document.getElementById("exportActionButtons");
     if (exportBtns) exportBtns.style.display = "none";
@@ -2351,32 +2725,40 @@ window.currentFieldDict = [];
 
 // === ОТРИСОВКА ГЛАВНОЙ ТАБЛИЦЫ ===
 window.renderPreviewTable = function () {
-    const state = window.mapper2State;
-    const t = translations[currentLang] || translations["ru"];
+  const state = window.mapper2State;
+  const t = translations[currentLang] || translations["ru"];
 
-    if (typeof window.autoCleanInvoiceAttributes === "function") {
-        window.autoCleanInvoiceAttributes();
-    }
+  if (typeof window.autoCleanInvoiceAttributes === "function") {
+    window.autoCleanInvoiceAttributes();
+  }
 
-    const tabs = document.getElementById("mapperTabsContainer");
-    if (tabs) tabs.style.display = "none";
+  const tabs = document.getElementById("mapperTabsContainer");
+  if (tabs) tabs.style.display = "none";
 
-    const currency = document.getElementById("mapperCurrencyBlock");
-    if (currency) currency.style.display = "none";
+  const currency = document.getElementById("mapperCurrencyBlock");
+  if (currency) currency.style.display = "none";
 
-    let realDocNo = state.docNo;
-    let sourceItems = (window.kaspiExportItems && window.kaspiExportItems.length > 0) 
-        ? window.kaspiExportItems 
-        : window.parsedInvoiceData;
-        
-    if (sourceItems && sourceItems.length > 0) {
-        let firstItem = sourceItems[0];
-        realDocNo = firstItem.doc_no || firstItem.invoice_no || firstItem.document_id || firstItem.docId || state.docNo;
-    }
+  let realDocNo = state.docNo;
+  let sourceItems =
+    window.kaspiExportItems && window.kaspiExportItems.length > 0
+      ? window.kaspiExportItems
+      : window.parsedInvoiceData;
 
-    const supplierI18nAttr = !state.supplier ? `data-i18n="inc_not_specified"` : "";
+  if (sourceItems && sourceItems.length > 0) {
+    let firstItem = sourceItems[0];
+    realDocNo =
+      firstItem.doc_no ||
+      firstItem.invoice_no ||
+      firstItem.document_id ||
+      firstItem.docId ||
+      state.docNo;
+  }
 
-    document.getElementById("invoiceMetadata").innerHTML = `
+  const supplierI18nAttr = !state.supplier
+    ? `data-i18n="inc_not_specified"`
+    : "";
+
+  document.getElementById("invoiceMetadata").innerHTML = `
         <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; padding: 10px; background: var(--bg-panel); border-radius: 8px; border: 1px solid var(--border-light);">
             <div><span data-i18n="inc_supplier" style="color:var(--text-muted);">${t.inc_supplier || "Пост:"}</span> <b ${supplierI18nAttr} style="color:var(--accent-yellow);">${state.supplier || t.inc_not_specified || "Не указан"}</b></div>
             <div><span data-i18n="inc_doc_short" style="color:var(--text-muted);">${t.inc_doc_short || "Док:"}</span> <b style="color:var(--accent-yellow);">${realDocNo}</b></div>
@@ -2384,51 +2766,72 @@ window.renderPreviewTable = function () {
         </div>
     `;
 
-    document.getElementById("invoiceTableBody").innerHTML =
-      window.parsedInvoiceData
-        .map((item, index) => {
-            let attrsHtml = "";
-            let displayCode = null;
+  document.getElementById("invoiceTableBody").innerHTML =
+    window.parsedInvoiceData
+      .map((item, index) => {
+        let attrsHtml = "";
+        let displayCode = null;
 
-            if (item.attributes) {
-                try {
-                    let parsed = JSON.parse(item.attributes);
-                    
-                    if (parsed.item_id && isNaN(Number(parsed.item_id))) {
-                        displayCode = parsed.item_id;
-                    }
-                    
-                    attrsHtml =
-                        `<div style="display: flex; flex-direction: column; gap: 4px; margin-top: 8px;">` +
-                        Object.keys(parsed)
-                            // 🔥 Безопасный ?.includes
-                            .filter((k) => !["doc_no", "invoice_no", "document_id"]?.includes(String(k).toLowerCase()))
-                            .map((k) => {
-                                let humanName = window.mapper2State.sysToHumanMap ? window.mapper2State.sysToHumanMap[k] : null;
-                                let displayKey = humanName || k.split("*").pop().replace(/tires/gi, "").replace(/additional/gi, "").replace(/general/gi, "").replace(/\./g, "").trim();
-                                if (!displayKey) displayKey = k;
+        if (item.attributes) {
+          try {
+            let parsed = JSON.parse(item.attributes);
 
-                                let val = parsed[k];
-                                if (val.length > 30) val = val.substring(0, 30) + "...";
+            if (parsed.item_id && isNaN(Number(parsed.item_id))) {
+              displayCode = parsed.item_id;
+            }
 
-                                return `<div style="font-size: 11px; background: rgba(76, 175, 80, 0.1); border: 1px solid rgba(76, 175, 80, 0.3); padding: 6px 8px; border-radius: 4px; display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; line-height: 1.3;">
+            attrsHtml =
+              `<div style="display: flex; flex-direction: column; gap: 4px; margin-top: 8px;">` +
+              Object.keys(parsed)
+                // 🔥 Безопасный ?.includes
+                .filter(
+                  (k) =>
+                    !["doc_no", "invoice_no", "document_id"]?.includes(
+                      String(k).toLowerCase(),
+                    ),
+                )
+                .map((k) => {
+                  let humanName = window.mapper2State.sysToHumanMap
+                    ? window.mapper2State.sysToHumanMap[k]
+                    : null;
+                  let displayKey =
+                    humanName ||
+                    k
+                      .split("*")
+                      .pop()
+                      .replace(/tires/gi, "")
+                      .replace(/additional/gi, "")
+                      .replace(/general/gi, "")
+                      .replace(/\./g, "")
+                      .trim();
+                  if (!displayKey) displayKey = k;
+
+                  let val = parsed[k];
+                  if (val.length > 30) val = val.substring(0, 30) + "...";
+
+                  return `<div style="font-size: 11px; background: rgba(76, 175, 80, 0.1); border: 1px solid rgba(76, 175, 80, 0.3); padding: 6px 8px; border-radius: 4px; display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; line-height: 1.3;">
                                             <span style="color:var(--text-muted); flex: 1;">${displayKey}:</span> 
                                             <b style="color:var(--accent-green); text-align: right; max-width: 55%; word-break: break-word;">${val}</b>
                                         </div>`;
-                            })
-                            .join("") +
-                        `</div>`;
-                } catch (e) {}
-            }
+                })
+                .join("") +
+              `</div>`;
+          } catch (e) {}
+        }
 
-            if (!displayCode) {
-                displayCode = item.item_id || item.sku || item.barcode || item.id || "AUTO";
-                if (/^\d{12,13}$/.test(displayCode) && item.sku && !/^\d{12,13}$/.test(item.sku)) {
-                    displayCode = item.sku;
-                }
-            }
+        if (!displayCode) {
+          displayCode =
+            item.item_id || item.sku || item.barcode || item.id || "AUTO";
+          if (
+            /^\d{12,13}$/.test(displayCode) &&
+            item.sku &&
+            !/^\d{12,13}$/.test(item.sku)
+          ) {
+            displayCode = item.sku;
+          }
+        }
 
-            return `
+        return `
             <tr>
                 <td class="col-main" style="padding:12px 8px 4px 8px; vertical-align: top; border-bottom: none;">
                     <div style="font-weight:bold; font-size:13px; line-height:1.2;">${item.item_name}</div>
@@ -2450,166 +2853,182 @@ window.renderPreviewTable = function () {
                     </button>
                 </td>
             </tr>`;
-        })
-        .join("");
+      })
+      .join("");
 
-    if (window.isKaspiExportMode) {
-        const sendBtn = document.getElementById("sendInvoiceBtn");
-        if (sendBtn) sendBtn.style.display = "none";
-        
-        const allBtns = document.querySelectorAll('button');
-        allBtns.forEach(b => {
-            const txt = b.innerText.trim().toUpperCase();
-            // 🔥 Безопасный ?.includes
-            if ((txt?.includes('НАЗАД') || txt?.includes('АРТҚА')) && b.id !== 'kaspiMapperBackBtn' && b.id !== 'kaspiBackToMapperBtn') {
-                b.style.display = 'none';
-            }
-        });
+  if (window.isKaspiExportMode) {
+    const sendBtn = document.getElementById("sendInvoiceBtn");
+    if (sendBtn) sendBtn.style.display = "none";
 
-        const step3 = document.getElementById("invoicePreviewArea");
-        const exportBtns = document.getElementById("exportActionButtons");
-        
-        if (exportBtns && step3) {
-            exportBtns.style.display = "flex";
-            exportBtns.style.flexDirection = "row"; 
-            exportBtns.style.flexWrap = "wrap";     
-            exportBtns.style.gap = "10px"; 
-            step3.appendChild(exportBtns);
+    const allBtns = document.querySelectorAll("button");
+    allBtns.forEach((b) => {
+      const txt = b.innerText.trim().toUpperCase();
+      // 🔥 Безопасный ?.includes
+      if (
+        (txt?.includes("НАЗАД") || txt?.includes("АРТҚА")) &&
+        b.id !== "kaspiMapperBackBtn" &&
+        b.id !== "kaspiBackToMapperBtn"
+      ) {
+        b.style.display = "none";
+      }
+    });
 
-            let backBtn = document.getElementById('kaspiBackToMapperBtn');
-            if (!backBtn) {
-                backBtn = document.createElement('button');
-                backBtn.id = 'kaspiBackToMapperBtn';
-                backBtn.style.background = 'transparent';
-                backBtn.style.color = 'var(--text-main)';
-                backBtn.style.border = '1px solid var(--border-light)';
-                backBtn.style.padding = '12px 15px';
-                backBtn.style.minHeight = '42px';
-                backBtn.style.borderRadius = '6px';
-                backBtn.style.fontWeight = 'bold';
-                backBtn.style.cursor = 'pointer';
-                backBtn.style.boxSizing = 'border-box';
-                backBtn.setAttribute('data-i18n', 'kaspi_mapper_back');
-                backBtn.innerText = 'НАЗАД';
-                
-                backBtn.onclick = function(e) {
-                    e.preventDefault();
-                    document.getElementById('invoicePreviewArea').style.display = 'none';
-                    document.getElementById('mapper2Area').style.display = 'flex';
-                    
-                    const mapperBackBtn = document.getElementById("kaspiMapperBackBtn");
-                    if (mapperBackBtn) {
-                        mapperBackBtn.style.display = "block";
-                    }
-                };
-                
-                exportBtns.insertBefore(backBtn, exportBtns.firstChild);
-            }
-            
-            let resetBtn = document.getElementById('kaspiResetExportBtn');
-            if (!resetBtn) {
-                resetBtn = document.createElement('button');
-                resetBtn.id = 'kaspiResetExportBtn';
-                resetBtn.style.background = 'var(--btn-danger-bg, #ef4444)';
-                resetBtn.style.color = 'var(--btn-danger-text, #ffffff)';
-                resetBtn.style.border = '1px solid var(--btn-danger-border, #dc2626)';
-                resetBtn.style.padding = '12px 15px'; 
-                resetBtn.style.minHeight = '42px';
-                resetBtn.style.borderRadius = '6px';
-                resetBtn.style.fontWeight = 'bold';
-                resetBtn.style.cursor = 'pointer';
-                resetBtn.style.boxSizing = 'border-box';
-                resetBtn.setAttribute('data-i18n', 'kaspi_reset_invoice');
-                resetBtn.innerText = '🔄 ПЕРЕЗАЛИТЬ НАКЛАДНУЮ (СБРОС)'; 
-                
-                resetBtn.onclick = function(e) {
-                    e.preventDefault();
-                    let confirmMsg = 'Очистить таблицу и загрузить накладную заново?';
-                    if (typeof window.t === 'function') {
-                        confirmMsg = window.t('kaspi_reset_confirm') || confirmMsg;
-                    } else {
-                        const translatedEl = document.querySelector('[data-i18n="kaspi_reset_confirm"]');
-                        if (translatedEl) confirmMsg = translatedEl.innerText;
-                    }
+    const step3 = document.getElementById("invoicePreviewArea");
+    const exportBtns = document.getElementById("exportActionButtons");
 
-                    if (!confirm(confirmMsg)) return;
-                    
-                    window.parsedInvoiceData = [];
-                    window.kaspiExportItems = [];
-                    if (window.mapper2State) window.mapper2State.colMap = {};
-                    
-                    if (window.currentExportHash) {
-                        window.handleCardSelectForExport(window.currentExportHash, null, false);
-                    }
-                };
-                
-                exportBtns.appendChild(resetBtn);
-            }
+    if (exportBtns && step3) {
+      exportBtns.style.display = "flex";
+      exportBtns.style.flexDirection = "row";
+      exportBtns.style.flexWrap = "wrap";
+      exportBtns.style.gap = "10px";
+      step3.appendChild(exportBtns);
 
-            let downloadBtnFound = false; 
+      let backBtn = document.getElementById("kaspiBackToMapperBtn");
+      if (!backBtn) {
+        backBtn = document.createElement("button");
+        backBtn.id = "kaspiBackToMapperBtn";
+        backBtn.style.background = "transparent";
+        backBtn.style.color = "var(--text-main)";
+        backBtn.style.border = "1px solid var(--border-light)";
+        backBtn.style.padding = "12px 15px";
+        backBtn.style.minHeight = "42px";
+        backBtn.style.borderRadius = "6px";
+        backBtn.style.fontWeight = "bold";
+        backBtn.style.cursor = "pointer";
+        backBtn.style.boxSizing = "border-box";
+        backBtn.setAttribute("data-i18n", "kaspi_mapper_back");
+        backBtn.innerText = "НАЗАД";
 
-            Array.from(exportBtns.children).forEach(child => {
-                if (child.id === 'kaspiBackToMapperBtn') {
-                    child.style.flex = "1"; 
-                    child.style.display = "block";
-                } else if (child.id === 'kaspiResetExportBtn') {
-                    child.style.flex = "0 0 100%"; 
-                    child.style.marginTop = "5px";
-                    child.style.display = "block";
-                } else if (child.tagName.toUpperCase() === 'BUTTON') {
-                    if (!downloadBtnFound) {
-                        child.style.flex = "2";
-                        child.setAttribute('data-i18n', 'kaspi_download_file');
-                        child.style.display = "block";
-                        downloadBtnFound = true; 
-                    } else {
-                        child.style.display = "none";
-                        child.style.setProperty("display", "none", "important");
-                    }
-                }
-            });
-            
-            if (typeof window.applyLanguage === 'function') {
-                window.applyLanguage(typeof currentLang !== 'undefined' ? currentLang : 'ru');
-            }
+        backBtn.onclick = function (e) {
+          e.preventDefault();
+          document.getElementById("invoicePreviewArea").style.display = "none";
+          document.getElementById("mapper2Area").style.display = "flex";
+
+          const mapperBackBtn = document.getElementById("kaspiMapperBackBtn");
+          if (mapperBackBtn) {
+            mapperBackBtn.style.display = "block";
+          }
+        };
+
+        exportBtns.insertBefore(backBtn, exportBtns.firstChild);
+      }
+
+      let resetBtn = document.getElementById("kaspiResetExportBtn");
+      if (!resetBtn) {
+        resetBtn = document.createElement("button");
+        resetBtn.id = "kaspiResetExportBtn";
+        resetBtn.style.background = "var(--btn-danger-bg, #ef4444)";
+        resetBtn.style.color = "var(--btn-danger-text, #ffffff)";
+        resetBtn.style.border = "1px solid var(--btn-danger-border, #dc2626)";
+        resetBtn.style.padding = "12px 15px";
+        resetBtn.style.minHeight = "42px";
+        resetBtn.style.borderRadius = "6px";
+        resetBtn.style.fontWeight = "bold";
+        resetBtn.style.cursor = "pointer";
+        resetBtn.style.boxSizing = "border-box";
+        resetBtn.setAttribute("data-i18n", "kaspi_reset_invoice");
+        resetBtn.innerText = "🔄 ПЕРЕЗАЛИТЬ НАКЛАДНУЮ (СБРОС)";
+
+        resetBtn.onclick = function (e) {
+          e.preventDefault();
+          let confirmMsg = "Очистить таблицу и загрузить накладную заново?";
+          if (typeof window.t === "function") {
+            confirmMsg = window.t("kaspi_reset_confirm") || confirmMsg;
+          } else {
+            const translatedEl = document.querySelector(
+              '[data-i18n="kaspi_reset_confirm"]',
+            );
+            if (translatedEl) confirmMsg = translatedEl.innerText;
+          }
+
+          if (!confirm(confirmMsg)) return;
+
+          window.parsedInvoiceData = [];
+          window.kaspiExportItems = [];
+          if (window.mapper2State) window.mapper2State.colMap = {};
+
+          if (window.currentExportHash) {
+            window.handleCardSelectForExport(
+              window.currentExportHash,
+              null,
+              false,
+            );
+          }
+        };
+
+        exportBtns.appendChild(resetBtn);
+      }
+
+      let downloadBtnFound = false;
+
+      Array.from(exportBtns.children).forEach((child) => {
+        if (child.id === "kaspiBackToMapperBtn") {
+          child.style.flex = "1";
+          child.style.display = "block";
+        } else if (child.id === "kaspiResetExportBtn") {
+          child.style.flex = "0 0 100%";
+          child.style.marginTop = "5px";
+          child.style.display = "block";
+        } else if (child.tagName.toUpperCase() === "BUTTON") {
+          if (!downloadBtnFound) {
+            child.style.flex = "2";
+            child.setAttribute("data-i18n", "kaspi_download_file");
+            child.style.display = "block";
+            downloadBtnFound = true;
+          } else {
+            child.style.display = "none";
+            child.style.setProperty("display", "none", "important");
+          }
         }
-    } else {
-        const exportBtns = document.getElementById("exportActionButtons");
-        if (exportBtns) {
-            exportBtns.style.display = "none"; 
-        }
+      });
 
-        setTimeout(() => {
-            const sendBtn = document.getElementById("sendInvoiceBtn");
-            if (sendBtn) {
-                sendBtn.style.display = "block"; 
-                sendBtn.style.setProperty("display", "block", "important");
-                sendBtn.style.visibility = "visible";
-                sendBtn.removeAttribute("hidden");
-                
-                const parent = sendBtn.parentElement;
-                if (parent && parent.id !== "invoicePreviewArea" && parent.style.display === "none") {
-                    parent.style.setProperty("display", "flex", "important");
-                    parent.style.width = "100%";
-                }
-            }
-            
-            const step3 = document.getElementById("invoicePreviewArea");
-            if (step3) {
-                const allBtns = step3.querySelectorAll('button');
-                allBtns.forEach(b => {
-                    const txt = b.innerText.trim().toUpperCase();
-                    // 🔥 Безопасный ?.includes
-                    if (txt?.includes('НАЗАД') || txt?.includes('АРТҚА')) {
-                        if (b.id !== 'kaspiBackToMapperBtn') {
-                            b.style.display = "block"; 
-                            b.style.setProperty("display", "block", "important");
-                        }
-                    }
-                });
-            }
-        }, 100); 
+      if (typeof window.applyLanguage === "function") {
+        window.applyLanguage(
+          typeof currentLang !== "undefined" ? currentLang : "ru",
+        );
+      }
     }
+  } else {
+    const exportBtns = document.getElementById("exportActionButtons");
+    if (exportBtns) {
+      exportBtns.style.display = "none";
+    }
+
+    setTimeout(() => {
+      const sendBtn = document.getElementById("sendInvoiceBtn");
+      if (sendBtn) {
+        sendBtn.style.display = "block";
+        sendBtn.style.setProperty("display", "block", "important");
+        sendBtn.style.visibility = "visible";
+        sendBtn.removeAttribute("hidden");
+
+        const parent = sendBtn.parentElement;
+        if (
+          parent &&
+          parent.id !== "invoicePreviewArea" &&
+          parent.style.display === "none"
+        ) {
+          parent.style.setProperty("display", "flex", "important");
+          parent.style.width = "100%";
+        }
+      }
+
+      const step3 = document.getElementById("invoicePreviewArea");
+      if (step3) {
+        const allBtns = step3.querySelectorAll("button");
+        allBtns.forEach((b) => {
+          const txt = b.innerText.trim().toUpperCase();
+          // 🔥 Безопасный ?.includes
+          if (txt?.includes("НАЗАД") || txt?.includes("АРТҚА")) {
+            if (b.id !== "kaspiBackToMapperBtn") {
+              b.style.display = "block";
+              b.style.setProperty("display", "block", "important");
+            }
+          }
+        });
+      }
+    }, 100);
+  }
 };
 
 // === 1. ГЛАВНОЕ ОКНО РЕДАКТИРОВАНИЯ ===
@@ -3281,31 +3700,38 @@ window.showMapperArea = function () {
 };
 
 // === ФУНКЦИЯ-СБОРЩИК МЕТАДАННЫХ ДЛЯ KASPI (ИСПРАВЛЕННАЯ) ===
-window.buildKaspiExportMetadata = function() {
-    let complexParams = window.kaspiComplexParamsState || {};
-    
-    if (window.mapper2State) {
-        complexParams.splitRules = window.mapper2State.splitRules || complexParams.splitRules || {};
-        complexParams.dictValues = window.mapper2State.dictValues || complexParams.dictValues || {};
-    }
+window.buildKaspiExportMetadata = function () {
+  let complexParams = window.kaspiComplexParamsState || {};
 
-    let finalMapping = {};
-    if (window.mapper2State && window.mapper2State.colMap) {
-        for (let key in window.mapper2State.colMap) {
-            let val = window.mapper2State.colMap[key];
-            if (window.isKaspiExportMode && val !== "" && val !== null && !isNaN(val)) {
-                finalMapping[key] = key; 
-            } else {
-                finalMapping[key] = val;
-            }
-        }
-    }
+  if (window.mapper2State) {
+    complexParams.splitRules =
+      window.mapper2State.splitRules || complexParams.splitRules || {};
+    complexParams.dictValues =
+      window.mapper2State.dictValues || complexParams.dictValues || {};
+  }
 
-    return JSON.stringify({
-        raw_headers: window.rawExcelHeaders || [], 
-        saved_mapping: finalMapping,
-        saved_complex_params: complexParams 
-    });
+  let finalMapping = {};
+  if (window.mapper2State && window.mapper2State.colMap) {
+    for (let key in window.mapper2State.colMap) {
+      let val = window.mapper2State.colMap[key];
+      if (
+        window.isKaspiExportMode &&
+        val !== "" &&
+        val !== null &&
+        !isNaN(val)
+      ) {
+        finalMapping[key] = key;
+      } else {
+        finalMapping[key] = val;
+      }
+    }
+  }
+
+  return JSON.stringify({
+    raw_headers: window.rawExcelHeaders || [],
+    saved_mapping: finalMapping,
+    saved_complex_params: complexParams,
+  });
 };
 
 async function sendInvoiceToBackend() {
@@ -3321,21 +3747,24 @@ async function sendInvoiceToBackend() {
     if (finalDocNo !== docKeys[0]) {
       window.invoiceGroups[finalDocNo] = window.invoiceGroups[docKeys[0]];
       delete window.invoiceGroups[docKeys[0]];
-      window.invoiceGroups[finalDocNo].items.forEach((i) => (i.doc_no = finalDocNo));
+      window.invoiceGroups[finalDocNo].items.forEach(
+        (i) => (i.doc_no = finalDocNo),
+      );
     }
   }
 
   // ⚡ ПОЛУЧАЕМ ТЕКСТ И ХЭШ ШАБЛОНА ДЛЯ БАЗЫ И МАРКЕТА
-const templateDropdown = document.getElementById("kaspiTemplateSelect");
-let selectedCategory = "";
-let selectedHash = "";
+  const templateDropdown = document.getElementById("kaspiTemplateSelect");
+  let selectedCategory = "";
+  let selectedHash = "";
 
-if (templateDropdown && templateDropdown.selectedIndex !== -1) {
-  const opt = templateDropdown.options[templateDropdown.selectedIndex];
-  selectedCategory = opt.text.trim();
-  // Жестко забираем хэш напрямую из атрибутов, чтобы браузер не подсунул текст
-  selectedHash = opt.getAttribute("data-hash") || opt.getAttribute("value") || "";
-}
+  if (templateDropdown && templateDropdown.selectedIndex !== -1) {
+    const opt = templateDropdown.options[templateDropdown.selectedIndex];
+    selectedCategory = opt.text.trim();
+    // Жестко забираем хэш напрямую из атрибутов, чтобы браузер не подсунул текст
+    selectedHash =
+      opt.getAttribute("data-hash") || opt.getAttribute("value") || "";
+  }
 
   let autoGeneratedMapper = {};
   if (selectedCategory && window.parsedInvoiceData.length > 0) {
@@ -3399,12 +3828,25 @@ if (templateDropdown && templateDropdown.selectedIndex !== -1) {
     }, 600);
 
     try {
-      let uniqueFileId = window.mapper2State && window.mapper2State.fileHash ? window.mapper2State.fileHash : String(docNo).replace(/\s/g, "_");
-      let fp = "FP_" + uniqueFileId + "_" + group.items.length + "шт_" + group.items.reduce((sum, i) => sum + (Number(i.qty) || 0), 0) + "кол";
+      let uniqueFileId =
+        window.mapper2State && window.mapper2State.fileHash
+          ? window.mapper2State.fileHash
+          : String(docNo).replace(/\s/g, "_");
+      let fp =
+        "FP_" +
+        uniqueFileId +
+        "_" +
+        group.items.length +
+        "шт_" +
+        group.items.reduce((sum, i) => sum + (Number(i.qty) || 0), 0) +
+        "кол";
       group.items.forEach((item) => (item.file_code = fp));
 
       // ⚡ СОБИРАЕМ ИСТОРИЮ ЭКСПОРТА И КОЛОНОК ДЛЯ БАЗЫ
-      const exportMetadataJSON = typeof window.buildKaspiExportMetadata === 'function' ? window.buildKaspiExportMetadata() : "{}";
+      const exportMetadataJSON =
+        typeof window.buildKaspiExportMetadata === "function"
+          ? window.buildKaspiExportMetadata()
+          : "{}";
       const currencyEl = document.getElementById("invoiceCurrency");
       const finalCurrency = currencyEl ? currencyEl.value : "KZT";
 
@@ -3420,10 +3862,10 @@ if (templateDropdown && templateDropdown.selectedIndex !== -1) {
           currency: finalCurrency,
           fingerprint: fp,
           market_category: selectedCategory, // Идет нормальное имя (Шины)
-          template_hash: selectedHash,       // Отдельно идет хэш
+          template_hash: selectedHash, // Отдельно идет хэш
           market_status: "pending",
           kaspi_mapper: autoGeneratedMapper,
-          export_metadata: exportMetadataJSON // Данные колонок для базы
+          export_metadata: exportMetadataJSON, // Данные колонок для базы
         }),
       });
 
@@ -3441,7 +3883,10 @@ if (templateDropdown && templateDropdown.selectedIndex !== -1) {
       let errorMsg = err.message;
       let dupMatch = errorMsg.match(/Накладная с номером (.*?) уже была/i);
       if (dupMatch && dupMatch[1]) {
-        errorMsg = translations[currentLang].server_dup.replace("{0}", dupMatch[1].trim());
+        errorMsg = translations[currentLang].server_dup.replace(
+          "{0}",
+          dupMatch[1].trim(),
+        );
       } else if (errorMsg.includes("База не привязана")) {
         errorMsg = translations[currentLang].server_no_db;
       } else if (errorMsg.includes("с точно таким же составом")) {
@@ -3461,27 +3906,28 @@ if (templateDropdown && templateDropdown.selectedIndex !== -1) {
   statusText.style.color = "var(--accent-green)";
 
   setTimeout(() => {
-  alert(translations[currentLang].inc_all_done);
+    alert(translations[currentLang].inc_all_done);
 
-  // ⚡ ФИКС: Жестко прячем блок сопоставления и экраны превью
-  const idsToHide = [
-    "exportMapperArea", // Тот самый блок со скриншота
-    "mapper2Area",      
-    "invoicePreviewArea"
-  ];
-  
-  idsToHide.forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.style.display = "none";
-  });
+    // ⚡ ФИКС: Жестко прячем блок сопоставления и экраны превью
+    const idsToHide = [
+      "exportMapperArea", // Тот самый блок со скриншота
+      "mapper2Area",
+      "invoicePreviewArea",
+    ];
 
-  window.parsedInvoiceData = [];
-  window.invoiceGroups = {};
+    idsToHide.forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = "none";
+    });
+
+    window.parsedInvoiceData = [];
+    window.invoiceGroups = {};
 
     const fileInput = document.getElementById("invoiceFileInput");
     if (fileInput) {
       fileInput.value = "";
-      if (typeof updateFileNameCompactUI === "function") updateFileNameCompactUI(fileInput);
+      if (typeof updateFileNameCompactUI === "function")
+        updateFileNameCompactUI(fileInput);
     }
 
     const tbody = document.getElementById("invoiceTableBody");
@@ -3581,7 +4027,7 @@ window.openExportModal = async function () {
   window.isKaspiExportMode = true;
   window.parsedInvoiceData = []; // Очищаем память от данных обычной приемки
   window.kaspiExportItems = [];
-  
+
   window.mapper2State = window.mapper2State || {};
   window.mapper2State.colMap = {}; // Очищаем старый маппинг колонок
 
@@ -3870,11 +4316,11 @@ window.handleCardSelectForExport = async function (
       // ПАРСИМ СОХРАНЕННЫЕ МЕТАДАННЫЕ ИЗ БАЗЫ (ТВОЯ ПАМЯТЬ КНОПОК)
       let savedMeta = {};
       if (res.items && res.items.length > 0 && res.items[0].export_metadata) {
-         try {
-            savedMeta = JSON.parse(res.items[0].export_metadata);
-         } catch(e) {
-            console.error("Ошибка парсинга export_metadata", e);
-         }
+        try {
+          savedMeta = JSON.parse(res.items[0].export_metadata);
+        } catch (e) {
+          console.error("Ошибка парсинга export_metadata", e);
+        }
       }
 
       window.mapper2State = Object.assign(
@@ -3887,35 +4333,46 @@ window.handleCardSelectForExport = async function (
             extractedHeaders.map((h) => item[h]),
           ),
         },
-        res.templateConfig || {} 
+        res.templateConfig || {},
       );
 
       // ЖЕСТКО ВОССТАНАВЛИВАЕМ СПЛИТТЕРЫ И СЛОВАРИ ПОВЕРХ ШАБЛОНА
       if (savedMeta.saved_complex_params) {
-         if (savedMeta.saved_complex_params.splitRules) {
-             window.mapper2State.splitRules = savedMeta.saved_complex_params.splitRules;
-         }
-         if (savedMeta.saved_complex_params.dictValues) {
-             window.mapper2State.dictValues = savedMeta.saved_complex_params.dictValues;
-         }
+        if (savedMeta.saved_complex_params.splitRules) {
+          window.mapper2State.splitRules =
+            savedMeta.saved_complex_params.splitRules;
+        }
+        if (savedMeta.saved_complex_params.dictValues) {
+          window.mapper2State.dictValues =
+            savedMeta.saved_complex_params.dictValues;
+        }
       }
       if (savedMeta.saved_mapping) {
-         window.mapper2State.colMap = Object.assign({}, savedMeta.saved_mapping, window.mapper2State.colMap);
+        window.mapper2State.colMap = Object.assign(
+          {},
+          savedMeta.saved_mapping,
+          window.mapper2State.colMap,
+        );
       }
-      
+
       window.kaspiComplexParamsState = {
-         splitRules: window.mapper2State.splitRules || {},
-         dictValues: window.mapper2State.dictValues || {}
+        splitRules: window.mapper2State.splitRules || {},
+        dictValues: window.mapper2State.dictValues || {},
       };
 
       // === ВОССТАНОВЛЕНИЕ ЗАГОЛОВКОВ И ПЕРЕВОДА НА РУССКИЙ ===
       window.mapper2State.supplier = "Kaspi (Экспорт)";
       let origDoc = "Партия";
-if (res.items && res.items.length > 0) {
-    // Ищем оригинальный номер накладной, под которым товар был оприходован
-    origDoc = res.items[0].doc_no || res.items[0].invoice_no || res.items[0].document_id || res.templateConfig.templateName || "Партия";
-}
-window.mapper2State.docNo = origDoc;
+      if (res.items && res.items.length > 0) {
+        // Ищем оригинальный номер накладной, под которым товар был оприходован
+        origDoc =
+          res.items[0].doc_no ||
+          res.items[0].invoice_no ||
+          res.items[0].document_id ||
+          res.templateConfig.templateName ||
+          "Партия";
+      }
+      window.mapper2State.docNo = origDoc;
 
       if (res.templateConfig && res.templateConfig.systemKeys) {
         window.mapper2State.sysToHumanMap = {};
@@ -3944,54 +4401,60 @@ window.mapper2State.docNo = origDoc;
 
       // 1. Универсальная привязка ВСЕХ параметров
       extractedHeaders.forEach((header, idx) => {
-          res.templateConfig.mapping[header] = header; 
-          window.mapper2State.colMap[header] = idx;
+        res.templateConfig.mapping[header] = header;
+        window.mapper2State.colMap[header] = idx;
 
-          // 🔥 ФИКС АВТОЗАПОЛНЕНИЯ ИЗ БАЗЫ: Увязываем русские названия характеристик с техническими ключами Kaspi
-          if (res.templateConfig.humanNames && res.templateConfig.systemKeys) {
-              let humanIdx = res.templateConfig.humanNames.indexOf(header);
-              if (humanIdx !== -1) {
-                  let sysKey = res.templateConfig.systemKeys[humanIdx];
-                  window.mapper2State.colMap[sysKey] = idx; // Маппер увидит это и зажжет зеленую галочку!
-              }
+        // 🔥 ФИКС АВТОЗАПОЛНЕНИЯ ИЗ БАЗЫ: Увязываем русские названия характеристик с техническими ключами Kaspi
+        if (res.templateConfig.humanNames && res.templateConfig.systemKeys) {
+          let humanIdx = res.templateConfig.humanNames.indexOf(header);
+          if (humanIdx !== -1) {
+            let sysKey = res.templateConfig.systemKeys[humanIdx];
+            window.mapper2State.colMap[sysKey] = idx; // Маппер увидит это и зажжет зеленую галочку!
           }
+        }
       });
 
       // Возвращаем старые маппинги, если они были сохранены
-      window.mapper2State.colMap = Object.assign({}, window.mapper2State.colMap, existingColMap);
+      window.mapper2State.colMap = Object.assign(
+        {},
+        window.mapper2State.colMap,
+        existingColMap,
+      );
 
       // 2. Восстанавливаем сплиттеры чисто для визуала (данные уже готовы)
       if (savedMeta.saved_complex_params) {
-         res.templateConfig.splitRules = savedMeta.saved_complex_params.splitRules || {};
-         res.templateConfig.dictValues = savedMeta.saved_complex_params.dictValues || {};
-         window.mapper2State.splitRules = res.templateConfig.splitRules;
-         window.mapper2State.dictValues = res.templateConfig.dictValues;
-         window.kaspiComplexParamsState = {
-             splitRules: res.templateConfig.splitRules,
-             dictValues: res.templateConfig.dictValues
-         };
+        res.templateConfig.splitRules =
+          savedMeta.saved_complex_params.splitRules || {};
+        res.templateConfig.dictValues =
+          savedMeta.saved_complex_params.dictValues || {};
+        window.mapper2State.splitRules = res.templateConfig.splitRules;
+        window.mapper2State.dictValues = res.templateConfig.dictValues;
+        window.kaspiComplexParamsState = {
+          splitRules: res.templateConfig.splitRules,
+          dictValues: res.templateConfig.dictValues,
+        };
       }
 
       // 3. Жестко привязываем базовые поля (расширен словарь на всякий случай)
       const baseFieldsMap = {
-          "name": ["item_name", "name", "title", "Наименование", "Название"], 
-          "item_id": ["item_id", "id", "sku"],
-          "price": ["cost", "price", "price_in", "Цена"],
-          "qty": ["qty", "quantity", "Количество"],
-          "barcode": ["barcode", "ean", "Штрихкод"],
-          "brand": ["brand", "Бренд"]
+        name: ["item_name", "name", "title", "Наименование", "Название"],
+        item_id: ["item_id", "id", "sku"],
+        price: ["cost", "price", "price_in", "Цена"],
+        qty: ["qty", "quantity", "Количество"],
+        barcode: ["barcode", "ean", "Штрихкод"],
+        brand: ["brand", "Бренд"],
       };
 
-      Object.keys(baseFieldsMap).forEach(targetKey => {
-          let possibleNames = baseFieldsMap[targetKey];
-          for (let pName of possibleNames) {
-              let idx = extractedHeaders.indexOf(pName);
-              if (idx !== -1) {
-                  res.templateConfig.mapping[targetKey] = targetKey; 
-                  window.mapper2State.colMap[targetKey] = idx;
-                  break; 
-              }
+      Object.keys(baseFieldsMap).forEach((targetKey) => {
+        let possibleNames = baseFieldsMap[targetKey];
+        for (let pName of possibleNames) {
+          let idx = extractedHeaders.indexOf(pName);
+          if (idx !== -1) {
+            res.templateConfig.mapping[targetKey] = targetKey;
+            window.mapper2State.colMap[targetKey] = idx;
+            break;
           }
+        }
       });
 
       // 4. Глубокая очистка цен и количества
@@ -4000,19 +4463,25 @@ window.mapper2State.docNo = origDoc;
       let priceKey = extractedHeaders[priceIdx];
       let qtyKey = extractedHeaders[qtyIdx];
 
-      window.parsedInvoiceData.forEach(item => {
-          if (priceKey) {
-              let cleanPrice = String(item[priceKey] || "").replace(/\s/g, '').replace(/,/g, '.').replace(/[^\d.-]/g, '');
-              item[priceKey] = cleanPrice === "" ? 0 : Number(cleanPrice);
-          }
-          if (qtyKey) {
-              let cleanQty = String(item[qtyKey] || "").replace(/\s/g, '').replace(/,/g, '.').replace(/[^\d.-]/g, '');
-              item[qtyKey] = cleanQty === "" ? 0 : Number(cleanQty);
-          }
+      window.parsedInvoiceData.forEach((item) => {
+        if (priceKey) {
+          let cleanPrice = String(item[priceKey] || "")
+            .replace(/\s/g, "")
+            .replace(/,/g, ".")
+            .replace(/[^\d.-]/g, "");
+          item[priceKey] = cleanPrice === "" ? 0 : Number(cleanPrice);
+        }
+        if (qtyKey) {
+          let cleanQty = String(item[qtyKey] || "")
+            .replace(/\s/g, "")
+            .replace(/,/g, ".")
+            .replace(/[^\d.-]/g, "");
+          item[qtyKey] = cleanQty === "" ? 0 : Number(cleanQty);
+        }
       });
 
       window.mapper2State.invoiceRows = window.parsedInvoiceData.map((item) =>
-          extractedHeaders.map((h) => item[h])
+        extractedHeaders.map((h) => item[h]),
       );
 
       // === Рендерим маппер с готовыми данными ===
@@ -4033,14 +4502,19 @@ window.mapper2State.docNo = origDoc;
         const allBtns = step3.querySelectorAll("button");
         allBtns.forEach((b) => {
           const text = b.innerText.trim().toUpperCase();
-          
+
           // 🔥 Восстановлен block, чтобы кнопка 100% появлялась
           if (text === "НАЗАД" || text.includes("НАЗАД")) {
             b.style.display = "block";
           }
-          
-          if (window.isKaspiExportMode && (text.includes("ДИСК") || text.includes("СБРОС") || text.includes("ПЕРЕЗАЛИТЬ"))) {
-              b.style.display = "none";
+
+          if (
+            window.isKaspiExportMode &&
+            (text.includes("ДИСК") ||
+              text.includes("СБРОС") ||
+              text.includes("ПЕРЕЗАЛИТЬ"))
+          ) {
+            b.style.display = "none";
           }
         });
       }
@@ -4138,7 +4612,7 @@ async function saveKaspiTemplateBackend(categoryName, buffer, headersObj) {
 }
 
 // Обработка загрузки файла шаблона Kaspi
-window.handleTemplateUpload = async function(event) {
+window.handleTemplateUpload = async function (event) {
   const file = event.target.files[0];
   if (!file) return;
 
@@ -4466,7 +4940,7 @@ window.handleTemplateUpload = async function(event) {
     };
     reader.readAsArrayBuffer(file);
   }, 50);
-}
+};
 
 // 1. ОТРИСОВКА ИНТЕРФЕЙСА (Берет переводы из глобальной базы)
 function renderMapperUI(
@@ -4746,26 +5220,34 @@ function selectCurrency(value) {
 // Глобальный объект для хранения словарей Каспи
 window.kaspiDicts = {};
 
-window.checkMapperReadiness = function() {
-    const st = window.mapper2State || {};
-    const cm = st.colMap || {};
-    const dv = st.dictValues || {};
+window.checkMapperReadiness = function () {
+  const st = window.mapper2State || {};
+  const cm = st.colMap || {};
+  const dv = st.dictValues || {};
 
-    const hasQty = cm["qty"] !== undefined || dv["qty"] !== undefined;
-    const hasPrice = cm["price"] !== undefined || cm["cost"] !== undefined || dv["price"] !== undefined || dv["cost"] !== undefined;
-    const hasName = cm["name"] !== undefined || cm["model"] !== undefined || dv["name"] !== undefined || dv["model"] !== undefined;
+  const hasQty = cm["qty"] !== undefined || dv["qty"] !== undefined;
+  const hasPrice =
+    cm["price"] !== undefined ||
+    cm["cost"] !== undefined ||
+    dv["price"] !== undefined ||
+    dv["cost"] !== undefined;
+  const hasName =
+    cm["name"] !== undefined ||
+    cm["model"] !== undefined ||
+    dv["name"] !== undefined ||
+    dv["model"] !== undefined;
 
-    const btn = document.getElementById("applyMapper2Btn");
-    if (btn) {
-        if (hasQty && hasPrice && hasName) {
-            btn.style.backgroundColor = "var(--accent-green, #2ecc71)";
-            btn.style.color = "#000";
-            btn.style.opacity = "1";
-            btn.style.pointerEvents = "auto";
-        } else {
-            btn.style.backgroundColor = "";
-            btn.style.opacity = "0.5";
-            btn.style.pointerEvents = "none";
-        }
+  const btn = document.getElementById("applyMapper2Btn");
+  if (btn) {
+    if (hasQty && hasPrice && hasName) {
+      btn.style.backgroundColor = "var(--accent-green, #2ecc71)";
+      btn.style.color = "#000";
+      btn.style.opacity = "1";
+      btn.style.pointerEvents = "auto";
+    } else {
+      btn.style.backgroundColor = "";
+      btn.style.opacity = "0.5";
+      btn.style.pointerEvents = "none";
     }
+  }
 };
