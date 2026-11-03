@@ -4049,7 +4049,8 @@ function triggerCategoryRename() {
         if (typeof hideLoading === 'function') hideLoading();
         
         if (response && response.success) {
-          // Запускаем ваш сценарий глобального обновления
+          
+          // ЗАПУСКАЕМ ВАШ ПРОЦЕСС ГЛОБАЛЬНОГО ОБНОВЛЕНИЯ (как при долгом тапе)
           document.body.style.transition = "background-color 0.1s ease";
           document.body.style.backgroundColor = "var(--accent-red)";
           document.body.innerHTML = `
@@ -4059,9 +4060,11 @@ function triggerCategoryRename() {
             </div>
           `;
           
-          // Очищаем только сессионный кэш, сохраняя ключи авторизации
+          // Полностью сносим кэш (как в вашем startResetHold)
+          localStorage.clear();
           sessionStorage.clear();
-          
+
+          // Перезагружаем страницу через полсекунды
           setTimeout(() => {
             window.location.reload(true);
           }, 500);
