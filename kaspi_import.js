@@ -320,7 +320,8 @@ window.processInvoiceFile = async function () {
       }
     }
     
-    if (validSheets.length === 0) throw new Error("Пустой файл (нет данных на листах)");
+    const tLang = typeof translations !== 'undefined' && translations[currentLang] ? translations[currentLang] : {};
+    if (validSheets.length === 0) throw new Error(tLang.inc_empty_file || "Пустой файл");
 
     // ⚡ ВЫБОР ЛИСТА С ИСПОЛЬЗОВАНИЕМ PROMISE (СТАВИМ КОД НА ПАУЗУ)
     let selectedSheetInfo = await new Promise((resolve) => {
@@ -404,7 +405,7 @@ window.processInvoiceFile = async function () {
                 }
                 
                 document.body.removeChild(overlay);
-                window.showLoading("Подготовка данных..."); // Возвращаем системный лоадер
+                window.showLoading(t.inc_preparing_data || "Подготовка данных..."); // Возвращаем системный лоадер
                 resolve({ name: sheetName, rows: validSheets[btn.getAttribute('data-idx')].rows });
             };
         });
@@ -601,7 +602,8 @@ window.processInvoiceFile = async function () {
 
       // --- ПРИНУДИТЕЛЬНАЯ ЗАГРУЗКА СЛОВАРЯ ---
       if (typeof invoiceSynonyms === "undefined" || Object.keys(invoiceSynonyms).length === 0) {
-        window.showLoading("Загрузка словаря переводов...");
+        const dictText = typeof translations !== 'undefined' && translations[currentLang] ? translations[currentLang].inc_loading_dict : "Загрузка словаря переводов...";
+        window.showLoading(dictText);
         
         try {
             const fetchUrl = `${typeof APPS_SCRIPT_URL !== "undefined" ? APPS_SCRIPT_URL : ""}?action=getInitialData&api_key=${typeof CLIENT_API_KEY !== "undefined" ? CLIENT_API_KEY : ""}&t=${Date.now()}&uid=${localStorage.getItem("user_uid") || ""}&role=${localStorage.getItem("user_role") || ""}&last_sync=0`;
