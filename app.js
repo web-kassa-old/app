@@ -25,9 +25,16 @@ window.showLoading = function (text, i18nKey = null) {
         applyLanguage(currentLang);
       }
     } else {
-      // 2. Динамический текст (например, с названием категории внутри)
+      // 2. Динамический текст или мультиязычный текст по умолчанию
       loaderText.removeAttribute("data-i18n");
-      loaderText.innerText = text || "Подождите...";
+      
+      // Достаем текст из словаря, если словарь и язык доступны
+      let defaultWaitText = "Подождите...";
+      if (typeof translations !== "undefined" && typeof currentLang !== "undefined" && translations[currentLang] && translations[currentLang].loading_wait) {
+        defaultWaitText = translations[currentLang].loading_wait;
+      }
+      
+      loaderText.innerText = text || defaultWaitText;
     }
   }
 
@@ -4030,7 +4037,9 @@ function triggerCategoryMarkup() {
 function triggerCategoryRename() {
   closeCategoryActionMenu();
   
-  const newName = prompt(`Введите новое название для категории "${actionMenuTargetCategory}":`, actionMenuTargetCategory);
+  // Берем текст из словаря и добавляем имя категории
+  const promptText = `${translations[currentLang].cat_rename_prompt} "${actionMenuTargetCategory}":`;
+  const newName = prompt(promptText, actionMenuTargetCategory);
   
   if (newName && newName.trim() !== "" && newName.trim() !== actionMenuTargetCategory) {
     const finalNewName = newName.trim();
@@ -4050,7 +4059,6 @@ function triggerCategoryRename() {
         
         if (response && response.success) {
           
-          // 1. Моргание красным экраном для визуализации
           document.body.style.transition = "background-color 0.3s ease";
           const originalColor = document.body.style.backgroundColor;
           document.body.style.backgroundColor = "var(--accent-red)";
@@ -4059,20 +4067,21 @@ function triggerCategoryRename() {
             document.body.style.backgroundColor = originalColor || "";
           }, 400);
 
-          // 2. Бесшовное стягивание свежих данных с сервера (как при вашей кнопке)
           if (typeof refreshPosData === 'function') {
-            await refreshPosData(false, true); // true для полного обновления
+            await refreshPosData(false, true); 
           } else if (typeof load === 'function') {
             await load(true);
           }
 
         } else {
-          alert("Ошибка переименования: " + (response ? response.error : "Ответ не получен"));
+          // Локализованная ошибка сервера
+          alert(translations[currentLang].cat_rename_err + (response ? response.error : "Ответ не получен"));
         }
       })
       .catch(err => {
         if (typeof hideLoading === 'function') hideLoading();
-        alert("Сбой фронтенда при обработке: " + err.message);
+        // Локализованная ошибка фронтенда
+        alert(translations[currentLang].cat_rename_fail + err.message);
       });
   }
 }
