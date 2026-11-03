@@ -1491,6 +1491,8 @@ window.openColumnSelector = function (sysKey, reqName, isKaspi) {
   window.mapper2State.currentSysKey = sysKey;
   window.mapper2State.currentReqName = reqName;
 
+  const t = typeof translations !== 'undefined' && translations[currentLang] ? translations[currentLang] : {};
+
   document.getElementById("sheet-title").innerText =
     translations[currentLang].mapper_source + reqName;
 
@@ -1517,16 +1519,17 @@ window.openColumnSelector = function (sysKey, reqName, isKaspi) {
 
   colList.innerHTML = `
     <div style="position: sticky; top: 0; background: var(--bg-panel, #1e1e1e); z-index: 10; padding: 15px 20px; margin: -20px 0 15px 0; border-bottom: 1px solid var(--border-light, #333); display: flex; justify-content: space-between; align-items: center;">
-        <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; font-weight: bold;" data-i18n="mapper_inv_cols">
-    Колонки из накладной
-</div>
+        <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; font-weight: bold;" data-i18n="mapper_invoice_cols">
+            ${t.mapper_invoice_cols || "Колонки из накладной"}
+        </div>
         <div style="display: flex; align-items: center;">
             ${dictBtnHtml}
             <button onclick="clearMapper2Col('${sysKey}')" style="background: rgba(255, 68, 68, 0.1); border: 1px solid #ff4444; color: #ff4444; padding: 5px 12px; border-radius: 4px; font-size: 11px; font-weight: bold; cursor: pointer;">
-    ❌ <span data-i18n="mapper_btn_clear">Очистить</span>
-</button>
+                ❌ <span data-i18n="mapper_clear">${t.mapper_clear || "Очистить"}</span>
+            </button>
         </div>
-    </div>`;
+    </div>
+`;
 
   let currentlyMappedIndex = window.mapper2State.colMap
     ? window.mapper2State.colMap[sysKey]
