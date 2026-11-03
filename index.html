@@ -1189,6 +1189,7 @@
     >
       <div class="modal-content" style="max-width: 350px">
         <h3
+          id="action-menu-title"
           style="
             text-transform: uppercase;
             text-align: center;
@@ -1209,14 +1210,15 @@
         ></div>
 
         <button
+          id="btn-action-markup"
           onclick="triggerCategoryMarkup()"
           style="
             width: 100%;
             padding: 15px;
             margin-bottom: 10px;
-            background: var(--primary);
-            color: #fff;
-            border: none;
+            background: var(--bg-hover);
+            color: var(--text-main);
+            border: 1px solid var(--border-focus);
             border-radius: 6px;
             font-weight: bold;
             cursor: pointer;
@@ -1246,6 +1248,7 @@
         </button>
 
         <button
+          id="btn-action-cancel"
           onclick="closeCategoryActionMenu()"
           class="cancel-btn"
           style="width: 100%; text-transform: uppercase !important"

@@ -4015,10 +4015,27 @@ let actionMenuTargetCategory = "";
 function openCategoryActionMenu(catName) {
   actionMenuTargetCategory = catName;
   
-  // Выводим имя (категорию "Все" переименовать нельзя, скроем кнопку)
   const t = typeof translations !== 'undefined' && translations[currentLang] ? translations[currentLang] : {};
+  
+  // 1. Имя категории
   document.getElementById("action-menu-category-name").innerText = 
     catName === "all" ? (t.cat_all || "Все") : catName;
+    
+  // 2. Переводим заголовок окна
+  const title = document.getElementById("action-menu-title");
+  if (title) title.innerText = t.cat_manage_title || "УПРАВЛЕНИЕ КАТЕГОРИЕЙ";
+
+  // 3. Переводим "Наценка" (сохраняем иконку)
+  const markupBtn = document.getElementById("btn-action-markup");
+  if (markupBtn) markupBtn.innerHTML = `💰 ${t.cat_manage_markup || "НАЦЕНКА"}`;
+
+  // 4. Переводим кнопку "Переименовать" (сохраняем иконку)
+  const renameBtn = document.getElementById("btn-action-rename");
+  if (renameBtn) renameBtn.innerHTML = `✏️ ${t.cat_manage_rename || "ПЕРЕИМЕНОВАТЬ"}`;
+
+  // 5. Переводим кнопку "Отмена"
+  const cancelBtn = document.getElementById("btn-action-cancel");
+  if (cancelBtn) cancelBtn.innerText = t.cat_manage_cancel || "ОТМЕНА";
     
   document.getElementById("btn-action-rename").style.display = catName === "all" ? "none" : "block";
   document.getElementById("category-action-menu-modal").style.display = "flex";
