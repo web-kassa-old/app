@@ -6582,70 +6582,71 @@ document.addEventListener("visibilitychange", () => {
   }
 });
 // ===================================================================
-document.addEventListener("DOMContentLoaded", () => {
-  const syncBtn = document.getElementById("btn-sync-data");
+// Глобальные переменные для таймера кнопки обновления
+let syncPressTimer;
+let isSyncLongPress = false;
+
+// 1. Отключаем меню браузера при долгом нажатии
+document.addEventListener("contextmenu", (e) => {
+  if (e.target.closest("#btn-sync-data")) {
+    e.preventDefault();
+  }
+});
+
+// 2. Начало нажатия
+document.addEventListener("pointerdown", (e) => {
+  const syncBtn = e.target.closest("#btn-sync-data");
   if (!syncBtn) return;
 
-  let pressTimer;
-  let isLongPress = false;
+  if (e.pointerType === "mouse" && e.button !== 0) return;
 
-  // Отключаем меню браузера при долгом нажатии
-  syncBtn.addEventListener("contextmenu", (e) => e.preventDefault());
+  isSyncLongPress = false;
+  syncBtn.style.opacity = "0.5";
 
-  const startPress = (e) => {
-    if (e.pointerType === "mouse" && e.button !== 0) return;
+  syncPressTimer = setTimeout(() => {
+    isSyncLongPress = true;
+    console.log("Экстренная ПОЛНАЯ загрузка базы...");
 
-    isLongPress = false;
-    syncBtn.style.opacity = "0.5";
+    // === ВИЗУАЛЬНЫЙ ЭФФЕКТ: ВСПЫШКА ===
+    const flash = document.createElement("div");
+    flash.style.position = "fixed";
+    flash.style.top = "0";
+    flash.style.left = "0";
+    flash.style.width = "100vw";
+    flash.style.height = "100vh";
+    flash.style.backgroundColor = "rgba(255, 0, 0, 0.4)";
+    flash.style.zIndex = "999999";
+    flash.style.pointerEvents = "none";
+    flash.style.transition = "opacity 0.4s ease-out";
+    document.body.appendChild(flash);
 
-    pressTimer = setTimeout(() => {
-      isLongPress = true;
-      console.log("Экстренная ПОЛНАЯ загрузка базы...");
+    setTimeout(() => {
+      flash.style.opacity = "0";
+      setTimeout(() => flash.remove(), 400);
+    }, 100);
 
-      // === НОВЫЙ ВИЗУАЛЬНЫЙ ЭФФЕКТ: ВСПЫШКА ВСЕГО ЭКРАНА ===
-      const flash = document.createElement("div");
-      flash.style.position = "fixed";
-      flash.style.top = "0";
-      flash.style.left = "0";
-      flash.style.width = "100vw";
-      flash.style.height = "100vh";
-      flash.style.backgroundColor = "rgba(255, 0, 0, 0.4)"; // Красный, полупрозрачный
-      flash.style.zIndex = "999999"; // Поверх всего
-      flash.style.pointerEvents = "none"; // Чтобы не мешал нажимать
-      flash.style.transition = "opacity 0.4s ease-out";
-      document.body.appendChild(flash);
-
-      // Плавно растворяем вспышку
-      setTimeout(() => {
-        flash.style.opacity = "0";
-        setTimeout(() => flash.remove(), 400); // Удаляем элемент после анимации
-      }, 100);
-
-      if (typeof refreshPosData === "function") refreshPosData(false, true);
-    }, 1500);
-  };
-
-  const endPress = (e) => {
-    syncBtn.style.opacity = "1";
-    clearTimeout(pressTimer);
-
-    if (!isLongPress) {
-      console.log("Быстрая ДЕЛЬТА-синхронизация...");
-      if (typeof refreshPosData === "function") refreshPosData(false, false);
-    }
-  };
-
-  syncBtn.addEventListener("pointerdown", startPress);
-  syncBtn.addEventListener("pointerup", endPress);
-  syncBtn.addEventListener("pointerout", () => {
-    syncBtn.style.opacity = "1";
-    clearTimeout(pressTimer);
-  });
-  syncBtn.addEventListener("pointercancel", () => {
-    syncBtn.style.opacity = "1";
-    clearTimeout(pressTimer);
-  });
+    if (typeof refreshPosData === "function") refreshPosData(false, true);
+  }, 1500);
 });
+
+// 3. Отпускание или отмена нажатия
+const endSyncPress = (e) => {
+  const syncBtn = e.target.closest("#btn-sync-data");
+  if (!syncBtn) return;
+
+  syncBtn.style.opacity = "1";
+  clearTimeout(syncPressTimer);
+
+  // Если это событие pointerup и не было долгого нажатия — запускаем быструю синхронизацию
+  if (e.type === "pointerup" && !isSyncLongPress) {
+    console.log("Быстрая ДЕЛЬТА-синхронизация...");
+    if (typeof refreshPosData === "function") refreshPosData(false, false);
+  }
+};
+
+document.addEventListener("pointerup", endSyncPress);
+document.addEventListener("pointerout", endSyncPress);
+document.addEventListener("pointercancel", endSyncPress);
 
 // Генерация итогового прайс-листа для Kaspi
 window.generateExportFile = async function (target = "local") {
