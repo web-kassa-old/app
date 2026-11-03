@@ -642,39 +642,66 @@ window.processInvoiceFile = async function () {
 
       // Передаем в парсер только полезные данные, отсекая случайные пустые строки и подвал (контракты/итоги)
       let validRows = [];
-      let strikes = 0; // Счетчик невалидных строк подряд
+      let strikes = 0; 
 
       for (let i = firstDataRowIdx; i < rows.length; i++) {
         let row = rows[i] || [];
         
-        // 1. Считаем сколько ячеек реально заполнено данными
-        let filledCellsCount = row.filter((c) => String(c).trim() !== "").length;
+        // 1. Считаем только непустые ячейки
+        let filledCells = row.filter((c) => String(c).trim() !== "");
+        let filledCellsCount = filledCells.length;
         
-        // 2. Ищем аномально длинный текст (признак условий договора)
-        let hasHugeText = row.some((c) => String(c).trim().length > 150);
+        if (filledCellsCount === 0) {
+          strikes++;
+          if (strikes >= 2) break; // Две пустые строки = конец
+          continue;
+        }
 
-        // 3. Считаем количество числовых ячеек
+        // ==========================================
+        // 2. ДЕТЕКТОР ФУТЕРА (Жесткая остановка)
+        // ==========================================
+        // Берем текст первых трех колонок для анализа
+        let startText = row.slice(0, 3).map(c => String(c).trim()).join(" ");
+        let startTextUpper = startText.toUpperCase();
+        
+        // А) Поиск слов-маркеров, гарантированно означающих конец таблицы
+        let hasFooterWords = startTextUpper.includes("TOTAL") || 
+                             startTextUpper.includes("ИТОГО") || 
+                             startTextUpper.includes("SAY U.S") || 
+                             startTextUpper.includes("PAYMENT") || 
+                             startTextUpper.includes("REMARK") ||
+                             startTextUpper.includes("ARBITRATION");
+                             
+        // Б) Детектор пунктов договора (например: "1. The seller...", "2. The buyer...")
+        // Ищет начало строки вида "Цифра + Точка + Текст"
+        let isContractList = /^[1-9]\s*\.\s*[A-Za-zА-Яа-я]/.test(startText) && startText.length > 15;
+
+        // В) Структурная аномалия контракта: 
+        // Мало заполненных колонок (<=3), но при этом есть ячейка с текстом длиннее 45 символов
+        let hasLongText = row.some(c => String(c).trim().length > 45);
+        let isTextHeavyFooter = hasLongText && filledCellsCount <= 3; 
+
+        // Если сработал любой из триггеров подвала — немедленно обрубаем чтение всего файла ниже!
+        if (hasFooterWords || isContractList || isTextHeavyFooter) {
+            break; 
+        }
+
+        // ==========================================
+        // 3. ПРОВЕРКА ВАЛИДНОСТИ ТОВАРНОЙ СТРОКИ
+        // ==========================================
         let numCount = row.filter((c) => {
-          let val = String(c).trim().replace(/,/g, "");
-          return val !== "" && !isNaN(Number(val));
+          let val = String(c).trim().replace(/,/g, ".");
+          // Строго проверяем, что это число, оно не пустое и это не процент (вроде 30%)
+          return val !== "" && !isNaN(Number(val)) && !val.includes("%"); 
         }).length;
 
-        // ПРАВИЛА ВАЛИДНОСТИ СТРОКИ:
-        // - Должно быть заполнено не менее 3 ячеек (например: артикул, кол-во, цена)
-        // - Должно быть хотя бы одно число
-        // - Не должно быть огромных кусков текста
-        let isValidRow = (filledCellsCount >= 3) && (numCount >= 1) && !hasHugeText;
-
-        if (isValidRow) {
+        // Товарная строка обязана иметь минимум 3 колонки (Артикул, Имя, Количество и т.д.) и хотя бы 1 число
+        if (filledCellsCount >= 3 && numCount >= 1) {
           validRows.push(row);
-          strikes = 0; // Сбрасываем страйки, если строка хорошая
+          strikes = 0; // Строка хорошая, сбрасываем счетчик ошибок
         } else {
           strikes++;
-          if (strikes >= 2) {
-            // Если 2 строки подряд оказались пустыми или мусорными, 
-            // считаем, что таблица закончилась.
-            break;
-          }
+          if (strikes >= 2) break; // Если две строки подряд оказались не похожи на товары - выходим
         }
       }
 
