@@ -1180,6 +1180,81 @@
       </div>
     </div>
 
+    <!-- Промежуточное меню действий с категорией -->
+    <div
+      id="category-action-menu-modal"
+      class="modal-overlay"
+      style="display: none"
+      onclick="if (event.target === this) closeCategoryActionMenu();"
+    >
+      <div class="modal-content" style="max-width: 350px">
+        <h3
+          style="
+            text-transform: uppercase;
+            text-align: center;
+            margin-bottom: 5px;
+          "
+        >
+          УПРАВЛЕНИЕ КАТЕГОРИЕЙ
+        </h3>
+        <div
+          id="action-menu-category-name"
+          style="
+            color: var(--primary);
+            text-align: center;
+            margin-bottom: 20px;
+            font-weight: bold;
+            font-size: 14px;
+          "
+        ></div>
+
+        <button
+          onclick="triggerCategoryMarkup()"
+          style="
+            width: 100%;
+            padding: 15px;
+            margin-bottom: 10px;
+            background: var(--primary);
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            font-weight: bold;
+            cursor: pointer;
+            text-transform: uppercase;
+          "
+        >
+          💰 НАЦЕНКА
+        </button>
+
+        <button
+          id="btn-action-rename"
+          onclick="triggerCategoryRename()"
+          style="
+            width: 100%;
+            padding: 15px;
+            margin-bottom: 15px;
+            background: var(--bg-hover);
+            color: var(--text-main);
+            border: 1px solid var(--border-focus);
+            border-radius: 6px;
+            font-weight: bold;
+            cursor: pointer;
+            text-transform: uppercase;
+          "
+        >
+          ✏️ ПЕРЕИМЕНОВАТЬ
+        </button>
+
+        <button
+          onclick="closeCategoryActionMenu()"
+          class="cancel-btn"
+          style="width: 100%; text-transform: uppercase !important"
+        >
+          ОТМЕНА
+        </button>
+      </div>
+    </div>
+
     <div
       id="item-menu-modal"
       class="modal-overlay"
