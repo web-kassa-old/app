@@ -4038,24 +4038,34 @@ function triggerCategoryRename() {
     if (typeof showLoading === 'function') showLoading();
     
     const payload = {
-      api_key: CLIENT_API_KEY, // <-- Используем вашу переменную ключа
+      api_key: CLIENT_API_KEY,
       action: 'rename_category',
       old_name: actionMenuTargetCategory,
       new_name: finalNewName
     };
 
-    // <-- Используем APPS_SCRIPT_URL из вашего конфига
     smartFetch(APPS_SCRIPT_URL, payload, 'cache_rename_category')
       .then(response => {
         if (typeof hideLoading === 'function') hideLoading();
         
         if (response && response.success) {
-          alert(`Категория успешно переименована! Обновлено строк: ${response.updated}`);
+          // Запускаем ваш сценарий глобального обновления
+          document.body.style.transition = "background-color 0.1s ease";
+          document.body.style.backgroundColor = "var(--accent-red)";
+          document.body.innerHTML = `
+            <div style="height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center; color: white;">
+                <div style="font-size: 60px; margin-bottom: 20px;">🔄</div>
+                <h2 style="font-family: sans-serif;">Обновление базы...</h2>
+            </div>
+          `;
           
-          // Обновляем данные интерфейса, чтобы новая категория появилась
-          if (typeof refreshPosData === 'function') {
-            refreshPosData(); 
-          }
+          // Очищаем только сессионный кэш, сохраняя ключи авторизации
+          sessionStorage.clear();
+          
+          setTimeout(() => {
+            window.location.reload(true);
+          }, 500);
+
         } else {
           const errMsg = response ? response.error : "Ответ не получен";
           alert("Ошибка переименования: " + errMsg);
