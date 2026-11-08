@@ -4069,8 +4069,68 @@ window.triggerCategoryRename = function() {
     window.targetCategoryToRename = oldName; 
     const t = typeof translations !== 'undefined' && translations[currentLang] ? translations[currentLang] : {};
     
-    // ... дальше без изменений ...
-    document.getElementById("rename-modal-title").innerText = (t.cat_rename_title || "ПЕРЕИМЕНОВАНИЕ") + ` "${oldName}"`;
+    // БЕЗОПАСНАЯ ПРИВЯЗКА (проверяем наличие элементов)
+    const titleEl = document.getElementById("rename-modal-title");
+    if (titleEl) titleEl.innerText = (t.cat_rename_title || "ПЕРЕИМЕНОВАНИЕ") + ` "${oldName}"`;
+    
+    const saveBtn = document.getElementById("btn-rename-save");
+    if (saveBtn) saveBtn.innerText = t.cat_rename_save || "СОХРАНИТЬ";
+    
+    const cancelBtn = document.getElementById("btn-rename-cancel");
+    if (cancelBtn) cancelBtn.innerText = t.cat_manage_cancel || "ОТМЕНА";
+    
+    const inputEl = document.getElementById("rename-new-category-input");
+    if (inputEl) inputEl.placeholder = t.cat_rename_new_ph || "Введите название...";
+    
+    // Сброс состояния с проверками
+    const dropdownWrap = document.getElementById("rename-category-dropdown");
+    if (dropdownWrap) dropdownWrap.style.display = "none";
+    
+    const newCatWrap = document.getElementById("rename-new-category-wrapper");
+    if (newCatWrap) newCatWrap.style.display = "none";
+    
+    const triggerBtn = document.getElementById("rename-category-trigger");
+    if (triggerBtn) triggerBtn.style.display = "flex";
+    
+    const hiddenVal = document.getElementById("rename-category-hidden");
+    if (hiddenVal) hiddenVal.value = "";
+    
+    const displaySpan = document.getElementById("rename-category-display");
+    if (displaySpan) displaySpan.innerText = t.cat_rename_not_selected || "Не выбрано";
+    
+    if (inputEl) inputEl.value = "";
+    
+    const arrowSpan = document.getElementById("rename-category-arrow");
+    if (arrowSpan) arrowSpan.style.transform = "rotate(0deg)";
+    
+    const modalEl = document.getElementById("category-rename-modal");
+    if (!modalEl) {
+        console.error("ОШИБКА: HTML-разметка окна category-rename-modal не найдена на странице!");
+        return; // Выходим, чтобы не было ошибок дальше
+    }
+
+    // Собираем категории для выпадающего списка
+    if (dropdownWrap) {
+        let html = `<div data-val="0" data-text="${t.cat_rename_not_selected || "Не выбрано"}" onclick="handleRenameCatClick(this)" style="padding: 10px; cursor: pointer; border-bottom: 1px solid var(--border-light); color: var(--text-main);">${t.cat_rename_not_selected || "Не выбрано"}</div>`;
+        
+        let categories = new Set();
+        document.querySelectorAll('.category-btn, .category-tab, #category-filters button').forEach(btn => {
+            let text = btn.innerText.trim();
+            if (text && text !== (t.cat_all || "Все") && text !== (translations.kz?.cat_all || "Барлығы") && text !== oldName) {
+                categories.add(text);
+            }
+        });
+        
+        categories.forEach(cat => {
+            html += `<div data-val="${cat}" data-text="${cat}" onclick="handleRenameCatClick(this)" style="padding: 10px; cursor: pointer; border-bottom: 1px solid var(--border-light); color: var(--text-main);">${cat}</div>`;
+        });
+        
+        html += `<div data-val="new" data-text="${t.cat_rename_new_btn || "+ Новая категория"}" onclick="handleRenameCatClick(this)" style="padding: 10px; cursor: pointer; color: var(--accent-green, #4caf50); font-weight: bold;">${t.cat_rename_new_btn || "+ Новая категория"}</div>`;
+        
+        dropdownWrap.innerHTML = html;
+    }
+
+    modalEl.style.display = "flex";
 };
 
 window.closeCategoryRenameModal = function() {
