@@ -4158,18 +4158,27 @@ window.handleRenameCatClick = function(elem) {
     const val = elem.getAttribute("data-val");
     const text = elem.getAttribute("data-text");
     
+    // Прячем выпадающий список
     document.getElementById("rename-category-dropdown").style.display = "none";
     document.getElementById("rename-category-arrow").style.transform = "rotate(0deg)";
     
-    if (val === "new") {
-        document.getElementById("rename-category-trigger").style.display = "none";
-        document.getElementById("rename-new-category-wrapper").style.display = "flex";
-        document.getElementById("rename-category-hidden").value = "new";
-        document.getElementById("rename-new-category-input").focus();
+    // Скрываем кнопку-селектор и показываем поле для ввода
+    document.getElementById("rename-category-trigger").style.display = "none";
+    document.getElementById("rename-new-category-wrapper").style.display = "flex";
+    
+    // Всегда переводим систему в режим чтения из поля ввода
+    document.getElementById("rename-category-hidden").value = "new"; 
+    
+    const inputEl = document.getElementById("rename-new-category-input");
+    
+    // Если нажали на существующую категорию (например "Шины 1") - подставляем её текст
+    if (val !== "new" && val !== "0") {
+        inputEl.value = text;
     } else {
-        document.getElementById("rename-category-hidden").value = val;
-        document.getElementById("rename-category-display").innerText = text;
+        inputEl.value = "";
     }
+    
+    inputEl.focus(); // Сразу ставим курсор для редактирования
 };
 
 window.cancelRenameNewCategory = function() {
