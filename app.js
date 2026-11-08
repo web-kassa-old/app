@@ -4114,12 +4114,16 @@ window.triggerCategoryRename = function() {
         let html = `<div data-val="0" data-text="${t.cat_rename_not_selected || "Не выбрано"}" onclick="handleRenameCatClick(this)" style="padding: 10px; cursor: pointer; border-bottom: 1px solid var(--border-light); color: var(--text-main);">${t.cat_rename_not_selected || "Не выбрано"}</div>`;
         
         let categories = new Set();
-        document.querySelectorAll('.cat-btn').forEach(btn => {
-            let text = btn.innerText.trim();
-            if (text && text !== (t.cat_all || "Все") && text !== (translations.kz?.cat_all || "Барлығы") && text !== oldName) {
-                categories.add(text);
-            }
-        });
+        // Собираем категории ИЗ БАЗЫ ТОВАРОВ, а не с экрана
+        if (typeof db !== 'undefined' && Array.isArray(db)) {
+            db.forEach(item => {
+                if (item.category && item.category.trim() !== "") {
+                    categories.add(item.category.trim());
+                }
+            });
+        }
+        // Удаляем из списка текущую категорию (чтобы нельзя было переименовать в саму себя)
+        categories.delete(oldName);
         
         categories.forEach(cat => {
             html += `<div data-val="${cat}" data-text="${cat}" onclick="handleRenameCatClick(this)" style="padding: 10px; cursor: pointer; border-bottom: 1px solid var(--border-light); color: var(--text-main);">${cat}</div>`;
@@ -4214,11 +4218,22 @@ window.confirmCategoryRename = async function() {
         const res = await window.smartFetch(typeof APPS_SCRIPT_URL !== 'undefined' ? APPS_SCRIPT_URL : "", payload);
         
         if (res.success) {
+            // Если мы находились в переименованной категории, переключаем фокус на новое имя
+            if (window.currentCategory === oldName) {
+                window.currentCategory = newName;
+            }
+            
+            // Загружаем свежую базу с сервера
             if (typeof window.load === 'function') {
                 await window.load(true);
             } else if (typeof load === 'function') {
                 await load(true);
             }
+            
+            // ПРИНУДИТЕЛЬНО перерисовываем панель кнопок и список товаров
+            if (typeof renderCategories === 'function') renderCategories();
+            if (typeof render === 'function') render();
+            
         } else {
             alert((t.cat_rename_fail || "Ошибка:") + " " + (res.error || res.message));
         }
