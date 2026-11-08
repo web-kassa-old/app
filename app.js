@@ -4114,7 +4114,7 @@ window.triggerCategoryRename = function() {
         let html = `<div data-val="0" data-text="${t.cat_rename_not_selected || "Не выбрано"}" onclick="handleRenameCatClick(this)" style="padding: 10px; cursor: pointer; border-bottom: 1px solid var(--border-light); color: var(--text-main);">${t.cat_rename_not_selected || "Не выбрано"}</div>`;
         
         let categories = new Set();
-        document.querySelectorAll('.category-btn, .category-tab, #category-filters button').forEach(btn => {
+        document.querySelectorAll('.cat-btn').forEach(btn => {
             let text = btn.innerText.trim();
             if (text && text !== (t.cat_all || "Все") && text !== (translations.kz?.cat_all || "Барлығы") && text !== oldName) {
                 categories.add(text);
@@ -4214,8 +4214,11 @@ window.confirmCategoryRename = async function() {
         const res = await window.smartFetch(typeof APPS_SCRIPT_URL !== 'undefined' ? APPS_SCRIPT_URL : "", payload);
         
         if (res.success) {
-            if (typeof refreshPosData === 'function') refreshPosData();
-            else if (typeof load === 'function') load(true);
+            if (typeof window.load === 'function') {
+                await window.load(true);
+            } else if (typeof load === 'function') {
+                await load(true);
+            }
         } else {
             alert((t.cat_rename_fail || "Ошибка:") + " " + (res.error || res.message));
         }
