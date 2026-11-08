@@ -1262,7 +1262,12 @@
     <div
       id="category-rename-modal"
       class="modal-overlay"
-      style="display: none; z-index: 10000"
+      style="
+        display: none;
+        z-index: 10000;
+        align-items: flex-start;
+        padding-top: 10vh;
+      "
       onclick="if (event.target === this) closeCategoryRenameModal();"
     >
       <div class="modal-content" style="max-width: 350px">
