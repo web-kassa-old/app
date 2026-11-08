@@ -4051,57 +4051,145 @@ function triggerCategoryMarkup() {
   openCategoryMarkup(actionMenuTargetCategory);
 }
 
-function triggerCategoryRename() {
-  closeCategoryActionMenu();
-  
-  // Берем текст из словаря и добавляем имя категории
-  const promptText = `${translations[currentLang].cat_rename_prompt} "${actionMenuTargetCategory}":`;
-  const newName = prompt(promptText, actionMenuTargetCategory);
-  
-  if (newName && newName.trim() !== "" && newName.trim() !== actionMenuTargetCategory) {
-    const finalNewName = newName.trim();
+window.triggerCategoryRename = function() {
+    if (typeof closeCategoryActionMenu === 'function') {
+        closeCategoryActionMenu();
+    }
     
-    if (typeof showLoading === 'function') showLoading();
+    const oldName = window.actionMenuTargetCategory;
+    if (!oldName || oldName === 'all') return;
     
-    const payload = {
-      api_key: CLIENT_API_KEY,
-      action: 'rename_category',
-      old_name: actionMenuTargetCategory,
-      new_name: finalNewName
-    };
-
-    smartFetch(APPS_SCRIPT_URL, payload, 'cache_rename_category')
-      .then(async response => {
-        if (typeof hideLoading === 'function') hideLoading();
-        
-        if (response && response.success) {
-          
-          document.body.style.transition = "background-color 0.3s ease";
-          const originalColor = document.body.style.backgroundColor;
-          document.body.style.backgroundColor = "var(--accent-red)";
-          
-          setTimeout(() => {
-            document.body.style.backgroundColor = originalColor || "";
-          }, 400);
-
-          if (typeof refreshPosData === 'function') {
-            await refreshPosData(false, true); 
-          } else if (typeof load === 'function') {
-            await load(true);
-          }
-
-        } else {
-          // Локализованная ошибка сервера
-          alert(translations[currentLang].cat_rename_err + (response ? response.error : "Ответ не получен"));
+    window.targetCategoryToRename = oldName; 
+    const t = typeof translations !== 'undefined' && translations[currentLang] ? translations[currentLang] : {};
+    
+    document.getElementById("rename-modal-title").innerText = (t.cat_rename_title || "ПЕРЕИМЕНОВАНИЕ") + ` "${oldName}"`;
+    document.getElementById("btn-rename-save").innerText = t.cat_rename_save || "СОХРАНИТЬ";
+    document.getElementById("btn-rename-cancel").innerText = t.cat_manage_cancel || "ОТМЕНА";
+    document.getElementById("rename-new-category-input").placeholder = t.cat_rename_new_ph || "Введите название...";
+    
+    // Сброс состояния
+    document.getElementById("rename-category-dropdown").style.display = "none";
+    document.getElementById("rename-new-category-wrapper").style.display = "none";
+    document.getElementById("rename-category-trigger").style.display = "flex";
+    document.getElementById("rename-category-hidden").value = "";
+    document.getElementById("rename-category-display").innerText = t.cat_rename_not_selected || "Не выбрано";
+    document.getElementById("rename-new-category-input").value = "";
+    document.getElementById("rename-category-arrow").style.transform = "rotate(0deg)";
+    
+    // Собираем категории
+    const dropdown = document.getElementById("rename-category-dropdown");
+    let html = `<div data-val="0" data-text="${t.cat_rename_not_selected || "Не выбрано"}" onclick="handleRenameCatClick(this)" style="padding: 10px; cursor: pointer; border-bottom: 1px solid var(--border-light); color: var(--text-main);">${t.cat_rename_not_selected || "Не выбрано"}</div>`;
+    
+    let categories = new Set();
+    document.querySelectorAll('.category-btn, .category-tab, #category-filters button').forEach(btn => {
+        let text = btn.innerText.trim();
+        if (text && text !== (t.cat_all || "Все") && text !== (translations.kz?.cat_all || "Барлығы") && text !== oldName) {
+            categories.add(text);
         }
-      })
-      .catch(err => {
-        if (typeof hideLoading === 'function') hideLoading();
-        // Локализованная ошибка фронтенда
-        alert(translations[currentLang].cat_rename_fail + err.message);
-      });
-  }
-}
+    });
+    
+    categories.forEach(cat => {
+        html += `<div data-val="${cat}" data-text="${cat}" onclick="handleRenameCatClick(this)" style="padding: 10px; cursor: pointer; border-bottom: 1px solid var(--border-light); color: var(--text-main);">${cat}</div>`;
+    });
+    
+    html += `<div data-val="new" data-text="${t.cat_rename_new_btn || "+ Новая категория"}" onclick="handleRenameCatClick(this)" style="padding: 10px; cursor: pointer; color: var(--accent-green, #4caf50); font-weight: bold;">${t.cat_rename_new_btn || "+ Новая категория"}</div>`;
+    
+    dropdown.innerHTML = html;
+    document.getElementById("category-rename-modal").style.display = "flex";
+};
+
+window.closeCategoryRenameModal = function() {
+    document.getElementById("category-rename-modal").style.display = "none";
+};
+
+// --- Логика кастомного выпадающего списка ---
+window.toggleRenameDropdown = function() {
+    const dropdown = document.getElementById("rename-category-dropdown");
+    const arrow = document.getElementById("rename-category-arrow");
+    if (dropdown.style.display === "none") {
+        dropdown.style.display = "block";
+        arrow.style.transform = "rotate(180deg)";
+    } else {
+        dropdown.style.display = "none";
+        arrow.style.transform = "rotate(0deg)";
+    }
+};
+
+window.handleRenameCatClick = function(elem) {
+    const val = elem.getAttribute("data-val");
+    const text = elem.getAttribute("data-text");
+    
+    document.getElementById("rename-category-dropdown").style.display = "none";
+    document.getElementById("rename-category-arrow").style.transform = "rotate(0deg)";
+    
+    if (val === "new") {
+        document.getElementById("rename-category-trigger").style.display = "none";
+        document.getElementById("rename-new-category-wrapper").style.display = "flex";
+        document.getElementById("rename-category-hidden").value = "new";
+        document.getElementById("rename-new-category-input").focus();
+    } else {
+        document.getElementById("rename-category-hidden").value = val;
+        document.getElementById("rename-category-display").innerText = text;
+    }
+};
+
+window.cancelRenameNewCategory = function() {
+    const t = typeof translations !== 'undefined' && translations[currentLang] ? translations[currentLang] : {};
+    document.getElementById("rename-new-category-wrapper").style.display = "none";
+    document.getElementById("rename-category-trigger").style.display = "flex";
+    document.getElementById("rename-category-hidden").value = "0";
+    document.getElementById("rename-category-display").innerText = t.cat_rename_not_selected || "Не выбрано";
+    document.getElementById("rename-new-category-input").value = "";
+};
+
+// --- Отправка на сервер ---
+window.confirmCategoryRename = async function() {
+    const oldName = window.targetCategoryToRename;
+    let newName = "";
+    const hiddenVal = document.getElementById("rename-category-hidden").value;
+    
+    if (hiddenVal === "new") {
+        newName = document.getElementById("rename-new-category-input").value.trim();
+    } else if (hiddenVal !== "0" && hiddenVal !== "") {
+        newName = hiddenVal;
+    }
+    
+    const t = typeof translations !== 'undefined' && translations[currentLang] ? translations[currentLang] : {};
+    
+    if (!newName) {
+        alert(t.cat_rename_err || "Укажите новое название категории");
+        return;
+    }
+    if (oldName === newName) {
+        closeCategoryRenameModal();
+        return;
+    }
+    
+    closeCategoryRenameModal();
+    window.showLoading(t.loading_wait || "Подождите...");
+    
+    try {
+        const payload = {
+            action: "rename_category",
+            api_key: typeof CLIENT_API_KEY !== 'undefined' ? CLIENT_API_KEY : "",
+            old_name: oldName,
+            new_name: newName
+        };
+        
+        const res = await window.smartFetch(typeof APPS_SCRIPT_URL !== 'undefined' ? APPS_SCRIPT_URL : "", payload);
+        
+        if (res.success) {
+            if (typeof refreshPosData === 'function') refreshPosData();
+            else if (typeof load === 'function') load(true);
+        } else {
+            alert((t.cat_rename_fail || "Ошибка:") + " " + (res.error || res.message));
+        }
+    } catch(e) {
+        alert((t.cat_rename_fail || "Ошибка:") + " " + e.message);
+    } finally {
+        window.hideLoading();
+    }
+};
 
 // --- ГЛОБАЛЬНАЯ ГЛУШИЛКА КОНТЕКСТНОГО МЕНЮ ДЛЯ КНОПОК ---
 document.addEventListener("contextmenu", function (e) {

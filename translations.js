@@ -537,6 +537,11 @@ const translations = {
     loading_wait: "Подождите...",
     mapper_invoice_cols: "КОЛОНКИ ИЗ НАКЛАДНОЙ",
     mapper_clear: "Очистить",
+    cat_rename_title: "ПЕРЕИМЕНОВАНИЕ",
+    cat_rename_save: "СОХРАНИТЬ",
+    cat_rename_new_ph: "Введите название...",
+    cat_rename_not_selected: "Не выбрано",
+    cat_rename_new_btn: "+ Новая категория",
   },
   kz: {
     btn_sale: "САТУ",
@@ -1076,5 +1081,10 @@ const translations = {
     loading_wait: "Күте тұрыңыз...",
     mapper_invoice_cols: "ЖҮКҚҰЖАТ БАҒАНДАРЫ",
     mapper_clear: "Тазарту",
+    cat_rename_title: "ҚАЙТА АТАУ",
+    cat_rename_save: "САҚТАУ",
+    cat_rename_new_ph: "Атауын енгізіңіз...",
+    cat_rename_not_selected: "Таңдалмаған",
+    cat_rename_new_btn: "+ Жаңа санат",
   },
 };
