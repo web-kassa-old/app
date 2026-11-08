@@ -1258,6 +1258,161 @@
       </div>
     </div>
 
+    <!-- Модальное окно переименования категории -->
+    <div
+      id="category-rename-modal"
+      class="modal-overlay"
+      style="display: none; z-index: 10000"
+      onclick="if (event.target === this) closeCategoryRenameModal();"
+    >
+      <div class="modal-content" style="max-width: 350px">
+        <h3
+          id="rename-modal-title"
+          style="
+            text-transform: uppercase;
+            text-align: center;
+            margin-bottom: 15px;
+          "
+        >
+          ПЕРЕИМЕНОВАНИЕ
+        </h3>
+
+        <!-- КАСТОМНЫЙ ВЫПАДАЮЩИЙ СПИСОК (Адаптирован из qe-category) -->
+        <div style="position: relative; width: 100%; margin-bottom: 20px">
+          <input type="hidden" id="rename-category-hidden" value="" />
+
+          <!-- Кнопка открытия списка -->
+          <div
+            id="rename-category-trigger"
+            class="custom-dropdown-trigger"
+            onclick="toggleRenameDropdown()"
+            style="
+              width: 100%;
+              background: var(--bg-input);
+              border: 1px solid var(--border-light);
+              border-radius: 4px;
+              padding: 12px;
+              font-size: 15px;
+              box-sizing: border-box;
+              cursor: pointer;
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              color: var(--text-main);
+            "
+          >
+            <span
+              id="rename-category-display"
+              style="
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+              "
+              >Не выбрано</span
+            >
+            <span
+              id="rename-category-arrow"
+              style="
+                font-size: 12px;
+                display: inline-block;
+                transition: transform 0.2s;
+              "
+              >▼</span
+            >
+          </div>
+
+          <!-- Сам список -->
+          <div
+            id="rename-category-dropdown"
+            class="custom-dropdown-list"
+            style="
+              display: none;
+              position: absolute;
+              top: 100%;
+              left: 0px;
+              width: 100%;
+              max-height: 45vh;
+              overflow-y: auto;
+              background: var(--bg-panel);
+              border-radius: 4px;
+              border: 1px solid var(--border-light);
+              z-index: 1000;
+              box-shadow: rgba(0, 0, 0, 0.5) 0px 4px 12px;
+              margin-top: 4px;
+            "
+          >
+            <!-- Сюда JS вставит опции -->
+          </div>
+
+          <!-- Поле для ввода новой категории -->
+          <div
+            id="rename-new-category-wrapper"
+            style="display: none; width: 100%; gap: 5px; margin-top: 10px"
+          >
+            <input
+              type="text"
+              id="rename-new-category-input"
+              placeholder="Введите название..."
+              style="
+                flex: 1;
+                width: 100%;
+                background: var(--bg-input);
+                color: var(--text-main);
+                border: 1px solid var(--border-focus);
+                border-radius: 4px;
+                padding: 10px;
+                font-size: 14px;
+                outline: none;
+                box-sizing: border-box;
+              "
+            />
+            <button
+              type="button"
+              onclick="cancelRenameNewCategory()"
+              style="
+                background: #c62828;
+                color: #fff;
+                border: none;
+                border-radius: 4px;
+                padding: 0 12px;
+                font-weight: bold;
+                cursor: pointer;
+              "
+            >
+              ✖
+            </button>
+          </div>
+        </div>
+
+        <button
+          id="btn-rename-save"
+          onclick="confirmCategoryRename()"
+          style="
+            width: 100%;
+            padding: 15px;
+            margin-bottom: 10px;
+            background: var(--primary);
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            font-weight: bold;
+            cursor: pointer;
+            text-transform: uppercase;
+          "
+        >
+          СОХРАНИТЬ
+        </button>
+        <button
+          id="btn-rename-cancel"
+          onclick="closeCategoryRenameModal()"
+          class="cancel-btn"
+          style="width: 100%; text-transform: uppercase !important"
+        >
+          ОТМЕНА
+        </button>
+      </div>
+    </div>
+
     <div
       id="item-menu-modal"
       class="modal-overlay"
