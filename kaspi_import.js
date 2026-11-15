@@ -2290,6 +2290,9 @@ window.applyMapper2Logic = function () {
 
   const isKaspiMode =
     window.isKaspiExportMode || window.currentImportMode === "kaspi";
+    
+  // Принудительно устанавливаем флаг глобального режима, чтобы он долетел до финального рендера
+  window.isKaspiExportMode = isKaspiMode;
 
   const hasQty = colMap["qty"] !== undefined || dict["qty"] !== undefined;
   const hasPrice =
