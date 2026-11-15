@@ -822,7 +822,7 @@ window.processInvoiceFile = async function () {
       let smartRows = window.mapper2State.invoiceRows || [];
 
       // 🔥 МАРШРУТИЗАТОР РЕЖИМОВ
-      if (window.isKaspiExportMode) {
+      if (window.currentImportMode === "kaspi") {
         // Режим "База + Kaspi": запускаем умное Сито
         window.showComplexColumnSelector(smartHeaders, smartRows, templateData);
       } else {
