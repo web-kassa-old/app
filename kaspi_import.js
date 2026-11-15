@@ -1400,7 +1400,9 @@ window.renderMapper2Cards = function (templateData) {
   if (applyBtn) {
     applyBtn.style.display = "block";
 
-    if (window.isKaspiExportMode) {
+    const isKaspiMode = window.isKaspiExportMode || window.currentImportMode === "kaspi";
+
+    if (isKaspiMode) {
       if (!window.originalCheckMapperReadiness) {
         window.originalCheckMapperReadiness = window.checkMapperReadiness;
 
@@ -1409,7 +1411,7 @@ window.renderMapper2Cards = function (templateData) {
             window.originalCheckMapperReadiness();
 
           const btn = document.getElementById("applyMapper2Btn");
-          if (btn && window.isKaspiExportMode) {
+          if (btn && isKaspiMode) {
             const btnContainer = btn.parentElement;
 
             const btnSpan = btn.querySelector("span");
@@ -1467,8 +1469,14 @@ window.renderMapper2Cards = function (templateData) {
                 backBtn.style.cursor = "pointer";
                 backBtn.onclick = function () {
                   document.getElementById("mapper2Area").style.display = "none";
-                  const exportModal = document.getElementById("export-modal");
-                  if (exportModal) exportModal.style.display = "flex";
+                  if (window.currentImportMode === "kaspi" && typeof window.navigateIncomeStep === "function") {
+                    // Возврат на шаг Сита при приемке
+                    window.navigateIncomeStep(1); 
+                  } else {
+                    // Возврат в окно экспорта
+                    const exportModal = document.getElementById("export-modal");
+                    if (exportModal) exportModal.style.display = "flex";
+                  }
                 };
                 btnContainer.insertBefore(backBtn, btn);
 
