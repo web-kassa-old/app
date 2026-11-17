@@ -6916,6 +6916,29 @@ window.generateExportFile = async function (target = "local") {
   try {
     const items = window.parsedInvoiceData || window.kaspiExportItems;
     if (!items || items.length === 0) throw new Error("Нет товаров для выгрузки.");
+    
+    // ⚡ ИСПРАВЛЕНИЕ: Если буфер пуст, но шаблон выбран, собираем буфер из Base64-частей базы данных
+    if (!window.rawKaspiTemplateBuffer && window.currentTemplateData) {
+      let b64Str = "";
+      let i = 1;
+      // Склеиваем все доступные части base64_part_1, base64_part_2 и т.д.
+      while (window.currentTemplateData[`base64_part_${i}`]) {
+        b64Str += window.currentTemplateData[`base64_part_${i}`];
+        i++;
+      }
+      
+      if (b64Str) {
+        // Конвертируем строку Base64 обратно в бинарный буфер (ArrayBuffer)
+        const binaryString = atob(b64Str);
+        const len = binaryString.length;
+        const bytes = new Uint8Array(len);
+        for (let j = 0; j < len; j++) {
+            bytes[j] = binaryString.charCodeAt(j);
+        }
+        window.rawKaspiTemplateBuffer = bytes.buffer;
+      }
+    }
+
     if (!window.rawKaspiTemplateBuffer) throw new Error("Оригинальный шаблон не найден в памяти.");
 
     const getSafeText = (cell) => {
