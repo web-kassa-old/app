@@ -121,23 +121,6 @@ window.translateColumnHeader = function (header) {
 };
 
 window.showComplexColumnSelector = function (headers, rows, templateData) {
-  // ⚡ ИСПРАВЛЕНИЕ: Нумеруем одинаковые колонки СРАЗУ при первом запуске
-  let headerCounts = {};
-  for (let i = 0; i < headers.length; i++) {
-    let baseName = String(headers[i] || "").trim();
-    if (baseName) {
-      headerCounts[baseName] = (headerCounts[baseName] || 0) + 1;
-      if (headerCounts[baseName] > 1) {
-        headers[i] = `${baseName} (${headerCounts[baseName]})`;
-      } else {
-        headers[i] = baseName;
-      }
-    }
-  }
-  // Сохраняем "причесанные" заголовки в глобальную память, чтобы Сито и Маппер видели их так же
-  window.mapper2State = window.mapper2State || {};
-  window.mapper2State.invoiceHeaders = headers;
-
   const overlay = document.createElement("div");
   overlay.className = "complex-overlay";
   overlay.id = "complexColsOverlay";
@@ -835,7 +818,23 @@ window.processInvoiceFile = async function () {
       window.hideLoading();
       window.currentTemplateData = templateData;
 
+      // ⚡ ИСПРАВЛЕНИЕ: Перед запуском Сита делаем заголовки 100% уникальными
       let smartHeaders = window.mapper2State.invoiceHeaders || [];
+      let headerCounts = {};
+      
+      smartHeaders = smartHeaders.map(h => {
+        let baseName = String(h || "").trim();
+        if (!baseName) return "Пустая колонка";
+        
+        headerCounts[baseName] = (headerCounts[baseName] || 0) + 1;
+        if (headerCounts[baseName] > 1) {
+            return `${baseName} (${headerCounts[baseName]})`;
+        }
+        return baseName;
+      });
+      
+      // Жестко фиксируем их в глобальном состоянии, чтобы все функции видели одно и то же
+      window.mapper2State.invoiceHeaders = smartHeaders;
       let smartRows = window.mapper2State.invoiceRows || [];
 
       // 🔥 МАРШРУТИЗАТОР РЕЖИМОВ
