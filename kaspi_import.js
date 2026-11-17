@@ -802,6 +802,10 @@ window.processInvoiceFile = async function () {
         hashNum |= 0;
       }
       window.mapper2State.fileHash = "hash_" + Math.abs(hashNum).toString(16);
+
+      // ⚡ ИСПРАВЛЕНИЕ: Принудительно прячем системный лоадер, чтобы он не перекрывал Сито!
+      if (typeof window.hideLoading === "function") window.hideLoading();
+      
       window.currentTemplateData = templateData;
 
       let smartHeaders = window.mapper2State.invoiceHeaders || [];
