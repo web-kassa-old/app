@@ -244,6 +244,28 @@ window.processInvoiceFile = async function () {
     dictValues: preservedDict,
   };
 
+  // 🔥 ИСПРАВЛЕНИЕ: Загружаем словарь синонимов ДО того, как начнем искать шапку!
+  if (typeof invoiceSynonyms === "undefined" || Object.keys(invoiceSynonyms).length === 0) {
+    const dictText = typeof translations !== "undefined" && translations[currentLang]
+      ? translations[currentLang].inc_loading_dict : "Загрузка словаря переводов...";
+    window.showLoading(dictText);
+    try {
+      const fetchUrl = `${typeof APPS_SCRIPT_URL !== "undefined" ? APPS_SCRIPT_URL : ""}?action=getInitialData&api_key=${typeof CLIENT_API_KEY !== "undefined" ? CLIENT_API_KEY : ""}&t=${Date.now()}&uid=${localStorage.getItem("user_uid") || ""}&role=${localStorage.getItem("user_role") || ""}&last_sync=0`;
+      const res = await fetch(fetchUrl);
+      const text = await res.text();
+      if (!text.trim().startsWith("<")) {
+        const data = JSON.parse(text);
+        if (data.synonyms && Object.keys(data.synonyms).length > 0) {
+          if (typeof invoiceSynonyms !== "undefined") Object.assign(invoiceSynonyms, data.synonyms);
+          window.invoiceSynonyms = typeof invoiceSynonyms !== "undefined" ? invoiceSynonyms : data.synonyms;
+        }
+      }
+    } catch (err) {
+      console.error("Ошибка загрузки словаря:", err);
+    }
+    window.hideLoading();
+  }
+
   let templateData = null;
 
   if (window.currentImportMode === "kaspi") {
@@ -780,62 +802,10 @@ window.processInvoiceFile = async function () {
         hashNum |= 0;
       }
       window.mapper2State.fileHash = "hash_" + Math.abs(hashNum).toString(16);
-
-      // --- ПРИНУДИТЕЛЬНАЯ ЗАГРУЗКА СЛОВАРЯ ---
-      if (
-        typeof invoiceSynonyms === "undefined" ||
-        Object.keys(invoiceSynonyms).length === 0
-      ) {
-        const dictText =
-          typeof translations !== "undefined" && translations[currentLang]
-            ? translations[currentLang].inc_loading_dict
-            : "Загрузка словаря переводов...";
-        window.showLoading(dictText);
-
-        try {
-          const fetchUrl = `${typeof APPS_SCRIPT_URL !== "undefined" ? APPS_SCRIPT_URL : ""}?action=getInitialData&api_key=${typeof CLIENT_API_KEY !== "undefined" ? CLIENT_API_KEY : ""}&t=${Date.now()}&uid=${localStorage.getItem("user_uid") || ""}&role=${localStorage.getItem("user_role") || ""}&last_sync=0`;
-
-          const res = await fetch(fetchUrl);
-          const text = await res.text();
-
-          if (!text.trim().startsWith("<")) {
-            const data = JSON.parse(text);
-            if (data.synonyms && Object.keys(data.synonyms).length > 0) {
-              if (typeof invoiceSynonyms !== "undefined") {
-                Object.assign(invoiceSynonyms, data.synonyms);
-              }
-              window.invoiceSynonyms =
-                typeof invoiceSynonyms !== "undefined"
-                  ? invoiceSynonyms
-                  : data.synonyms;
-            }
-          }
-        } catch (err) {
-          console.error("Ошибка загрузки словаря:", err);
-        }
-      }
-
-      window.hideLoading();
       window.currentTemplateData = templateData;
 
-      // ⚡ ИСПРАВЛЕНИЕ: Перед запуском Сита делаем заголовки 100% уникальными
       let smartHeaders = window.mapper2State.invoiceHeaders || [];
-      let headerCounts = {};
-      
-      smartHeaders = smartHeaders.map(h => {
-        let baseName = String(h || "").trim();
-        if (!baseName) return "Пустая колонка";
-        
-        headerCounts[baseName] = (headerCounts[baseName] || 0) + 1;
-        if (headerCounts[baseName] > 1) {
-            return `${baseName} (${headerCounts[baseName]})`;
-        }
-        return baseName;
-      });
-      
-      // Жестко фиксируем их в глобальном состоянии, чтобы все функции видели одно и то же
-      window.mapper2State.invoiceHeaders = smartHeaders;
-      let smartRows = window.mapper2State.invoiceRows || [];
+      let smartRows = window.mapper2State.invoiceRows || [];  
 
       // 🔥 МАРШРУТИЗАТОР РЕЖИМОВ
       if (window.currentImportMode === "kaspi") {
