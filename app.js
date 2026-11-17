@@ -6908,7 +6908,7 @@ window.generateExportFile = async function (target = "local") {
   const originalText = btn ? btn.innerText : "Выгрузить";
 
   if (btn) {
-    btn.innerText = "⏳ Формирование файла...";
+    btn.innerText = "⏳ Сборка шаблона...";
     btn.disabled = true;
   }
   if (typeof window.showLoading === "function") window.showLoading(null, "kaspi_saving");
@@ -6916,19 +6916,51 @@ window.generateExportFile = async function (target = "local") {
   try {
     const items = window.parsedInvoiceData || window.kaspiExportItems;
     if (!items || items.length === 0) throw new Error("Нет товаров для выгрузки.");
-    
-    // ⚡ 1. СКЛЕИВАЕМ БУФЕР: Делаем это ДО проверки на пустоту!
-    if (!window.rawKaspiTemplateBuffer && window.currentTemplateData) {
+
+    // ⚡ УЛЬТИМАТИВНОЕ ИСПРАВЛЕНИЕ: Если буфера нет, экстренно скачиваем его у сервера прямо перед сборкой!
+    if (!window.rawKaspiTemplateBuffer) {
+      console.log("Буфер пуст. Начинаем экстренную сборку файла...");
       let b64Str = "";
-      let i = 1;
-      while (window.currentTemplateData[`base64_part_${i}`]) {
-        b64Str += window.currentTemplateData[`base64_part_${i}`];
-        i++;
+      
+      // Попытка 1: Ищем в кэше
+      if (window.currentTemplateData && window.currentTemplateData.base64_part_1) {
+        let i = 1;
+        while (window.currentTemplateData[`base64_part_${i}`]) {
+          b64Str += window.currentTemplateData[`base64_part_${i}`];
+          i++;
+        }
       }
       
+      // Попытка 2: Если кэш пуст, дергаем бэкенд напрямую!
+      if (!b64Str) {
+        const templateSelect = document.getElementById("kaspiTemplateSelect");
+        const tName = templateSelect ? templateSelect.value : (window.currentTemplateData ? window.currentTemplateData.templateHash : null);
+        
+        if (tName) {
+          const payload = {
+            action: "getKaspiTemplate",
+            api_key: typeof CLIENT_API_KEY !== "undefined" ? CLIENT_API_KEY : window.CLIENT_API_KEY,
+            category: tName
+          };
+          const url = typeof GATEWAY_URL !== "undefined" ? GATEWAY_URL : window.GATEWAY_URL;
+          
+          // Делаем скрытый запрос к серверу
+          const res = await window.smartFetch(url, payload);
+          if (res && res.base64_part_1) {
+            let i = 1;
+            while (res[`base64_part_${i}`]) {
+              b64Str += res[`base64_part_${i}`];
+              i++;
+            }
+          }
+        }
+      }
+
+      // Если мы добыли строку (неважно, из кэша или с сервера), превращаем её в бинарный файл
       if (b64Str) {
-        // Жестко отрезаем служебный префикс браузера, если он попал в базу, иначе atob упадет
+        // Отрезаем мусор браузера (data:image...;base64,), если он случайно попал в базу
         const cleanB64 = b64Str.includes("base64,") ? b64Str.split("base64,")[1] : b64Str;
+        
         const binaryString = atob(cleanB64);
         const len = binaryString.length;
         const bytes = new Uint8Array(len);
@@ -6936,11 +6968,14 @@ window.generateExportFile = async function (target = "local") {
             bytes[j] = binaryString.charCodeAt(j);
         }
         window.rawKaspiTemplateBuffer = bytes.buffer;
+        console.log("✅ Шаблон успешно склеен и загружен в память!");
       }
     }
 
-    // ⚡ 2. ФИНАЛЬНАЯ ПРОВЕРКА: Если даже после склейки буфера нет — тогда падаем
+    // Финальная проверка: если даже экстренный запрос не помог — падаем
     if (!window.rawKaspiTemplateBuffer) throw new Error("Оригинальный шаблон не найден в памяти.");
+
+    if (btn) btn.innerText = "⏳ Формирование прайса...";
 
     const getSafeText = (cell) => {
       if (!cell || cell.value === null || cell.value === undefined) return "";
