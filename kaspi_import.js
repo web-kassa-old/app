@@ -915,11 +915,14 @@ window.navigateIncomeStep = function (stepNumber, isBack = false) {
     if (tabs) tabs.style.display = "none";
     if (currency) currency.style.display = "none";
 
-    // ⚡ ПРИНУДИТЕЛЬНАЯ ОТРИСОВКА МАППЕРА ПРИ ВОЗВРАТЕ
-    if (
-      typeof window.renderMapper2Cards === "function" &&
-      window.currentTemplateData
-    ) {
+    // ⚡ ПРИНУДИТЕЛЬНАЯ ОТРИСОВКА НУЖНОГО МАППЕРА
+    const isKaspiMode = window.isKaspiExportMode || window.currentImportMode === "kaspi";
+    
+    if (isKaspiMode && typeof window.renderMapperUI === "function" && window.currentTemplateData) {
+      // Гибридный режим или экспорт: открываем продвинутый маппер Маркетплейса
+      window.renderMapperUI(window.currentTemplateData);
+    } else if (typeof window.renderMapper2Cards === "function" && window.currentTemplateData) {
+      // Только в базу: открываем стандартный базовый маппер
       window.renderMapper2Cards(window.currentTemplateData);
     }
   } else if (stepNumber === 3 && step3) {

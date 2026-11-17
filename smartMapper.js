@@ -331,15 +331,9 @@ window.renderSmartMapperModal = function (complexColumns) {
 
         if (container) container.style.display = "none";
         if (window.mapper2State.quarantine.length > 0 && typeof window.startTokenizerQueue === "function") {
-            // Если есть сложные строки, запускаем ручной разбор токенов
             window.startTokenizerQueue();
-        } else {
-            // Очередь пуста или разбор завершен - открываем стандартный Маппер
-            if (typeof window.renderMapper2Cards === "function") {
-                window.renderMapper2Cards(window.currentTemplateData);
-            } else if (typeof window.navigateIncomeStep === "function") {
-                window.navigateIncomeStep(2);
-            }
+        } else if (typeof window.navigateIncomeStep === "function") {
+            window.navigateIncomeStep(2);
         }
     });
 };
