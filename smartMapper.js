@@ -128,18 +128,6 @@ window.renderSmartMapperModal = function (complexColumns) {
     let cols = complexColumns || window.complexColumnsToTokenize || [];
     cols = cols.map(c => typeof c === 'string' ? { colName: c, example: "" } : c);
 
-    // ⚡ ИСПРАВЛЕНИЕ: Жестко удаляем дубликаты колонок, чтобы карточки не двоились
-    const uniqueCols = [];
-    const seenNames = new Set();
-    cols.forEach(c => {
-        const name = String(c.colName).trim();
-        if (!seenNames.has(name)) {
-            seenNames.add(name);
-            uniqueCols.push(c);
-        }
-    });
-    cols = uniqueCols;
-
     const modal = document.createElement("div");
     modal.className = "smart-modal-content";
 
@@ -197,7 +185,21 @@ window.renderSmartMapperModal = function (complexColumns) {
         // 🔥 АВТОПОИСК САМОГО СЛОЖНОГО ПРИМЕРА ИЗ ФАЙЛА
         let bestExample = "";
         let maxTokens = 0;
-        const colIdx = headers.findIndex(h => String(h).trim() === col.colName);
+        
+        // ⚡ УМНЫЙ ПОИСК КОЛОНКИ: Ищем точное вхождение, игнорируя лишние пробелы и регистр
+        const targetName = String(col.colName).trim().toLowerCase();
+        let colIdx = headers.findIndex(h => String(h).trim().toLowerCase() === targetName);
+        
+        // Резервный поиск, если заголовки в Excel склеились иначе (например, "SPECIFICATION\nSize")
+        if (colIdx === -1) {
+             const parts = targetName.split(' ');
+             if (parts.length > 1) {
+                 colIdx = headers.findIndex(h => {
+                     const hClean = String(h).toLowerCase();
+                     return parts.every(part => hClean.includes(part));
+                 });
+             }
+        }
         
         if (colIdx !== -1) {
             for (let i = 0; i < Math.min(1000, rows.length); i++) {
