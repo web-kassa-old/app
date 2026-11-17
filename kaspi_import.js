@@ -121,6 +121,23 @@ window.translateColumnHeader = function (header) {
 };
 
 window.showComplexColumnSelector = function (headers, rows, templateData) {
+  // ⚡ ИСПРАВЛЕНИЕ: Нумеруем одинаковые колонки СРАЗУ при первом запуске
+  let headerCounts = {};
+  for (let i = 0; i < headers.length; i++) {
+    let baseName = String(headers[i] || "").trim();
+    if (baseName) {
+      headerCounts[baseName] = (headerCounts[baseName] || 0) + 1;
+      if (headerCounts[baseName] > 1) {
+        headers[i] = `${baseName} (${headerCounts[baseName]})`;
+      } else {
+        headers[i] = baseName;
+      }
+    }
+  }
+  // Сохраняем "причесанные" заголовки в глобальную память, чтобы Сито и Маппер видели их так же
+  window.mapper2State = window.mapper2State || {};
+  window.mapper2State.invoiceHeaders = headers;
+
   const overlay = document.createElement("div");
   overlay.className = "complex-overlay";
   overlay.id = "complexColsOverlay";
