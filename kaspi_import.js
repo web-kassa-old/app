@@ -303,6 +303,14 @@ window.processInvoiceFile = async function () {
               ? JSON.parse(headersRaw)
               : headersRaw;
           if (res.memoryJson) templateData.memoryJson = res.memoryJson;
+          
+          // ⚡ ИСПРАВЛЕНИЕ: Забираем физический файл шаблона из ответа сервера!
+          let i = 1;
+          while (res[`base64_part_${i}`]) {
+            templateData[`base64_part_${i}`] = res[`base64_part_${i}`];
+            i++;
+          }
+
           window.kaspiTemplateCache[templateName] = templateData;
         } else {
           throw new Error("Структура шапок пустая");
@@ -805,7 +813,7 @@ window.processInvoiceFile = async function () {
 
       // ⚡ ИСПРАВЛЕНИЕ: Принудительно прячем системный лоадер, чтобы он не перекрывал Сито!
       if (typeof window.hideLoading === "function") window.hideLoading();
-      
+
       window.currentTemplateData = templateData;
 
       let smartHeaders = window.mapper2State.invoiceHeaders || [];
