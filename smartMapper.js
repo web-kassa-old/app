@@ -128,6 +128,18 @@ window.renderSmartMapperModal = function (complexColumns) {
     let cols = complexColumns || window.complexColumnsToTokenize || [];
     cols = cols.map(c => typeof c === 'string' ? { colName: c, example: "" } : c);
 
+    // ⚡ ИСПРАВЛЕНИЕ: Жестко удаляем дубликаты колонок, чтобы карточки не двоились
+    const uniqueCols = [];
+    const seenNames = new Set();
+    cols.forEach(c => {
+        const name = String(c.colName).trim();
+        if (!seenNames.has(name)) {
+            seenNames.add(name);
+            uniqueCols.push(c);
+        }
+    });
+    cols = uniqueCols;
+
     const modal = document.createElement("div");
     modal.className = "smart-modal-content";
 
