@@ -298,13 +298,10 @@ window.processInvoiceFile = async function () {
         const headersRaw = res.headersJson || res.headers_json || res.headers;
 
         if (res && res.success && headersRaw) {
-          templateData =
-            typeof headersRaw === "string"
-              ? JSON.parse(headersRaw)
-              : headersRaw;
+          templateData = typeof headersRaw === "string" ? JSON.parse(headersRaw) : headersRaw;
           if (res.memoryJson) templateData.memoryJson = res.memoryJson;
           
-          // ⚡ ИСПРАВЛЕНИЕ: Забираем физический файл шаблона из ответа сервера!
+          // ⚡ ВАЖНО: Засасываем куски файла из ответа бэкенда в память фронтенда
           let i = 1;
           while (res[`base64_part_${i}`]) {
             templateData[`base64_part_${i}`] = res[`base64_part_${i}`];

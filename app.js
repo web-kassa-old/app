@@ -6917,19 +6917,19 @@ window.generateExportFile = async function (target = "local") {
     const items = window.parsedInvoiceData || window.kaspiExportItems;
     if (!items || items.length === 0) throw new Error("Нет товаров для выгрузки.");
     
-    // ⚡ ИСПРАВЛЕНИЕ: Если буфер пуст, но шаблон выбран, собираем буфер из Base64-частей базы данных
+    // ⚡ 1. СКЛЕИВАЕМ БУФЕР: Делаем это ДО проверки на пустоту!
     if (!window.rawKaspiTemplateBuffer && window.currentTemplateData) {
       let b64Str = "";
       let i = 1;
-      // Склеиваем все доступные части base64_part_1, base64_part_2 и т.д.
       while (window.currentTemplateData[`base64_part_${i}`]) {
         b64Str += window.currentTemplateData[`base64_part_${i}`];
         i++;
       }
       
       if (b64Str) {
-        // Конвертируем строку Base64 обратно в бинарный буфер (ArrayBuffer)
-        const binaryString = atob(b64Str);
+        // Жестко отрезаем служебный префикс браузера, если он попал в базу, иначе atob упадет
+        const cleanB64 = b64Str.includes("base64,") ? b64Str.split("base64,")[1] : b64Str;
+        const binaryString = atob(cleanB64);
         const len = binaryString.length;
         const bytes = new Uint8Array(len);
         for (let j = 0; j < len; j++) {
@@ -6939,6 +6939,7 @@ window.generateExportFile = async function (target = "local") {
       }
     }
 
+    // ⚡ 2. ФИНАЛЬНАЯ ПРОВЕРКА: Если даже после склейки буфера нет — тогда падаем
     if (!window.rawKaspiTemplateBuffer) throw new Error("Оригинальный шаблон не найден в памяти.");
 
     const getSafeText = (cell) => {
