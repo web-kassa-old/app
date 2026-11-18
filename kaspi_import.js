@@ -3836,14 +3836,17 @@ async function sendInvoiceToBackend() {
     }
   }
 
-  const btn = document.getElementById("sendInvoiceBtn");
+  // ⚡ ФИКС: Ищем любую из двух кнопок, которая запустила процесс
+  const btn = document.getElementById("sendInvoiceBtn") || document.getElementById("generateExportBtn");
   const statusContainer = document.getElementById("status-container");
   const statusBar = document.getElementById("status-bar");
   const statusText = document.getElementById("status-text");
   const statusPercent = document.getElementById("status-percent");
 
-  btn.disabled = true;
-  btn.style.opacity = "0.5";
+  if (btn) {
+      btn.disabled = true;
+      btn.style.opacity = "0.5";
+  }
   statusContainer.style.display = "block";
 
   let currentDisplayPct = 5;
@@ -3944,8 +3947,10 @@ async function sendInvoiceToBackend() {
       }
 
       alert(translations[currentLang].inc_send_err + errorMsg);
-      btn.disabled = false;
-      btn.style.opacity = "1";
+      if (btn) {
+        btn.disabled = false;
+        btn.style.opacity = "1";
+      }
       return;
     }
   }
@@ -4027,8 +4032,10 @@ async function sendInvoiceToBackend() {
     if (typeof load === "function") load();
   }, 800);
 
-  btn.disabled = false;
-  btn.style.opacity = "1";
+  if (btn) {
+    btn.disabled = false;
+    btn.style.opacity = "1";
+  }
 }
 
 // === АВТОМАТИЧЕСКИЙ ПОДБОР ЗНАЧЕНИЙ ИЗ СЛОВАРЯ ===

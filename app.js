@@ -7066,9 +7066,7 @@ window.generateExportFile = async function (target = "local") {
           sourceDbField = kaspiKey || humanKey;
         }
 
-        if (kaspiKey === "merchant_sku" && (!sourceDbField || sourceDbField === "merchant_sku")) {
-          sourceDbField = "barcode";
-        }
+        // ⚡ УДАЛЕН ЖЕСТКИЙ ПЕРЕХВАТ "merchant_sku" В "barcode"
 
         let value = "";
 
@@ -7114,8 +7112,17 @@ window.generateExportFile = async function (target = "local") {
             value = dictVal;
         } else if (splitVal) {
             value = splitVal;
-        } else if (sourceDbField === "barcode") {
-          value = item.barcode || ""; 
+        // ⚡ ИСПРАВЛЕНИЕ: Интеллектуальный поиск артикула (в том числе из базы после генерации)
+        } else if (sourceDbField === "barcode" || kaspiKey === "merchant_sku" || humanKey === "Артикул") {
+            value = item.barcode || item.code || item.id || item.item_id || item['Артикул'] || item.merchant_sku || "";
+            
+            // Если всё еще пусто, проверяем маппер
+            if (!value && window.mapper2State && window.mapper2State.colMap) {
+                let mappedKey = Object.keys(window.mapper2State.colMap).find(k => 
+                    window.mapper2State.colMap[k] === "barcode" || window.mapper2State.colMap[k] === "Артикул" || window.mapper2State.colMap[k] === "merchant_sku"
+                );
+                if (mappedKey && item[mappedKey]) value = item[mappedKey];
+            }
         } else if (sourceDbField === "name") {
           value = String(item.name || item.item_name || "");
         } else if (sourceDbField === "price") {
@@ -7201,8 +7208,21 @@ window.generateExportFile = async function (target = "local") {
 
       fetch(url, {
         method: "POST",
-        body: JSON.stringify({ action: "silentUpdateAttributesBackend", api_key: CLIENT_API_KEY, items: itemsToUpdate }),
+        body: JSON.stringify({ action: "silentUpdateAttributesBackend", api_key: typeof CLIENT_API_KEY !== "undefined" ? CLIENT_API_KEY : window.CLIENT_API_KEY, items: itemsToUpdate }),
       }).catch((e) => console.error("Ошибка сети при сохранении параметров:", e));
+
+      // ⚡ ИСПРАВЛЕНИЕ: Тихо сохраняем связи маппера колонок в базу (POS Config -> mapper_memory)
+      if (window.mapper2State && window.mapper2State.colMap && window.currentTemplateData) {
+        fetch(url, {
+          method: "POST",
+          body: JSON.stringify({ 
+            action: "updateKaspiMemory", 
+            api_key: typeof CLIENT_API_KEY !== "undefined" ? CLIENT_API_KEY : window.CLIENT_API_KEY, 
+            templateHash: window.currentTemplateData.templateHash,
+            memoryJson: JSON.stringify(window.mapper2State.colMap) 
+          }),
+        }).catch((e) => console.error("Ошибка сохранения памяти маппера:", e));
+      }
     }
 
     if (target === "local") {
@@ -7218,7 +7238,7 @@ window.generateExportFile = async function (target = "local") {
         const url = typeof APPS_SCRIPT_URL !== "undefined" ? APPS_SCRIPT_URL : window.APPS_SCRIPT_URL;
         fetch(url, {
           method: "POST",
-          body: JSON.stringify({ action: "markKaspiExportedBackend", api_key: CLIENT_API_KEY, rowIndexes: window.kaspiExportRowIndexes }),
+          body: JSON.stringify({ action: "markKaspiExportedBackend", api_key: typeof CLIENT_API_KEY !== "undefined" ? CLIENT_API_KEY : window.CLIENT_API_KEY, rowIndexes: window.kaspiExportRowIndexes }),
         }).catch((e) => console.error("Ошибка при обновлении статусов", e));
       }
     }
