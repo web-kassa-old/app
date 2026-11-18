@@ -3955,12 +3955,39 @@ async function sendInvoiceToBackend() {
   statusText.innerText = translations[currentLang].inc_status_done;
   statusText.style.color = "var(--accent-green)";
 
-  setTimeout(() => {
+  setTimeout(async () => {
     alert(translations[currentLang].inc_all_done);
+
+    // ⚡ ИСПРАВЛЕНИЕ: Если включен гибридный режим, формируем и скачиваем файл Kaspi!
+    if (window.currentImportMode === "kaspi" && typeof window.generateExportFile === "function") {
+      try {
+        console.log("Запускаем финальную сборку Kaspi...");
+        // Скачиваем свежие штрихкоды из базы, которые только что сгенерировал бэкенд
+        const freshResponse = await window.smartFetch(GATEWAY_URL, {
+          action: 'getKaspiExportItemsBackend',
+          api_key: CLIENT_API_KEY
+        });
+        
+        if (freshResponse && freshResponse.success && freshResponse.items) {
+           // Обогащаем наши товары в памяти свежими штрихкодами
+           window.parsedInvoiceData.forEach(item => {
+               let dbMatch = freshResponse.items.find(dbItem => String(dbItem.name) === String(item.name || item.item_name));
+               if (dbMatch && dbMatch.barcode) {
+                   item.barcode = dbMatch.barcode; // Вписываем тот самый 13-значный штрихкод!
+               }
+           });
+        }
+        
+        await window.generateExportFile("local");
+      } catch (e) {
+        console.error("Ошибка при авто-выгрузке Kaspi:", e);
+        alert("Товары приняты, но при скачивании файла Kaspi произошла ошибка: " + e.message);
+      }
+    }
 
     // ⚡ ФИКС: Жестко прячем блок сопоставления и экраны превью
     const idsToHide = [
-      "exportMapperArea", // Тот самый блок со скриншота
+      "exportMapperArea",
       "mapper2Area",
       "invoicePreviewArea",
     ];
