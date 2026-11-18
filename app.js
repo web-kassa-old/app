@@ -7243,6 +7243,24 @@ window.generateExportFile = async function (target = "local") {
           body: JSON.stringify({ action: "markKaspiExportedBackend", api_key: typeof CLIENT_API_KEY !== "undefined" ? CLIENT_API_KEY : window.CLIENT_API_KEY, rowIndexes: window.kaspiExportRowIndexes }),
         }).catch((e) => console.error("Ошибка при обновлении статусов", e));
       }
+      
+      // ⚡ НОВОЕ: Автоматически закрываем окно и очищаем память после скачивания
+      setTimeout(() => {
+        const idsToHide = ["exportMapperArea", "mapper2Area", "invoicePreviewArea"];
+        idsToHide.forEach((id) => {
+          const el = document.getElementById(id);
+          if (el) el.style.display = "none";
+        });
+
+        window.parsedInvoiceData = [];
+        window.kaspiExportItems = [];
+        
+        if (typeof window.navigateIncomeStep === "function") window.navigateIncomeStep(1, true);
+        if (typeof toggleIncomeModule === "function") toggleIncomeModule();
+        if (typeof load === "function") load();
+        
+        alert("Файл Kaspi успешно сформирован и скачан!");
+      }, 500);
     }
   } catch (err) {
     console.error("Ошибка при генерации прайса:", err);
