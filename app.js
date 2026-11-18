@@ -6917,6 +6917,46 @@ window.generateExportFile = async function (target = "local") {
     const items = window.parsedInvoiceData || window.kaspiExportItems;
     if (!items || items.length === 0) throw new Error("Нет товаров для выгрузки.");
 
+    // ⚡ НОВОЕ: Скачиваем свежие штрихкоды из базы ПЕРЕД сборкой шаблона
+    try {
+      console.log("Запрашиваем актуальные штрихкоды из базы...");
+      const url = typeof GATEWAY_URL !== "undefined" ? GATEWAY_URL : window.GATEWAY_URL;
+      const apiKey = typeof CLIENT_API_KEY !== "undefined" ? CLIENT_API_KEY : window.CLIENT_API_KEY;
+      
+      const freshResponse = await window.smartFetch(url, {
+        action: 'getKaspiItemsData',
+        api_key: apiKey
+      });
+      
+      if (freshResponse && freshResponse.success && freshResponse.items) {
+         items.forEach(item => {
+             let itemHash = String(item.hash || item.item_hash || "").trim();
+             let originalId = String(item.item_id || item.id || item.code || item['Артикул'] || "").trim().toLowerCase();
+             let cleanName = String(item.name || item.item_name || "").trim().toLowerCase();
+             
+             let dbMatch = freshResponse.items.find(dbItem => {
+                 let dbHash = String(dbItem.hash || dbItem.item_hash || "").trim();
+                 let dbId = String(dbItem.item_id || dbItem.id || "").trim().toLowerCase();
+                 let dbName = String(dbItem.name || dbItem.item_name || "").trim().toLowerCase();
+                 
+                 // 1. Поиск по хэшу
+                 if (itemHash && dbHash && itemHash === dbHash) return true;
+                 // 2. Поиск по заводскому артикулу
+                 if (!itemHash && originalId && dbId && originalId === dbId) return true;
+                 // 3. Крайний случай - поиск по имени
+                 if (!itemHash && !originalId && dbName === cleanName) return true;
+                 return false;
+             });
+             
+             if (dbMatch && dbMatch.barcode) {
+                 item.barcode = dbMatch.barcode; // 🎯 Обогащаем товар 13-значным штрихкодом
+             }
+         });
+      }
+    } catch (e) {
+      console.error("Не удалось обновить штрихкоды из базы:", e);
+    }
+
     // ⚡ УЛЬТИМАТИВНОЕ ИСПРАВЛЕНИЕ: Если буфера нет, экстренно скачиваем его у сервера прямо перед сборкой!
     if (!window.rawKaspiTemplateBuffer) {
       console.log("Буфер пуст. Начинаем экстренную сборку файла...");

@@ -3963,60 +3963,6 @@ async function sendInvoiceToBackend() {
   setTimeout(async () => {
     alert(translations[currentLang].inc_all_done);
 
-    // ⚡ ИСПРАВЛЕНИЕ: Если включен гибридный режим, формируем и скачиваем файл Kaspi!
-    if (window.currentImportMode === "kaspi" && typeof window.generateExportFile === "function") {
-      try {
-        console.log("Запускаем финальную сборку Kaspi...");
-        // Скачиваем свежие штрихкоды из базы, которые только что сгенерировал бэкенд
-        // ⚡ ИСПРАВЛЕНИЕ: Используем правильный экшен базы и надежное сравнение
-        const freshResponse = await window.smartFetch(GATEWAY_URL, {
-          action: 'getKaspiItemsData',
-          api_key: typeof CLIENT_API_KEY !== "undefined" ? CLIENT_API_KEY : window.CLIENT_API_KEY
-        });
-        
-        if (freshResponse && freshResponse.success && freshResponse.items) {
-           window.parsedInvoiceData.forEach(item => {
-               // Собираем все возможные зацепки
-               let itemHash = String(item.hash || item.item_hash || "").trim();
-               let originalId = String(item.item_id || item.id || item.code || item['Артикул'] || "").trim().toLowerCase();
-               let cleanName = String(item.name || item.item_name || "").trim().toLowerCase();
-               
-               let dbMatch = freshResponse.items.find(dbItem => {
-                   let dbHash = String(dbItem.hash || dbItem.item_hash || "").trim();
-                   let dbId = String(dbItem.item_id || dbItem.id || "").trim().toLowerCase();
-                   let dbName = String(dbItem.name || dbItem.item_name || "").trim().toLowerCase();
-                   
-                   // 1. Бронебойный вариант: сравниваем по уникальному хэшу товара
-                   if (itemHash && dbHash && itemHash === dbHash) {
-                       return true;
-                   }
-                   
-                   // 2. Резерв 1: если хэша почему-то нет, но есть заводской артикул
-                   if (!itemHash && originalId && dbId && originalId === dbId) {
-                       return true;
-                   }
-                   
-                   // 3. Резерв 2: если нет вообще ничего, цепляемся за имя (крайний случай)
-                   if (!itemHash && !originalId && dbName === cleanName) {
-                       return true;
-                   }
-                   
-                   return false;
-               });
-               
-               if (dbMatch && dbMatch.barcode) {
-                   item.barcode = dbMatch.barcode; // 🎯 Подтягиваем 13-значный штрихкод!
-               }
-           });
-        }
-        
-        await window.generateExportFile("local");
-      } catch (e) {
-        console.error("Ошибка при авто-выгрузке Kaspi:", e);
-        alert("Товары приняты, но при скачивании файла Kaspi произошла ошибка: " + e.message);
-      }
-    }
-
     // ⚡ ФИКС: Жестко прячем блок сопоставления и экраны превью
     const idsToHide = [
       "exportMapperArea",
