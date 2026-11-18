@@ -3976,12 +3976,36 @@ async function sendInvoiceToBackend() {
         
         if (freshResponse && freshResponse.success && freshResponse.items) {
            window.parsedInvoiceData.forEach(item => {
-               // Очищаем названия от лишних пробелов и регистра для 100% совпадения
+               // Собираем все возможные зацепки
+               let itemHash = String(item.hash || item.item_hash || "").trim();
+               let originalId = String(item.item_id || item.id || item.code || item['Артикул'] || "").trim().toLowerCase();
                let cleanName = String(item.name || item.item_name || "").trim().toLowerCase();
-               let dbMatch = freshResponse.items.find(dbItem => String(dbItem.name || "").trim().toLowerCase() === cleanName);
+               
+               let dbMatch = freshResponse.items.find(dbItem => {
+                   let dbHash = String(dbItem.hash || dbItem.item_hash || "").trim();
+                   let dbId = String(dbItem.item_id || dbItem.id || "").trim().toLowerCase();
+                   let dbName = String(dbItem.name || dbItem.item_name || "").trim().toLowerCase();
+                   
+                   // 1. Бронебойный вариант: сравниваем по уникальному хэшу товара
+                   if (itemHash && dbHash && itemHash === dbHash) {
+                       return true;
+                   }
+                   
+                   // 2. Резерв 1: если хэша почему-то нет, но есть заводской артикул
+                   if (!itemHash && originalId && dbId && originalId === dbId) {
+                       return true;
+                   }
+                   
+                   // 3. Резерв 2: если нет вообще ничего, цепляемся за имя (крайний случай)
+                   if (!itemHash && !originalId && dbName === cleanName) {
+                       return true;
+                   }
+                   
+                   return false;
+               });
                
                if (dbMatch && dbMatch.barcode) {
-                   item.barcode = dbMatch.barcode; // 🎯 Подтягиваем новенький 13-значный штрихкод!
+                   item.barcode = dbMatch.barcode; // 🎯 Подтягиваем 13-значный штрихкод!
                }
            });
         }
