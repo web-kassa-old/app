@@ -3968,17 +3968,20 @@ async function sendInvoiceToBackend() {
       try {
         console.log("Запускаем финальную сборку Kaspi...");
         // Скачиваем свежие штрихкоды из базы, которые только что сгенерировал бэкенд
+        // ⚡ ИСПРАВЛЕНИЕ: Используем правильный экшен базы и надежное сравнение
         const freshResponse = await window.smartFetch(GATEWAY_URL, {
-          action: 'getKaspiExportItemsBackend',
-          api_key: CLIENT_API_KEY
+          action: 'getKaspiItemsData',
+          api_key: typeof CLIENT_API_KEY !== "undefined" ? CLIENT_API_KEY : window.CLIENT_API_KEY
         });
         
         if (freshResponse && freshResponse.success && freshResponse.items) {
-           // Обогащаем наши товары в памяти свежими штрихкодами
            window.parsedInvoiceData.forEach(item => {
-               let dbMatch = freshResponse.items.find(dbItem => String(dbItem.name) === String(item.name || item.item_name));
+               // Очищаем названия от лишних пробелов и регистра для 100% совпадения
+               let cleanName = String(item.name || item.item_name || "").trim().toLowerCase();
+               let dbMatch = freshResponse.items.find(dbItem => String(dbItem.name || "").trim().toLowerCase() === cleanName);
+               
                if (dbMatch && dbMatch.barcode) {
-                   item.barcode = dbMatch.barcode; // Вписываем тот самый 13-значный штрихкод!
+                   item.barcode = dbMatch.barcode; // 🎯 Подтягиваем новенький 13-значный штрихкод!
                }
            });
         }

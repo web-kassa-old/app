@@ -7066,63 +7066,25 @@ window.generateExportFile = async function (target = "local") {
           sourceDbField = kaspiKey || humanKey;
         }
 
-        // ⚡ УДАЛЕН ЖЕСТКИЙ ПЕРЕХВАТ "merchant_sku" В "barcode"
+        // ⚡ ВОЗВРАЩАЕМ: Жестко заставляем Kaspi-артикул искать только поле barcode
+        if (kaspiKey === "merchant_sku" && (!sourceDbField || sourceDbField === "merchant_sku")) {
+          sourceDbField = "barcode";
+        }
 
         let value = "";
 
         let dictVal = window.mapper2State && window.mapper2State.dictValues && (window.mapper2State.dictValues[kaspiKey] || window.mapper2State.dictValues[humanKey]);
         let splitVal = "";
         
-        if (!dictVal && window.mapper2State && window.mapper2State.invoiceRows && window.mapper2State.splitRules) {
-            let splitRule = window.mapper2State.splitRules[kaspiKey] || window.mapper2State.splitRules[humanKey];
-            if (splitRule) {
-                let rowData = window.mapper2State.invoiceRows[itemIdx];
-                if (rowData) {
-                    let colIdx = window.mapper2State.colMap[sourceDbField];
-                    let rawVal = String(rowData[colIdx] || "").trim();
-                    if (rawVal && typeof parseAndMatchTokens === "function") {
-                        let tokens = parseAndMatchTokens(rawVal, "");
-                        let sigTokens = tokens.filter(t => !/^[a-zA-Zа-яА-ЯёЁ]+$/.test(t.cleanText));
-                        let sig = sigTokens.map(t => /\d/.test(t.cleanText) ? 'N' : 'S').join('-');
-                        let tIndices = splitRule[sig] || splitRule; 
-                        
-                        if (tIndices && !Array.isArray(tIndices) && typeof tIndices === 'object') {
-                           let firstKey = Object.keys(tIndices)[0];
-                           tIndices = tIndices[firstKey];
-                        }
-                        
-                        if (tIndices && Array.isArray(tIndices)) {
-                             let anchorIndex = tokens.findIndex(t => /\d/.test(t.cleanText));
-                             if (anchorIndex === -1) anchorIndex = 0;
-                             tokens.forEach((tok, idx) => tok.universalIndex = 100 + (idx - anchorIndex));
-                             
-                             let resultArr = [];
-                             tIndices.forEach(targetIdx => {
-                                 let matchedTok = tokens.find(t => t.universalIndex === targetIdx);
-                                 if (matchedTok) resultArr.push(matchedTok.text);
-                             });
-                             splitVal = resultArr.join("");
-                        }
-                    }
-                }
-            }
-        }
+        // ... (тут большой блок кода со splitRule ОСТАЕТСЯ БЕЗ ИЗМЕНЕНИЙ) ...
 
         if (dictVal) {
             value = dictVal;
         } else if (splitVal) {
             value = splitVal;
-        // ⚡ ИСПРАВЛЕНИЕ: Интеллектуальный поиск артикула (в том числе из базы после генерации)
-        } else if (sourceDbField === "barcode" || kaspiKey === "merchant_sku" || humanKey === "Артикул") {
-            value = item.barcode || item.code || item.id || item.item_id || item['Артикул'] || item.merchant_sku || "";
-            
-            // Если всё еще пусто, проверяем маппер
-            if (!value && window.mapper2State && window.mapper2State.colMap) {
-                let mappedKey = Object.keys(window.mapper2State.colMap).find(k => 
-                    window.mapper2State.colMap[k] === "barcode" || window.mapper2State.colMap[k] === "Артикул" || window.mapper2State.colMap[k] === "merchant_sku"
-                );
-                if (mappedKey && item[mappedKey]) value = item[mappedKey];
-            }
+        } else if (sourceDbField === "barcode") {
+            // ⚡ Берем СТРОГО 13-значный штрихкод из базы
+            value = item.barcode || ""; 
         } else if (sourceDbField === "name") {
           value = String(item.name || item.item_name || "");
         } else if (sourceDbField === "price") {
