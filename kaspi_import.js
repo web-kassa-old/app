@@ -231,6 +231,203 @@ window.showComplexColumnSelector = function (headers, rows, templateData) {
 };
 
 // 1. ЧТЕНИЕ ФАЙЛА И ПОИСК ТАБЛИЦЫ
+// 🔥 Вспомогательная функция автоопределения номера накладной (Doc_No) из шапки Excel
+function extractInvoiceDocNo(rows, dict) {
+  if (!Array.isArray(rows) || rows.length === 0) return "";
+
+  const escapeRegex = (str) =>
+    String(str).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+  const isEmptyOrJunk = (raw) => {
+    const s = String(raw ?? "").trim();
+    if (!s) return true;
+    return /^[""'«»`\-—–_.:;#№\/\s]+$/.test(s);
+  };
+
+  const DOC_TITLE_REGEX =
+    /^(?:COMMERCIAL\s+INVOICE|PROFORMA\s+INVOICE|TAX\s+INVOICE|FINAL\s+INVOICE|SALES\s+INVOICE|INVOICE|PACKING\s+LIST|CONTRACT|SALES\s+CONTRACT|НАКЛАДНАЯ|ТОВАРНАЯ\s+НАКЛАДНАЯ|СЧ[ЕЁ]Т[-\s]?ФАКТУРА|ИНВОЙС|ДОГОВОР|КОНТРАКТ)$/i;
+
+  const SERVICE_LABEL_REGEX =
+    /^(?:(?:inv(?:oice)?\.?|doc(?:ument)?\.?|contract|issue|shipment)?\s*date|дата(?:\s+(?:документа|накладной|инвойса))?|(?:our\s+|your\s+)?ref(?:erence)?\.?\s*(?:no\.?|№|#)?|order\s*(?:no\.?|№|#)|p\/?o\s*(?:no\.?|№|#)|b\/?l\s*(?:no\.?|№|#)|awb\s*(?:no\.?|№|#)|container\s*(?:no\.?|№|#)|seal\s*(?:no\.?|№|#)|(?:invoice|inv\.?|doc(?:ument)?\.?|contract)\s*(?:no\.?|number|№|#)|buyer|consignee|seller|shipper|supplier|vendor|notify|messrs|issuer|attn|tel(?:ephone)?|fax|e-?mail|address|bank|swift|iban|account|currency|payment|terms|incoterms|port\s+of\b|loading|discharge|destination|origin|country|page|total|amount|qty|quantity|description|unit\s+price|поставщик|покупатель|грузополучатель|грузоотправитель|получатель|отправитель|договор|контракт|накладная|сч[её]т[-\s]?фактура|инн|бин|иин|кпп|бик|иик|адрес|тел(?:ефон)?|валюта|итого|всего|основание|склад)(?=$|[\s:.№#])/i;
+
+  const isOtherServiceLabel = (raw) => {
+    const s = String(raw ?? "").trim().replace(/\s+/g, " ");
+    if (!s) return false;
+    return SERVICE_LABEL_REGEX.test(s);
+  };
+
+  const cleanAndValidateDocNo = (raw, trimDateTail = false) => {
+    let val = String(raw ?? "").trim();
+    if (!val || isEmptyOrJunk(val)) return null;
+
+    if (trimDateTail) {
+      val = val.replace(
+        /(?:^|\s+[\(\[]?\s*|[\(\[]\s*)(?:от|дата|date|dated)(?=$|[\s:.,;\-\/0-9]).*$/i,
+        "",
+      );
+    }
+
+    // Убираем внешние кавычки и ведущие/хвостовые разделители
+    val = val
+      .replace(/^[\s"'«»`]+|[\s"'«»`]+$/g, "")
+      .replace(/^[:.#№\-—–\s]+/, "")
+      .replace(/^[\s"'«»`]+|[\s"'«»`]+$/g, "")
+      .replace(/[,;:\s]+$/, "")
+      .trim();
+
+    if (!val || val.length > 80 || isEmptyOrJunk(val)) return null;
+
+    const lower = val.toLowerCase();
+    if (
+      lower === "unknown" ||
+      lower === "n/a" ||
+      lower === "none" ||
+      lower === "null" ||
+      lower === "нет"
+    ) {
+      return null;
+    }
+
+    const normalizedSpaces = val.replace(/\s+/g, " ");
+    if (DOC_TITLE_REGEX.test(normalizedSpaces)) return null;
+
+    // Кандидат обязан содержать хотя бы одну цифру
+    if (!/\d/.test(val)) return null;
+
+    return val;
+  };
+
+  // Приоритет 1: явные метки номера накладной / инвойса / документа
+  const primaryPatterns = [
+    /(?:^|[\s,;|(\[])(?:invoice|inv\.?)\s*(?:no\.?|number|№|#)(?=$|[\s:.\-\/№#0-9"'«»])/i,
+    /(?:^|[\s,;|(\[])(?:товарная\s+)?накладная\s*(?:№|#|no\.?)(?=$|[\s:.\-\/№#0-9"'«»])/i,
+    /(?:^|[\s,;|(\[])сч[её]т[-\s]?фактура\s*(?:№|#|no\.?)(?=$|[\s:.\-\/№#0-9"'«»])/i,
+    /(?:^|[\s,;|(\[])номер\s+(?:накладной|документа|инвойса)(?=$|[\s:.\-\/№#0-9"'«»])/i,
+    /(?:^|[\s,;|(\[])(?:№|#)\s*(?:накл(?:адной|\.)?|док(?:умента|\.)?|инвойса)(?=$|[\s:.\-\/№#0-9"'«»])/i,
+    /(?:^|[\s,;|(\[])инвойс\s*(?:№|#|no\.?)(?=$|[\s:.\-\/№#0-9"'«»])/i,
+    /(?:^|[\s,;|(\[])(?:doc\.?|document)\s*(?:no\.?|number|№|#)(?=$|[\s:.\-\/№#0-9"'«»])/i,
+  ];
+
+  // Добавляем безопасные явные синонимы из пользовательского словаря (исключая широкие слова)
+  const unsafeGenericSyns = new Set([
+    "invoice",
+    "inv",
+    "doc",
+    "document",
+    "инвойс",
+    "накладная",
+    "счет",
+    "счёт",
+    "счет-фактура",
+    "счёт-фактура",
+    "номер",
+    "no",
+    "№",
+    "#",
+    "contract",
+    "contractno",
+    "договор",
+    "контракт",
+    "ref",
+    "refno",
+    "date",
+    "дата",
+  ]);
+  const rawDictSyns = []
+    .concat(
+      (dict && dict["Номер накладной"]) || [],
+      (dict && dict["invoice_no"]) || [],
+    )
+    .flatMap((v) => (Array.isArray(v) ? v : String(v || "").split(",")))
+    .map((s) => String(s || "").trim())
+    .filter(Boolean);
+
+  for (const syn of rawDictSyns) {
+    const compact = syn.toLowerCase().replace(/[\s.:№#\-]+/g, "");
+    if (!compact || unsafeGenericSyns.has(compact) || compact.length < 4) {
+      continue;
+    }
+    const patternStr = escapeRegex(syn).replace(/\s+/g, "\\s+");
+    try {
+      primaryPatterns.push(
+        new RegExp(
+          `(?:^|[\\s,;|(\\[])` +
+            patternStr +
+            `(?=$|[\\s:.\\-\\/№#0-9"'«»])`,
+          "i",
+        ),
+      );
+    } catch (e) {}
+  }
+
+  // Приоритет 2 (fallback): номер контракта / договора
+  const fallbackPatterns = [
+    /(?:^|[\s,;|(\[])(?:sales\s+)?contract\s*(?:no\.?|number|№|#)(?=$|[\s:.\-\/№#0-9"'«»])/i,
+    /(?:^|[\s,;|(\[])(?:договор|контракт)\s*(?:№|#|no\.?)(?=$|[\s:.\-\/№#0-9"'«»])/i,
+  ];
+
+  const maxRows = Math.min(20, rows.length);
+
+  const searchByPatterns = (patterns) => {
+    for (let i = 0; i < maxRows; i++) {
+      const row = rows[i] || [];
+      for (let j = 0; j < row.length; j++) {
+        const rawCell = String(row[j] ?? "").trim();
+        if (!rawCell || isEmptyOrJunk(rawCell)) continue;
+
+        let matched = null;
+        for (const rx of patterns) {
+          const m = rawCell.match(rx);
+          if (m) {
+            matched = m;
+            break;
+          }
+        }
+        if (!matched) continue;
+
+        // 1. Пробуем извлечь значение из хвоста той же ячейки после метки
+        const tail = rawCell.slice(matched.index + matched[0].length);
+        const inlineCandidate = cleanAndValidateDocNo(tail, true);
+        if (inlineCandidate) return inlineCandidate;
+
+        // 2. Пропускаем все подряд идущие дубликаты самой метки (от распаковки !merges)
+        const normLabel = rawCell.toLowerCase().replace(/\s+/g, " ").trim();
+        let k = j + 1;
+        while (k < row.length) {
+          const nextNorm = String(row[k] ?? "")
+            .trim()
+            .toLowerCase()
+            .replace(/\s+/g, " ");
+          if (nextNorm && nextNorm === normLabel) {
+            k++;
+          } else {
+            break;
+          }
+        }
+
+        // 3. Проверяем до 3 ячеек вправо, останавливаясь на других служебных метках
+        let checked = 0;
+        while (k < row.length && checked < 3) {
+          const rightRaw = String(row[k] ?? "").trim();
+          checked++;
+          k++;
+
+          if (isEmptyOrJunk(rightRaw)) continue;
+          if (isOtherServiceLabel(rightRaw)) break;
+
+          const rightCandidate = cleanAndValidateDocNo(rightRaw, true);
+          if (rightCandidate) return rightCandidate;
+        }
+      }
+    }
+    return "";
+  };
+
+  return (
+    searchByPatterns(primaryPatterns) || searchByPatterns(fallbackPatterns) || ""
+  );
+}
+
 window.processInvoiceFile = async function () {
   const fileInput = document.getElementById("invoiceFileInput");
   if (!fileInput || !fileInput.files.length)
@@ -538,17 +735,6 @@ window.processInvoiceFile = async function () {
       .map((s) => String(s).replace(/\s+/g, "").toLowerCase())
       .filter(Boolean);
 
-    let docSyns = []
-      .concat(dict["Номер накладной"] || [], dict["invoice_no"] || [], [
-        "invoice no",
-        "invoice",
-        "doc",
-        "инвойс",
-        "№ накл",
-      ])
-      .map((s) => String(s).replace(/\s+/g, "").toLowerCase())
-      .filter(Boolean);
-
     for (let i = 0; i < Math.min(15, rows.length); i++) {
       let row = rows[i] || [];
       for (let j = 0; j < row.length; j++) {
@@ -571,19 +757,12 @@ window.processInvoiceFile = async function () {
             }
           }
         }
-
-        if (docSyns.some((syn) => cleanCell?.includes(syn))) {
-          if (rawCell?.includes(":")) {
-            let parts = rawCell.split(":");
-            if (parts[1] && parts[1].trim())
-              file_doc_no = parts[1].trim().replace(/^"|"$/g, "");
-          }
-          if (file_doc_no === "UNKNOWN" || file_doc_no === "") {
-            let val = String(row[j + 1] || "").trim();
-            if (val && val !== "UNKNOWN") file_doc_no = val;
-          }
-        }
       }
+    }
+
+    const detectedDocNo = extractInvoiceDocNo(rows, dict);
+    if (detectedDocNo) {
+      file_doc_no = detectedDocNo;
     }
 
     window.mapper2State.supplier =
