@@ -236,7 +236,11 @@ window.processInvoiceFile = async function () {
   if (!fileInput || !fileInput.files.length)
     return alert(translations[currentLang]?.inc_no_file || "Выберите файл");
 
-  // ⚡ 1. ЖЕСТКИЙ СБРОС СОСТОЯНИЯ
+  // ⚡ 1. ЖЕСТКИЙ СБРОС СОСТОЯНИЯ (ВЕТКА ПРИЕМКИ — ЭКСПОРТ ВЫКЛЮЧЕН)
+  window.isKaspiExportMode = false;
+  window.currentExportHash = null;
+  window.kaspiExportItems = [];
+
   const preservedDict =
     window.mapper2State?.dictValues ||
     (typeof invoiceSynonyms !== "undefined" ? invoiceSynonyms : {});
@@ -910,14 +914,9 @@ window.navigateIncomeStep = function (stepNumber, isBack = false) {
     if (tabs) tabs.style.display = "none";
     if (currency) currency.style.display = "none";
 
-    // ⚡ ОТРИСОВКА ЕДИНОГО УНИВЕРСАЛЬНОГО МАППЕРА
-    if (typeof window.renderMapper2Cards === "function" && window.currentTemplateData) {
-      // Железобетонно включаем флаг Kaspi для гибридного режима перед отрисовкой
-      if (window.currentImportMode === "kaspi") {
-          window.isKaspiExportMode = true; 
-      }
-      
-      window.renderMapper2Cards(window.currentTemplateData);
+    // ⚡ ОТРИСОВКА ЕДИНОГО УНИВЕРСАЛЬНОГО МАППЕРА (НЕ трогаем флаг isKaspiExportMode!)
+    if (typeof window.renderMapper2Cards === "function") {
+      window.renderMapper2Cards(window.currentTemplateData || window.lastTemplateData || null);
     }
   } else if (stepNumber === 3 && step3) {
     step3.style.display = "flex";
@@ -971,13 +970,17 @@ window.renderMapper2Cards = function (templateData) {
   window.mapper2State.dictValues = window.mapper2State.dictValues || {};
   window.mapper2State.splitRules = window.mapper2State.splitRules || {};
 
-  // Применяем умные правила только если включен режим Kaspi
+  // Разделяем: показ Kaspi-полей в маппере нужен и при приемке «База + Маркет», и при выгрузке из базы
+  const useKaspiTemplate =
+    window.isKaspiExportMode === true || window.currentImportMode === "kaspi";
+
+  // Применяем умные правила только если включен шаблон Kaspi
   if (
     window.mapper2State.smartRules &&
     templateData &&
     templateData.humanNames &&
     templateData.systemKeys &&
-    window.isKaspiExportMode
+    useKaspiTemplate
   ) {
     const headers = window.mapper2State.invoiceHeaders || [];
 
@@ -1025,8 +1028,8 @@ window.renderMapper2Cards = function (templateData) {
     }
   }
 
-  // Выводим Kaspi-требования только если включен режим Kaspi
-  if (templateData && templateData.systemKeys && window.isKaspiExportMode) {
+  // Выводим Kaspi-требования если активен шаблон Kaspi (приемка «База + Маркет» или выгрузка)
+  if (templateData && templateData.systemKeys && useKaspiTemplate) {
     const { humanNames, systemKeys, requirements } = templateData;
     window.mapper2State.sysToHumanMap = {};
 
@@ -1177,7 +1180,9 @@ window.renderMapper2Cards = function (templateData) {
         (h) => h && base.some((w) => w.length > 2 && h.includes(w)),
       );
 
-    if (foundIndex !== -1) window.mapper2State.colMap[req.sysKey] = foundIndex;
+    if (window.mapper2State.colMap[req.sysKey] === undefined && foundIndex !== -1) {
+      window.mapper2State.colMap[req.sysKey] = foundIndex;
+    }
 
     let mappedIndex = window.mapper2State.colMap[req.sysKey];
     let dictValue =
@@ -1397,135 +1402,128 @@ window.renderMapper2Cards = function (templateData) {
   if (applyBtn) {
     applyBtn.style.display = "block";
 
-    const isKaspiMode = window.isKaspiExportMode || window.currentImportMode === "kaspi";
+    const isExportBranch = window.isKaspiExportMode === true;
 
-    if (isKaspiMode) {
-      if (!window.originalCheckMapperReadiness) {
-        window.originalCheckMapperReadiness = window.checkMapperReadiness;
+    if (!window.originalCheckMapperReadiness) {
+      window.originalCheckMapperReadiness = window.checkMapperReadiness;
 
-        window.checkMapperReadiness = function () {
-          if (window.originalCheckMapperReadiness)
-            window.originalCheckMapperReadiness();
+      window.checkMapperReadiness = function () {
+        if (window.originalCheckMapperReadiness)
+          window.originalCheckMapperReadiness();
 
-          const btn = document.getElementById("applyMapper2Btn");
-          if (btn && isKaspiMode) {
-            const btnContainer = btn.parentElement;
+        const btn = document.getElementById("applyMapper2Btn");
+        if (!btn) return;
+        const btnContainer = btn.parentElement;
+        const currentIsExport = window.isKaspiExportMode === true;
 
-            const btnSpan = btn.querySelector("span");
-            const target = btnSpan || btn;
-            target.setAttribute("data-i18n", "kaspi_confirm_template");
+        if (currentIsExport) {
+          const btnSpan = btn.querySelector("span");
+          const target = btnSpan || btn;
+          target.setAttribute("data-i18n", "kaspi_confirm_template");
 
-            if (
-              !btn.classList.contains("disabled") &&
-              !btn.classList.contains("btn-disabled")
-            ) {
-              btn.style.setProperty(
-                "background",
-                "var(--accent-blue, #2196f3)",
-                "important",
-              );
-              btn.style.setProperty(
-                "border-color",
-                "var(--accent-blue, #2196f3)",
-                "important",
-              );
-            } else {
-              btn.style.background = "";
-              btn.style.borderColor = "";
-            }
-
-            if (typeof window.applyLanguage === "function") {
-              window.applyLanguage(
-                typeof currentLang !== "undefined" ? currentLang : "ru",
-              );
-            }
-
-            if (btnContainer) {
-              const allOldBtns = btnContainer.querySelectorAll("button");
-              allOldBtns.forEach((b) => {
-                if (
-                  b.id !== "applyMapper2Btn" &&
-                  b.id !== "kaspiMapperBackBtn"
-                ) {
-                  b.style.display = "none";
-                }
-              });
-
-              let backBtn = document.getElementById("kaspiMapperBackBtn");
-              if (!backBtn) {
-                backBtn = document.createElement("button");
-                backBtn.id = "kaspiMapperBackBtn";
-                backBtn.setAttribute("data-i18n", "kaspi_mapper_back");
-
-                backBtn.style.background = "transparent";
-                backBtn.style.color = "var(--text-main)";
-                backBtn.style.border = "1px solid var(--border-light)";
-                backBtn.style.padding = "12px 15px";
-                backBtn.style.borderRadius = "6px";
-                backBtn.style.fontWeight = "bold";
-                backBtn.style.cursor = "pointer";
-                backBtn.onclick = function () {
-                  document.getElementById("mapper2Area").style.display = "none";
-                  if (window.currentImportMode === "kaspi" && typeof window.navigateIncomeStep === "function") {
-                    // Возврат на шаг Сита при приемке
-                    window.navigateIncomeStep(1); 
-                  } else {
-                    // Возврат в окно экспорта
-                    const exportModal = document.getElementById("export-modal");
-                    if (exportModal) exportModal.style.display = "flex";
-                  }
-                };
-                btnContainer.insertBefore(backBtn, btn);
-
-                if (typeof window.applyLanguage === "function") {
-                  window.applyLanguage(
-                    typeof currentLang !== "undefined" ? currentLang : "ru",
-                  );
-                }
-              }
-
-              btnContainer.style.display = "flex";
-              btnContainer.style.gap = "10px";
-              backBtn.style.display = "block";
-              backBtn.style.flex = "1";
-              btn.style.flex = "2";
-            }
+          if (
+            !btn.classList.contains("disabled") &&
+            !btn.classList.contains("btn-disabled")
+          ) {
+            btn.style.setProperty(
+              "background",
+              "var(--accent-blue, #2196f3)",
+              "important",
+            );
+            btn.style.setProperty(
+              "border-color",
+              "var(--accent-blue, #2196f3)",
+              "important",
+            );
+          } else {
+            btn.style.background = "";
+            btn.style.borderColor = "";
           }
-        };
-      }
 
-      if (typeof window.checkMapperReadiness === "function")
-        window.checkMapperReadiness();
-    } else {
-      if (typeof window.checkMapperReadiness === "function")
-        window.checkMapperReadiness();
+          if (btnContainer) {
+            const allOldBtns = btnContainer.querySelectorAll("button");
+            allOldBtns.forEach((b) => {
+              if (
+                b.id !== "applyMapper2Btn" &&
+                b.id !== "kaspiMapperBackBtn"
+              ) {
+                b.style.display = "none";
+              }
+            });
 
+            let backBtn = document.getElementById("kaspiMapperBackBtn");
+            if (!backBtn) {
+              backBtn = document.createElement("button");
+              backBtn.id = "kaspiMapperBackBtn";
+              backBtn.setAttribute("data-i18n", "kaspi_mapper_back");
+
+              backBtn.style.background = "transparent";
+              backBtn.style.color = "var(--text-main)";
+              backBtn.style.border = "1px solid var(--border-light)";
+              backBtn.style.padding = "12px 15px";
+              backBtn.style.borderRadius = "6px";
+              backBtn.style.fontWeight = "bold";
+              backBtn.style.cursor = "pointer";
+              backBtn.onclick = function () {
+                document.getElementById("mapper2Area").style.display = "none";
+                const incomeModal = document.getElementById("income-modal");
+                if (incomeModal) incomeModal.style.display = "none";
+                const exportModal = document.getElementById("export-modal");
+                if (exportModal) exportModal.style.display = "flex";
+              };
+              btnContainer.insertBefore(backBtn, btn);
+            }
+
+            btnContainer.style.display = "flex";
+            btnContainer.style.gap = "10px";
+            backBtn.style.display = "block";
+            backBtn.style.flex = "1";
+            btn.style.flex = "2";
+          }
+
+          if (typeof window.applyLanguage === "function") {
+            window.applyLanguage(
+              typeof currentLang !== "undefined" ? currentLang : "ru",
+            );
+          }
+        } else {
+          // Ветка ПРИЕМКИ (и «Только База», и «База + Маркет»)
+          const backBtn = document.getElementById("kaspiMapperBackBtn");
+          if (backBtn) backBtn.remove();
+
+          btn.style.flex = "2";
+          btn.style.background = "";
+          btn.style.borderColor = "";
+
+          const btnSpan = btn.querySelector("span");
+          const target = btnSpan || btn;
+          target.setAttribute("data-i18n", "inc_build_invoice");
+
+          if (btnContainer) {
+            const allOldBtns = btnContainer.querySelectorAll("button");
+            allOldBtns.forEach((b) => {
+              if (b.id !== "applyMapper2Btn" && b.id !== "kaspiMapperBackBtn") {
+                b.style.display = "";
+              }
+            });
+          }
+
+          if (typeof window.applyLanguage === "function") {
+            window.applyLanguage(
+              typeof currentLang !== "undefined" ? currentLang : "ru",
+            );
+          }
+        }
+      };
+    }
+
+    if (typeof window.checkMapperReadiness === "function") {
+      window.checkMapperReadiness();
+    }
+
+    if (!isExportBranch) {
       const backBtn = document.getElementById("kaspiMapperBackBtn");
       if (backBtn) backBtn.remove();
-
-      applyBtn.style.flex = "";
-      applyBtn.style.background = "";
-      applyBtn.style.borderColor = "";
-
-      const btnSpan = applyBtn.querySelector("span");
-      const target = btnSpan || applyBtn;
-      target.setAttribute("data-i18n", "inc_build_invoice");
-
-      if (typeof window.applyLanguage === "function") {
-        window.applyLanguage(
-          typeof currentLang !== "undefined" ? currentLang : "ru",
-        );
-      }
-
-      const btnContainer = applyBtn.parentElement;
-      if (btnContainer) {
-        const allOldBtns = btnContainer.querySelectorAll("button");
-        allOldBtns.forEach((b) => {
-          if (b.id !== "applyMapper2Btn" && b.id !== "kaspiMapperBackBtn") {
-            b.style.display = "";
-          }
-        });
-      }
     }
   }
 };
@@ -2293,11 +2291,8 @@ window.applyMapper2Logic = function () {
   const colMap = state.colMap || {};
   const dict = state.dictValues || {};
 
-  const isKaspiMode =
-    window.isKaspiExportMode || window.currentImportMode === "kaspi";
-    
-  // Принудительно устанавливаем флаг глобального режима, чтобы он долетел до финального рендера
-  window.isKaspiExportMode = isKaspiMode;
+  // Строгое разделение веток: isExportBranch === true ТОЛЬКО в ветке выгрузки из базы!
+  const isExportBranch = window.isKaspiExportMode === true;
 
   const hasQty = colMap["qty"] !== undefined || dict["qty"] !== undefined;
   const hasPrice =
@@ -2311,7 +2306,7 @@ window.applyMapper2Logic = function () {
     dict["name"] !== undefined ||
     dict["model"] !== undefined;
 
-  if (!isKaspiMode) {
+  if (!isExportBranch) {
     if (!hasQty || !hasPrice || !hasName) {
       const lang =
         window.currentLang || localStorage.getItem("pos_lang") || "ru";
@@ -2326,10 +2321,19 @@ window.applyMapper2Logic = function () {
     }
   }
 
-  if (window.currentImportMode === "kaspi") {
+  if (!isExportBranch && window.currentImportMode === "kaspi") {
     const templateSelect = document.getElementById("kaspiTemplateSelect");
-    const templateName = templateSelect ? templateSelect.value : "";
-    if (templateName) {
+    const selectedOpt =
+      templateSelect && templateSelect.selectedIndex !== -1
+        ? templateSelect.options[templateSelect.selectedIndex]
+        : null;
+    const templateHash = selectedOpt
+      ? selectedOpt.getAttribute("data-hash") || selectedOpt.value || ""
+      : "";
+    const templateName = selectedOpt
+      ? selectedOpt.getAttribute("data-name") || selectedOpt.text.trim() || templateHash
+      : "";
+    if (templateHash || templateName) {
       let currentMemory = {};
       try {
         currentMemory = JSON.parse(window.mapper2State.rawMemoryJson || "{}");
@@ -2337,6 +2341,8 @@ window.applyMapper2Logic = function () {
       let memoryUpdated = false;
 
       Object.keys(state.colMap).forEach((sysKey) => {
+        // Не запоминаем merchant_sku — он всегда заполняется штрихкодом БД
+        if (String(sysKey).toLowerCase() === "merchant_sku") return;
         let colIndex = state.colMap[sysKey];
         let headerText = state.invoiceHeaders[colIndex];
         if (headerText) {
@@ -2361,6 +2367,7 @@ window.applyMapper2Logic = function () {
           action: "updateKaspiMemory",
           api_key: CLIENT_API_KEY,
           category: templateName,
+          templateHash: templateHash,
           memoryJson: JSON.stringify(currentMemory),
         };
         window
@@ -2470,24 +2477,29 @@ window.applyMapper2Logic = function () {
 
     let rawQty = getValue("qty");
     let rawPrice = getValue("price", "cost");
-    let rawId = getValue("barcode", "merchant_sku");
+    let rawId = getValue("item_id") || getValue("barcode", "merchant_sku");
     let rawName = getValue("name", "model");
 
     let qty = parseFloat(rawQty) || 0;
     let price = parseFloat(String(rawPrice).replace(",", "."));
 
-    if (!isKaspiMode && (isNaN(price) || price <= 0)) {
+    if (!isExportBranch && (isNaN(price) || price <= 0)) {
       return;
     }
 
     let hasIdentifier =
       (rawId && String(rawId).trim() !== "") ||
       (rawName && String(rawName).trim() !== "");
-    if (!isKaspiMode && !hasIdentifier) {
+    if (!isExportBranch && !hasIdentifier) {
       return;
     }
 
-    let barcode = /^\d{8,13}$/.test(rawId) ? rawId : "";
+    // Не копируем заводской артикул в barcode; сохраняем barcode только если явно замаплена колонка barcode и там ровно 13 цифр
+    const explicitBarcodeVal =
+      state.colMap && state.colMap["barcode"] !== undefined
+        ? String(getValue("barcode") || "").trim()
+        : "";
+    let barcode = /^\d{13}$/.test(explicitBarcodeVal) ? explicitBarcodeVal : "";
     let name = rawName || rawId || "Без названия";
 
     let rawLogisticsStr = "";
@@ -2648,14 +2660,22 @@ window.applyMapper2Logic = function () {
         ? JSON.stringify(cleanAttributesObj)
         : "";
 
-    const templateDropdown = document.getElementById("kaspiTemplateSelect");
-    const activeCategoryText =
-      templateDropdown && templateDropdown.selectedIndex !== -1
-        ? templateDropdown.options[templateDropdown.selectedIndex].text.trim()
-        : "Новые товары";
+    let activeCategoryText = "Без категории";
+    if (!isExportBranch && window.currentImportMode === "kaspi") {
+      const templateDropdown = document.getElementById("kaspiTemplateSelect");
+      const opt =
+        templateDropdown && templateDropdown.selectedIndex !== -1
+          ? templateDropdown.options[templateDropdown.selectedIndex]
+          : null;
+      if (opt && opt.value && opt.value !== "new" && opt.value !== "new_template") {
+        activeCategoryText = opt.getAttribute("data-name") || opt.text.trim();
+      }
+    }
 
     let origItem =
-      window.kaspiExportItems && window.kaspiExportItems[index]
+      isExportBranch &&
+      window.kaspiExportItems &&
+      window.kaspiExportItems[index]
         ? window.kaspiExportItems[index]
         : {};
     let realDocNo =
@@ -2684,8 +2704,9 @@ window.applyMapper2Logic = function () {
       name: name,
       desc: name,
       description: name,
-      barcode: origItem.barcode || barcode,
-      category: activeCategoryText,
+      barcode: isExportBranch ? String(origItem.barcode || barcode || "").trim() : barcode,
+      hash: origItem.hash || "",
+      category: origItem.category || activeCategoryText,
       sku: realItemId,
       title: name,
       attributes: finalAttributes,
@@ -2715,7 +2736,7 @@ window.applyMapper2Logic = function () {
     }
   });
 
-  if (window.parsedInvoiceData.length === 0 && !isKaspiMode) {
+  if (window.parsedInvoiceData.length === 0 && !isExportBranch) {
     return alert(
       "Не удалось сформировать товары. Убедитесь, что в колонках «Количество» и «Цена» находятся ТОЛЬКО цифры.",
     );
@@ -2737,9 +2758,12 @@ window.applyMapper2Logic = function () {
   document.getElementById("mapper2Area").style.display = "none";
   document.getElementById("invoicePreviewArea").style.display = "flex";
 
-  if (isKaspiMode) {
+  // Кнопки на экране сверки зависят СТРОГО от ветки (isExportBranch):
+  // Ветка приемки («Только База» и «База + Маркет») -> видна ТОЛЬКО sendInvoiceBtn.
+  // Ветка выгрузки из базы (isExportBranch === true) -> видна ТОЛЬКО generateExportBtn.
+  if (isExportBranch) {
     const sendBtn = document.getElementById("sendInvoiceBtn");
-    if (sendBtn) sendBtn.style.display = "none";
+    if (sendBtn) sendBtn.style.setProperty("display", "none", "important");
 
     const exportBtns = document.getElementById("exportActionButtons");
     if (exportBtns) exportBtns.style.display = "flex";
@@ -2760,10 +2784,13 @@ window.applyMapper2Logic = function () {
     }
   } else {
     const sendBtn = document.getElementById("sendInvoiceBtn");
-    if (sendBtn) sendBtn.style.display = "flex";
+    if (sendBtn) sendBtn.style.setProperty("display", "flex", "important");
 
     const exportBtns = document.getElementById("exportActionButtons");
-    if (exportBtns) exportBtns.style.display = "none";
+    if (exportBtns) exportBtns.style.setProperty("display", "none", "important");
+
+    const genBtn = document.getElementById("generateExportBtn");
+    if (genBtn) genBtn.style.setProperty("display", "none", "important");
   }
 };
 
@@ -2790,7 +2817,9 @@ window.renderPreviewTable = function () {
 
   let realDocNo = state.docNo;
   let sourceItems =
-    window.kaspiExportItems && window.kaspiExportItems.length > 0
+    window.isKaspiExportMode === true &&
+    window.kaspiExportItems &&
+    window.kaspiExportItems.length > 0
       ? window.kaspiExportItems
       : window.parsedInvoiceData;
 
@@ -2906,24 +2935,27 @@ window.renderPreviewTable = function () {
       })
       .join("");
 
-  if (window.isKaspiExportMode) {
+  const isExportBranch = window.isKaspiExportMode === true;
+  const step3 = document.getElementById("invoicePreviewArea");
+
+  if (isExportBranch) {
     const sendBtn = document.getElementById("sendInvoiceBtn");
-    if (sendBtn) sendBtn.style.display = "none";
+    if (sendBtn) sendBtn.style.setProperty("display", "none", "important");
 
-    const allBtns = document.querySelectorAll("button");
-    allBtns.forEach((b) => {
-      const txt = b.innerText.trim().toUpperCase();
-      // 🔥 Безопасный ?.includes
-      if (
-        (txt?.includes("НАЗАД") || txt?.includes("АРТҚА")) &&
-        b.id !== "kaspiMapperBackBtn" &&
-        b.id !== "kaspiBackToMapperBtn"
-      ) {
-        b.style.display = "none";
-      }
-    });
+    if (step3) {
+      const allBtns = step3.querySelectorAll("button");
+      allBtns.forEach((b) => {
+        const txt = b.innerText.trim().toUpperCase();
+        if (
+          (txt?.includes("НАЗАД") || txt?.includes("АРТҚА")) &&
+          b.id !== "kaspiMapperBackBtn" &&
+          b.id !== "kaspiBackToMapperBtn"
+        ) {
+          b.style.setProperty("display", "none", "important");
+        }
+      });
+    }
 
-    const step3 = document.getElementById("invoicePreviewArea");
     const exportBtns = document.getElementById("exportActionButtons");
 
     if (exportBtns && step3) {
@@ -3019,11 +3051,16 @@ window.renderPreviewTable = function () {
           child.style.flex = "0 0 100%";
           child.style.marginTop = "5px";
           child.style.display = "block";
+        } else if (child.id === "generateExportBtn") {
+          child.style.flex = "2";
+          child.setAttribute("data-i18n", "kaspi_download_file");
+          child.style.setProperty("display", "block", "important");
+          downloadBtnFound = true;
         } else if (child.tagName.toUpperCase() === "BUTTON") {
           if (!downloadBtnFound) {
             child.style.flex = "2";
             child.setAttribute("data-i18n", "kaspi_download_file");
-            child.style.display = "block";
+            child.style.setProperty("display", "block", "important");
             downloadBtnFound = true;
           } else {
             child.style.display = "none";
@@ -3039,45 +3076,49 @@ window.renderPreviewTable = function () {
       }
     }
   } else {
+    // ВЕТКА ПРИЕМКИ (и «Только База», и «База + Маркет»): всегда показываем sendInvoiceBtn, скрываем exportActionButtons и generateExportBtn
     const exportBtns = document.getElementById("exportActionButtons");
     if (exportBtns) {
-      exportBtns.style.display = "none";
+      exportBtns.style.setProperty("display", "none", "important");
     }
+    const genBtn = document.getElementById("generateExportBtn");
+    if (genBtn) {
+      genBtn.style.setProperty("display", "none", "important");
+    }
+    const expBackBtn = document.getElementById("kaspiBackToMapperBtn");
+    if (expBackBtn) expBackBtn.style.display = "none";
+    const expResetBtn = document.getElementById("kaspiResetExportBtn");
+    if (expResetBtn) expResetBtn.style.display = "none";
 
-    setTimeout(() => {
+    const showIncomeControls = () => {
       const sendBtn = document.getElementById("sendInvoiceBtn");
       if (sendBtn) {
-        sendBtn.style.display = "block";
         sendBtn.style.setProperty("display", "block", "important");
         sendBtn.style.visibility = "visible";
         sendBtn.removeAttribute("hidden");
 
         const parent = sendBtn.parentElement;
-        if (
-          parent &&
-          parent.id !== "invoicePreviewArea" &&
-          parent.style.display === "none"
-        ) {
+        if (parent && parent.id !== "invoicePreviewArea") {
           parent.style.setProperty("display", "flex", "important");
           parent.style.width = "100%";
         }
       }
 
-      const step3 = document.getElementById("invoicePreviewArea");
       if (step3) {
         const allBtns = step3.querySelectorAll("button");
         allBtns.forEach((b) => {
           const txt = b.innerText.trim().toUpperCase();
-          // 🔥 Безопасный ?.includes
           if (txt?.includes("НАЗАД") || txt?.includes("АРТҚА")) {
             if (b.id !== "kaspiBackToMapperBtn") {
-              b.style.display = "block";
               b.style.setProperty("display", "block", "important");
             }
           }
         });
       }
-    }, 100);
+    };
+
+    showIncomeControls();
+    setTimeout(showIncomeControls, 100);
   }
 };
 
@@ -3778,13 +3819,22 @@ window.buildKaspiExportMetadata = function () {
   }
 
   return JSON.stringify({
-    raw_headers: window.rawExcelHeaders || [],
+    raw_headers:
+      (window.mapper2State && window.mapper2State.invoiceHeaders) ||
+      window.rawExcelHeaders ||
+      [],
     saved_mapping: finalMapping,
     saved_complex_params: complexParams,
   });
 };
 
 async function sendInvoiceToBackend() {
+  // Жесткая защита: в ветке выгрузки из базы повторное оприходование запрещено
+  if (window.isKaspiExportMode === true) {
+    console.warn("sendInvoiceToBackend заблокирован в режиме выгрузки Kaspi");
+    return;
+  }
+
   if (!window.parsedInvoiceData || window.parsedInvoiceData.length === 0)
     return alert(translations[currentLang].inc_empty_cart);
 
@@ -3803,41 +3853,50 @@ async function sendInvoiceToBackend() {
     }
   }
 
-  // ⚡ ПОЛУЧАЕМ ТЕКСТ И ХЭШ ШАБЛОНА ДЛЯ БАЗЫ И МАРКЕТА
-  const templateDropdown = document.getElementById("kaspiTemplateSelect");
+  // ⚡ ПОЛУЧАЕМ ТЕКСТ И ХЭШ ШАБЛОНА ТОЛЬКО ДЛЯ РЕЖИМА «БАЗА + МАРКЕТ»
+  const isKaspiIncome = window.currentImportMode === "kaspi";
   let selectedCategory = "";
   let selectedHash = "";
-
-  if (templateDropdown && templateDropdown.selectedIndex !== -1) {
-    const opt = templateDropdown.options[templateDropdown.selectedIndex];
-    selectedCategory = opt.text.trim();
-    // Жестко забираем хэш напрямую из атрибутов, чтобы браузер не подсунул текст
-    selectedHash =
-      opt.getAttribute("data-hash") || opt.getAttribute("value") || "";
-  }
-
+  let marketStatusToSend = "";
   let autoGeneratedMapper = {};
-  if (selectedCategory && window.parsedInvoiceData.length > 0) {
-    try {
-      const sampleItem = window.parsedInvoiceData[0];
-      let itemAttrs = {};
-      if (sampleItem.attributes) {
-        itemAttrs = JSON.parse(sampleItem.attributes);
+
+  if (isKaspiIncome) {
+    const templateDropdown = document.getElementById("kaspiTemplateSelect");
+    if (templateDropdown && templateDropdown.selectedIndex !== -1) {
+      const opt = templateDropdown.options[templateDropdown.selectedIndex];
+      if (opt && opt.value && opt.value !== "new" && opt.value !== "new_template") {
+        selectedCategory = opt.getAttribute("data-name") || opt.text.trim();
+        selectedHash =
+          opt.getAttribute("data-hash") || opt.getAttribute("value") || "";
       }
-      Object.keys(itemAttrs).forEach((key) => {
-        if (window.applyToAllMap && window.applyToAllMap[key]) {
-          autoGeneratedMapper[key] = "static_" + window.applyToAllMap[key];
-        } else {
-          autoGeneratedMapper[key] = "json_" + key;
+    }
+    if (!selectedHash && window.currentTemplateData && window.currentTemplateData.templateHash) {
+      selectedHash = window.currentTemplateData.templateHash;
+    }
+    marketStatusToSend = selectedHash ? "pending" : "";
+
+    if (selectedCategory && window.parsedInvoiceData.length > 0) {
+      try {
+        const sampleItem = window.parsedInvoiceData[0];
+        let itemAttrs = {};
+        if (sampleItem.attributes) {
+          itemAttrs = JSON.parse(sampleItem.attributes);
         }
-      });
-    } catch (e) {
-      console.error("Ошибка при сборке маппера:", e);
+        Object.keys(itemAttrs).forEach((key) => {
+          if (window.applyToAllMap && window.applyToAllMap[key]) {
+            autoGeneratedMapper[key] = "static_" + window.applyToAllMap[key];
+          } else {
+            autoGeneratedMapper[key] = "json_" + key;
+          }
+        });
+      } catch (e) {
+        console.error("Ошибка при сборке маппера:", e);
+      }
     }
   }
 
-  // ⚡ ФИКС: Ищем любую из двух кнопок, которая запустила процесс
-  const btn = document.getElementById("sendInvoiceBtn") || document.getElementById("generateExportBtn");
+  // Работаем строго с кнопкой проведения прихода (sendInvoiceBtn)
+  const btn = document.getElementById("sendInvoiceBtn");
   const statusContainer = document.getElementById("status-container");
   const statusBar = document.getElementById("status-bar");
   const statusText = document.getElementById("status-text");
@@ -3895,11 +3954,11 @@ async function sendInvoiceToBackend() {
         "кол";
       group.items.forEach((item) => (item.file_code = fp));
 
-      // ⚡ СОБИРАЕМ ИСТОРИЮ ЭКСПОРТА И КОЛОНОК ДЛЯ БАЗЫ
+      // ⚡ СОБИРАЕМ ИСТОРИЮ ЭКСПОРТА И КОЛОНОК ДЛЯ БАЗЫ (ТОЛЬКО В РЕЖИМЕ «БАЗА + МАРКЕТ»)
       const exportMetadataJSON =
-        typeof window.buildKaspiExportMetadata === "function"
+        isKaspiIncome && typeof window.buildKaspiExportMetadata === "function"
           ? window.buildKaspiExportMetadata()
-          : "{}";
+          : "";
       const currencyEl = document.getElementById("invoiceCurrency");
       const finalCurrency = currencyEl ? currencyEl.value : "KZT";
 
@@ -3914,11 +3973,11 @@ async function sendInvoiceToBackend() {
           docNo: docNo,
           currency: finalCurrency,
           fingerprint: fp,
-          market_category: selectedCategory, // Идет нормальное имя (Шины)
-          template_hash: selectedHash, // Отдельно идет хэш
-          market_status: "pending",
+          market_category: selectedCategory, // Имя категории (только для «База + Маркет»)
+          template_hash: selectedHash, // Хэш шаблона (только для «База + Маркет»)
+          market_status: marketStatusToSend, // "pending" для «База + Маркет», "" для «Только База»
           kaspi_mapper: autoGeneratedMapper,
-          export_metadata: exportMetadataJSON, // Данные колонок для базы
+          export_metadata: exportMetadataJSON, // Данные колонок и сплиттеров для базы
         }),
       });
 
@@ -4129,8 +4188,8 @@ window.openExportModal = async function () {
       // Генерируем красивые плашки
       container.innerHTML = res.pendingGroups
         .map((g) => {
-          // Если бэкенд скажет, что партия уже выгружена (или у нее уже сохранен конфиг)
-          const isExported = g.isExported === true || g.hasConfig === true;
+          // Статус плашки зависит СТРОГО от g.isExported (pending-партии всегда открываются как pending)
+          const isExported = g.isExported === true;
 
           // Тексты
           const pendingText = t.exp_pending
@@ -4293,6 +4352,7 @@ window.handleCardSelectForExport = async function (
       // 2. === НАШ ЦИКЛ ЭКСПОРТА ===
       window.kaspiExportItems = res.items;
       window.kaspiExportConfig = res.templateConfig;
+      window.currentTemplateData = res.templateConfig;
       window.kaspiExportRowIndexes = res.rowIndexes;
       window.kaspiTargetSheetName = res.templateConfig.targetSheetName || null;
 
@@ -4451,12 +4511,11 @@ window.handleCardSelectForExport = async function (
       if (!res.templateConfig) res.templateConfig = {};
       if (!res.templateConfig.mapping) res.templateConfig.mapping = {};
 
-      // 0. Очищаем colMap перед пересборкой
-      let existingColMap = Object.assign({}, window.mapper2State.colMap);
+      // 0. Очищаем colMap перед пересборкой по распакованным колонкам из БД
       window.mapper2State.colMap = {};
       res.templateConfig.mapping = {};
 
-      // 1. Универсальная привязка ВСЕХ параметров
+      // 1. Универсальная привязка ВСЕХ параметров по extractedHeaders (не затираем старыми индексами Excel!)
       extractedHeaders.forEach((header, idx) => {
         res.templateConfig.mapping[header] = header;
         window.mapper2State.colMap[header] = idx;
@@ -4466,17 +4525,12 @@ window.handleCardSelectForExport = async function (
           let humanIdx = res.templateConfig.humanNames.indexOf(header);
           if (humanIdx !== -1) {
             let sysKey = res.templateConfig.systemKeys[humanIdx];
-            window.mapper2State.colMap[sysKey] = idx; // Маппер увидит это и зажжет зеленую галочку!
+            if (sysKey && sysKey !== "merchant_sku") {
+              window.mapper2State.colMap[sysKey] = idx; // Маппер увидит это и зажжет зеленую галочку!
+            }
           }
         }
       });
-
-      // Возвращаем старые маппинги, если они были сохранены
-      window.mapper2State.colMap = Object.assign(
-        {},
-        window.mapper2State.colMap,
-        existingColMap,
-      );
 
       // 2. Восстанавливаем сплиттеры чисто для визуала (данные уже готовы)
       if (savedMeta.saved_complex_params) {
@@ -4544,6 +4598,8 @@ window.handleCardSelectForExport = async function (
       // === Рендерим маппер с готовыми данными ===
       window.renderMapper2Cards(res.templateConfig);
 
+      const exportBtnArea = document.getElementById("exportActionButtons");
+
       if (isExported) {
         if (step2) step2.style.display = "none";
         if (step3) step3.style.display = "flex";
@@ -4551,35 +4607,9 @@ window.handleCardSelectForExport = async function (
         window.renderPreviewTable();
       } else {
         if (step3) step3.style.display = "none";
+        if (exportBtnArea) exportBtnArea.style.display = "none";
         if (step2) step2.style.display = "flex";
         showParents("mapper2Area");
-      }
-
-      if (step3) {
-        const allBtns = step3.querySelectorAll("button");
-        allBtns.forEach((b) => {
-          const text = b.innerText.trim().toUpperCase();
-
-          // 🔥 Восстановлен block, чтобы кнопка 100% появлялась
-          if (text === "НАЗАД" || text.includes("НАЗАД")) {
-            b.style.display = "block";
-          }
-
-          if (
-            window.isKaspiExportMode &&
-            (text.includes("ДИСК") ||
-              text.includes("СБРОС") ||
-              text.includes("ПЕРЕЗАЛИТЬ"))
-          ) {
-            b.style.display = "none";
-          }
-        });
-      }
-
-      const btnArea = document.getElementById("exportActionButtons");
-      if (btnArea) {
-        btnArea.style.display = "flex";
-        if (step3) step3.appendChild(btnArea);
       }
     } else {
       const err =
@@ -4927,15 +4957,29 @@ window.handleTemplateUpload = async function (event) {
         );
 
         if (res && res.success) {
+          window.kaspiTemplateCache = window.kaspiTemplateCache || {};
+          window.kaspiTemplateCache[templateHash] = Object.assign({}, extractedHeaders);
+
           if (templateSelect) {
             if (!isDuplicate) {
               const newOption = document.createElement("option");
               newOption.value = templateHash;
               newOption.text = categoryName;
               newOption.setAttribute("data-hash", templateHash);
+              newOption.setAttribute("data-name", categoryName);
               templateSelect.appendChild(newOption);
             }
             templateSelect.value = templateHash;
+          }
+
+          // Разблокируем загрузку накладной Excel в ветке приемки (не открывая кнопки экспорта)
+          if (typeof window.setUploadButtonState === "function") {
+            window.setUploadButtonState(
+              true,
+              "inc_upload_excel",
+              "Загрузите файл Excel",
+              "📁",
+            );
           }
         } else {
           if (res && res.error === "kaspi_dup_hash") {
@@ -4944,44 +4988,9 @@ window.handleTemplateUpload = async function (event) {
           throw new Error(res ? res.error : "Пустой ответ от сервера");
         }
 
-        if (typeof window.showLoading === "function")
-          window.showLoading("Подключение БД...");
-        if (fileNameSpan) {
-          fileNameSpan.innerText = `⏳ Подключение БД...`;
-          fileNameSpan.style.color = "var(--accent-blue)";
-        }
-
-        const dbResponse = await window.smartFetch(
-          typeof APPS_SCRIPT_URL !== "undefined"
-            ? APPS_SCRIPT_URL
-            : window.APPS_SCRIPT_URL || "",
-          {
-            action: "getKaspiExportData",
-            api_key:
-              typeof CLIENT_API_KEY !== "undefined" ? CLIENT_API_KEY : "",
-          },
-        );
-
-        const dynKeys =
-          dbResponse && dbResponse.success ? dbResponse.dynamicKeys : [];
-
         if (fileNameSpan) {
           fileNameSpan.innerText = `✅ Шаблон готов (${categoryName})`;
           fileNameSpan.style.color = "var(--accent-green)";
-        }
-
-        if (typeof renderMapperUI === "function") {
-          renderMapperUI(
-            systemKeys,
-            humanNames,
-            valuesData,
-            requirements,
-            dynKeys,
-          );
-        }
-
-        if (typeof updateFileNameCompactUI === "function") {
-          updateFileNameCompactUI(file.name);
         }
       } catch (err) {
         console.error(err);

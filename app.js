@@ -6917,7 +6917,7 @@ window.generateExportFile = async function (target = "local") {
     const items = window.parsedInvoiceData || window.kaspiExportItems;
     if (!items || items.length === 0) throw new Error("Нет товаров для выгрузки.");
 
-    // ⚡ НОВОЕ: Скачиваем свежие штрихкоды из базы ПЕРЕД сборкой шаблона
+    // ⚡ НОВОЕ: Скачиваем свежие штрихкоды из базы ПЕРЕД сборкой шаблона (полный каскад: hash -> item_id -> cleanName)
     try {
       console.log("Запрашиваем актуальные штрихкоды из базы...");
       const url = typeof GATEWAY_URL !== "undefined" ? GATEWAY_URL : window.GATEWAY_URL;
@@ -6928,29 +6928,67 @@ window.generateExportFile = async function (target = "local") {
         api_key: apiKey
       });
       
-      if (freshResponse && freshResponse.success && freshResponse.items) {
-         items.forEach(item => {
-             let itemHash = String(item.hash || item.item_hash || "").trim();
-             let originalId = String(item.item_id || item.id || item.code || item['Артикул'] || "").trim().toLowerCase();
-             let cleanName = String(item.name || item.item_name || "").trim().toLowerCase();
-             
-             let dbMatch = freshResponse.items.find(dbItem => {
-                 let dbHash = String(dbItem.hash || dbItem.item_hash || "").trim();
-                 let dbId = String(dbItem.item_id || dbItem.id || "").trim().toLowerCase();
-                 let dbName = String(dbItem.name || dbItem.item_name || "").trim().toLowerCase();
-                 
-                 // 1. Поиск по хэшу
-                 if (itemHash && dbHash && itemHash === dbHash) return true;
-                 // 2. Поиск по заводскому артикулу
-                 if (!itemHash && originalId && dbId && originalId === dbId) return true;
-                 // 3. Крайний случай - поиск по имени
-                 if (!itemHash && !originalId && dbName === cleanName) return true;
-                 return false;
-             });
-             
-             if (dbMatch && dbMatch.barcode) {
-                 item.barcode = dbMatch.barcode; // 🎯 Обогащаем товар 13-значным штрихкодом
+      if (freshResponse && freshResponse.success && Array.isArray(freshResponse.items)) {
+         const normId = (v) => {
+           const s = String(v || "").trim();
+           if (!s || s.toUpperCase() === "UNKNOWN" || s.toUpperCase() === "AUTO") return "";
+           return s.toLowerCase();
+         };
+         const normName = (v) => String(v || "").toLowerCase().replace(/\s+/g, " ").trim();
+
+         const dbByHash = {};
+         const dbById = {};
+         const dbByName = {};
+
+         freshResponse.items.forEach((dbItem) => {
+           const bc = String(dbItem.barcode || "").trim();
+           if (!bc) return;
+           const entry = {
+             barcode: bc,
+             cleanHash: String(dbItem.hash || dbItem.item_hash || "").trim(),
+             cleanId: normId(dbItem.item_id || dbItem.id),
+             cleanName: normName(dbItem.name || dbItem.item_name),
+           };
+           if (entry.cleanHash && !dbByHash[entry.cleanHash]) dbByHash[entry.cleanHash] = entry;
+           if (entry.cleanId && !dbById[entry.cleanId]) dbById[entry.cleanId] = entry;
+           if (entry.cleanName) {
+             if (!dbByName[entry.cleanName]) dbByName[entry.cleanName] = [];
+             dbByName[entry.cleanName].push(entry);
+           }
+         });
+
+         items.forEach((item) => {
+           const itemHash = String(item.hash || item.item_hash || "").trim();
+           const originalId = normId(item.item_id || item.id || item.code);
+           const cleanName = normName(item.name || item.item_name);
+
+           let dbMatch = null;
+           // 1. Поиск по хэшу
+           if (itemHash && dbByHash[itemHash]) {
+             dbMatch = dbByHash[itemHash];
+           }
+           // 2. Поиск по заводскому артикулу (item_id / code)
+           if (!dbMatch && originalId && dbById[originalId]) {
+             dbMatch = dbById[originalId];
+           }
+           // 3. Fallback по очищенному имени с защитой от склейки разных заводских item_id
+           if (!dbMatch && cleanName && dbByName[cleanName]) {
+             const candidates = dbByName[cleanName];
+             for (let c = 0; c < candidates.length; c++) {
+               const cand = candidates[c];
+               if (originalId && cand.cleanId && originalId !== cand.cleanId) {
+                 continue;
+               }
+               dbMatch = cand;
+               break;
              }
+           }
+
+           if (dbMatch && dbMatch.barcode) {
+             item.barcode = dbMatch.barcode; // 🎯 Обогащаем товар 13-значным штрихкодом из БД
+           } else if (item.barcode) {
+             item.barcode = String(item.barcode).trim();
+           }
          });
       }
     } catch (e) {
@@ -7033,23 +7071,36 @@ window.generateExportFile = async function (target = "local") {
     let sysKeyRowIndex = -1;
     let startRow = 4;
 
-    if (!worksheet) {
-      workbook.worksheets.forEach((ws) => {
-        for (let i = 1; i <= 6; i++) {
-          const row = ws.getRow(i);
-          let found = false;
-          if (row) {
-            row.eachCell((cell) => {
-              if (getSafeText(cell) === "merchant_sku") found = true;
-            });
-          }
-          if (found) {
-            worksheet = ws;
-            sysKeyRowIndex = i;
-            startRow = i + 2;
-          }
+    const findMerchantSkuRow = (ws) => {
+      if (!ws) return -1;
+      for (let i = 1; i <= 10; i++) {
+        const row = ws.getRow(i);
+        let found = false;
+        if (row) {
+          row.eachCell((cell) => {
+            if (getSafeText(cell) === "merchant_sku") found = true;
+          });
         }
-      });
+        if (found) return i;
+      }
+      return -1;
+    };
+
+    if (worksheet) {
+      sysKeyRowIndex = findMerchantSkuRow(worksheet);
+      if (sysKeyRowIndex !== -1) startRow = sysKeyRowIndex + 2;
+    }
+
+    if (sysKeyRowIndex === -1) {
+      for (const ws of workbook.worksheets) {
+        const foundRow = findMerchantSkuRow(ws);
+        if (foundRow !== -1) {
+          worksheet = ws;
+          sysKeyRowIndex = foundRow;
+          startRow = foundRow + 2;
+          break;
+        }
+      }
     }
 
     if (!worksheet) worksheet = workbook.worksheets[0];
@@ -7069,6 +7120,7 @@ window.generateExportFile = async function (target = "local") {
     }
 
     let insertedCount = 0;
+    const missingBarcodeItems = [];
 
     items.forEach((item, itemIdx) => {
       const targetRow = worksheet.getRow(startRow + itemIdx);
@@ -7079,6 +7131,23 @@ window.generateExportFile = async function (target = "local") {
         const humanKey = getSafeText(humanKeyRow.getCell(colNumber));
 
         if (!kaspiKey) return;
+
+        // ⚡ ЖЕСТКОЕ И БЕЗУСЛОВНОЕ ПРАВИЛО: merchant_sku заполняется ИСКЛЮЧИТЕЛЬНО полем barcode из БД
+        // (без подмены на item_id и без влияния memory / dictValues)
+        if (kaspiKey === "merchant_sku") {
+          const strictBarcode = String(item.barcode || "").trim();
+          if (strictBarcode) {
+            targetRow.getCell(colNumber).value = strictBarcode;
+            rowHasData = true;
+          } else {
+            missingBarcodeItems.push({
+              row: itemIdx + 1,
+              item_id: item.item_id || item.id || "",
+              name: item.name || item.item_name || "Без названия",
+            });
+          }
+          return;
+        }
 
         let sourceDbField = "";
 
@@ -7106,25 +7175,17 @@ window.generateExportFile = async function (target = "local") {
           sourceDbField = kaspiKey || humanKey;
         }
 
-        // ⚡ ВОЗВРАЩАЕМ: Жестко заставляем Kaspi-артикул искать только поле barcode
-        if (kaspiKey === "merchant_sku" && (!sourceDbField || sourceDbField === "merchant_sku")) {
-          sourceDbField = "barcode";
-        }
-
         let value = "";
 
         let dictVal = window.mapper2State && window.mapper2State.dictValues && (window.mapper2State.dictValues[kaspiKey] || window.mapper2State.dictValues[humanKey]);
         let splitVal = "";
-        
-        // ... (тут большой блок кода со splitRule ОСТАЕТСЯ БЕЗ ИЗМЕНЕНИЙ) ...
 
         if (dictVal) {
             value = dictVal;
         } else if (splitVal) {
             value = splitVal;
         } else if (sourceDbField === "barcode") {
-            // ⚡ Берем СТРОГО 13-значный штрихкод из базы
-            value = item.barcode || ""; 
+            value = String(item.barcode || "").trim(); 
         } else if (sourceDbField === "name") {
           value = String(item.name || item.item_name || "");
         } else if (sourceDbField === "price") {
@@ -7212,19 +7273,13 @@ window.generateExportFile = async function (target = "local") {
         method: "POST",
         body: JSON.stringify({ action: "silentUpdateAttributesBackend", api_key: typeof CLIENT_API_KEY !== "undefined" ? CLIENT_API_KEY : window.CLIENT_API_KEY, items: itemsToUpdate }),
       }).catch((e) => console.error("Ошибка сети при сохранении параметров:", e));
+    }
 
-      // ⚡ ИСПРАВЛЕНИЕ: Тихо сохраняем связи маппера колонок в базу (POS Config -> mapper_memory)
-      if (window.mapper2State && window.mapper2State.colMap && window.currentTemplateData) {
-        fetch(url, {
-          method: "POST",
-          body: JSON.stringify({ 
-            action: "updateKaspiMemory", 
-            api_key: typeof CLIENT_API_KEY !== "undefined" ? CLIENT_API_KEY : window.CLIENT_API_KEY, 
-            templateHash: window.currentTemplateData.templateHash,
-            memoryJson: JSON.stringify(window.mapper2State.colMap) 
-          }),
-        }).catch((e) => console.error("Ошибка сохранения памяти маппера:", e));
-      }
+    if (missingBarcodeItems.length > 0) {
+      console.warn(
+        `⚠️ Внимание: ${missingBarcodeItems.length} поз. остались без штрихкода (merchant_sku пустой):`,
+        missingBarcodeItems,
+      );
     }
 
     if (target === "local") {
@@ -7244,22 +7299,45 @@ window.generateExportFile = async function (target = "local") {
         }).catch((e) => console.error("Ошибка при обновлении статусов", e));
       }
       
-      // ⚡ НОВОЕ: Автоматически закрываем окно и очищаем память после скачивания
+      // ⚡ Корректно закрываем модалки и сбрасываем режим выгрузки (без переключения окна приемки)
       setTimeout(() => {
-        const idsToHide = ["exportMapperArea", "mapper2Area", "invoicePreviewArea"];
+        const idsToHide = [
+          "exportMapperArea",
+          "mapper2Area",
+          "invoicePreviewArea",
+          "exportActionButtons",
+          "income-modal",
+          "export-modal",
+        ];
         idsToHide.forEach((id) => {
           const el = document.getElementById(id);
           if (el) el.style.display = "none";
         });
 
+        window.isKaspiExportMode = false;
+        window.currentExportHash = null;
         window.parsedInvoiceData = [];
         window.kaspiExportItems = [];
+        window.kaspiExportRowIndexes = [];
         
         if (typeof window.navigateIncomeStep === "function") window.navigateIncomeStep(1, true);
-        if (typeof toggleIncomeModule === "function") toggleIncomeModule();
         if (typeof load === "function") load();
         
-        alert("Файл Kaspi успешно сформирован и скачан!");
+        if (missingBarcodeItems.length > 0) {
+          const previewList = missingBarcodeItems
+            .slice(0, 5)
+            .map((m) => `• #${m.row}: ${m.name}${m.item_id ? ` (${m.item_id})` : ""}`)
+            .join("\n");
+          const moreNote =
+            missingBarcodeItems.length > 5
+              ? `\n...и ещё ${missingBarcodeItems.length - 5} поз. (подробности в консоли)`
+              : "";
+          alert(
+            `Файл Kaspi сформирован и скачан.\n\n⚠️ ВНИМАНИЕ: у ${missingBarcodeItems.length} поз. не найден штрихкод в БД — поле «Артикул» (merchant_sku) оставлено пустым:\n${previewList}${moreNote}`,
+          );
+        } else {
+          alert("Файл Kaspi успешно сформирован и скачан!");
+        }
       }, 500);
     }
   } catch (err) {
