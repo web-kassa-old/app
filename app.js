@@ -501,6 +501,12 @@ function toggleTheme() {
 window.suppliersList = JSON.parse(
   localStorage.getItem("suppliers_cache") || "[]",
 );
+window.logisticsBlocks = JSON.parse(
+  localStorage.getItem("logistics_blocks_cache") || "[]",
+);
+window.logisticsBlockMarkers = JSON.parse(
+  localStorage.getItem("logistics_markers_cache") || "{}",
+);
 
 // Глобальный массив для хранения списка поставщиков
 window.suppliers = [];
@@ -2064,7 +2070,10 @@ async function load(isFullSync = false) {
       if (!pingText.trim().startsWith("<")) {
         const pingData = JSON.parse(pingText);
         if (pingData.success && pingData.timestamp) {
-          if (localTimestamp === pingData.timestamp) {
+          if (
+            localTimestamp === pingData.timestamp &&
+            localStorage.getItem("logistics_blocks_cache") !== null
+          ) {
             console.log("✅ База актуальна, загрузка отменена.");
             return;
           }
@@ -2151,6 +2160,27 @@ async function load(isFullSync = false) {
     if (data.suppliers) {
       window.suppliersList = data.suppliers;
       localStorage.setItem("suppliers_cache", JSON.stringify(data.suppliers));
+    }
+    if (Array.isArray(data.logisticsBlocks)) {
+      window.logisticsBlocks = data.logisticsBlocks;
+      localStorage.setItem(
+        "logistics_blocks_cache",
+        JSON.stringify(data.logisticsBlocks),
+      );
+    }
+    if (
+      data.logisticsBlockMarkers &&
+      typeof data.logisticsBlockMarkers === "object"
+    ) {
+      window.logisticsBlockMarkers = data.logisticsBlockMarkers;
+      localStorage.setItem(
+        "logistics_markers_cache",
+        JSON.stringify(data.logisticsBlockMarkers),
+      );
+    }
+    if (typeof window.populateLogisticsSelect === "function") {
+      const intSel = document.getElementById("internalLogisticsSelect");
+      if (intSel) window.populateLogisticsSelect(intSel, intSel.value);
     }
 
     const t = data.totals || {
@@ -5984,8 +6014,74 @@ window.openKaspiManager = function () {
 
   // Очищаем поля при каждом новом открытии
   document.getElementById("kaspi-category-name").value = "";
-  document.getElementById("kaspi-template-file").value = "";
+  const fileEl = document.getElementById("kaspi-template-file");
+  if (fileEl) fileEl.value = "";
   document.getElementById("kaspi-status").innerText = "";
+
+  const logSel = document.getElementById("kaspiModalLogisticsSelect");
+  const logHint = document.getElementById("kaspiModalLogisticsHint");
+  if (logHint) logHint.style.display = "none";
+  if (logSel && typeof window.populateLogisticsSelect === "function") {
+    window.populateLogisticsSelect(logSel, "");
+  }
+
+  if (fileEl && !fileEl._logisticsAutoBound) {
+    fileEl._logisticsAutoBound = true;
+    fileEl.addEventListener("change", async function (ev) {
+      const f = ev.target.files && ev.target.files[0];
+      if (!f || typeof ExcelJS === "undefined") return;
+      try {
+        const buf = await f.arrayBuffer();
+        const wb = new ExcelJS.Workbook();
+        await wb.xlsx.load(buf);
+        const valSheet = wb.worksheets.find((s) => {
+          const n = s.name.toLowerCase();
+          return n === "values" || n === "value" || n === "значения";
+        });
+        let kaspiCat = "";
+        if (valSheet && typeof window.extractKaspiTemplateCategory === "function") {
+          const rowsArr = [];
+          valSheet.eachRow((row, rNum) => {
+            if (rNum > 50) return;
+            const rData = [];
+            const maxC = valSheet.columnCount > 0 ? valSheet.columnCount : 50;
+            for (let c = 1; c <= maxC; c++) {
+              const cell = row.getCell(c);
+              let txt = "";
+              if (cell && cell.value !== null && cell.value !== undefined) {
+                if (typeof cell.value === "object") {
+                  if (cell.value.richText)
+                    txt = cell.value.richText.map((rt) => rt.text).join("").trim();
+                  else if (cell.value.result !== undefined)
+                    txt = String(cell.value.result).trim();
+                } else {
+                  txt = String(cell.value).trim();
+                }
+              }
+              rData.push(txt);
+            }
+            rowsArr.push(rData);
+          });
+          kaspiCat = window.extractKaspiTemplateCategory(rowsArr);
+        }
+        const suggested =
+          typeof window.suggestLogisticsBlock === "function"
+            ? window.suggestLogisticsBlock(
+                kaspiCat,
+                document.getElementById("kaspi-category-name")?.value || f.name,
+              )
+            : "";
+        const sel = document.getElementById("kaspiModalLogisticsSelect");
+        const hint = document.getElementById("kaspiModalLogisticsHint");
+        if (sel && suggested) {
+          sel.value = suggested;
+          if (hint) hint.style.display = "block";
+        } else if (hint) {
+          hint.style.display = "none";
+        }
+      } catch (e) {}
+    });
+  }
 
   // Показываем окно
   document.getElementById("kaspi-modal").style.display = "flex";
@@ -6182,6 +6278,7 @@ window.processKaspiTemplate = async function () {
             s.name.toLowerCase() === "значения",
         );
 
+        let kaspiTemplateCategory = "";
         if (valueSheet) {
           const rowsData = [];
           valueSheet.eachRow((row) => {
@@ -6193,6 +6290,11 @@ window.processKaspiTemplate = async function () {
             }
             rowsData.push(rData);
           });
+
+          if (typeof window.extractKaspiTemplateCategory === "function") {
+            kaspiTemplateCategory =
+              window.extractKaspiTemplateCategory(rowsData);
+          }
 
           if (rowsData.length > 0) {
             const headersRow = rowsData[0];
@@ -6224,7 +6326,21 @@ window.processKaspiTemplate = async function () {
           systemKeys: systemKeys,
           requirements: requirements,
           dictionary: dictionary,
+          kaspiCategory: kaspiTemplateCategory,
         };
+
+        const modalLogSelect = document.getElementById(
+          "kaspiModalLogisticsSelect",
+        );
+        const chosenLogisticsBlock =
+          modalLogSelect && modalLogSelect.value
+            ? modalLogSelect.value.trim()
+            : typeof window.suggestLogisticsBlock === "function"
+              ? window.suggestLogisticsBlock(
+                  kaspiTemplateCategory,
+                  categoryName,
+                )
+              : "";
 
         const base64Reader = new FileReader();
         base64Reader.readAsDataURL(file);
@@ -6241,6 +6357,7 @@ window.processKaspiTemplate = async function () {
               category: categoryName,
               headersJson: JSON.stringify(extractedHeaders),
               fileBase64: base64String,
+              logisticsBlock: chosenLogisticsBlock,
             };
 
             const res = await window.smartFetch(
@@ -7432,11 +7549,25 @@ window.selectImportMode = function (mode) {
   const btnInternal = document.getElementById("btnModeInternal");
   const btnKaspi = document.getElementById("btnModeKaspi");
   const templateBlock = document.getElementById("kaspiTemplateBlock");
+  const internalLogBlock = document.getElementById("internalLogisticsBlock");
+  const internalLogSelect = document.getElementById("internalLogisticsSelect");
 
   if (mode === "internal") {
     btnInternal.style.borderColor = "var(--accent-green)";
     btnKaspi.style.borderColor = "var(--border-main)";
     if (templateBlock) templateBlock.style.display = "none";
+    if (internalLogBlock) {
+      internalLogBlock.style.display = "block";
+      if (
+        internalLogSelect &&
+        typeof window.populateLogisticsSelect === "function"
+      ) {
+        window.populateLogisticsSelect(
+          internalLogSelect,
+          internalLogSelect.value || "",
+        );
+      }
+    }
 
     window.setUploadButtonState(
       true,
@@ -7448,6 +7579,7 @@ window.selectImportMode = function (mode) {
     btnKaspi.style.borderColor = "var(--accent-green)";
     btnInternal.style.borderColor = "var(--border-main)";
     if (templateBlock) templateBlock.style.display = "block";
+    if (internalLogBlock) internalLogBlock.style.display = "none";
 
     const select = document.getElementById("kaspiTemplateSelect");
 

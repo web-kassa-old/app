@@ -30,7 +30,7 @@
       rel="stylesheet"
     />
 
-    <link rel="stylesheet" href="style.css?v=6.0.3" />
+    <link rel="stylesheet" href="style.css?v=6.0.4" />
     <script
       src="https://accounts.google.com/gsi/client"
       onload="initGoogleAuth()"
@@ -1046,6 +1046,27 @@
             accept=".xlsx, .xlsm"
             style="width: 100%; margin-bottom: 10px; color: var(--text-color)"
           />
+
+          <div id="kaspiModalLogisticsBlock" class="logistics-block-box">
+            <label
+              class="logistics-block-label"
+              for="kaspiModalLogisticsSelect"
+              data-i18n="inc_logistics_group"
+              >Группа логистики:</label
+            >
+            <select
+              id="kaspiModalLogisticsSelect"
+              class="logistics-select"
+            ></select>
+            <div
+              id="kaspiModalLogisticsHint"
+              class="logistics-hint"
+              style="display: none"
+              data-i18n="inc_logistics_hint_auto"
+            >
+              Автоподсказка по шаблону
+            </div>
+          </div>
         </div>
 
         <!-- Блок для вывода статуса (успех/ошибка) -->
@@ -2052,6 +2073,23 @@
                     onchange="handleTemplateUpload(event)"
                   />
                 </div>
+
+                <div
+                  id="internalLogisticsBlock"
+                  class="logistics-block-box"
+                  style="display: none"
+                >
+                  <label
+                    class="logistics-block-label"
+                    for="internalLogisticsSelect"
+                    data-i18n="inc_logistics_group"
+                    >Группа логистики:</label
+                  >
+                  <select
+                    id="internalLogisticsSelect"
+                    class="logistics-select"
+                  ></select>
+                </div>
               </div>
 
               <!-- 3. Кнопка загрузки накладной -->
@@ -2174,6 +2212,23 @@
               data-i18n="inc_fill_kaspi_reqs"
             >
               ЗАПОЛНИТЕ ТРЕБОВАНИЯ KASPI
+            </div>
+
+            <div
+              id="mapperLogisticsBlock"
+              class="logistics-block-box logistics-block-box--compact"
+              style="display: none"
+            >
+              <label
+                class="logistics-block-label"
+                for="mapperLogisticsSelect"
+                data-i18n="inc_logistics_group"
+                >Группа логистики:</label
+              >
+              <select
+                id="mapperLogisticsSelect"
+                class="logistics-select"
+              ></select>
             </div>
 
             <div
@@ -2850,9 +2905,34 @@
                   padding: 12px;
                   border-radius: 4px;
                   box-sizing: border-box;
-                  margin-bottom: 20px;
+                  margin-bottom: 15px;
                 "
               />
+
+              <div
+                id="custom-prompt-logistics-block"
+                class="logistics-block-box"
+                style="display: none"
+              >
+                <label
+                  class="logistics-block-label"
+                  for="custom-prompt-logistics-select"
+                  data-i18n="inc_logistics_group"
+                  >Группа логистики:</label
+                >
+                <select
+                  id="custom-prompt-logistics-select"
+                  class="logistics-select"
+                ></select>
+                <div
+                  id="custom-prompt-logistics-hint"
+                  class="logistics-hint"
+                  style="display: none"
+                  data-i18n="inc_logistics_hint_auto"
+                >
+                  Автоподсказка по шаблону
+                </div>
+              </div>
 
               <div style="display: flex; gap: 10px">
                 <button

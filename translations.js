@@ -542,6 +542,10 @@ const translations = {
     cat_rename_new_ph: "Введите название...",
     cat_rename_not_selected: "Не выбрано",
     cat_rename_new_btn: "+ Новая категория",
+    inc_logistics_group: "Группа логистики:",
+    inc_logistics_auto: "Сборная / Авто",
+    inc_logistics_hint_auto: "Автоподсказка по шаблону",
+    inc_logistics_hint_saved: "Сохранено для шаблона",
   },
   kz: {
     btn_sale: "САТУ",
@@ -1086,5 +1090,9 @@ const translations = {
     cat_rename_new_ph: "Атауын енгізіңіз...",
     cat_rename_not_selected: "Таңдалмаған",
     cat_rename_new_btn: "+ Жаңа санат",
+    inc_logistics_group: "Логистика тобы:",
+    inc_logistics_auto: "Құрама / Авто",
+    inc_logistics_hint_auto: "Шаблон бойынша автоұсыныс",
+    inc_logistics_hint_saved: "Шаблон үшін сақталған",
   },
 };

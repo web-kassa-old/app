@@ -20,6 +20,8 @@ function toggleIncomeModule() {
   window.mapper2State = window.mapper2State || {};
   window.mapper2State.history = [];
   window.mapper2State.colMap = {}; // Очищаем маппинг колонок
+  window.mapper2State.logisticsBlock = "";
+  window.mapper2State.logisticsBlockTouched = false;
 
   // 🔥 ЖЕСТКИЙ СБРОС: Включаем режим ОБЫЧНОЙ ПРИЕМКИ
   window.isKaspiExportMode = false;
@@ -30,6 +32,10 @@ function toggleIncomeModule() {
     // Принудительно включаем Шаг 1 перед открытием (true означает, что шаг не пишется в историю дублем)
     if (typeof window.navigateIncomeStep === "function") {
       window.navigateIncomeStep(1, true);
+    }
+    const intLogSelect = document.getElementById("internalLogisticsSelect");
+    if (intLogSelect && typeof window.populateLogisticsSelect === "function") {
+      window.populateLogisticsSelect(intLogSelect, "");
     }
     modal.style.display = "flex";
   } else {
@@ -428,6 +434,408 @@ function extractInvoiceDocNo(rows, dict) {
   );
 }
 
+// === ХЕЛПЕРЫ ДЛЯ БЛОКОВ ЛОГИСТИКИ И ШАБЛОНОВ KASPI ===
+window.populateLogisticsSelect = function (selectEl, selectedValue = "") {
+  if (!selectEl) return;
+
+  const lang = window.currentLang || localStorage.getItem("pos_lang") || "ru";
+  const tr =
+    typeof translations !== "undefined" && translations[lang]
+      ? translations[lang]
+      : typeof translations !== "undefined"
+        ? translations["ru"] || {}
+        : {};
+  const autoLabel = tr.inc_logistics_auto || "Сборная / Авто";
+
+  let blocks = Array.isArray(window.logisticsBlocks)
+    ? window.logisticsBlocks.slice()
+    : [];
+  if (blocks.length === 0) {
+    try {
+      const cached = JSON.parse(
+        localStorage.getItem("logistics_blocks_cache") || "[]",
+      );
+      if (Array.isArray(cached) && cached.length > 0) {
+        blocks = cached;
+        window.logisticsBlocks = cached;
+      }
+    } catch (e) {}
+  }
+
+  const targetVal = String(selectedValue || "").trim();
+  if (
+    targetVal &&
+    !blocks.some((b) => String(b).trim() === targetVal)
+  ) {
+    blocks.push(targetVal);
+  }
+
+  selectEl.innerHTML = "";
+
+  const autoOpt = document.createElement("option");
+  autoOpt.value = "";
+  autoOpt.setAttribute("data-i18n", "inc_logistics_auto");
+  autoOpt.textContent = autoLabel;
+  selectEl.appendChild(autoOpt);
+
+  blocks.forEach((blk) => {
+    const cleanBlk = String(blk || "").trim();
+    if (!cleanBlk) return;
+    const opt = document.createElement("option");
+    opt.value = cleanBlk; // Строго оригинальное значение из колонки «Главный Блок»
+    opt.textContent = cleanBlk;
+    selectEl.appendChild(opt);
+  });
+
+  selectEl.value = targetVal;
+};
+
+window.extractKaspiTemplateCategory = function (valuesData) {
+  if (!Array.isArray(valuesData) || valuesData.length < 2) return "";
+
+  const maxHeaderScan = Math.min(3, valuesData.length);
+  for (let hRow = 0; hRow < maxHeaderScan; hRow++) {
+    const row = valuesData[hRow] || [];
+    const catColIdx = row.findIndex(
+      (cell) => String(cell || "").trim().toLowerCase() === "category",
+    );
+    if (catColIdx !== -1) {
+      for (let r = hRow + 1; r < valuesData.length; r++) {
+        const val = String((valuesData[r] && valuesData[r][catColIdx]) || "").trim();
+        if (val) return val;
+      }
+    }
+  }
+  return "";
+};
+
+window.suggestLogisticsBlock = function (kaspiCategory, templateName = "") {
+  const blocks = Array.isArray(window.logisticsBlocks)
+    ? window.logisticsBlocks
+    : [];
+  if (blocks.length === 0) return "";
+
+  const searchText = `${String(kaspiCategory || "")} ${String(templateName || "")}`
+    .toLowerCase()
+    .trim();
+  if (!searchText) return "";
+
+  const escapeRx = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const hasWordMatch = (text, word) => {
+    const clean = String(word || "").trim().toLowerCase();
+    if (!clean || clean.length <= 2) return false;
+    try {
+      const rx = new RegExp(
+        `(?:^|[^a-zа-яё0-9])${escapeRx(clean)}(?=$|[^a-zа-яё0-9])`,
+        "i",
+      );
+      return rx.test(text);
+    } catch (e) {
+      return false;
+    }
+  };
+
+  // 1. Прямое совпадение с названием блока (по границам слов)
+  for (let i = 0; i < blocks.length; i++) {
+    const blk = String(blocks[i] || "").trim();
+    if (blk && hasWordMatch(searchText, blk)) {
+      return blk;
+    }
+  }
+
+  // 2. Базовые англоязычные правила tire/tyre -> Шины, rim/wheel -> Диски
+  const findBlockByRu = (ruWord) =>
+    blocks.find((b) => String(b || "").trim().toLowerCase() === ruWord) ||
+    blocks.find((b) => hasWordMatch(String(b || "").toLowerCase(), ruWord)) ||
+    "";
+
+  const tireKeywords = ["tire", "tires", "tyre", "tyres"];
+  if (tireKeywords.some((kw) => hasWordMatch(searchText, kw))) {
+    const tireBlock = findBlockByRu("шины");
+    if (tireBlock) return tireBlock;
+  }
+
+  const rimKeywords = ["rim", "rims", "wheel", "wheels"];
+  if (rimKeywords.some((kw) => hasWordMatch(searchText, kw))) {
+    const rimBlock = findBlockByRu("диски");
+    if (rimBlock) return rimBlock;
+  }
+
+  // 3. Совпадение по маркерам Logistics (только >2 символов, по границам слов)
+  const markersMap =
+    window.logisticsBlockMarkers &&
+    typeof window.logisticsBlockMarkers === "object"
+      ? window.logisticsBlockMarkers
+      : {};
+  let bestBlock = "";
+  let bestScore = 0;
+
+  blocks.forEach((blk) => {
+    const cleanBlk = String(blk || "").trim();
+    const markers = markersMap[cleanBlk];
+    if (!Array.isArray(markers) || markers.length === 0) return;
+
+    let score = 0;
+    markers.forEach((m) => {
+      const cleanM = String(m || "").trim().toLowerCase();
+      if (!cleanM || cleanM === "default" || cleanM === "all" || cleanM.length <= 2) {
+        return;
+      }
+      if (hasWordMatch(searchText, cleanM)) {
+        score += cleanM.length;
+      }
+    });
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestBlock = cleanBlk;
+    }
+  });
+
+  return bestBlock;
+};
+
+// 🔥 Вспомогательная функция автоопределения поставщика (Supplier) из шапки Excel
+function extractInvoiceSupplier(rows, dict) {
+  if (!Array.isArray(rows) || rows.length === 0) return "";
+
+  const escapeRegex = (str) =>
+    String(str).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+  const isEmptyOrJunk = (raw) => {
+    const s = String(raw ?? "").trim();
+    if (!s) return true;
+    return /^[""'«»`\-—–_.:;#№\/\s]+$/.test(s);
+  };
+
+  const BUYER_MARKER_RX =
+    /(?:^|[\s,;|(\[])(?:buyer|the\s+buyer|consignee|consigne|purchaser|importer|bill\s+to|ship\s+to|notify\s+party|messrs|покупатель|грузополучатель|получатель|плательщик)(?=$|[\s:.\-\/№#"'«»])/i;
+
+  const DOC_TITLE_RX =
+    /^(?:COMMERCIAL\s+INVOICE|PROFORMA\s+INVOICE|TAX\s+INVOICE|FINAL\s+INVOICE|SALES\s+INVOICE|INVOICE|PACKING\s+LIST|SALES\s+CONTRACT|CONTRACT|НАКЛАДНАЯ|ТОВАРНАЯ\s+НАКЛАДНАЯ|РАСХОДНАЯ\s+НАКЛАДНАЯ|СЧ[ЕЁ]Т[-\s]?ФАКТУРА|СЧ[ЕЁ]Т\s+НА\s+ОПЛАТУ|ИНВОЙС|ДОГОВОР|КОНТРАКТ|СПЕЦИФИКАЦИЯ)(?:$|[\s#:№.\-0-9])/i;
+
+  const SERVICE_STOP_RX =
+    /^(?:(?:invoice|inv\.?|doc(?:ument)?\.?|contract|order|p\/?o|b\/?l|awb|container|seal|ref(?:erence)?)\s*(?:no\.?|number|№|#|date)|date|dated|дата|tel(?:ephone)?|fax|phone|mobile|e-?mail|web|website|www\.|http|add(?:r|ress)?|адрес|тел(?:ефон)?|факс|bank|swift|iban|beneficiary|account|a\/c|бин|иин|инн|кпп|бик|иик|р\/с|к\/с|currency|payment|terms|incoterms|port\s+of|loading|discharge|destination|origin|country|page|total|amount|qty|quantity|description|unit\s+price|валюта|итого|всего)(?=$|[\s:.№#\/\-])/i;
+
+  const ADDRESS_OR_BANK_RX =
+    /(?:^|[\s,;|])(?:add(?:r|ress)?\s*:|tel(?:ephone)?\s*:|fax\s*:|phone\s*:|mob(?:ile)?\s*:|e-?mail\s*:|www\.|https?:\/\/|@|bank\s*(?:name|details|address|account)|swift\s*(?:code)?|iban\b|beneficiary\b|a\/c\s*(?:no\.?)?|account\s*(?:no\.?|number)|(?:инн|бин|иин|кпп|бик|иик|р\/с|к\/с|тел\.?|факс|адрес)\s*[:№]?)(?=$|[\s:.\-\/0-9a-zа-яё])/i;
+
+  const LEGAL_ENTITY_RX =
+    /(?:^|[\s,.;"'«»(\[])(?:co\.?\s*,?\s*(?:limited|ltd\.?)|limited|ltd\.?|l\.l\.c\.?|llc|llp|inc\.?|corp\.?|corporation|gmbh|s\.a\.?|s\.r\.l\.?|b\.v\.?|pte\.?\s*ltd\.?|plc|тоо|ип|ооо|ао|зао|пао|оао|жшс|қж|кх|чп)(?=$|[\s,.;"'«»)\]])/i;
+
+  const cleanSupplierCandidate = (raw, requireLegalEntity = false) => {
+    let val = String(raw ?? "")
+      .replace(/[\r\n]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (!val || isEmptyOrJunk(val)) return null;
+
+    // Убираем внешние кавычки и ведущие разделители
+    val = val
+      .replace(/^[:\-—–.\s]+/, "")
+      .replace(/^["'«»`]+|["'«»`]+$/g, "")
+      .replace(/[,;:\s]+$/, "")
+      .trim();
+
+    if (!val || val.length < 2 || val.length > 140 || isEmptyOrJunk(val)) {
+      return null;
+    }
+
+    const lower = val.toLowerCase();
+    if (
+      lower === "unknown" ||
+      lower === "n/a" ||
+      lower === "none" ||
+      lower === "null" ||
+      lower === "нет"
+    ) {
+      return null;
+    }
+
+    if (BUYER_MARKER_RX.test(val)) return null;
+    if (DOC_TITLE_RX.test(val)) return null;
+    if (SERVICE_STOP_RX.test(val)) return null;
+
+    // Если строка выглядит как адрес/телефон/банк и не содержит признаков юрлица — отбрасываем
+    if (ADDRESS_OR_BANK_RX.test(val) && !LEGAL_ENTITY_RX.test(val)) return null;
+    // Чистые числа/даты — не поставщик
+    if (/^[\d\s.,\/\-:+()]+$/.test(val)) return null;
+
+    if (requireLegalEntity && !LEGAL_ENTITY_RX.test(val)) return null;
+
+    return val;
+  };
+
+  // Шаг 1: Явные метки поставщика + словарь dict
+  const baseLabels = [
+    "the seller",
+    "supplier",
+    "vendor",
+    "seller",
+    "shipper",
+    "exporter",
+    "поставщик",
+    "продавец",
+    "грузоотправитель",
+  ];
+
+  const dictRaw = []
+    .concat(
+      (dict && dict["Поиск имени поставщика"]) || [],
+      (dict && dict["supplier_keywords"]) || [],
+      (dict && dict["supplier"]) || [],
+      (dict && dict["поставщик"]) || [],
+    )
+    .flatMap((v) => (Array.isArray(v) ? v : String(v || "").split(",")))
+    .map((s) => String(s || "").trim())
+    .filter((s) => s.length >= 3);
+
+  const labelPatterns = [];
+  const seenLabels = new Set();
+  baseLabels.concat(dictRaw).forEach((lbl) => {
+    const cleanLbl = String(lbl || "")
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, " ");
+    if (!cleanLbl || seenLabels.has(cleanLbl)) return;
+    if (BUYER_MARKER_RX.test(cleanLbl)) return;
+    seenLabels.add(cleanLbl);
+    const patternStr = escapeRegex(cleanLbl).replace(/\s+/g, "\\s+");
+    try {
+      labelPatterns.push(
+        new RegExp(
+          `(?:^|[\\s,;|(\\[])(?:the\\s+)?${patternStr}(?=$|[\\s:.,;\\-\\/№#"'\u00AB\u00BB])`,
+          "i",
+        ),
+      );
+    } catch (e) {}
+  });
+
+  const maxLabelRows = Math.min(20, rows.length);
+  for (let i = 0; i < maxLabelRows; i++) {
+    const row = rows[i] || [];
+    for (let j = 0; j < row.length; j++) {
+      const rawCell = String(row[j] ?? "")
+        .replace(/[\r\n]+/g, " ")
+        .trim();
+      if (!rawCell || isEmptyOrJunk(rawCell)) continue;
+      if (BUYER_MARKER_RX.test(rawCell)) continue;
+
+      let matched = null;
+      for (let p = 0; p < labelPatterns.length; p++) {
+        const m = rawCell.match(labelPatterns[p]);
+        if (m) {
+          matched = m;
+          break;
+        }
+      }
+      if (!matched) continue;
+
+      // 1а. Пробуем извлечь значение в той же ячейке после метки / двоеточия
+      const tail = rawCell.slice(matched.index + matched[0].length);
+      if (tail && tail.trim()) {
+        // Если после метки идёт текст другой метки (например "Seller / Exporter:"), хвост будет отфильтрован
+        const cleanedTail = tail.replace(/^[\s\/\\|]+(?:exporter|shipper|vendor|seller|supplier)?[\s:.\-]*/i, "");
+        const inlineCand = cleanSupplierCandidate(cleanedTail, false);
+        if (inlineCand) return inlineCand;
+      }
+
+      // 1б. Пропускаем подряд идущие дубликаты самой метки от распаковки !merges
+      const normLabel = rawCell.toLowerCase().replace(/\s+/g, " ").trim();
+      let k = j + 1;
+      while (k < row.length) {
+        const nextNorm = String(row[k] ?? "")
+          .replace(/[\r\n]+/g, " ")
+          .trim()
+          .toLowerCase()
+          .replace(/\s+/g, " ");
+        if (nextNorm && nextNorm === normLabel) {
+          k++;
+        } else {
+          break;
+        }
+      }
+
+      // 1в. Проверяем до 4 ячеек вправо, останавливаясь на BUYER / других служебных метках
+      let checked = 0;
+      while (k < row.length && checked < 4) {
+        const rightRaw = String(row[k] ?? "")
+          .replace(/[\r\n]+/g, " ")
+          .trim();
+        checked++;
+        k++;
+
+        if (isEmptyOrJunk(rightRaw)) continue;
+        if (BUYER_MARKER_RX.test(rightRaw) || SERVICE_STOP_RX.test(rightRaw)) {
+          break;
+        }
+
+        const rightCand = cleanSupplierCandidate(rightRaw, false);
+        if (rightCand) return rightCand;
+      }
+
+      // 1г. Если справа пусто (классический блок "SELLER:\nCOMPANY NAME" в следующей строке того же столбца)
+      if (i + 1 < rows.length) {
+        const belowRaw = String((rows[i + 1] && rows[i + 1][j]) ?? "")
+          .replace(/[\r\n]+/g, " ")
+          .trim();
+        if (
+          belowRaw &&
+          belowRaw.toLowerCase().replace(/\s+/g, " ") !== normLabel &&
+          !BUYER_MARKER_RX.test(belowRaw) &&
+          !SERVICE_STOP_RX.test(belowRaw)
+        ) {
+          const belowCand = cleanSupplierCandidate(belowRaw, false);
+          if (belowCand) return belowCand;
+        }
+      }
+    }
+  }
+
+  // Шаг 2 (Fallback для коммерческих инвойсов):
+  // Первые 1–3 непустые строки шапки (в пределах первых 5 строк), дедуплицируя объединённые ячейки
+  let nonEmptyChecked = 0;
+  const maxHeaderRows = Math.min(5, rows.length);
+
+  for (let i = 0; i < maxHeaderRows && nonEmptyChecked < 3; i++) {
+    const row = rows[i] || [];
+    // Дедуплицируем ячейки строки (защита от распаковки !merges)
+    const uniqueCells = [];
+    const seenCellNorm = new Set();
+    for (let j = 0; j < row.length; j++) {
+      const cellText = String(row[j] ?? "")
+        .replace(/[\r\n]+/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+      if (!cellText || isEmptyOrJunk(cellText)) continue;
+      const norm = cellText.toLowerCase();
+      if (seenCellNorm.has(norm)) continue;
+      seenCellNorm.add(norm);
+      uniqueCells.push(cellText);
+    }
+
+    if (uniqueCells.length === 0) continue;
+    nonEmptyChecked++;
+
+    const fullRowText = uniqueCells.join(" ");
+    if (BUYER_MARKER_RX.test(fullRowText)) continue;
+
+    // Сначала проверяем отдельные уникальные ячейки (на случай если в одной строке слева компания, справа мета)
+    for (let c = 0; c < uniqueCells.length; c++) {
+      const cellCand = cleanSupplierCandidate(uniqueCells[c], true);
+      if (cellCand) return cellCand;
+    }
+
+    // Затем проверяем склеенную строку целиком
+    if (uniqueCells.length > 1) {
+      const rowCand = cleanSupplierCandidate(fullRowText, true);
+      if (rowCand) return rowCand;
+    }
+  }
+
+  return "";
+}
+
 window.processInvoiceFile = async function () {
   const fileInput = document.getElementById("invoiceFileInput");
   if (!fileInput || !fileInput.files.length)
@@ -459,6 +867,28 @@ window.processInvoiceFile = async function () {
         if (data.synonyms && Object.keys(data.synonyms).length > 0) {
           if (typeof invoiceSynonyms !== "undefined") Object.assign(invoiceSynonyms, data.synonyms);
           window.invoiceSynonyms = typeof invoiceSynonyms !== "undefined" ? invoiceSynonyms : data.synonyms;
+          window.mapper2State.dictValues = Object.assign(
+            {},
+            window.mapper2State.dictValues || {},
+            data.synonyms,
+          );
+        }
+        if (Array.isArray(data.logisticsBlocks)) {
+          window.logisticsBlocks = data.logisticsBlocks;
+          localStorage.setItem(
+            "logistics_blocks_cache",
+            JSON.stringify(data.logisticsBlocks),
+          );
+        }
+        if (
+          data.logisticsBlockMarkers &&
+          typeof data.logisticsBlockMarkers === "object"
+        ) {
+          window.logisticsBlockMarkers = data.logisticsBlockMarkers;
+          localStorage.setItem(
+            "logistics_markers_cache",
+            JSON.stringify(data.logisticsBlockMarkers),
+          );
         }
       }
     } catch (err) {
@@ -724,40 +1154,11 @@ window.processInvoiceFile = async function () {
 
     let file_doc_no = "UNKNOWN";
     let file_supplier = "UNKNOWN";
-    let dict = window.mapper2State.dictValues;
+    let dict = window.mapper2State.dictValues || {};
 
-    let supSyns = []
-      .concat(
-        dict["Поиск имени поставщика"] || [],
-        dict["supplier_keywords"] || [],
-        ["supplier", "vendor", "the seller", "поставщик"],
-      )
-      .map((s) => String(s).replace(/\s+/g, "").toLowerCase())
-      .filter(Boolean);
-
-    for (let i = 0; i < Math.min(15, rows.length); i++) {
-      let row = rows[i] || [];
-      for (let j = 0; j < row.length; j++) {
-        let rawCell = String(row[j] || "").trim();
-        let cleanCell = rawCell.toLowerCase().replace(/\s+/g, "");
-        if (!cleanCell) continue;
-
-        if (supSyns.some((syn) => cleanCell?.includes(syn))) {
-          if (rawCell?.includes(":")) {
-            let parts = rawCell.split(":");
-            if (parts[1] && parts[1].trim())
-              file_supplier = parts[1].trim().replace(/^"|"$/g, "");
-          }
-          if (file_supplier === "UNKNOWN") {
-            for (let k = j + 1; k < row.length; k++) {
-              if (row[k] && String(row[k]).trim() !== "") {
-                file_supplier = String(row[k]).trim().replace(/^"|"$/g, "");
-                break;
-              }
-            }
-          }
-        }
-      }
+    const detectedSupplier = extractInvoiceSupplier(rows, dict);
+    if (detectedSupplier) {
+      file_supplier = detectedSupplier;
     }
 
     const detectedDocNo = extractInvoiceDocNo(rows, dict);
@@ -1207,6 +1608,54 @@ window.renderMapper2Cards = function (templateData) {
     }
   }
 
+  // === УПРАВЛЕНИЕ ГРУППОЙ ЛОГИСТИКИ В МАППЕРЕ-2 (ТОЛЬКО ВЕТКА ПРИЕМКИ «БАЗА + KASPI») ===
+  const mapperLogBlock = document.getElementById("mapperLogisticsBlock");
+  const mapperLogSelect = document.getElementById("mapperLogisticsSelect");
+  const isKaspiIntake =
+    window.isKaspiExportMode !== true && window.currentImportMode === "kaspi";
+
+  if (mapperLogBlock && mapperLogSelect) {
+    if (isKaspiIntake) {
+      const savedLogBlock = String(learnedSynonyms._logisticsBlock || "").trim();
+      let effectiveBlock = "";
+
+      if (window.mapper2State.logisticsBlockTouched) {
+        effectiveBlock = String(window.mapper2State.logisticsBlock || "").trim();
+      } else if (savedLogBlock) {
+        // На всех последующих приёмках по шаблону подставляем _logisticsBlock автоматически
+        effectiveBlock = savedLogBlock;
+      } else {
+        const tplSelectEl = document.getElementById("kaspiTemplateSelect");
+        const selOpt =
+          tplSelectEl && tplSelectEl.selectedIndex !== -1
+            ? tplSelectEl.options[tplSelectEl.selectedIndex]
+            : null;
+        const tplDisplayName = selOpt
+          ? selOpt.getAttribute("data-name") || selOpt.text.trim()
+          : "";
+        effectiveBlock =
+          typeof window.suggestLogisticsBlock === "function"
+            ? window.suggestLogisticsBlock(
+                (templateData && templateData.kaspiCategory) || "",
+                tplDisplayName,
+              )
+            : "";
+      }
+
+      window.mapper2State.logisticsBlock = effectiveBlock;
+      if (typeof window.populateLogisticsSelect === "function") {
+        window.populateLogisticsSelect(mapperLogSelect, effectiveBlock);
+      }
+      mapperLogSelect.onchange = function () {
+        window.mapper2State.logisticsBlock = this.value;
+        window.mapper2State.logisticsBlockTouched = true;
+      };
+      mapperLogBlock.style.display = "flex";
+    } else {
+      mapperLogBlock.style.display = "none";
+    }
+  }
+
   // Выводим Kaspi-требования если активен шаблон Kaspi (приемка «База + Маркет» или выгрузка)
   if (templateData && templateData.systemKeys && useKaspiTemplate) {
     const { humanNames, systemKeys, requirements } = templateData;
@@ -1364,9 +1813,13 @@ window.renderMapper2Cards = function (templateData) {
     }
 
     let mappedIndex = window.mapper2State.colMap[req.sysKey];
-    let dictValue =
+    let rawDictValue =
       window.mapper2State.dictValues &&
       window.mapper2State.dictValues[req.sysKey];
+    let dictValue =
+      typeof rawDictValue === "string" && rawDictValue.trim() !== ""
+        ? rawDictValue
+        : "";
 
     let statusClass = "status-empty";
     let statusText = t.inc_select || "ВЫБРАТЬ";
@@ -2473,17 +2926,20 @@ window.applyMapper2Logic = function () {
   // Строгое разделение веток: isExportBranch === true ТОЛЬКО в ветке выгрузки из базы!
   const isExportBranch = window.isKaspiExportMode === true;
 
-  const hasQty = colMap["qty"] !== undefined || dict["qty"] !== undefined;
+  const hasStrDict = (k) =>
+    typeof dict[k] === "string" && dict[k].trim() !== "";
+
+  const hasQty = colMap["qty"] !== undefined || hasStrDict("qty");
   const hasPrice =
     colMap["price"] !== undefined ||
     colMap["cost"] !== undefined ||
-    dict["price"] !== undefined ||
-    dict["cost"] !== undefined;
+    hasStrDict("price") ||
+    hasStrDict("cost");
   const hasName =
     colMap["name"] !== undefined ||
     colMap["model"] !== undefined ||
-    dict["name"] !== undefined ||
-    dict["model"] !== undefined;
+    hasStrDict("name") ||
+    hasStrDict("model");
 
   if (!isExportBranch) {
     if (!hasQty || !hasPrice || !hasName) {
@@ -2498,6 +2954,26 @@ window.applyMapper2Logic = function () {
         "⚠️ Обязательно привяжите колонки (или введите вручную):\n1. Наименование (или model)\n2. Количество (qty)\n3. Цена (price/cost)";
       return alert(errorMsg);
     }
+  }
+
+  // Фиксируем выбранный Главный Блок логистики для текущей накладной
+  let finalLogisticsBlock = "";
+  if (!isExportBranch) {
+    if (window.currentImportMode === "kaspi") {
+      const mapperLogSelect = document.getElementById("mapperLogisticsSelect");
+      finalLogisticsBlock = String(
+        (mapperLogSelect ? mapperLogSelect.value : state.logisticsBlock) || "",
+      ).trim();
+    } else {
+      const internalLogSelect = document.getElementById(
+        "internalLogisticsSelect",
+      );
+      finalLogisticsBlock = String(
+        (internalLogSelect ? internalLogSelect.value : state.logisticsBlock) ||
+          "",
+      ).trim();
+    }
+    window.mapper2State.logisticsBlock = finalLogisticsBlock;
   }
 
   if (!isExportBranch && window.currentImportMode === "kaspi") {
@@ -2517,6 +2993,9 @@ window.applyMapper2Logic = function () {
       try {
         currentMemory = JSON.parse(window.mapper2State.rawMemoryJson || "{}");
       } catch (e) {}
+      if (!currentMemory || typeof currentMemory !== "object" || Array.isArray(currentMemory)) {
+        currentMemory = {};
+      }
       let memoryUpdated = false;
 
       Object.keys(state.colMap).forEach((sysKey) => {
@@ -2536,18 +3015,53 @@ window.applyMapper2Logic = function () {
         }
       });
 
+      // Безопасный merge _splitRules (не затираем ранее сохранённые правила)
       if (state.splitRules && Object.keys(state.splitRules).length > 0) {
-        currentMemory._splitRules = state.splitRules;
+        currentMemory._splitRules = Object.assign(
+          {},
+          currentMemory._splitRules || {},
+          state.splitRules,
+        );
+        memoryUpdated = true;
+      }
+
+      // Безопасное сохранение _logisticsBlock внутри mapper_memory
+      const prevSavedBlock = String(currentMemory._logisticsBlock || "").trim();
+      if (finalLogisticsBlock && finalLogisticsBlock !== prevSavedBlock) {
+        currentMemory._logisticsBlock = finalLogisticsBlock;
+        memoryUpdated = true;
+      } else if (
+        !finalLogisticsBlock &&
+        state.logisticsBlockTouched &&
+        prevSavedBlock
+      ) {
+        currentMemory._logisticsBlock = "";
         memoryUpdated = true;
       }
 
       if (memoryUpdated) {
+        const serializedMemory = JSON.stringify(currentMemory);
+        window.mapper2State.rawMemoryJson = serializedMemory;
+        if (window.currentTemplateData) {
+          window.currentTemplateData.memoryJson = serializedMemory;
+        }
+        if (window.kaspiTemplateCache) {
+          if (templateHash && window.kaspiTemplateCache[templateHash]) {
+            window.kaspiTemplateCache[templateHash].memoryJson =
+              serializedMemory;
+          }
+          if (templateName && window.kaspiTemplateCache[templateName]) {
+            window.kaspiTemplateCache[templateName].memoryJson =
+              serializedMemory;
+          }
+        }
+
         const payload = {
           action: "updateKaspiMemory",
           api_key: CLIENT_API_KEY,
           category: templateName,
           templateHash: templateHash,
-          memoryJson: JSON.stringify(currentMemory),
+          memoryJson: serializedMemory,
         };
         window
           .smartFetch(GATEWAY_URL, payload)
@@ -2560,6 +3074,7 @@ window.applyMapper2Logic = function () {
   window.invoiceGroups = {};
   window.invoiceGroups[state.docNo] = {
     supplier: state.supplier,
+    logistics_block: finalLogisticsBlock,
     items: [],
     originalFiles: [
       { fileName: state.fileName, fileBase64: state.originalBase64 },
@@ -2570,15 +3085,60 @@ window.applyMapper2Logic = function () {
     (v) => v !== undefined,
   );
 
+  // Системные ключи, которые строго исключаются при сборе raw_logistics
+  const SYSTEM_LOGISTICS_KEYS = new Set([
+    "item_id",
+    "id",
+    "code",
+    "sku",
+    "barcode",
+    "merchant_sku",
+    "qty",
+    "quantity",
+    "price",
+    "cost",
+    "total",
+    "amount",
+    "sum",
+    "cbm",
+    "weight",
+  ]);
+  const SYSTEM_HEADER_EXCLUDE_RX =
+    /^(?:no\.?|№|#|item\s*id|code|sku|article|art\.?|barcode|ean|qty|quantity|pcs|unit\s*price|price|cost|total|amount|sum|cbm|volume|weight|g\.?w\.?|n\.?w\.?|артикул|код|штрихкод|кол-?во|количество|цена|стоимость|сумма|итого|объ[её]м|вес)$/i;
+  const PURE_NUMBER_OR_SUM_RX =
+    /^(?:[$€¥₽₸£]\s*)?[+-]?\d[\d\s.,]*\s*(?:[$€¥₽₸£%]|usd|kzt|cny|eur|rub)?$/i;
+
+  const systemMappedIndices = new Set();
+  const attributeMappedIndices = new Set();
+  Object.keys(state.colMap).forEach((k) => {
+    const idx = state.colMap[k];
+    if (idx === undefined || idx === null || idx < 0) return;
+    const lk = String(k || "").trim().toLowerCase();
+    if (SYSTEM_LOGISTICS_KEYS.has(lk)) {
+      systemMappedIndices.add(idx);
+    } else if (lk !== "name" && lk !== "model") {
+      attributeMappedIndices.add(idx);
+    }
+  });
+
   window.mapper2State.quarantine = [];
 
   state.invoiceRows.forEach((row, index) => {
     if (!row || row.length === 0) return;
 
     const getValue = (primaryKey, kaspiKey) => {
-      if (state.dictValues && state.dictValues[primaryKey])
+      if (
+        state.dictValues &&
+        typeof state.dictValues[primaryKey] === "string" &&
+        state.dictValues[primaryKey].trim() !== ""
+      )
         return state.dictValues[primaryKey];
-      if (kaspiKey && state.dictValues && state.dictValues[kaspiKey])
+      if (
+        kaspiKey &&
+        state.dictValues &&
+        typeof state.dictValues[kaspiKey] === "string" &&
+        state.dictValues[kaspiKey].trim() !== ""
+      )
         return state.dictValues[kaspiKey];
 
       let colIdx = state.colMap[primaryKey];
@@ -2681,14 +3241,49 @@ window.applyMapper2Logic = function () {
     let barcode = /^\d{13}$/.test(explicitBarcodeVal) ? explicitBarcodeVal : "";
     let name = rawName || rawId || "Без названия";
 
-    let rawLogisticsStr = "";
+    // === ЧИСТЫЙ СБОР raw_logistics (включая неразобранные атрибутные колонки, без системных полей/артикулов/сумм) ===
+    const rawIdNorm = String(rawId || "").trim().toLowerCase();
+    const barcodeNorm = String(barcode || "").trim().toLowerCase();
+    const rawLogisticsParts = [];
+    const seenLogisticsVals = new Set();
+
+    const pushLogisticsToken = (rawVal, maxLen, rejectPureNumber) => {
+      const val = String(rawVal || "")
+        .replace(/[\r\n]+/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+      if (!val || val.length >= maxLen) return;
+      const lowerVal = val.toLowerCase();
+      if (rawIdNorm && lowerVal === rawIdNorm) return;
+      if (barcodeNorm && lowerVal === barcodeNorm) return;
+      if (/^\d{8,15}$/.test(val)) return;
+      if (rejectPureNumber && PURE_NUMBER_OR_SUM_RX.test(val)) return;
+      if (seenLogisticsVals.has(lowerVal)) return;
+      seenLogisticsVals.add(lowerVal);
+      rawLogisticsParts.push(val);
+    };
+
+    // 1. Исходные неразобранные значения замапленных атрибутных колонок (в т.ч. Size / Размер: 155R12C, 175/65R14, 385/65R22.5)
+    attributeMappedIndices.forEach((colIdx) => {
+      if (systemMappedIndices.has(colIdx)) return;
+      const hdr = String(
+        (state.invoiceHeaders && state.invoiceHeaders[colIdx]) || "",
+      ).trim();
+      if (hdr && SYSTEM_HEADER_EXCLUDE_RX.test(hdr)) return;
+      pushLogisticsToken(row[colIdx], 60, false);
+    });
+
+    // 2. Незамапленные колонки — строго исключаем системные шапки, артикулы (item_id), штрихкоды и чистые числа/суммы
     row.forEach((cellVal, idx) => {
       if (mappedIndices?.includes(idx)) return;
-      let val = String(cellVal || "").trim();
-      if (val && val.length < 30 && !/^\d{8,15}$/.test(val)) {
-        rawLogisticsStr += " " + val;
-      }
+      const hdr = String(
+        (state.invoiceHeaders && state.invoiceHeaders[idx]) || "",
+      ).trim();
+      if (hdr && SYSTEM_HEADER_EXCLUDE_RX.test(hdr)) return;
+      pushLogisticsToken(cellVal, 40, true);
     });
+
+    let rawLogisticsStr = rawLogisticsParts.join(" ");
 
     let rawCbm = getValue("cbm");
     let cbm = rawCbm ? parseFloat(String(rawCbm).replace(",", ".")) : "";
@@ -2821,8 +3416,16 @@ window.applyMapper2Logic = function () {
     };
 
     let allKeys = new Set(Object.keys(state.colMap));
-    if (state.dictValues)
-      Object.keys(state.dictValues).forEach((k) => allKeys.add(k));
+    if (state.dictValues) {
+      Object.keys(state.dictValues).forEach((k) => {
+        if (
+          typeof state.dictValues[k] === "string" &&
+          state.dictValues[k].trim() !== ""
+        ) {
+          allKeys.add(k);
+        }
+      });
+    }
     if (state.splitRules)
       Object.keys(state.splitRules).forEach((k) => allKeys.add(k));
 
@@ -2897,7 +3500,11 @@ window.applyMapper2Logic = function () {
     window.parsedInvoiceData.push(itemData);
 
     if (!window.invoiceGroups[realDocNo]) {
-      window.invoiceGroups[realDocNo] = { items: [] };
+      window.invoiceGroups[realDocNo] = {
+        supplier: state.supplier,
+        logistics_block: finalLogisticsBlock,
+        items: [],
+      };
     }
     window.invoiceGroups[realDocNo].items.push(itemData);
 
@@ -4152,6 +4759,7 @@ async function sendInvoiceToBackend() {
           docNo: docNo,
           currency: finalCurrency,
           fingerprint: fp,
+          logistics_block: group.logistics_block || "",
           market_category: selectedCategory, // Имя категории (только для «База + Маркет»)
           template_hash: selectedHash, // Хэш шаблона (только для «База + Маркет»)
           market_status: marketStatusToSend, // "pending" для «База + Маркет», "" для «Только База»
@@ -4805,12 +5413,18 @@ window.handleCardSelectForExport = async function (
   }
 };
 
-window.askCategoryName = function (defaultText) {
+window.askCategoryName = function (defaultText, options = {}) {
   return new Promise((resolve) => {
     const modal = document.getElementById("custom-prompt-modal");
     const input = document.getElementById("custom-prompt-input");
     const btnOk = document.getElementById("custom-prompt-ok");
     const btnCancel = document.getElementById("custom-prompt-cancel");
+    const logBlock = document.getElementById("custom-prompt-logistics-block");
+    const logSelect = document.getElementById("custom-prompt-logistics-select");
+    const logHint = document.getElementById("custom-prompt-logistics-hint");
+
+    const showLogistics = Boolean(options && options.showLogistics);
+    const suggestedBlock = String((options && options.suggestedBlock) || "").trim();
 
     // Сбрасываем старые обработчики кликов, чтобы они не дублировались
     btnOk.onclick = null;
@@ -4820,6 +5434,28 @@ window.askCategoryName = function (defaultText) {
     // Вставляем дефолтное название (имя файла)
     input.value = defaultText || "";
 
+    // Блок группы логистики показывается ТОЛЬКО в сценарии загрузки/настройки шаблона Kaspi
+    if (logBlock) {
+      if (showLogistics) {
+        logBlock.style.display = "block";
+        if (logSelect && typeof window.populateLogisticsSelect === "function") {
+          window.populateLogisticsSelect(logSelect, suggestedBlock);
+        }
+        if (logHint) {
+          logHint.style.display = suggestedBlock ? "block" : "none";
+        }
+      } else {
+        logBlock.style.display = "none";
+        if (logHint) logHint.style.display = "none";
+      }
+    }
+
+    if (typeof window.applyLanguage === "function") {
+      window.applyLanguage(
+        typeof currentLang !== "undefined" ? currentLang : "ru",
+      );
+    }
+
     modal.style.display = "flex";
 
     // Задержка 100мс нужна, чтобы iOS Safari успел отрендерить окно перед фокусом
@@ -4828,17 +5464,39 @@ window.askCategoryName = function (defaultText) {
       input.select(); // Тот самый магический метод выделения текста!
     }, 100);
 
-    const closeModal = (result) => {
+    const closeModal = (confirmed) => {
       modal.style.display = "none";
-      resolve(result); // Отдаем результат обратно в код
+      // Обязательно скрываем блок логистики при закрытии модалки
+      if (logBlock) logBlock.style.display = "none";
+      if (logHint) logHint.style.display = "none";
+
+      if (!confirmed) {
+        resolve(null);
+        return;
+      }
+
+      const cleanName = input.value.trim();
+      if (!cleanName) {
+        resolve(null);
+        return;
+      }
+
+      if (showLogistics) {
+        resolve({
+          categoryName: cleanName,
+          logisticsBlock: logSelect ? String(logSelect.value || "").trim() : "",
+        });
+      } else {
+        resolve(cleanName);
+      }
     };
 
-    btnOk.onclick = () => closeModal(input.value.trim() || null);
-    btnCancel.onclick = () => closeModal(null);
+    btnOk.onclick = () => closeModal(true);
+    btnCancel.onclick = () => closeModal(false);
 
     // Позволяем нажать Enter на клавиатуре вместо кнопки ОК
     input.onkeydown = (e) => {
-      if (e.key === "Enter") closeModal(input.value.trim() || null);
+      if (e.key === "Enter") closeModal(true);
     };
   });
 };
@@ -5033,7 +5691,32 @@ window.handleTemplateUpload = async function (event) {
           .replace(".xls", "")
           .replace(".xlsm", "")
           .trim();
-        let categoryName = await window.askCategoryName(defaultCategory);
+
+        const kaspiTemplateCategory =
+          typeof window.extractKaspiTemplateCategory === "function"
+            ? window.extractKaspiTemplateCategory(valuesData)
+            : "";
+        const suggestedLogisticsBlock =
+          typeof window.suggestLogisticsBlock === "function"
+            ? window.suggestLogisticsBlock(
+                kaspiTemplateCategory,
+                defaultCategory,
+              )
+            : "";
+
+        const promptResult = await window.askCategoryName(defaultCategory, {
+          showLogistics: true,
+          suggestedBlock: suggestedLogisticsBlock,
+        });
+
+        let categoryName =
+          promptResult && typeof promptResult === "object"
+            ? promptResult.categoryName
+            : promptResult;
+        const chosenLogisticsBlock =
+          promptResult && typeof promptResult === "object"
+            ? String(promptResult.logisticsBlock || "").trim()
+            : suggestedLogisticsBlock;
 
         if (!categoryName) {
           if (fileNameSpan) {
@@ -5107,6 +5790,7 @@ window.handleTemplateUpload = async function (event) {
           systemKeys: systemKeys,
           requirements: requirements,
           dictionary: dictionary,
+          kaspiCategory: kaspiTemplateCategory,
         };
 
         let binary = "";
@@ -5126,6 +5810,7 @@ window.handleTemplateUpload = async function (event) {
           category: categoryName,
           headersJson: JSON.stringify(extractedHeaders),
           fileBase64: base64String,
+          logisticsBlock: chosenLogisticsBlock,
         };
 
         const res = await window.smartFetch(
@@ -5137,7 +5822,15 @@ window.handleTemplateUpload = async function (event) {
 
         if (res && res.success) {
           window.kaspiTemplateCache = window.kaspiTemplateCache || {};
-          window.kaspiTemplateCache[templateHash] = Object.assign({}, extractedHeaders);
+          const cachedObj = Object.assign({}, extractedHeaders);
+          if (res.memoryJson) {
+            cachedObj.memoryJson = res.memoryJson;
+          } else if (chosenLogisticsBlock) {
+            cachedObj.memoryJson = JSON.stringify({
+              _logisticsBlock: chosenLogisticsBlock,
+            });
+          }
+          window.kaspiTemplateCache[templateHash] = cachedObj;
 
           if (templateSelect) {
             if (!isDuplicate) {
@@ -5469,18 +6162,19 @@ window.checkMapperReadiness = function () {
   const st = window.mapper2State || {};
   const cm = st.colMap || {};
   const dv = st.dictValues || {};
+  const hasStrDv = (k) => typeof dv[k] === "string" && dv[k].trim() !== "";
 
-  const hasQty = cm["qty"] !== undefined || dv["qty"] !== undefined;
+  const hasQty = cm["qty"] !== undefined || hasStrDv("qty");
   const hasPrice =
     cm["price"] !== undefined ||
     cm["cost"] !== undefined ||
-    dv["price"] !== undefined ||
-    dv["cost"] !== undefined;
+    hasStrDv("price") ||
+    hasStrDv("cost");
   const hasName =
     cm["name"] !== undefined ||
     cm["model"] !== undefined ||
-    dv["name"] !== undefined ||
-    dv["model"] !== undefined;
+    hasStrDv("name") ||
+    hasStrDv("model");
 
   const btn = document.getElementById("applyMapper2Btn");
   if (btn) {

@@ -1364,3 +1364,77 @@ button,
     font-weight: bold;
     background: var(--bg-success-dim);
 }
+
+/* =========================================
+   СЕЛЕКТОРЫ ГРУППЫ ЛОГИСТИКИ (ТЁМНАЯ И СВЕТЛАЯ ТЕМЫ)
+   ========================================= */
+.logistics-block-box {
+    margin-bottom: 12px;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.logistics-block-box--compact {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 8px 12px;
+    margin-bottom: 10px;
+    background: var(--bg-panel);
+    border: 1px solid var(--border-light);
+    border-radius: 6px;
+    flex-shrink: 0;
+}
+
+.logistics-block-label {
+    display: block;
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+
+.logistics-block-box--compact .logistics-block-label {
+    margin-bottom: 0;
+    white-space: nowrap;
+    color: var(--text-main);
+}
+
+.logistics-select {
+    width: 100%;
+    padding: 10px 12px;
+    min-height: 42px;
+    font-size: 14px;
+    border-radius: 4px;
+    border: 1px solid var(--border-main);
+    background-color: var(--bg-body);
+    color: var(--text-main);
+    outline: none;
+    box-sizing: border-box;
+    cursor: pointer;
+    transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.logistics-block-box--compact .logistics-select {
+    min-height: 36px;
+    padding: 6px 10px;
+    flex: 1;
+    min-width: 0;
+}
+
+.logistics-select:focus {
+    border-color: var(--accent-blue);
+}
+
+.logistics-select option {
+    background-color: var(--bg-modal);
+    color: var(--text-main);
+}
+
+.logistics-hint {
+    margin-top: 4px;
+    font-size: 11px;
+    color: var(--accent-blue);
+    line-height: 1.3;
+}
