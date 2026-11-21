@@ -2952,10 +2952,10 @@ window.openKaspiDictSearch = function () {
                   <span onclick="window.confirmKaspiDictSelection()" class="kaspi-dict-save" data-i18n="inc_save">${t.inc_save || "ОК"}</span>
               </div>
 
-              <input type="text" id="dictModalSearch" class="kaspi-dict-search" value=""
+              <input type="text" id="dictModalSearch" class="kaspi-dict-search" value="${window.tempSelectedDictValue ? String(window.tempSelectedDictValue).replace(/"/g, "&quot;") : ""}"
                   data-i18n-placeholder="inc_search_enter"
                   placeholder="${t.inc_search_enter || "Поиск..."}"
-                  oninput="window.filterDictionary()">
+                  oninput="window.filterDictionary(this.value)">
 
               ${hintHtml}
               ${clearBtnHtml}
@@ -2966,6 +2966,23 @@ window.openKaspiDictSearch = function () {
   `;
 
   document.body.appendChild(modal);
+
+  // Автовыделение текста при фокусе/клике, если в поле подставлено текущее выбранное значение
+  const searchElem = document.getElementById("dictModalSearch");
+  if (searchElem) {
+    const selectIfMatchesCurrent = () => {
+      const curSel = String(window.tempSelectedDictValue || "").trim();
+      if (curSel && searchElem.value.trim() === curSel) {
+        searchElem.select();
+      }
+    };
+    searchElem.addEventListener("focus", selectIfMatchesCurrent);
+    searchElem.addEventListener("click", () => {
+      if (searchElem.selectionStart === searchElem.selectionEnd) {
+        selectIfMatchesCurrent();
+      }
+    });
+  }
 
   // Делегирование клика по пунктам списка и скрытие клавиатуры при скролле
   const listElem = document.getElementById("dictModalList");
@@ -2990,8 +3007,8 @@ window.openKaspiDictSearch = function () {
     );
   }
 
-  // Запускаем рендер всего списка и прокручиваем выбранный пункт в видимую область
-  window.filterDictionary();
+  // При открытии показываем весь список без фильтрации и прокручиваем выбранный пункт в видимую область
+  window.filterDictionary("");
 
   setTimeout(() => {
     const activeLi = document.querySelector("#dictModalList .kaspi-dict-item.is-selected");
@@ -3058,11 +3075,12 @@ window.clearKaspiDictSelection = function () {
     searchEl.value = "";
     searchEl.focus();
   }
-  window.filterDictionary();
+  window.filterDictionary("");
 };
 
 // Полностью обновленная функция фильтрации и рендера списка
-window.filterDictionary = function () {
+// Если передан явный аргумент queryOverride (например, "" при открытии или клике по пункту), фильтрация не применяется
+window.filterDictionary = function (queryOverride) {
   let searchEl = document.getElementById("dictModalSearch");
   let listEl = document.getElementById("dictModalList");
   let countText = document.getElementById("dictModalCountText");
@@ -3071,7 +3089,9 @@ window.filterDictionary = function () {
   // Защита от ошибок, если окно еще не открыто
   if (!searchEl || !listEl) return;
 
-  let query = searchEl.value.toLowerCase().trim();
+  let rawQuery =
+    queryOverride !== undefined ? String(queryOverride) : searchEl.value;
+  let query = rawQuery.toLowerCase().trim();
   let dict = window.currentModalDict || [];
   let selectedVal = String(window.tempSelectedDictValue || "").trim();
 
@@ -3130,11 +3150,18 @@ window.filterDictionary = function () {
     .join("");
 };
 
-// Функция клика по элементу списка (переносит выбор без подстановки в строку поиска)
+// Функция клика по элементу списка: отображает выбранное значение в верхнем поле, не фильтруя список
 window.selectKaspiDictItem = function (val) {
-  window.tempSelectedDictValue = String(val || "").trim();
+  const cleanVal = String(val || "").trim();
+  window.tempSelectedDictValue = cleanVal;
   window.tempDictWasCleared = false;
-  window.filterDictionary();
+
+  const searchEl = document.getElementById("dictModalSearch");
+  if (searchEl) {
+    searchEl.value = cleanVal;
+  }
+
+  window.filterDictionary("");
 };
 
 window.selectDictionaryValue = function (value, isCustom) {
@@ -4910,7 +4937,7 @@ window.openEditorField = function (canonicalKey) {
     window.currentFieldDict = dict;
     controlHtml = `
         <div class="editor-field-controls">
-            <input type="text" id="singleFieldSearchInput" class="kaspi-input-field" value=""
+            <input type="text" id="singleFieldSearchInput" class="kaspi-input-field" value="${val.replace(/"/g, "&quot;")}"
                 data-i18n-placeholder="inc_search_enter"
                 placeholder="${t.inc_search_enter || "Поиск..."}"
                 oninput="window.filterDictList(this)">
@@ -4960,6 +4987,23 @@ window.openEditorField = function (canonicalKey) {
   document.getElementById("modalContainer").appendChild(fieldModal);
 
   if (isDictField) {
+    // Автовыделение текста при фокусе/клике, если в поле подставлено текущее выбранное значение
+    const searchInput = document.getElementById("singleFieldSearchInput");
+    if (searchInput) {
+      const selectIfMatchesCurrent = () => {
+        const curSel = String(window.currentFieldSelectedVal || "").trim();
+        if (curSel && searchInput.value.trim() === curSel) {
+          searchInput.select();
+        }
+      };
+      searchInput.addEventListener("focus", selectIfMatchesCurrent);
+      searchInput.addEventListener("click", () => {
+        if (searchInput.selectionStart === searchInput.selectionEnd) {
+          selectIfMatchesCurrent();
+        }
+      });
+    }
+
     const ul = document.getElementById("dictList");
     if (ul) {
       ul.addEventListener("click", (e) => {
@@ -4971,7 +5015,18 @@ window.openEditorField = function (canonicalKey) {
           window.selectPreviewDictValue(String(dictArr[idx]));
         }
       });
+
+      ul.addEventListener(
+        "touchstart",
+        () => {
+          const sEl = document.getElementById("singleFieldSearchInput");
+          if (sEl) sEl.blur();
+        },
+        { passive: true },
+      );
     }
+
+    // При открытии показываем весь список без фильтрации и прокручиваем выбранный пункт в видимую область
     window.renderEditorDictList("");
 
     setTimeout(() => {
@@ -5073,9 +5128,14 @@ window.filterDictList = function (input) {
 };
 
 window.selectPreviewDictValue = function (val) {
-  window.currentFieldSelectedVal = String(val || "").trim();
+  const cleanVal = String(val || "").trim();
+  window.currentFieldSelectedVal = cleanVal;
   const searchInput = document.getElementById("singleFieldSearchInput");
-  window.renderEditorDictList(searchInput ? searchInput.value : "");
+  if (searchInput) {
+    searchInput.value = cleanVal;
+  }
+  // Не фильтруем список при выборе пункта — весь список остаётся доступен для смены выбора
+  window.renderEditorDictList("");
 };
 
 window.saveSingleField = function (canonicalKey) {
