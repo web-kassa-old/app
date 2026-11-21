@@ -2880,7 +2880,8 @@ window.openKaspiDictSearch = function () {
   }
 
   // Прячем нижнюю шторку
-  document.getElementById("bottom-sheet").style.transform = "translateY(100%)";
+  const bottomSheet = document.getElementById("bottom-sheet");
+  if (bottomSheet) bottomSheet.style.transform = "translateY(100%)";
   setTimeout(() => {
     let overlay = document.getElementById("sheet-overlay");
     if (overlay) overlay.style.display = "none";
@@ -2894,7 +2895,9 @@ window.openKaspiDictSearch = function () {
       : "";
 
   window.tempSelectedDictValue =
-    existingDictVal && dict.includes(existingDictVal) ? existingDictVal : null;
+    existingDictVal && dict.includes(existingDictVal) ? existingDictVal : "";
+  window.tempDictHadInitialValue = Boolean(existingDictVal);
+  window.tempDictWasCleared = false;
   window.currentModalSysKey = sysKey;
   window.currentModalDict = dict;
 
@@ -2949,10 +2952,9 @@ window.openKaspiDictSearch = function () {
                   <span onclick="window.confirmKaspiDictSelection()" class="kaspi-dict-save" data-i18n="inc_save">${t.inc_save || "ОК"}</span>
               </div>
 
-              <input type="text" id="dictModalSearch" class="kaspi-dict-search" value="${window.tempSelectedDictValue ? String(window.tempSelectedDictValue).replace(/"/g, "&quot;") : ""}" 
+              <input type="text" id="dictModalSearch" class="kaspi-dict-search" value=""
                   data-i18n-placeholder="inc_search_enter"
                   placeholder="${t.inc_search_enter || "Поиск..."}"
-                  onfocus="this.select()"
                   oninput="window.filterDictionary()">
 
               ${hintHtml}
@@ -2965,9 +2967,19 @@ window.openKaspiDictSearch = function () {
 
   document.body.appendChild(modal);
 
-  // Скрытие клавиатуры при скролле
+  // Делегирование клика по пунктам списка и скрытие клавиатуры при скролле
   const listElem = document.getElementById("dictModalList");
   if (listElem) {
+    listElem.addEventListener("click", (e) => {
+      const li = e.target.closest("li[data-dict-idx]");
+      if (!li) return;
+      const idx = parseInt(li.getAttribute("data-dict-idx"), 10);
+      const dictArr = window.currentModalDict || [];
+      if (!isNaN(idx) && idx >= 0 && idx < dictArr.length) {
+        window.selectKaspiDictItem(String(dictArr[idx]));
+      }
+    });
+
     listElem.addEventListener(
       "touchstart",
       () => {
@@ -2978,14 +2990,48 @@ window.openKaspiDictSearch = function () {
     );
   }
 
-  // Запускаем рендер элементов списка
+  // Запускаем рендер всего списка и прокручиваем выбранный пункт в видимую область
   window.filterDictionary();
+
+  setTimeout(() => {
+    const activeLi = document.querySelector("#dictModalList .kaspi-dict-item.is-selected");
+    if (activeLi && typeof activeLi.scrollIntoView === "function") {
+      activeLi.scrollIntoView({ block: "nearest" });
+    }
+  }, 20);
 };
 
 // Функция завершения выбора (вызывается по кнопке ОК)
 window.confirmKaspiDictSelection = function () {
-  if (!window.tempSelectedDictValue) {
-    const lang = window.currentLang || "ru";
+  const selectedVal = String(window.tempSelectedDictValue || "").trim();
+
+  if (!selectedVal) {
+    if (window.tempDictWasCleared || window.tempDictHadInitialValue) {
+      const sysKey = window.currentModalSysKey;
+      window.mapper2State = window.mapper2State || {};
+      window.mapper2State.clearedKeys = window.mapper2State.clearedKeys || {};
+      if (window.mapper2State.colMap) delete window.mapper2State.colMap[sysKey];
+      if (window.mapper2State.splitRules)
+        delete window.mapper2State.splitRules[sysKey];
+      if (
+        window.mapper2State.dictValues &&
+        typeof window.mapper2State.dictValues[sysKey] === "string"
+      ) {
+        delete window.mapper2State.dictValues[sysKey];
+      }
+      window.clearMapper2FieldAliases(sysKey);
+      window.mapper2State.clearedKeys[sysKey] = true;
+
+      const modal = document.getElementById("kaspiDictModal");
+      if (modal) modal.remove();
+
+      if (typeof window.renderMapper2Cards === "function") {
+        window.renderMapper2Cards();
+      }
+      return;
+    }
+
+    const lang = window.currentLang || localStorage.getItem("pos_lang") || "ru";
     const tr =
       typeof translations !== "undefined" && translations[lang]
         ? translations[lang]
@@ -2996,18 +3042,22 @@ window.confirmKaspiDictSelection = function () {
   }
 
   if (typeof window.selectDictionaryValue === "function") {
-    window.selectDictionaryValue(window.tempSelectedDictValue, false);
+    window.selectDictionaryValue(selectedVal, false);
   }
 
   const modal = document.getElementById("kaspiDictModal");
   if (modal) modal.remove();
 };
 
-// Функция очистки выбора
+// Функция очистки выбора (меняет только локальное состояние окна до нажатия «ОК»)
 window.clearKaspiDictSelection = function () {
-  window.tempSelectedDictValue = null;
+  window.tempSelectedDictValue = "";
+  window.tempDictWasCleared = true;
   const searchEl = document.getElementById("dictModalSearch");
-  if (searchEl) searchEl.value = "";
+  if (searchEl) {
+    searchEl.value = "";
+    searchEl.focus();
+  }
   window.filterDictionary();
 };
 
@@ -3023,13 +3073,18 @@ window.filterDictionary = function () {
 
   let query = searchEl.value.toLowerCase().trim();
   let dict = window.currentModalDict || [];
+  let selectedVal = String(window.tempSelectedDictValue || "").trim();
 
-  // Фильтруем справочник по запросу
-  let filtered = dict.filter((item) =>
-    String(item).toLowerCase().includes(query),
-  );
+  // Сохраняем исходный индекс в словаре для безопасного выбора через data-dict-idx
+  let filtered = [];
+  dict.forEach((item, idx) => {
+    const strItem = String(item);
+    if (!query || strItem.toLowerCase().includes(query)) {
+      filtered.push({ val: strItem, idx: idx });
+    }
+  });
 
-  // Локализация счетчика
+  // Локализация счетчика (с обновлением data-i18n для переключения языка на лету)
   const lang = window.currentLang || localStorage.getItem("pos_lang") || "ru";
   const tr =
     typeof translations !== "undefined" && translations[lang]
@@ -3037,6 +3092,8 @@ window.filterDictionary = function () {
       : {};
 
   if (countText && totalCount) {
+    const countKey = query === "" ? "dict_total" : "dict_found";
+    countText.setAttribute("data-i18n", countKey);
     countText.innerText =
       query === "" ? tr.dict_total || "Всего:" : tr.dict_found || "Найдено:";
     totalCount.innerText = filtered.length;
@@ -3044,29 +3101,21 @@ window.filterDictionary = function () {
 
   // Если ничего не нашли
   if (filtered.length === 0) {
-    listEl.innerHTML = `<div class="kaspi-dict-empty">${tr.dict_not_found || "Ничего не найдено"}</div>`;
+    listEl.innerHTML = `<div class="kaspi-dict-empty" data-i18n="dict_not_found">${tr.dict_not_found || "В справочнике не найдено."}</div>`;
     return;
   }
 
   const safeQuery = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const highlightRegex = query ? new RegExp(`(${safeQuery})`, "gi") : null;
 
   // Рендерим пункты меню
   listEl.innerHTML = filtered
-    .map((val) => {
-      const encodedVal = encodeURIComponent(String(val));
+    .map(({ val, idx }) => {
+      let displayVal = highlightRegex
+        ? val.replace(highlightRegex, '<mark class="kaspi-dict-mark">$1</mark>')
+        : val;
 
-      // Подсветка совпадений текста при поиске (через CSS-класс и переменные темы)
-      let displayVal = String(val);
-      if (query) {
-        let regex = new RegExp(`(${safeQuery})`, "gi");
-        displayVal = displayVal.replace(
-          regex,
-          '<mark class="kaspi-dict-mark">$1</mark>',
-        );
-      }
-
-      // Проверяем, выбран ли этот пункт
-      let isSelected = window.tempSelectedDictValue === val;
+      let isSelected = selectedVal !== "" && val === selectedVal;
       let itemClass = isSelected
         ? "kaspi-dict-item is-selected"
         : "kaspi-dict-item";
@@ -3074,22 +3123,17 @@ window.filterDictionary = function () {
         ? '<span class="kaspi-dict-check">✔</span>'
         : "";
 
-      return `<li onclick="window.selectKaspiDictItem(decodeURIComponent('${encodedVal}'))" class="${itemClass}">
+      return `<li data-dict-idx="${idx}" class="${itemClass}">
             <span>${displayVal}</span>${check}
         </li>`;
     })
     .join("");
 };
 
-// Функция клика по элементу списка
+// Функция клика по элементу списка (переносит выбор без подстановки в строку поиска)
 window.selectKaspiDictItem = function (val) {
-  window.tempSelectedDictValue = val;
-
-  let searchEl = document.getElementById("dictModalSearch");
-  if (searchEl) {
-    searchEl.value = val;
-  }
-
+  window.tempSelectedDictValue = String(val || "").trim();
+  window.tempDictWasCleared = false;
   window.filterDictionary();
 };
 
@@ -4854,7 +4898,9 @@ window.openEditorField = function (canonicalKey) {
     counter.innerText = len + (max > 0 ? " / " + max : "");
   };
 
-  if (!isDictField && (minChars > 0 || maxChars > 0)) {
+  if (isDictField) {
+    counterHtml = `<div id="editorDictCountInfo" class="kaspi-dict-count"><span id="editorDictCountText" data-i18n="dict_total">${t.dict_total || "Всего:"}</span> <span id="editorDictTotalCount">${dict.length}</span></div>`;
+  } else if (minChars > 0 || maxChars > 0) {
     counterHtml = '<div id="charCounterSpan" class="editor-char-counter">0</div>';
     onInputAttr = `oninput="window.updateCharCount(${minChars}, ${maxChars})"`;
   }
@@ -4949,6 +4995,23 @@ window.renderEditorDictList = function (queryStr) {
   const filter = String(queryStr || "").toLowerCase().trim();
   const dict = window.currentFieldDict || [];
   const selectedVal = String(window.currentFieldSelectedVal || "").trim();
+  const lang = window.currentLang || localStorage.getItem("pos_lang") || "ru";
+  const tr =
+    typeof translations !== "undefined" && translations[lang]
+      ? translations[lang]
+      : {};
+
+  const updateEditorDictCounter = (count) => {
+    const countText = document.getElementById("editorDictCountText");
+    const totalCount = document.getElementById("editorDictTotalCount");
+    if (countText && totalCount) {
+      const countKey = filter === "" ? "dict_total" : "dict_found";
+      countText.setAttribute("data-i18n", countKey);
+      countText.innerText =
+        filter === "" ? tr.dict_total || "Всего:" : tr.dict_found || "Найдено:";
+      totalCount.innerText = count;
+    }
+  };
 
   const buildItemHtml = (idx, labelHtml, rawStr) => {
     const isSelected = selectedVal !== "" && rawStr === selectedVal;
@@ -4959,6 +5022,7 @@ window.renderEditorDictList = function (queryStr) {
   };
 
   if (!filter) {
+    updateEditorDictCounter(dict.length);
     ul.innerHTML = dict
       .map((d, idx) => {
         const strD = String(d);
@@ -4994,13 +5058,10 @@ window.renderEditorDictList = function (queryStr) {
   });
 
   const combined = [...startsWith, ...wordStart, ...includes];
+  updateEditorDictCounter(combined.length);
+
   if (combined.length === 0) {
-    const lang = window.currentLang || localStorage.getItem("pos_lang") || "ru";
-    const tr =
-      typeof translations !== "undefined" && translations[lang]
-        ? translations[lang]
-        : {};
-    ul.innerHTML = `<div class="kaspi-dict-empty">${tr.dict_not_found || "Ничего не найдено"}</div>`;
+    ul.innerHTML = `<div class="kaspi-dict-empty" data-i18n="dict_not_found">${tr.dict_not_found || "В справочнике не найдено."}</div>`;
     return;
   }
 
