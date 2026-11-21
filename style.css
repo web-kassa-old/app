@@ -1635,6 +1635,8 @@ button,
 
 .kaspi-dict-item.is-selected {
     background: var(--bg-hover);
+    font-weight: bold;
+    border-left: 3px solid var(--accent-blue);
 }
 
 .kaspi-dict-check {

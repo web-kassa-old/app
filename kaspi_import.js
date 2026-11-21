@@ -106,6 +106,7 @@ window.getColumnHeaderHint = function (header) {
       const baseHintMeta = {
         barcode: { key: "col_hint_barcode", fallback: "Артикул / Штрихкод" },
         id: { key: "col_hint_id", fallback: "Артикул / Код" },
+        code: { key: "col_hint_id", fallback: "Артикул / Код" },
         name: { key: "col_hint_name", fallback: "Наименование" },
         brand: { key: "col_hint_brand", fallback: "Бренд" },
         qty: { key: "col_hint_qty", fallback: "Количество" },
@@ -2256,10 +2257,16 @@ window.openColumnSelector = function (sysKey, reqName, isKaspi) {
   window.mapper2State.currentSysKey = sysKey;
   window.mapper2State.currentReqName = reqName;
 
-  const t = typeof translations !== 'undefined' && translations[currentLang] ? translations[currentLang] : {};
+  const lang = window.currentLang || localStorage.getItem("pos_lang") || "ru";
+  const t =
+    typeof translations !== "undefined" && translations[lang]
+      ? translations[lang]
+      : typeof translations !== "undefined"
+        ? translations["ru"] || {}
+        : {};
 
   document.getElementById("sheet-title").innerText =
-    translations[currentLang].mapper_source + reqName;
+    (t.mapper_source || "Источник: ") + reqName;
 
   const colList = document.getElementById("sheet-col-list");
 
@@ -2274,7 +2281,7 @@ window.openColumnSelector = function (sysKey, reqName, isKaspi) {
     if (hasDict) {
       // Если справочник есть — показываем стандартную кнопку поиска
       dictBtnHtml = `<button onclick="window.openKaspiDictSearch()" style="background: var(--accent-green, #4CAF50); border: none; color: #000; padding: 5px 12px; border-radius: 4px; font-size: 11px; font-weight: bold; cursor: pointer; margin-right: 8px;">
-          🔍 <span data-i18n="mapper_btn_dict">Справочник</span></button>`;
+          🔍 <span data-i18n="mapper_btn_dict">${t.mapper_btn_dict || "Справочник"}</span></button>`;
     } else {
       // Если справочника НЕТ — даем кнопку ручного ввода константы!
       const encSys = encodeURIComponent(String(sysKey));
@@ -2323,25 +2330,21 @@ window.openColumnSelector = function (sysKey, reqName, isKaspi) {
     let colName = String(rawColName || "").trim();
     if (!colName) colName = `[Колонка ${index + 1} Пустой заголовок]`;
 
-    // 🛡️ ИДЕАЛЬНЫЙ ПЕРЕВОД: Вытаскиваем чистый текст без тегов
-    let displayColName = colName;
-    if (typeof window.translateColumnHeader === "function") {
-      let translatedHtml = window.translateColumnHeader(colName);
-      if (typeof translatedHtml === "string") {
-        let tempDiv = document.createElement("div");
-        tempDiv.innerHTML = translatedHtml;
-        displayColName = tempDiv.textContent || tempDiv.innerText || colName;
+    // Локализованная семантическая подсказка колонки с безопасным data-i18n на DOM-элементе
+    const cleanColNameForDisplay = colName.replace(/[\r\n]+/g, " ");
+    let displayColName = cleanColNameForDisplay;
+    if (typeof window.getColumnHeaderHint === "function") {
+      const hint = window.getColumnHeaderHint(colName);
+      if (hint && hint.label) {
+        const i18nAttr = hint.i18nKey ? ` data-i18n="${hint.i18nKey}"` : "";
+        displayColName = `${cleanColNameForDisplay} <span class="col-header-hint">(<span${i18nAttr}>${hint.label}</span>)</span>`;
       }
+    } else if (typeof window.translateColumnHeader === "function") {
+      displayColName = window
+        .translateColumnHeader(colName)
+        .replace(/[\r\n]+/g, " ")
+        .replace(/\(([^)]+)\)/g, '<span class="col-header-hint">($1)</span>');
     }
-
-    // Очищаем от переносов строк для верстки
-    displayColName = displayColName.replace(/[\r\n]+/g, " ");
-
-    // 🔥 РАСКРАСКА ПЕРЕВОДА: Оборачиваем текст в скобках в синий цвет
-    displayColName = displayColName.replace(
-      /\(([^)]+)\)/g,
-      '<span style="color: var(--accent-blue, #3498db); font-weight: normal; opacity: 0.9;">($1)</span>',
-    );
 
     // В безопасное имя всегда отдаем ОРИГИНАЛ
     let safeColName = colName
@@ -2413,7 +2416,7 @@ window.openColumnSelector = function (sysKey, reqName, isKaspi) {
     let previewText =
       previewHtmlArr.length > 0
         ? previewHtmlArr.join("<br>")
-        : "Пустая колонка (нет данных)";
+        : `<span data-i18n="mapper_empty_col_no_data">${t.mapper_empty_col_no_data || "Пустая колонка (нет данных)"}</span>`;
     let safePreview = previews[0]
       ? String(previews[0].orig)
           .replace(/[\r\n]+/g, " ")
@@ -4765,23 +4768,50 @@ window.openEditorField = function (canonicalKey) {
   let dict =
     (entry && entry.dict) || catalog.resolveDictFor(resolvedKey, sysKey);
 
+  const isDictField = Boolean(dict && dict.length > 0);
+  window.currentFieldIsDict = isDictField;
+  window.currentFieldSelectedVal = val;
+
   const encodedKey = encodeURIComponent(resolvedKey);
 
   let controlHtml = "";
   let listHtml = "";
 
   const clearBtnHtml = `
-      <div onclick="window.clearSingleField(decodeURIComponent('${encodedKey}'))" class="kaspi-dict-clear-btn">
+      <div onclick="window.clearSingleField(${minChars}, ${maxChars})" class="kaspi-dict-clear-btn">
           <span>✖</span> <span data-i18n="inc_clear_selection">${t.inc_clear_selection || "Очистить выбор"}</span>
       </div>`;
 
-  window.clearSingleField = function (key) {
+  // Кнопка очистки меняет только локальное состояние окна (не трогает window.tempAttrs до нажатия «ОК»)
+  window.clearSingleField = function (min, max) {
+    if (window.currentFieldIsDict) {
+      window.currentFieldSelectedVal = "";
+      const searchInput = document.getElementById("singleFieldSearchInput");
+      if (searchInput) {
+        searchInput.value = "";
+        window.filterDictList(searchInput);
+        searchInput.focus();
+      } else {
+        window.renderEditorDictList("");
+      }
+      return;
+    }
+
     const input = document.getElementById("singleFieldInput");
-    if (input) input.value = "";
-    window.saveSingleField(key);
+    if (input) {
+      input.value = "";
+      if (typeof window.updateCharCount === "function") {
+        window.updateCharCount(min || 0, max || 0);
+      }
+      input.focus();
+    }
   };
 
   window.validateAndSaveField = function (key, min, max) {
+    if (window.currentFieldIsDict) {
+      return window.saveSingleField(key);
+    }
+
     const input = document.getElementById("singleFieldInput");
     if (!input) return window.saveSingleField(key);
 
@@ -4824,37 +4854,26 @@ window.openEditorField = function (canonicalKey) {
     counter.innerText = len + (max > 0 ? " / " + max : "");
   };
 
-  if (minChars > 0 || maxChars > 0) {
+  if (!isDictField && (minChars > 0 || maxChars > 0)) {
     counterHtml = '<div id="charCounterSpan" class="editor-char-counter">0</div>';
     onInputAttr = `oninput="window.updateCharCount(${minChars}, ${maxChars})"`;
   }
 
   // Строго без чекбокса и без массовой подсказки: правка меняет параметр только текущего одного товара
-  if (dict && dict.length > 0) {
+  if (isDictField) {
     window.currentFieldDict = dict;
     controlHtml = `
         <div class="editor-field-controls">
-            <input type="text" id="singleFieldInput" class="kaspi-input-field" value="${val.replace(/"/g, "&quot;")}" 
+            <input type="text" id="singleFieldSearchInput" class="kaspi-input-field" value=""
                 data-i18n-placeholder="inc_search_enter"
                 placeholder="${t.inc_search_enter || "Поиск..."}"
-                onfocus="this.select()"
                 oninput="window.filterDictList(this)">
             ${clearBtnHtml}
         </div>`;
 
     listHtml = `
         <div class="editor-field-list-wrap">
-            <ul id="dictList" class="editor-field-list">
-                ${dict
-                  .map((d) => {
-                    const encodedVal = encodeURIComponent(String(d));
-                    const isSelected = d === val;
-                    return `<li onclick="window.selectPreviewDictValue(decodeURIComponent('${encodedVal}'))" class="kaspi-dict-item${isSelected ? " is-selected" : ""}">
-                    <span>${d}</span>${isSelected ? '<span class="kaspi-dict-check">✔</span>' : ""}
-                </li>`;
-                  })
-                  .join("")}
-            </ul>
+            <ul id="dictList" class="editor-field-list"></ul>
         </div>`;
   } else {
     controlHtml = `
@@ -4864,7 +4883,9 @@ window.openEditorField = function (canonicalKey) {
 
     listHtml = `
         <div class="editor-field-textarea-wrap">
-            <textarea id="singleFieldInput" class="kaspi-input-field editor-field-textarea" placeholder="${displayKey.replace(/"/g, "&quot;")}..." 
+            <textarea id="singleFieldInput" class="kaspi-input-field editor-field-textarea"
+                data-i18n-placeholder="inc_enter_text"
+                placeholder="${t.inc_enter_text || "Введите текст..."}"
                 ${onInputAttr}>${val}</textarea>
         </div>`;
   }
@@ -4892,28 +4913,56 @@ window.openEditorField = function (canonicalKey) {
     `;
   document.getElementById("modalContainer").appendChild(fieldModal);
 
-  if (minChars > 0 || maxChars > 0) {
+  if (isDictField) {
+    const ul = document.getElementById("dictList");
+    if (ul) {
+      ul.addEventListener("click", (e) => {
+        const li = e.target.closest("li[data-dict-idx]");
+        if (!li) return;
+        const idx = parseInt(li.getAttribute("data-dict-idx"), 10);
+        const dictArr = window.currentFieldDict || [];
+        if (!isNaN(idx) && idx >= 0 && idx < dictArr.length) {
+          window.selectPreviewDictValue(String(dictArr[idx]));
+        }
+      });
+    }
+    window.renderEditorDictList("");
+
+    setTimeout(() => {
+      const activeLi = document.querySelector("#dictList .kaspi-dict-item.is-selected");
+      if (activeLi && typeof activeLi.scrollIntoView === "function") {
+        activeLi.scrollIntoView({ block: "nearest" });
+      }
+    }, 20);
+  } else if (minChars > 0 || maxChars > 0) {
     setTimeout(() => {
       if (window.updateCharCount) window.updateCharCount(minChars, maxChars);
     }, 10);
   }
 };
 
-// === АЛГОРИТМ УМНОГО ПОИСКА ===
-window.filterDictList = function (input) {
-  const filter = input.value.toLowerCase().trim();
+// === ЕДИНЫЙ РЕНДЕР И УМНЫЙ ПОИСК СПРАВОЧНИКА В «ТОВАР И ПАРАМЕТРЫ» ===
+window.renderEditorDictList = function (queryStr) {
   const ul = document.getElementById("dictList");
   if (!ul) return;
 
+  const filter = String(queryStr || "").toLowerCase().trim();
   const dict = window.currentFieldDict || [];
+  const selectedVal = String(window.currentFieldSelectedVal || "").trim();
+
+  const buildItemHtml = (idx, labelHtml, rawStr) => {
+    const isSelected = selectedVal !== "" && rawStr === selectedVal;
+    const checkHtml = isSelected ? '<span class="kaspi-dict-check">✔</span>' : "";
+    return `<li data-dict-idx="${idx}" class="kaspi-dict-item${isSelected ? " is-selected" : ""}">
+        <span>${labelHtml}</span>${checkHtml}
+    </li>`;
+  };
 
   if (!filter) {
     ul.innerHTML = dict
-      .map((d) => {
-        const encodedVal = encodeURIComponent(String(d));
-        return `<li onclick="window.selectPreviewDictValue(decodeURIComponent('${encodedVal}'))" class="kaspi-dict-item">
-            <span>${d}</span>
-        </li>`;
+      .map((d, idx) => {
+        const strD = String(d);
+        return buildItemHtml(idx, strD, strD);
       })
       .join("");
     return;
@@ -4924,23 +4973,20 @@ window.filterDictList = function (input) {
   let includes = [];
   const safeFilter = filter.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const highlightRegex = new RegExp(`(${safeFilter})`, "gi");
+  const wordStartRegex = new RegExp(`(^|[\\s\\/\\-\\_])` + safeFilter);
 
-  dict.forEach((d) => {
+  dict.forEach((d, idx) => {
     const strD = String(d);
     const lowerD = strD.toLowerCase();
     const highlightedD = strD.replace(
       highlightRegex,
       '<b class="editor-dict-match">$1</b>',
     );
-    const encodedVal = encodeURIComponent(strD);
-
-    const liHtml = `<li onclick="window.selectPreviewDictValue(decodeURIComponent('${encodedVal}'))" class="kaspi-dict-item">
-            <span>${highlightedD}</span>
-        </li>`;
+    const liHtml = buildItemHtml(idx, highlightedD, strD);
 
     if (lowerD.startsWith(filter)) {
       startsWith.push(liHtml);
-    } else if (new RegExp(`(^|[\\s\\/\\-\\_])` + safeFilter).test(lowerD)) {
+    } else if (wordStartRegex.test(lowerD)) {
       wordStart.push(liHtml);
     } else if (lowerD.includes(filter)) {
       includes.push(liHtml);
@@ -4961,14 +5007,24 @@ window.filterDictList = function (input) {
   ul.innerHTML = combined.join("");
 };
 
+window.filterDictList = function (input) {
+  window.renderEditorDictList(input ? input.value : "");
+};
+
 window.selectPreviewDictValue = function (val) {
-  const input = document.getElementById("singleFieldInput");
-  if (input) input.value = val;
+  window.currentFieldSelectedVal = String(val || "").trim();
+  const searchInput = document.getElementById("singleFieldSearchInput");
+  window.renderEditorDictList(searchInput ? searchInput.value : "");
 };
 
 window.saveSingleField = function (canonicalKey) {
-  const input = document.getElementById("singleFieldInput");
-  const newVal = input ? input.value.trim() : "";
+  let newVal = "";
+  if (window.currentFieldIsDict) {
+    newVal = String(window.currentFieldSelectedVal || "").trim();
+  } else {
+    const input = document.getElementById("singleFieldInput");
+    newVal = input ? input.value.trim() : "";
+  }
 
   const catalog = window.buildEditorFieldCatalog();
   const normK = window.normalizeParamLabel(canonicalKey);
