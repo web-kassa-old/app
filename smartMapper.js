@@ -128,12 +128,21 @@ window.renderSmartMapperModal = function (complexColumns) {
     let cols = complexColumns || window.complexColumnsToTokenize || [];
     cols = cols.map(c => typeof c === 'string' ? { colName: c, example: "" } : c);
 
+    const lang = window.currentLang || localStorage.getItem("pos_lang") || "ru";
+    const t =
+      typeof translations !== "undefined" && translations[lang]
+        ? translations[lang]
+        : typeof translations !== "undefined"
+          ? translations["ru"] || {}
+          : {};
+
     const modal = document.createElement("div");
     modal.className = "smart-modal-content";
 
     const header = document.createElement("div");
     header.className = "smart-modal-header";
     header.setAttribute("data-i18n", "smart_mapper_title");
+    header.textContent = t.smart_mapper_title || "Настройка сложных колонок";
     modal.appendChild(header);
 
     const body = document.createElement("div");
@@ -241,20 +250,37 @@ window.renderSmartMapperModal = function (complexColumns) {
             `;
         }).join("");
 
+        const emptyChipsLabel = t.smart_mapper_empty || "Не выбрано";
+        const colPrefixLabel = t.smart_mapper_col_prefix || "КОЛОНКА:";
+        const exampleLabel = t.example_from_file || "Пример из файла:";
+        const youSelectedLabel = t.smart_mapper_you_selected || "ВЫ ВЫБРАЛИ:";
+        const questionLabel = t.smart_mapper_question || "Какие параметры здесь есть?";
+
+        let colDisplayHtml = col.colName;
+        if (typeof window.getColumnHeaderHint === "function") {
+            const hint = window.getColumnHeaderHint(col.colName);
+            if (hint && hint.label) {
+                const i18nAttr = hint.i18nKey ? ` data-i18n="${hint.i18nKey}"` : "";
+                colDisplayHtml = `${col.colName} <span class="col-header-hint">(<span${i18nAttr}>${hint.label}</span>)</span>`;
+            }
+        } else if (typeof window.translateColumnHeader === "function") {
+            colDisplayHtml = window.translateColumnHeader(col.colName);
+        }
+
         let initialChips = currentSavedParams.length > 0 
             ? kaspiParams.filter((p) => currentSavedParams.includes(p.id)).map((p) => `<span class="chip">${p.name}</span>`).join("")
-            : `<span class="empty-chips" data-i18n="smart_mapper_empty">Не выбрано</span>`;
+            : `<span class="empty-chips" data-i18n="smart_mapper_empty">${emptyChipsLabel}</span>`;
 
         card.innerHTML = `
             <div class="smart-col-info">
-    <span data-i18n="smart_mapper_col_prefix">Колонка:</span> <span>${window.translateColumnHeader ? window.translateColumnHeader(col.colName) : translatedName}</span>
-    <div style="margin-top: 8px; font-size: 14px; color: var(--accent-yellow);">${translations[currentLang].example_from_file} <strong style="color:var(--text-main); font-family:monospace; font-size:16px;">${bestExample}</strong></div>
-</div>
+                <span data-i18n="smart_mapper_col_prefix">${colPrefixLabel}</span> <span>${colDisplayHtml}</span>
+                <div class="smart-col-example"><span data-i18n="example_from_file">${exampleLabel}</span> <strong class="smart-col-example-val">${bestExample}</strong></div>
+            </div>
             <div class="smart-chips-area">
-                <div class="chips-title" data-i18n="smart_mapper_you_selected">Вы выбрали:</div>
+                <div class="chips-title" data-i18n="smart_mapper_you_selected">${youSelectedLabel}</div>
                 <div class="chips-container">${initialChips}</div>
             </div>
-            <div class="smart-question" data-i18n="smart_mapper_question">Какие параметры здесь есть?</div>
+            <div class="smart-question" data-i18n="smart_mapper_question">${questionLabel}</div>
             <div class="checkbox-grid">
                 ${checkboxesHtml}
             </div>
@@ -268,29 +294,33 @@ window.renderSmartMapperModal = function (complexColumns) {
                 const label = this.closest(".checkbox-item");
                 if (this.checked) label.classList.add("active"); else label.classList.remove("active");
                 const selected = Array.from(checkboxes).filter((box) => box.checked).map((box) => box.dataset.name);
-                chipsContainer.innerHTML = selected.length > 0 ? selected.map((name) => `<span class="chip">${name}</span>`).join("") : `<span class="empty-chips" data-i18n="smart_mapper_empty">Не выбрано</span>`;
+                const curLang = window.currentLang || localStorage.getItem("pos_lang") || "ru";
+                const curTr = (typeof translations !== "undefined" && translations[curLang]) || {};
+                const curEmptyText = curTr.smart_mapper_empty || emptyChipsLabel;
+                chipsContainer.innerHTML = selected.length > 0 ? selected.map((name) => `<span class="chip">${name}</span>`).join("") : `<span class="empty-chips" data-i18n="smart_mapper_empty">${curEmptyText}</span>`;
             });
         });
     });
 
     modal.appendChild(body);
 
-    let backBtnText = "НАЗАД", confirmBtnText = "ПОДТВЕРДИТЬ";
-    if (typeof translations !== "undefined" && typeof currentLang !== "undefined" && translations[currentLang]) {
-        backBtnText = translations[currentLang]["smart_mapper_back"] || translations[currentLang]["cancel"] || backBtnText;
-        confirmBtnText = translations[currentLang]["smart_mapper_btn"] || confirmBtnText;
-    }
+    const backBtnText = t.smart_mapper_back || t.inc_back || "НАЗАД";
+    const confirmBtnText = t.smart_mapper_btn || "ПОДТВЕРДИТЬ ВЫБОР";
 
     const footer = document.createElement("div");
     footer.className = "smart-modal-footer";
     footer.innerHTML = `
         <div style="display: flex; gap: 10px; width: 100%;">
-            <button class="cancel-btn" id="smartBackBtn" style="flex: 1; font-weight: bold; padding: 12px; border-radius: 8px;">${backBtnText}</button>
-            <button class="confirm-btn btn-primary green" id="smartConfirmBtn" style="flex: 2; font-weight: bold; padding: 12px; border-radius: 8px;">${confirmBtnText}</button>
+            <button class="cancel-btn" id="smartBackBtn" data-i18n="smart_mapper_back" style="flex: 1; font-weight: bold; padding: 12px; border-radius: 8px;">${backBtnText}</button>
+            <button class="confirm-btn btn-primary green" id="smartConfirmBtn" data-i18n="smart_mapper_btn" style="flex: 2; font-weight: bold; padding: 12px; border-radius: 8px;">${confirmBtnText}</button>
         </div>
     `;
     body.appendChild(footer);
     container.appendChild(modal);
+
+    if (typeof window.applyLanguage === "function") {
+        window.applyLanguage(lang);
+    }
 
     document.getElementById("smartBackBtn").addEventListener("click", () => {
         if (typeof window.navigateIncomeStep === "function") window.navigateIncomeStep(1);

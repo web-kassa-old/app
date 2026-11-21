@@ -195,7 +195,9 @@ const originalApplyLanguage =
 if (originalApplyLanguage) {
   window.applyLanguage = function (lang) {
     window.isAutoTranslating = true; // Усыпляем шпиона
-    window.appCurrentLang = lang; // Запоминаем, какой язык вы выбрали
+    if (lang && lang !== "undefined") {
+      window.appCurrentLang = lang; // Запоминаем, какой язык вы выбрали
+    }
 
     originalApplyLanguage(lang); // Запускаем ваш родной перевод
 
@@ -7442,7 +7444,19 @@ window.generateExportFile = async function (target = "local") {
         if (sourceDbField === "barcode") {
             value = String(item.barcode || "").trim(); 
         } else if (sourceDbField === "name") {
-          value = String(item.name || item.item_name || "");
+          let nameAttrs = {};
+          try {
+            nameAttrs = typeof item.attributes === "string" ? JSON.parse(item.attributes || "{}") : item.attributes || {};
+          } catch (e) {}
+          const nameLiveAttrs = item._attributesObj || {};
+          const explicitAttrVal =
+            (nameAttrs[humanKey] !== undefined && nameAttrs[humanKey] !== null && String(nameAttrs[humanKey]).trim() !== "" && nameAttrs[humanKey]) ||
+            (nameAttrs[kaspiKey] !== undefined && nameAttrs[kaspiKey] !== null && String(nameAttrs[kaspiKey]).trim() !== "" && nameAttrs[kaspiKey]) ||
+            (nameLiveAttrs[humanKey] !== undefined && nameLiveAttrs[humanKey] !== null && String(nameLiveAttrs[humanKey]).trim() !== "" && nameLiveAttrs[humanKey]) ||
+            (nameLiveAttrs[kaspiKey] !== undefined && nameLiveAttrs[kaspiKey] !== null && String(nameLiveAttrs[kaspiKey]).trim() !== "" && nameLiveAttrs[kaspiKey]) ||
+            (!isExplicitlyCleared && dictVal ? dictVal : "");
+
+          value = explicitAttrVal ? String(explicitAttrVal) : String(item.name || item.item_name || "");
         } else if (sourceDbField === "price") {
           value = Number(item.price || item.cost || item.retail_price) || 0;
         } else if (sourceDbField === "qty") {

@@ -1925,3 +1925,100 @@ button,
     color: var(--accent-yellow);
     font-weight: bold;
 }
+
+/* Семантическая подсказка имени колонки (в Сите и выборе сложных колонок) */
+.col-header-hint {
+    color: var(--accent-blue);
+    font-size: 0.85em;
+    font-weight: normal;
+}
+
+.smart-col-example {
+    margin-top: 8px;
+    font-size: 14px;
+    color: var(--accent-yellow);
+}
+
+.smart-col-example-val {
+    color: var(--text-main);
+    font-family: monospace;
+    font-size: 16px;
+}
+
+/* Модальное окно ввода постоянного значения в Маппере-2 */
+.kaspi-manual-card {
+    background: var(--bg-modal);
+    color: var(--text-main);
+    width: 100%;
+    max-width: 420px;
+    border-radius: 12px;
+    border: 1px solid var(--border-light);
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    overflow: hidden;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+}
+
+.kaspi-manual-body {
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    box-sizing: border-box;
+}
+
+.kaspi-manual-head {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    text-align: center;
+}
+
+.kaspi-manual-subtitle {
+    font-size: 11px;
+    font-weight: bold;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.kaspi-manual-body .kaspi-dict-search,
+.kaspi-manual-body .dict-scope-hint,
+.kaspi-manual-body .kaspi-dict-clear-btn {
+    margin-bottom: 0;
+}
+
+.kaspi-manual-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 4px;
+}
+
+.kaspi-manual-btn {
+    flex: 1;
+    padding: 12px 14px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: bold;
+    text-transform: uppercase;
+    cursor: pointer;
+    box-sizing: border-box;
+    transition: opacity 0.2s ease, background-color 0.2s ease;
+}
+
+.kaspi-manual-btn:active {
+    opacity: 0.85;
+}
+
+.kaspi-manual-btn--cancel {
+    background: var(--bg-panel);
+    color: var(--text-main);
+    border: 1px solid var(--border-light);
+}
+
+.kaspi-manual-btn--ok {
+    background: var(--accent-green);
+    color: var(--text-dark);
+    border: 1px solid var(--accent-green);
+}
