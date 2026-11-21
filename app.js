@@ -7031,8 +7031,36 @@ window.generateExportFile = async function (target = "local") {
   if (typeof window.showLoading === "function") window.showLoading(null, "kaspi_saving");
 
   try {
-    const items = window.parsedInvoiceData || window.kaspiExportItems;
-    if (!items || items.length === 0) throw new Error("Нет товаров для выгрузки.");
+    const rawItems = window.parsedInvoiceData || window.kaspiExportItems;
+    if (!rawItems || rawItems.length === 0) throw new Error("Нет товаров для выгрузки.");
+
+    // Проставляем исходные rowIndexes из window.kaspiExportItems / window.kaspiExportRowIndexes, если не были перенесены
+    const items = rawItems.map((rawItem, idx) => {
+      const cloned = Object.assign({}, rawItem);
+      const hasOwnRows = Array.isArray(cloned.sourceRowIndexes) && cloned.sourceRowIndexes.length > 0;
+      if (!hasOwnRows) {
+        const refItem = window.kaspiExportItems && window.kaspiExportItems[idx];
+        if (refItem && Array.isArray(refItem.sourceRowIndexes) && refItem.sourceRowIndexes.length > 0) {
+          cloned.sourceRowIndexes = refItem.sourceRowIndexes.slice();
+        } else if (Array.isArray(window.kaspiExportRowIndexes) && window.kaspiExportRowIndexes[idx] !== undefined && rawItems.length === window.kaspiExportRowIndexes.length) {
+          cloned.sourceRowIndexes = [window.kaspiExportRowIndexes[idx]];
+        } else {
+          cloned.sourceRowIndexes = [];
+        }
+      } else {
+        cloned.sourceRowIndexes = cloned.sourceRowIndexes.slice();
+      }
+      return cloned;
+    });
+
+    const formatTr = (key, params = {}) => {
+      let text = typeof t === "function" ? t(key) : key;
+      if (!text) text = key;
+      Object.keys(params).forEach((pKey) => {
+        text = String(text).replace(new RegExp(`\\{${pKey}\\}`, "g"), String(params[pKey]));
+      });
+      return text;
+    };
 
     // ⚡ НОВОЕ: Скачиваем свежие штрихкоды из базы ПЕРЕД сборкой шаблона (полный каскад: hash -> item_id -> cleanName)
     try {
@@ -7111,6 +7139,114 @@ window.generateExportFile = async function (target = "local") {
     } catch (e) {
       console.error("Не удалось обновить штрихкоды из базы:", e);
     }
+
+    // === СТРОГАЯ ПРОВЕРКА BARCODE И ФИНАЛЬНАЯ ДЕДУПЛИКАЦИЯ ПО ИТОГОВОМУ MERCHANT_SKU ===
+    const missingBarcodeItems = [];
+    const validBarcodeItems = [];
+
+    items.forEach((item, idx) => {
+      const strictBarcode = String(item.barcode || "").trim();
+      const upperBc = strictBarcode.toUpperCase();
+      const hasValidBarcode = strictBarcode !== "" && upperBc !== "AUTO" && upperBc !== "UNKNOWN";
+
+      if (!hasValidBarcode) {
+        missingBarcodeItems.push({
+          row: idx + 1,
+          item_id: item.item_id || item.id || "",
+          name: item.name || item.item_name || "Без названия",
+        });
+        return; // Полностью пропускаем строку без barcode (не пишем в Excel и не помечаем exported)
+      }
+
+      item.barcode = strictBarcode;
+      validBarcodeItems.push(item);
+    });
+
+    if (missingBarcodeItems.length > 0) {
+      console.warn(
+        `⚠️ Внимание: ${missingBarcodeItems.length} поз. пропущены — отсутствует штрихкод (barcode) в БД:`,
+        missingBarcodeItems,
+      );
+    }
+
+    const formatMissingPreview = (list) => {
+      const previewList = list
+        .slice(0, 5)
+        .map((m) => `• #${m.row}: ${m.name}${m.item_id ? ` (${m.item_id})` : ""}`)
+        .join("\n");
+      const moreNote =
+        list.length > 5
+          ? formatTr("kaspi_exp_more_items", { count: list.length - 5 })
+          : "";
+      return { previewList, moreNote };
+    };
+
+    // Если нет ни одной валидной строки с barcode — блокируем скачивание файла
+    if (validBarcodeItems.length === 0) {
+      const { previewList, moreNote } = formatMissingPreview(missingBarcodeItems);
+      alert(
+        formatTr("kaspi_exp_no_valid_barcodes", {
+          count: missingBarcodeItems.length,
+          list: previewList,
+          more: moreNote,
+        }),
+      );
+      return;
+    }
+
+    let exportItems = validBarcodeItems;
+    let mergedDuplicatesCount = 0;
+
+    if (typeof window.deduplicateKaspiExportItems === "function") {
+      const dedupFinal = window.deduplicateKaspiExportItems(validBarcodeItems);
+      exportItems = dedupFinal.items;
+      mergedDuplicatesCount = dedupFinal.mergedCount || 0;
+    } else {
+      // Резервная дедупликация по строгому barcode
+      const seenByBc = new Map();
+      exportItems = [];
+      validBarcodeItems.forEach((it) => {
+        const bc = String(it.barcode || "").trim();
+        if (!seenByBc.has(bc)) {
+          seenByBc.set(bc, it);
+          exportItems.push(it);
+        } else {
+          mergedDuplicatesCount++;
+          const prev = seenByBc.get(bc);
+          const mergedRows = new Set(
+            (Array.isArray(prev.sourceRowIndexes) ? prev.sourceRowIndexes : []).concat(
+              Array.isArray(it.sourceRowIndexes) ? it.sourceRowIndexes : [],
+            ),
+          );
+          prev.sourceRowIndexes = Array.from(mergedRows);
+        }
+      });
+    }
+
+    const exportedBarcodes = exportItems
+      .map((it) => String(it.barcode || "").trim())
+      .filter(Boolean);
+
+    const exportedRowIndexesSet = new Set();
+    exportItems.forEach((it) => {
+      if (Array.isArray(it.sourceRowIndexes)) {
+        it.sourceRowIndexes.forEach((r) => {
+          const n = parseInt(r, 10);
+          if (!isNaN(n) && n >= 3) exportedRowIndexesSet.add(n);
+        });
+      }
+    });
+    if (
+      exportedRowIndexesSet.size === 0 &&
+      missingBarcodeItems.length === 0 &&
+      Array.isArray(window.kaspiExportRowIndexes)
+    ) {
+      window.kaspiExportRowIndexes.forEach((r) => {
+        const n = parseInt(r, 10);
+        if (!isNaN(n) && n >= 3) exportedRowIndexesSet.add(n);
+      });
+    }
+    const exportedRowIndexes = Array.from(exportedRowIndexesSet).sort((a, b) => a - b);
 
     // ⚡ УЛЬТИМАТИВНОЕ ИСПРАВЛЕНИЕ: Если буфера нет, экстренно скачиваем его у сервера прямо перед сборкой!
     if (!window.rawKaspiTemplateBuffer) {
@@ -7237,9 +7373,8 @@ window.generateExportFile = async function (target = "local") {
     }
 
     let insertedCount = 0;
-    const missingBarcodeItems = [];
 
-    items.forEach((item, itemIdx) => {
+    exportItems.forEach((item, itemIdx) => {
       const targetRow = worksheet.getRow(startRow + itemIdx);
       let rowHasData = false;
 
@@ -7256,12 +7391,6 @@ window.generateExportFile = async function (target = "local") {
           if (strictBarcode) {
             targetRow.getCell(colNumber).value = strictBarcode;
             rowHasData = true;
-          } else {
-            missingBarcodeItems.push({
-              row: itemIdx + 1,
-              item_id: item.item_id || item.id || "",
-              name: item.name || item.item_name || "Без названия",
-            });
           }
           return;
         }
@@ -7358,15 +7487,37 @@ window.generateExportFile = async function (target = "local") {
     const fileName = `Kaspi_Export_${dateStr}.xlsx`;
 
     // ТИХОЕ АВТОСОХРАНЕНИЕ В БАЗУ ДАННЫХ
-    if (window.isKaspiExportMode && window.parsedInvoiceData) {
+    if (window.isKaspiExportMode && exportItems.length > 0) {
       const url = typeof APPS_SCRIPT_URL !== "undefined" ? APPS_SCRIPT_URL : window.APPS_SCRIPT_URL;
-      const excludeKeys = ["name", "price", "cost", "qty", "quantity", "barcode", "merchant_sku", "description", "desc", "item_name", "item_id", "id", "attributes", "kaspi_attributes", "params", "_attributesobj", "_hascollisions", "_collisionslist"];
+      const excludeKeys = [
+        "name",
+        "price",
+        "cost",
+        "qty",
+        "quantity",
+        "barcode",
+        "merchant_sku",
+        "description",
+        "desc",
+        "item_name",
+        "item_id",
+        "id",
+        "sku",
+        "hash",
+        "doc_no",
+        "export_metadata",
+        "sourcerowindexes",
+        "_sourcerowindexes",
+        "attributes",
+        "kaspi_attributes",
+        "params",
+        "_attributesobj",
+        "_hascollisions",
+        "_collisionslist",
+      ];
 
-      const itemsToUpdate = window.parsedInvoiceData.map((item, idx) => {
-        let realId = item.item_id || item.id;
-        if (window.kaspiExportItems && window.kaspiExportItems[idx]) {
-            realId = window.kaspiExportItems[idx].item_id || window.kaspiExportItems[idx].id || realId;
-        }
+      const itemsToUpdate = exportItems.map((item) => {
+        const realId = item.item_id || item.id || "";
 
         let baseAttrs = {};
         try { baseAttrs = typeof item.attributes === "string" ? JSON.parse(item.attributes || "{}") : (item.attributes || {}); } catch(e){}
@@ -7392,13 +7543,6 @@ window.generateExportFile = async function (target = "local") {
       }).catch((e) => console.error("Ошибка сети при сохранении параметров:", e));
     }
 
-    if (missingBarcodeItems.length > 0) {
-      console.warn(
-        `⚠️ Внимание: ${missingBarcodeItems.length} поз. остались без штрихкода (merchant_sku пустой):`,
-        missingBarcodeItems,
-      );
-    }
-
     if (target === "local") {
       const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
       const link = document.createElement("a");
@@ -7408,11 +7552,24 @@ window.generateExportFile = async function (target = "local") {
       link.click();
       document.body.removeChild(link);
 
-      if (window.kaspiExportRowIndexes && window.kaspiExportRowIndexes.length > 0) {
+      const exportTemplateHash = String(
+        window.currentExportHash ||
+          (window.currentTemplateData && window.currentTemplateData.templateHash) ||
+          (window.kaspiExportConfig && window.kaspiExportConfig.templateHash) ||
+          "",
+      ).trim();
+
+      if (exportedRowIndexes.length > 0 || (exportTemplateHash && exportedBarcodes.length > 0)) {
         const url = typeof APPS_SCRIPT_URL !== "undefined" ? APPS_SCRIPT_URL : window.APPS_SCRIPT_URL;
         fetch(url, {
           method: "POST",
-          body: JSON.stringify({ action: "markKaspiExportedBackend", api_key: typeof CLIENT_API_KEY !== "undefined" ? CLIENT_API_KEY : window.CLIENT_API_KEY, rowIndexes: window.kaspiExportRowIndexes }),
+          body: JSON.stringify({
+            action: "markKaspiExportedBackend",
+            api_key: typeof CLIENT_API_KEY !== "undefined" ? CLIENT_API_KEY : window.CLIENT_API_KEY,
+            rowIndexes: exportedRowIndexes,
+            templateHash: exportTemplateHash,
+            exportedBarcodes: exportedBarcodes,
+          }),
         }).catch((e) => console.error("Ошибка при обновлении статусов", e));
       }
       
@@ -7439,21 +7596,28 @@ window.generateExportFile = async function (target = "local") {
         
         if (typeof window.navigateIncomeStep === "function") window.navigateIncomeStep(1, true);
         if (typeof load === "function") load();
-        
+
+        const dupsNote =
+          mergedDuplicatesCount > 0
+            ? formatTr("kaspi_exp_merged_dups_note", { count: mergedDuplicatesCount })
+            : "";
+
         if (missingBarcodeItems.length > 0) {
-          const previewList = missingBarcodeItems
-            .slice(0, 5)
-            .map((m) => `• #${m.row}: ${m.name}${m.item_id ? ` (${m.item_id})` : ""}`)
-            .join("\n");
-          const moreNote =
-            missingBarcodeItems.length > 5
-              ? `\n...и ещё ${missingBarcodeItems.length - 5} поз. (подробности в консоли)`
-              : "";
+          const { previewList, moreNote } = formatMissingPreview(missingBarcodeItems);
           alert(
-            `Файл Kaspi сформирован и скачан.\n\n⚠️ ВНИМАНИЕ: у ${missingBarcodeItems.length} поз. не найден штрихкод в БД — поле «Артикул» (merchant_sku) оставлено пустым:\n${previewList}${moreNote}`,
+            formatTr("kaspi_exp_skipped_no_barcode", {
+              exported: exportItems.length,
+              count: missingBarcodeItems.length,
+              list: previewList,
+              more: moreNote,
+            }) + dupsNote,
           );
         } else {
-          alert("Файл Kaspi успешно сформирован и скачан!");
+          alert(
+            formatTr("kaspi_exp_success", {
+              exported: exportItems.length,
+            }) + dupsNote,
+          );
         }
       }, 500);
     }

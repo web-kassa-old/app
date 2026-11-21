@@ -3467,6 +3467,12 @@ window.applyMapper2Logic = function () {
       origItem.docId ||
       state.docNo;
     let realItemId = origItem.item_id || origItem.sku || rawId;
+    let preservedRowIndexes =
+      isExportBranch && Array.isArray(origItem.sourceRowIndexes)
+        ? origItem.sourceRowIndexes.slice()
+        : isExportBranch && Array.isArray(origItem._sourceRowIndexes)
+          ? origItem._sourceRowIndexes.slice()
+          : [];
 
     const itemData = {
       doc_no: realDocNo,
@@ -3492,6 +3498,7 @@ window.applyMapper2Logic = function () {
       sku: realItemId,
       title: name,
       attributes: finalAttributes,
+      sourceRowIndexes: preservedRowIndexes,
       _hasCollisions: itemHasCollisions,
       _collisionsList: itemCollisionsList,
       _attributesObj: attributesObj,
@@ -5050,6 +5057,203 @@ window.closeExportModal = function () {
   if (mapperArea) mapperArea.style.display = "none";
 };
 
+// Вспомогательная строгая дедупликация очереди выгрузки Kaspi по непустому barcode
+// Отдает предпочтение наиболее полной и свежей записи по атрибутам, объединяя sourceRowIndexes всех дублей.
+window.deduplicateKaspiExportItems = function (items, fallbackRowIndexes = []) {
+  const safeItems = Array.isArray(items) ? items : [];
+  const safeFallbackRows = Array.isArray(fallbackRowIndexes)
+    ? fallbackRowIndexes
+    : [];
+
+  const parseAttrs = (item) => {
+    let base = {};
+    try {
+      const raw =
+        item.attributes || item.kaspi_attributes || item.params || "{}";
+      const parsed = typeof raw === "string" ? JSON.parse(raw || "{}") : raw;
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        base = Object.assign({}, parsed);
+      }
+    } catch (e) {}
+    if (
+      item._attributesObj &&
+      typeof item._attributesObj === "object" &&
+      !Array.isArray(item._attributesObj)
+    ) {
+      Object.keys(item._attributesObj).forEach((k) => {
+        const v = item._attributesObj[k];
+        if (v !== null && v !== undefined && String(v).trim() !== "") {
+          base[k] = v;
+        }
+      });
+    }
+    return base;
+  };
+
+  const countNonEmpty = (obj) => {
+    let cnt = 0;
+    Object.keys(obj || {}).forEach((k) => {
+      const v = obj[k];
+      if (v !== null && v !== undefined && String(v).trim() !== "") cnt++;
+    });
+    return cnt;
+  };
+
+  const mergeAttrs = (baseObj, priorityObj) => {
+    const out = {};
+    Object.keys(baseObj || {}).forEach((k) => {
+      const v = baseObj[k];
+      if (v !== null && v !== undefined && String(v).trim() !== "") out[k] = v;
+    });
+    Object.keys(priorityObj || {}).forEach((k) => {
+      const v = priorityObj[k];
+      if (v !== null && v !== undefined && String(v).trim() !== "") out[k] = v;
+    });
+    return out;
+  };
+
+  const extractRowIndexes = (item, idx) => {
+    const set = new Set();
+    const sources = []
+      .concat(
+        Array.isArray(item.sourceRowIndexes) ? item.sourceRowIndexes : [],
+        Array.isArray(item._sourceRowIndexes) ? item._sourceRowIndexes : [],
+      );
+    if (sources.length === 0 && safeFallbackRows[idx] !== undefined) {
+      sources.push(safeFallbackRows[idx]);
+    }
+    sources.forEach((r) => {
+      const n = parseInt(r, 10);
+      if (!isNaN(n) && n >= 3) set.add(n);
+    });
+    return Array.from(set);
+  };
+
+  const result = [];
+  const byBarcode = {};
+  const allRowsSet = new Set();
+  let mergedCount = 0;
+
+  safeItems.forEach((rawItem, idx) => {
+    if (!rawItem || typeof rawItem !== "object") return;
+
+    const item = Object.assign({}, rawItem);
+    const bc = String(item.barcode || item.ean || "").trim();
+    const upperBc = bc.toUpperCase();
+    const cleanBc =
+      bc && upperBc !== "AUTO" && upperBc !== "UNKNOWN" ? bc : "";
+    item.barcode = cleanBc;
+
+    const rowIdxList = extractRowIndexes(item, idx);
+    item.sourceRowIndexes = rowIdxList.slice();
+    rowIdxList.forEach((r) => allRowsSet.add(r));
+
+    const attrs = parseAttrs(item);
+    const attrCount = countNonEmpty(attrs);
+
+    // Строки с пустым barcode не склеиваем между собой
+    if (!cleanBc) {
+      result.push(item);
+      return;
+    }
+
+    if (!byBarcode[cleanBc]) {
+      byBarcode[cleanBc] = {
+        item: item,
+        attrs: attrs,
+        attrCount: attrCount,
+      };
+      result.push(item);
+      return;
+    }
+
+    mergedCount++;
+    const existingRef = byBarcode[cleanBc];
+    const existingItem = existingRef.item;
+
+    // Объединяем все исходные номера строк Incomes (включая дубли)
+    const combinedRows = new Set(existingItem.sourceRowIndexes || []);
+    rowIdxList.forEach((r) => combinedRows.add(r));
+    existingItem.sourceRowIndexes = Array.from(combinedRows).sort(
+      (a, b) => a - b,
+    );
+
+    // Более поздняя запись свежее; при >= числе непустых атрибутов она имеет приоритет
+    const incomingWins = attrCount >= existingRef.attrCount;
+    const mergedAttrObj = incomingWins
+      ? mergeAttrs(existingRef.attrs, attrs)
+      : mergeAttrs(attrs, existingRef.attrs);
+
+    existingRef.attrs = mergedAttrObj;
+    existingRef.attrCount = countNonEmpty(mergedAttrObj);
+    existingItem.attributes = JSON.stringify(mergedAttrObj);
+    if (existingItem._attributesObj || item._attributesObj) {
+      existingItem._attributesObj = Object.assign({}, mergedAttrObj);
+    }
+
+    // Синхронизируем распакованные плоские поля-атрибуты на объекте, если они есть
+    Object.keys(mergedAttrObj).forEach((k) => {
+      if (
+        incomingWins ||
+        existingItem[k] === undefined ||
+        existingItem[k] === "" ||
+        existingItem[k] === null
+      ) {
+        if (
+          ![
+            "barcode",
+            "sourceRowIndexes",
+            "_sourceRowIndexes",
+            "attributes",
+            "_attributesObj",
+          ].includes(k)
+        ) {
+          existingItem[k] = mergedAttrObj[k];
+        }
+      }
+    });
+
+    const incPrice = Number(item.price || item.cost || 0);
+    const curPrice = Number(existingItem.price || existingItem.cost || 0);
+
+    if (incomingWins) {
+      if (item.doc_no) existingItem.doc_no = item.doc_no;
+      if (item.item_id) existingItem.item_id = item.item_id;
+      if (item.id) existingItem.id = item.id;
+      if (item.hash) existingItem.hash = item.hash;
+      if (item.name) existingItem.name = item.name;
+      if (item.item_name) existingItem.item_name = item.item_name;
+      if (incPrice > 0) {
+        if (item.price !== undefined) existingItem.price = item.price;
+        if (item.cost !== undefined) existingItem.cost = item.cost;
+      }
+      if (item.export_metadata) {
+        existingItem.export_metadata = item.export_metadata;
+      }
+    } else {
+      if (!existingItem.doc_no && item.doc_no) existingItem.doc_no = item.doc_no;
+      if (!existingItem.hash && item.hash) existingItem.hash = item.hash;
+      if (!existingItem.name && item.name) existingItem.name = item.name;
+      if (!existingItem.item_name && item.item_name) {
+        existingItem.item_name = item.item_name;
+      }
+      if (!(curPrice > 0) && incPrice > 0) {
+        if (item.price !== undefined) existingItem.price = item.price;
+        if (item.cost !== undefined) existingItem.cost = item.cost;
+      }
+      if (!existingItem.export_metadata && item.export_metadata) {
+        existingItem.export_metadata = item.export_metadata;
+      }
+    }
+  });
+
+  return {
+    items: result,
+    mergedCount: mergedCount,
+    allRowIndexes: Array.from(allRowsSet).sort((a, b) => a - b),
+  };
+};
+
 // 2. Обработка выбора категории из списка
 // Новая функция принимает хэш и саму кнопку (чтобы подсветить нужную плашку)
 // ДОБАВЛЕН ТРЕТИЙ ПАРАМЕТР: isExported = false
@@ -5136,11 +5340,20 @@ window.handleCardSelectForExport = async function (
         throw new Error("Не удалось расшифровать бланк. Файл поврежден.");
       }
 
-      // 2. === НАШ ЦИКЛ ЭКСПОРТА ===
-      window.kaspiExportItems = res.items;
+      // 2. === НАШ ЦИКЛ ЭКСПОРТА (С ЗАЩИТНОЙ ДЕДУПЛИКАЦИЕЙ ПО BARCODE) ===
+      const dedupedExport = window.deduplicateKaspiExportItems(
+        res.items,
+        res.rowIndexes,
+      );
+      window.kaspiExportItems = dedupedExport.items;
       window.kaspiExportConfig = res.templateConfig;
       window.currentTemplateData = res.templateConfig;
-      window.kaspiExportRowIndexes = res.rowIndexes;
+      window.kaspiExportRowIndexes =
+        dedupedExport.allRowIndexes.length > 0
+          ? dedupedExport.allRowIndexes
+          : Array.isArray(res.rowIndexes)
+            ? res.rowIndexes
+            : [];
       window.kaspiTargetSheetName = res.templateConfig.targetSheetName || null;
 
       // Включаем флаг экспорта (отключит оприходование)
@@ -5163,7 +5376,7 @@ window.handleCardSelectForExport = async function (
       }
 
       // === ВИРТУАЛЬНАЯ РАСПАКОВКА ===
-      window.parsedInvoiceData = res.items.map((dbItem) => {
+      window.parsedInvoiceData = window.kaspiExportItems.map((dbItem) => {
         let attrs = {};
         try {
           let rawAttr =
@@ -5189,7 +5402,10 @@ window.handleCardSelectForExport = async function (
             Number(dbItem.price_in) ||
             Number(dbItem.buy_price) ||
             0,
-          barcode: dbItem.barcode || dbItem.ean || "",
+          barcode: String(dbItem.barcode || dbItem.ean || "").trim(),
+          sourceRowIndexes: Array.isArray(dbItem.sourceRowIndexes)
+            ? dbItem.sourceRowIndexes.slice()
+            : [],
         });
 
         for (const [key, value] of Object.entries(attrs)) {
@@ -5202,14 +5418,16 @@ window.handleCardSelectForExport = async function (
         return flatItem;
       });
 
-      // Удаляем системную колонку attributes для Маппера
+      // Удаляем системную колонку attributes и служебные поля для Маппера
       const allHeaders = new Set();
       window.parsedInvoiceData.forEach((item) => {
         Object.keys(item).forEach((k) => {
           if (
             k !== "attributes" &&
             k !== "kaspi_attributes" &&
-            k !== "params"
+            k !== "params" &&
+            k !== "sourceRowIndexes" &&
+            k !== "_sourceRowIndexes"
           ) {
             allHeaders.add(k);
           }
@@ -5219,9 +5437,12 @@ window.handleCardSelectForExport = async function (
 
       // ПАРСИМ СОХРАНЕННЫЕ МЕТАДАННЫЕ ИЗ БАЗЫ (ТВОЯ ПАМЯТЬ КНОПОК)
       let savedMeta = {};
-      if (res.items && res.items.length > 0 && res.items[0].export_metadata) {
+      const itemWithMeta = window.kaspiExportItems.find(
+        (it) => it && it.export_metadata,
+      );
+      if (itemWithMeta && itemWithMeta.export_metadata) {
         try {
-          savedMeta = JSON.parse(res.items[0].export_metadata);
+          savedMeta = JSON.parse(itemWithMeta.export_metadata);
         } catch (e) {
           console.error("Ошибка парсинга export_metadata", e);
         }

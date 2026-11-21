@@ -546,6 +546,15 @@ const translations = {
     inc_logistics_auto: "Сборная / Авто",
     inc_logistics_hint_auto: "Автоподсказка по шаблону",
     inc_logistics_hint_saved: "Сохранено для шаблона",
+    kaspi_exp_no_valid_barcodes:
+      "Выгрузка отменена: ни у одной позиции не найден штрихкод (barcode) в базе данных. Поле «Артикул» (merchant_sku) не может быть заполнено заводским кодом.\n\nПроблемные позиции ({count}):\n{list}{more}",
+    kaspi_exp_skipped_no_barcode:
+      "Файл Kaspi сформирован и скачан (выгружено уникальных товаров: {exported}).\n\n⚠️ ПРОПУЩЕНО {count} поз. без штрихкода (barcode) в БД — они не включены в файл и остались в списке ожидания:\n{list}{more}",
+    kaspi_exp_more_items: "\n...и ещё {count} поз. (подробности в консоли)",
+    kaspi_exp_merged_dups_note:
+      "\n\nℹ️ Объединено дублирующихся строк по штрихкоду: {count}.",
+    kaspi_exp_success:
+      "Файл Kaspi успешно сформирован и скачан! (уникальных товаров: {exported})",
   },
   kz: {
     btn_sale: "САТУ",
@@ -1094,5 +1103,14 @@ const translations = {
     inc_logistics_auto: "Құрама / Авто",
     inc_logistics_hint_auto: "Шаблон бойынша автоұсыныс",
     inc_logistics_hint_saved: "Шаблон үшін сақталған",
+    kaspi_exp_no_valid_barcodes:
+      "Жүктеп шығару тоқтатылды: бірде-бір тауарда дерекқорда штрихкод (barcode) табылмады. «Артикул» (merchant_sku) өрісін зауыттық кодпен толтыруға болмайды.\n\nМәселелі позициялар ({count}):\n{list}{more}",
+    kaspi_exp_skipped_no_barcode:
+      "Kaspi файлы жасалды және жүктелді (бірегей тауарлар жүктелді: {exported}).\n\n⚠️ Дерекқорда штрихкоды (barcode) жоқ {count} поз. ӨТКІЗІЛІП ЖІБЕРІЛДІ — олар файлға енгізілмеді және күту тізімінде қалды:\n{list}{more}",
+    kaspi_exp_more_items: "\n...және тағы {count} поз. (толығырақ консольде)",
+    kaspi_exp_merged_dups_note:
+      "\n\nℹ️ Штрихкод бойынша қайталанған жолдар біріктірілді: {count}.",
+    kaspi_exp_success:
+      "Kaspi файлы сәтті жасалды және жүктелді! (бірегей тауарлар: {exported})",
   },
 };
