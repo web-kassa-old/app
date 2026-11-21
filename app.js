@@ -7423,14 +7423,23 @@ window.generateExportFile = async function (target = "local") {
 
         let value = "";
 
-        let dictVal = window.mapper2State && window.mapper2State.dictValues && (window.mapper2State.dictValues[kaspiKey] || window.mapper2State.dictValues[humanKey]);
-        let splitVal = "";
+        const rawDictVal =
+          window.mapper2State &&
+          window.mapper2State.dictValues &&
+          (typeof window.mapper2State.dictValues[kaspiKey] === "string"
+            ? window.mapper2State.dictValues[kaspiKey]
+            : typeof window.mapper2State.dictValues[humanKey] === "string"
+              ? window.mapper2State.dictValues[humanKey]
+              : "");
+        const dictVal = String(rawDictVal || "").trim();
 
-        if (dictVal) {
-            value = dictVal;
-        } else if (splitVal) {
-            value = splitVal;
-        } else if (sourceDbField === "barcode") {
+        const clearedSet = new Set(
+          Array.isArray(item._clearedAttrs) ? item._clearedAttrs : [],
+        );
+        const isExplicitlyCleared =
+          clearedSet.has(humanKey) || clearedSet.has(kaspiKey);
+
+        if (sourceDbField === "barcode") {
             value = String(item.barcode || "").trim(); 
         } else if (sourceDbField === "name") {
           value = String(item.name || item.item_name || "");
@@ -7447,22 +7456,29 @@ window.generateExportFile = async function (target = "local") {
             } catch (e) {}
             let liveAttrs = item._attributesObj || {};
 
-            if (sourceDbField) {
-                if (liveAttrs[sourceDbField] !== undefined && liveAttrs[sourceDbField] !== null) value = liveAttrs[sourceDbField];
-                else if (attrs[sourceDbField] !== undefined && attrs[sourceDbField] !== null) value = attrs[sourceDbField];
-                else if (item[sourceDbField] !== undefined && item[sourceDbField] !== null) value = item[sourceDbField];
+            // 1. Приоритет — индивидуальные значения товара (attributes / _attributesObj)
+            if (attrs[humanKey] !== undefined && attrs[humanKey] !== null && String(attrs[humanKey]).trim() !== "") {
+                value = attrs[humanKey];
+            } else if (attrs[kaspiKey] !== undefined && attrs[kaspiKey] !== null && String(attrs[kaspiKey]).trim() !== "") {
+                value = attrs[kaspiKey];
+            } else if (liveAttrs[humanKey] !== undefined && liveAttrs[humanKey] !== null && String(liveAttrs[humanKey]).trim() !== "") {
+                value = liveAttrs[humanKey];
+            } else if (liveAttrs[kaspiKey] !== undefined && liveAttrs[kaspiKey] !== null && String(liveAttrs[kaspiKey]).trim() !== "") {
+                value = liveAttrs[kaspiKey];
+            }
+
+            if ((value === "" || value === null || value === undefined) && sourceDbField) {
+                if (attrs[sourceDbField] !== undefined && attrs[sourceDbField] !== null && String(attrs[sourceDbField]).trim() !== "") value = attrs[sourceDbField];
+                else if (liveAttrs[sourceDbField] !== undefined && liveAttrs[sourceDbField] !== null && String(liveAttrs[sourceDbField]).trim() !== "") value = liveAttrs[sourceDbField];
+                else if (item[sourceDbField] !== undefined && item[sourceDbField] !== null && String(item[sourceDbField]).trim() !== "") value = item[sourceDbField];
             }
 
             if (value === "" || value === null || value === undefined) {
-                if (liveAttrs[kaspiKey] !== undefined && liveAttrs[kaspiKey] !== null) value = liveAttrs[kaspiKey];
-                else if (liveAttrs[humanKey] !== undefined && liveAttrs[humanKey] !== null) value = liveAttrs[humanKey];
-                else if (attrs[kaspiKey] !== undefined && attrs[kaspiKey] !== null) value = attrs[kaspiKey];
-                else if (attrs[humanKey] !== undefined && attrs[humanKey] !== null) value = attrs[humanKey];
-                
-                else if (kaspiKey !== "description" && kaspiKey !== "desc" && item[kaspiKey] !== undefined && item[kaspiKey] !== null && item[kaspiKey] !== "") {
+                if (!isExplicitlyCleared && dictVal) {
+                    value = dictVal;
+                } else if (kaspiKey !== "description" && kaspiKey !== "desc" && item[kaspiKey] !== undefined && item[kaspiKey] !== null && item[kaspiKey] !== "") {
                     value = item[kaspiKey];
-                }
-                else if (humanKey !== "Описание" && humanKey !== "Описание (мин. 100 символов, макс. 7 000 символов)" && item[humanKey] !== undefined && item[humanKey] !== null && item[humanKey] !== "") {
+                } else if (humanKey !== "Описание" && humanKey !== "Описание (мин. 100 символов, макс. 7 000 символов)" && item[humanKey] !== undefined && item[humanKey] !== null && item[humanKey] !== "") {
                     value = item[humanKey];
                 }
             }
@@ -7512,6 +7528,7 @@ window.generateExportFile = async function (target = "local") {
         "kaspi_attributes",
         "params",
         "_attributesobj",
+        "_clearedattrs",
         "_hascollisions",
         "_collisionslist",
       ];
@@ -7522,10 +7539,14 @@ window.generateExportFile = async function (target = "local") {
         let baseAttrs = {};
         try { baseAttrs = typeof item.attributes === "string" ? JSON.parse(item.attributes || "{}") : (item.attributes || {}); } catch(e){}
         let liveAttrs = item._attributesObj || {};
-        let merged = Object.assign({}, baseAttrs, liveAttrs);
+        let merged = Object.assign({}, liveAttrs, baseAttrs);
+        const clearedList = Array.isArray(item._clearedAttrs) ? item._clearedAttrs : [];
+        clearedList.forEach((ck) => {
+          delete merged[ck];
+        });
 
         Object.keys(item).forEach(key => {
-            if (!excludeKeys.includes(key.toLowerCase()) && item[key] !== undefined && item[key] !== null && item[key] !== "") {
+            if (!excludeKeys.includes(key.toLowerCase()) && !clearedList.includes(key) && item[key] !== undefined && item[key] !== null && item[key] !== "" && merged[key] === undefined) {
                 merged[key] = item[key];
             }
         });

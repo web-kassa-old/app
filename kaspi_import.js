@@ -20,6 +20,10 @@ function toggleIncomeModule() {
   window.mapper2State = window.mapper2State || {};
   window.mapper2State.history = [];
   window.mapper2State.colMap = {}; // Очищаем маппинг колонок
+  window.mapper2State.clearedKeys = {};
+  window.mapper2State.smartRulesApplied = false;
+  window.mapper2State.memorySplitsLoaded = false;
+  window.mapper2State.appliedTemplateHash = null;
   window.mapper2State.logisticsBlock = "";
   window.mapper2State.logisticsBlockTouched = false;
 
@@ -851,6 +855,12 @@ window.processInvoiceFile = async function () {
     (typeof invoiceSynonyms !== "undefined" ? invoiceSynonyms : {});
   window.mapper2State = {
     dictValues: preservedDict,
+    colMap: {},
+    splitRules: {},
+    clearedKeys: {},
+    smartRulesApplied: false,
+    memorySplitsLoaded: false,
+    appliedTemplateHash: null,
   };
 
   // 🔥 ИСПРАВЛЕНИЕ: Загружаем словарь синонимов ДО того, как начнем искать шапку!
@@ -1452,6 +1462,11 @@ window.navigateIncomeStep = function (stepNumber, isBack = false) {
 
   // 4. Показываем запрошенный шаг
   if (stepNumber === 1 && step1) {
+    // Возврат на Шаг 1 сбрасывает флаги применения правил текущей сессии Маппера-2
+    window.mapper2State.clearedKeys = {};
+    window.mapper2State.smartRulesApplied = false;
+    window.mapper2State.memorySplitsLoaded = false;
+
     step1.style.display = "block";
 
     if (tabs) tabs.style.display = "flex";
@@ -1470,6 +1485,9 @@ window.navigateIncomeStep = function (stepNumber, isBack = false) {
       uploadWrapper.style.pointerEvents = "auto";
     }
   } else if (stepNumber === "smart") {
+    // При входе/возврате в «Сито» разрешаем повторно применить обновлённые smartRules при выходе на Шаг 2
+    window.mapper2State.smartRulesApplied = false;
+
     // Включаем Умное сито (Токенизатор)
     if (tabs) tabs.style.display = "none";
     if (currency) currency.style.display = "none";
@@ -1549,13 +1567,35 @@ window.renderMapper2Cards = function (templateData) {
   window.mapper2State.colMap = window.mapper2State.colMap || {};
   window.mapper2State.dictValues = window.mapper2State.dictValues || {};
   window.mapper2State.splitRules = window.mapper2State.splitRules || {};
+  window.mapper2State.clearedKeys = window.mapper2State.clearedKeys || {};
 
   // Разделяем: показ Kaspi-полей в маппере нужен и при приемке «База + Маркет», и при выгрузке из базы
   const useKaspiTemplate =
     window.isKaspiExportMode === true || window.currentImportMode === "kaspi";
 
-  // Применяем умные правила только если включен шаблон Kaspi
+  // При смене шаблона корректно сбрасываем сессионные флаги Маппера-2
+  const currentTplIdentity = useKaspiTemplate
+    ? String(
+        (templateData &&
+          (templateData.templateHash ||
+            templateData.kaspiCategory ||
+            templateData.templateName)) ||
+          "__kaspi__",
+      )
+    : "__base__";
   if (
+    window.mapper2State.appliedTemplateHash &&
+    window.mapper2State.appliedTemplateHash !== currentTplIdentity
+  ) {
+    window.mapper2State.clearedKeys = {};
+    window.mapper2State.smartRulesApplied = false;
+    window.mapper2State.memorySplitsLoaded = false;
+  }
+  window.mapper2State.appliedTemplateHash = currentTplIdentity;
+
+  // Применяем умные правила «Сита» однократно за проход (не перетираем ручные правки в Маппере-2 при возврате «НАЗАД»)
+  if (
+    !window.mapper2State.smartRulesApplied &&
     window.mapper2State.smartRules &&
     templateData &&
     templateData.humanNames &&
@@ -1577,10 +1617,12 @@ window.renderMapper2Cards = function (templateData) {
           if (pIdx !== -1) {
             const sysKey = templateData.systemKeys[pIdx];
             window.mapper2State.colMap[sysKey] = colIndex;
+            delete window.mapper2State.clearedKeys[sysKey];
           }
         });
       }
     });
+    window.mapper2State.smartRulesApplied = true;
   }
 
   let allReqs = [];
@@ -1593,8 +1635,8 @@ window.renderMapper2Cards = function (templateData) {
           ? JSON.parse(templateData.memoryJson)
           : templateData.memoryJson;
       window.mapper2State.rawMemoryJson = JSON.stringify(learnedSynonyms);
-      if (learnedSynonyms._splitRules) {
-        // ⚡ НЕ стираем свежие правила из Токенизатора! Только дополняем их старыми из памяти.
+      if (learnedSynonyms._splitRules && !window.mapper2State.memorySplitsLoaded) {
+        // ⚡ Загружаем сохранённые правила из памяти один раз на сессию, чтобы не воскрешать удалённые при возврате «НАЗАД»
         const memorySplits = JSON.parse(
           JSON.stringify(learnedSynonyms._splitRules),
         );
@@ -1602,6 +1644,7 @@ window.renderMapper2Cards = function (templateData) {
           ...memorySplits,
           ...window.mapper2State.splitRules,
         };
+        window.mapper2State.memorySplitsLoaded = true;
       }
     } catch (e) {
       console.error("Ошибка парсинга памяти", e);
@@ -1808,11 +1851,6 @@ window.renderMapper2Cards = function (templateData) {
         (h) => h && base.some((w) => w.length > 2 && h.includes(w)),
       );
 
-    if (window.mapper2State.colMap[req.sysKey] === undefined && foundIndex !== -1) {
-      window.mapper2State.colMap[req.sysKey] = foundIndex;
-    }
-
-    let mappedIndex = window.mapper2State.colMap[req.sysKey];
     let rawDictValue =
       window.mapper2State.dictValues &&
       window.mapper2State.dictValues[req.sysKey];
@@ -1820,6 +1858,22 @@ window.renderMapper2Cards = function (templateData) {
       typeof rawDictValue === "string" && rawDictValue.trim() !== ""
         ? rawDictValue
         : "";
+
+    const isExplicitlyCleared = Boolean(
+      window.mapper2State.clearedKeys &&
+        window.mapper2State.clearedKeys[req.sysKey],
+    );
+
+    if (
+      window.mapper2State.colMap[req.sysKey] === undefined &&
+      !dictValue &&
+      !isExplicitlyCleared &&
+      foundIndex !== -1
+    ) {
+      window.mapper2State.colMap[req.sysKey] = foundIndex;
+    }
+
+    let mappedIndex = window.mapper2State.colMap[req.sysKey];
 
     let statusClass = "status-empty";
     let statusText = t.inc_select || "ВЫБРАТЬ";
@@ -2379,12 +2433,39 @@ window.openColumnSelector = function (sysKey, reqName, isKaspi) {
   document.getElementById("bottom-sheet").style.transform = "translateY(0)";
 };
 
+// Вспомогательная очистка дублирующего humanName-алиаса при изменении/сбросе поля в Маппере-2
+window.clearMapper2FieldAliases = function (sysKey) {
+  if (!window.mapper2State || !sysKey) return;
+  const humanAlias =
+    window.mapper2State.sysToHumanMap &&
+    window.mapper2State.sysToHumanMap[sysKey];
+  if (!humanAlias || humanAlias === sysKey) return;
+
+  if (window.mapper2State.colMap) delete window.mapper2State.colMap[humanAlias];
+  if (
+    window.mapper2State.dictValues &&
+    typeof window.mapper2State.dictValues[humanAlias] === "string"
+  ) {
+    delete window.mapper2State.dictValues[humanAlias];
+  }
+  if (window.mapper2State.splitRules)
+    delete window.mapper2State.splitRules[humanAlias];
+};
+
 window.setManualConstantValue = function (sysKey, reqName) {
   let val = prompt(
     `Введите постоянное значение для поля "${reqName}"\n(Оно будет применено ко всем товарам в накладной):`,
   );
   if (val !== null && val.trim() !== "") {
+    window.mapper2State.colMap = window.mapper2State.colMap || {};
+    window.mapper2State.splitRules = window.mapper2State.splitRules || {};
     window.mapper2State.dictValues = window.mapper2State.dictValues || {};
+    window.mapper2State.clearedKeys = window.mapper2State.clearedKeys || {};
+
+    delete window.mapper2State.colMap[sysKey];
+    delete window.mapper2State.splitRules[sysKey];
+    delete window.mapper2State.clearedKeys[sysKey];
+    window.clearMapper2FieldAliases(sysKey);
     window.mapper2State.dictValues[sysKey] = val.trim();
 
     // Скрываем окно селектора колонок
@@ -2404,8 +2485,17 @@ window.setManualConstantValue = function (sysKey, reqName) {
 
 window.selectMapper2Col = function (colIndex, colName) {
   const sysKey = window.mapper2State.currentSysKey;
+  window.mapper2State.colMap = window.mapper2State.colMap || {};
+  window.mapper2State.splitRules = window.mapper2State.splitRules || {};
+  window.mapper2State.dictValues = window.mapper2State.dictValues || {};
+  window.mapper2State.clearedKeys = window.mapper2State.clearedKeys || {};
+
   delete window.mapper2State.splitRules[sysKey];
-  delete window.mapper2State.dictValues[sysKey];
+  if (typeof window.mapper2State.dictValues[sysKey] === "string") {
+    delete window.mapper2State.dictValues[sysKey];
+  }
+  delete window.mapper2State.clearedKeys[sysKey];
+  window.clearMapper2FieldAliases(sysKey);
 
   window.mapper2State.colMap[sysKey] = colIndex;
 
@@ -2425,24 +2515,32 @@ window.selectMapper2Col = function (colIndex, colName) {
 };
 
 window.clearMapper2Col = function (sysKey) {
-  if (window.mapper2State && window.mapper2State.colMap) {
+  window.mapper2State = window.mapper2State || {};
+  window.mapper2State.clearedKeys = window.mapper2State.clearedKeys || {};
+  window.mapper2State.clearedKeys[sysKey] = true;
+
+  if (window.mapper2State.colMap) {
     delete window.mapper2State.colMap[sysKey];
   }
-  if (window.mapper2State && window.mapper2State.dictValues) {
+  if (
+    window.mapper2State.dictValues &&
+    typeof window.mapper2State.dictValues[sysKey] === "string"
+  ) {
     delete window.mapper2State.dictValues[sysKey];
   }
-  if (window.mapper2State && window.mapper2State.splitRules) {
+  if (window.mapper2State.splitRules) {
     delete window.mapper2State.splitRules[sysKey];
   }
-
-  const statusEl = document.getElementById("status-" + sysKey);
-  if (statusEl) {
-    statusEl.className = "req-status status-empty";
-    statusEl.innerText = "Выбрать";
-  }
+  window.clearMapper2FieldAliases(sysKey);
 
   if (typeof window.closeSheet === "function") {
     window.closeSheet();
+  }
+
+  if (typeof window.renderMapper2Cards === "function") {
+    window.renderMapper2Cards();
+  } else if (typeof window.checkMapperReadiness === "function") {
+    window.checkMapperReadiness();
   }
 };
 
@@ -2517,7 +2615,15 @@ window.applySplitRule = function (colIndex, colName) {
   if (tokenIndices.length === 0) return alert("Выберите фрагменты!");
 
   // Сохраняем новые данные
-  delete window.mapper2State.dictValues[sysKey];
+  window.mapper2State.clearedKeys = window.mapper2State.clearedKeys || {};
+  delete window.mapper2State.clearedKeys[sysKey];
+  if (
+    window.mapper2State.dictValues &&
+    typeof window.mapper2State.dictValues[sysKey] === "string"
+  ) {
+    delete window.mapper2State.dictValues[sysKey];
+  }
+  window.clearMapper2FieldAliases(sysKey);
   window.mapper2State.colMap[sysKey] = colIndex;
   window.mapper2State.splitRules[sysKey] = tokenIndices;
 
@@ -2603,69 +2709,79 @@ window.openKaspiDictSearch = function () {
     if (overlay) overlay.style.display = "none";
   }, 300);
 
-  window.tempSelectedDictValue = null;
+  const existingDictVal =
+    window.mapper2State &&
+    window.mapper2State.dictValues &&
+    typeof window.mapper2State.dictValues[sysKey] === "string"
+      ? window.mapper2State.dictValues[sysKey].trim()
+      : "";
+
+  window.tempSelectedDictValue =
+    existingDictVal && dict.includes(existingDictVal) ? existingDictVal : null;
   window.currentModalSysKey = sysKey;
   window.currentModalDict = dict;
-
-  if (!window.applyToAllMap) window.applyToAllMap = {};
-  let isGlobal = window.applyToAllMap[sysKey] !== undefined;
 
   let modal = document.getElementById("kaspiDictModal");
   if (modal) modal.remove();
 
   modal = document.createElement("div");
   modal.id = "kaspiDictModal";
-  // Прижимаем окно к верхней части экрана (flex-start) с отступом
-  modal.style.cssText =
-    "display:flex; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:999999; flex-direction:column; align-items:center; justify-content:flex-start; padding-top:40px; padding-left:15px; padding-right:15px; box-sizing:border-box; backdrop-filter:blur(3px);";
+  modal.className = "kaspi-dict-backdrop";
 
   modal.onclick = (e) => {
-    if (e.target.id === "kaspiDictModal")
-      document.getElementById("kaspiDictModal").remove();
+    if (e.target.id === "kaspiDictModal") {
+      const m = document.getElementById("kaspiDictModal");
+      if (m) m.remove();
+    }
   };
 
-  let clearBtnHtml = `
-      <div onclick="window.clearKaspiDictSelection()" style="display:flex; align-items:center; justify-content:center; gap:8px; margin-bottom:15px; padding:12px; background:rgba(255,68,68,0.1); color:#ff4444; border-radius:8px; border:1px solid rgba(255,68,68,0.3); font-size:14px; font-weight:bold; cursor:pointer; transition:background 0.2s;">
-          <span>✖</span> ${t.inc_clear_selection || "Очистить выбор"}
+  const hintText =
+    t.inc_dict_mapper_hint ||
+    "Значение применится ко всем товарам. Отдельные позиции можно поправить на следующем шаге через «Изменить параметры».";
+
+  const clearBtnHtml = `
+      <div onclick="window.clearKaspiDictSelection()" class="kaspi-dict-clear-btn">
+          <span>✖</span> <span data-i18n="inc_clear_selection">${t.inc_clear_selection || "Очистить выбор"}</span>
       </div>`;
 
-  // РЕШЕНИЕ: Единый контейнер с жесткой высотой (height: 80vh) и общим отступом (padding: 20px)
+  const hintHtml = `
+      <div class="dict-scope-hint" role="note">
+          <span class="dict-scope-hint-icon" aria-hidden="true">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <line x1="12" y1="16" x2="12" y2="12"></line>
+                  <line x1="12" y1="8" x2="12.01" y2="8"></line>
+              </svg>
+          </span>
+          <span class="dict-scope-hint-text" data-i18n="inc_dict_mapper_hint">${hintText}</span>
+      </div>`;
+
   modal.innerHTML = `
-      <div id="dictModalContent" style="background:var(--bg-body, #f9f9f9); color:var(--text-main, #000); width:100%; max-width:420px; border-radius:12px; display:flex; flex-direction:column; height: 80vh; max-height: 800px; box-sizing:border-box; overflow:hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.3);">
-          
-          <div style="padding: 20px; display: flex; flex-direction: column; flex: 1; overflow: hidden; box-sizing: border-box;">
-              
-              <!-- ХЕДЕР: Теперь внутри общего отступа, без лишних границ и фонов -->
-              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
-                  <span onclick="document.getElementById('kaspiDictModal').remove()" style="color:var(--accent-blue, #3b82f6); font-size:24px; cursor:pointer; line-height:1; display:flex; align-items:center;">
-                      <span style="font-size:20px;">&#10094;</span>
+      <div id="dictModalContent" class="kaspi-dict-card">
+          <div class="kaspi-dict-inner">
+              <div class="kaspi-dict-header">
+                  <span onclick="document.getElementById('kaspiDictModal').remove()" class="kaspi-dict-back">
+                      <span>&#10094;</span>
                   </span>
-                  <div style="flex: 1; display: flex; flex-direction: column; text-align: center; padding: 0 15px; overflow: hidden;">
-                      <b id="dictModalTitle" style="font-size:15px; color:var(--text-main, #000); text-transform:uppercase; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${reqName}</b>
-                      <div id="dictModalCountInfo" style="font-size: 11px; font-weight: bold; color: var(--text-muted, #888); margin-top: 2px;">
-                          <span id="dictModalCountText">${t.dict_total || "Всего:"}</span> <span id="dictTotalCount">${dict.length}</span>
+                  <div class="kaspi-dict-title-wrap">
+                      <b id="dictModalTitle" class="kaspi-dict-title">${reqName}</b>
+                      <div id="dictModalCountInfo" class="kaspi-dict-count">
+                          <span id="dictModalCountText" data-i18n="dict_total">${t.dict_total || "Всего:"}</span> <span id="dictTotalCount">${dict.length}</span>
                       </div>
                   </div>
-                  <span onclick="window.confirmKaspiDictSelection()" style="color:var(--accent-green, #2ecc71); font-size:16px; font-weight:bold; cursor:pointer;">${t.inc_save || "OK"}</span>
+                  <span onclick="window.confirmKaspiDictSelection()" class="kaspi-dict-save" data-i18n="inc_save">${t.inc_save || "ОК"}</span>
               </div>
 
-              <!-- ПОИСК И ГАЛОЧКА -->
-              <input type="text" id="dictModalSearch" class="kaspi-input-field" value="" 
+              <input type="text" id="dictModalSearch" class="kaspi-dict-search" value="${window.tempSelectedDictValue ? String(window.tempSelectedDictValue).replace(/"/g, "&quot;") : ""}" 
+                  data-i18n-placeholder="inc_search_enter"
                   placeholder="${t.inc_search_enter || "Поиск..."}"
                   onfocus="this.select()"
-                  oninput="window.filterDictionary()"
-                  style="width:100%; padding:12px; margin-bottom:15px; border:1px solid var(--accent-blue, #3b82f6); background:var(--bg-panel, #fff); color:var(--text-main, #000); border-radius:8px; font-size:15px; outline:none; box-sizing:border-box;">
-              
-              <label style="display:flex; align-items:center; gap:10px; margin-bottom:15px; padding:12px; background:var(--bg-panel, #fff); border-radius:8px; border:1px solid var(--border-light, #ddd); cursor:pointer;">
-                  <input type="checkbox" id="dictModalApplyAll" ${isGlobal ? "checked" : ""} style="width:20px; height:20px;">
-                  <span style="font-size:14px; color:var(--text-main, #000);">${t.inc_apply_all || "Применить ко всем товарам"}</span>
-              </label>
-              
+                  oninput="window.filterDictionary()">
+
+              ${hintHtml}
               ${clearBtnHtml}
 
-              <!-- СПИСОК: Жестко задаем min-height, чтобы CSS не смог его схлопнуть -->
-              <ul id="dictModalList" style="list-style:none; padding:0; margin:0; overflow-y:auto; flex:1; min-height:150px; background:var(--bg-panel, #fff); border-radius:8px; border:1px solid var(--border-light, #ddd); overscroll-behavior:contain;"></ul>
-
+              <ul id="dictModalList" class="kaspi-dict-list"></ul>
           </div>
       </div>
   `;
@@ -2702,26 +2818,10 @@ window.confirmKaspiDictSelection = function () {
     );
   }
 
-  const applyAll = document.getElementById("dictModalApplyAll").checked;
-
-  if (applyAll) {
-    if (!window.applyToAllMap) window.applyToAllMap = {};
-    window.applyToAllMap[window.currentModalSysKey] = true;
-  } else {
-    if (
-      window.applyToAllMap &&
-      window.applyToAllMap[window.currentModalSysKey]
-    ) {
-      delete window.applyToAllMap[window.currentModalSysKey];
-    }
-  }
-
-  // ИСПРАВЛЕНИЕ 3: Вызываем сохранение ДО удаления окна, чтобы ядро не падало
   if (typeof window.selectDictionaryValue === "function") {
-    window.selectDictionaryValue(window.tempSelectedDictValue, false, applyAll);
+    window.selectDictionaryValue(window.tempSelectedDictValue, false);
   }
 
-  // Теперь окно можно безопасно добить
   const modal = document.getElementById("kaspiDictModal");
   if (modal) modal.remove();
 };
@@ -2729,9 +2829,9 @@ window.confirmKaspiDictSelection = function () {
 // Функция очистки выбора
 window.clearKaspiDictSelection = function () {
   window.tempSelectedDictValue = null;
-  document.getElementById("dictModalSearch").value = "";
-  document.getElementById("dictModalApplyAll").checked = false;
-  window.filterDictionary(); // перерисовываем список
+  const searchEl = document.getElementById("dictModalSearch");
+  if (searchEl) searchEl.value = "";
+  window.filterDictionary();
 };
 
 // Полностью обновленная функция фильтрации и рендера списка
@@ -2767,34 +2867,37 @@ window.filterDictionary = function () {
 
   // Если ничего не нашли
   if (filtered.length === 0) {
-    listEl.innerHTML = `<div style="padding: 20px; text-align: center; color: var(--text-muted, #888); font-size: 14px;">${tr.tok_not_found || "Ничего не найдено"}</div>`;
+    listEl.innerHTML = `<div class="kaspi-dict-empty">${tr.dict_not_found || "Ничего не найдено"}</div>`;
     return;
   }
+
+  const safeQuery = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
   // Рендерим пункты меню
   listEl.innerHTML = filtered
     .map((val) => {
-      let safeVal = String(val).replace(/'/g, "\\'").replace(/"/g, "&quot;");
+      const encodedVal = encodeURIComponent(String(val));
 
-      // Красивая подсветка совпадений текста при поиске
-      let displayVal = val;
+      // Подсветка совпадений текста при поиске (через CSS-класс и переменные темы)
+      let displayVal = String(val);
       if (query) {
-        let regex = new RegExp(`(${query})`, "gi");
-        displayVal = String(val).replace(
+        let regex = new RegExp(`(${safeQuery})`, "gi");
+        displayVal = displayVal.replace(
           regex,
-          "<mark style='background:#fef08a; color:#854d0e; padding:0 2px; border-radius:2px;'>$1</mark>",
+          '<mark class="kaspi-dict-mark">$1</mark>',
         );
       }
 
       // Проверяем, выбран ли этот пункт
       let isSelected = window.tempSelectedDictValue === val;
-      let bg = isSelected ? "rgba(59, 130, 246, 0.15)" : "transparent";
+      let itemClass = isSelected
+        ? "kaspi-dict-item is-selected"
+        : "kaspi-dict-item";
       let check = isSelected
-        ? `<span style="color:var(--accent-blue, #3b82f6); font-weight:bold; font-size:16px;">✔</span>`
+        ? '<span class="kaspi-dict-check">✔</span>'
         : "";
 
-      // Генерируем строку списка
-      return `<li onclick="window.selectKaspiDictItem('${safeVal}')" style="display:flex; justify-content:space-between; align-items:center; padding:15px 20px; border-bottom:1px solid var(--border-light, #ddd); cursor:pointer; background:${bg}; font-size:14px; color:var(--text-main, #000); transition: background 0.2s;">
+      return `<li onclick="window.selectKaspiDictItem(decodeURIComponent('${encodedVal}'))" class="${itemClass}">
             <span>${displayVal}</span>${check}
         </li>`;
     })
@@ -2803,35 +2906,37 @@ window.filterDictionary = function () {
 
 // Функция клика по элементу списка
 window.selectKaspiDictItem = function (val) {
-  // 1. Сохраняем во временную переменную
   window.tempSelectedDictValue = val;
 
-  // 2. ПЕРЕНОСИМ ВЫБОР В ПОЛЕ ПОИСКА
   let searchEl = document.getElementById("dictModalSearch");
   if (searchEl) {
     searchEl.value = val;
   }
 
-  // 3. Перерисовываем список (он отфильтруется по этому слову и подсветится)
   window.filterDictionary();
 };
 
 window.selectDictionaryValue = function (value, isCustom) {
   let sysKey = window.currentModalSysKey;
+  window.mapper2State = window.mapper2State || {};
+  window.mapper2State.clearedKeys = window.mapper2State.clearedKeys || {};
 
-  // 1. Очищаем старые привязки (если были)
+  // 1. Очищаем старые привязки (если были), включая возможный humanName-алиас
   if (window.mapper2State.colMap) delete window.mapper2State.colMap[sysKey];
   if (window.mapper2State.splitRules)
     delete window.mapper2State.splitRules[sysKey];
+  delete window.mapper2State.clearedKeys[sysKey];
+  window.clearMapper2FieldAliases(sysKey);
   if (!window.mapper2State.dictValues) window.mapper2State.dictValues = {};
 
-  // 2. Записываем новое значение
+  // 2. Записываем новое значение (применится ко всем товарам при переходе вперёд)
   window.mapper2State.dictValues[sysKey] = value;
 
   // 3. Закрываем модалку справочника
-  document.getElementById("kaspiDictModal").style.display = "none";
+  const modal = document.getElementById("kaspiDictModal");
+  if (modal) modal.style.display = "none";
 
-  // === 4. ПЕРЕРИСОВЫВАЕМ КАРТОЧКИ (второй маппер) ===
+  // 4. Перерисовываем карточки (Маппер-2)
   if (typeof window.renderMapper2Cards === "function") {
     window.renderMapper2Cards();
   } else {
@@ -3590,7 +3695,7 @@ window.applyMapper2Logic = function () {
 // === ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ РЕДАКТОРА ===
 window.currentEditIndex = null;
 window.tempAttrs = {};
-window.applyToAllMap = {};
+window.tempClearedKeys = new Set();
 window.currentFieldDict = [];
 
 // === ОТРИСОВКА ГЛАВНОЙ ТАБЛИЦЫ ===
@@ -3916,65 +4021,268 @@ window.renderPreviewTable = function () {
 };
 
 // === 1. ГЛАВНОЕ ОКНО РЕДАКТИРОВАНИЯ ===
-window.openEditorMain = function (index) {
-  window.currentEditIndex = index;
-  let item = window.parsedInvoiceData[index];
-  window.tempAttrs = {};
-  window.applyToAllMap = {};
-  if (item.attributes) {
-    try {
-      window.tempAttrs = JSON.parse(item.attributes);
-    } catch (e) {}
-  }
-  renderEditorMainUI(item);
+window.normalizeParamLabel = function (label) {
+  return String(label || "")
+    .replace(/\*/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
 };
 
-window.renderEditorMainUI = function (item) {
-  const t = translations[currentLang] || {};
-
-  // 1. СТРОГИЙ СБОР КЛЮЧЕЙ (ТОЛЬКО из шаблона и накладной, без искусственных полей!)
-  let allKeys = new Set();
-
-  if (window.mapper2State && window.mapper2State.sysToHumanMap) {
-    Object.keys(window.mapper2State.sysToHumanMap).forEach((k) =>
-      allKeys.add(k),
-    );
-  }
-  if (window.tempAttrs) {
-    Object.keys(window.tempAttrs).forEach((k) => allKeys.add(k));
-  }
-
-  let dicts =
+window.buildEditorFieldCatalog = function () {
+  const tpl = window.currentTemplateData || window.lastTemplateData || null;
+  const sysToHuman =
+    (window.mapper2State && window.mapper2State.sysToHumanMap) || {};
+  const dicts =
     window.kaspiDicts ||
     (window.mapper2State && window.mapper2State.dictionary) ||
     {};
 
+  const fields = [];
+  const bySysKey = {};
+  const byHumanExact = {};
+  const byNormLabel = {};
+
+  const resolveDictFor = (humanName, sysKey) => {
+    const cleanHum = String(humanName || "").replace(/\*/g, "").trim();
+    const candidates = [
+      String(humanName || "").trim().toLowerCase(),
+      cleanHum.toLowerCase(),
+      String(sysKey || "").trim().toLowerCase(),
+    ].filter(Boolean);
+
+    const foundKey = Object.keys(dicts).find((dk) => {
+      const c = String(dk || "").trim().toLowerCase();
+      return candidates.includes(c);
+    });
+    if (!foundKey) return null;
+
+    let d = dicts[foundKey];
+    if (d && !Array.isArray(d) && typeof d === "object") {
+      d = Object.values(d);
+    }
+    return Array.isArray(d) && d.length > 0 ? d : null;
+  };
+
+  const registerField = (sysKey, humanName, isReq) => {
+    const rawSys = String(sysKey || "").trim();
+    const rawHum = String(humanName || "").trim();
+    const canonicalKey = rawHum || rawSys;
+    if (!canonicalKey) return;
+
+    const cleanDisplayKey = canonicalKey.replace(/\*/g, "").trim();
+    const normLabel = window.normalizeParamLabel(cleanDisplayKey);
+    const lowerSys = rawSys.toLowerCase();
+
+    const existing =
+      (rawSys && bySysKey[rawSys]) ||
+      byHumanExact[canonicalKey] ||
+      (normLabel && byNormLabel[normLabel]);
+    if (existing) {
+      if (rawSys && !bySysKey[rawSys]) bySysKey[rawSys] = existing;
+      if (isReq) existing.isReq = true;
+      return;
+    }
+
+    const isSku =
+      lowerSys === "merchant_sku" ||
+      lowerSys.includes("sku") ||
+      normLabel === "артикул";
+    const forcedReq =
+      Boolean(isReq) || normLabel === "бренд" || normLabel === "артикул";
+    const dictArr = resolveDictFor(canonicalKey, rawSys);
+
+    const entry = {
+      canonicalKey,
+      sysKey: rawSys,
+      cleanDisplayKey,
+      normLabel,
+      isReq: forcedReq,
+      isSku,
+      isDict: Boolean(dictArr && dictArr.length > 0),
+      dict: dictArr,
+    };
+
+    fields.push(entry);
+    if (rawSys) bySysKey[rawSys] = entry;
+    byHumanExact[canonicalKey] = entry;
+    if (normLabel) byNormLabel[normLabel] = entry;
+  };
+
+  const useKaspiTemplate =
+    window.isKaspiExportMode === true || window.currentImportMode === "kaspi";
+
+  if (
+    useKaspiTemplate &&
+    tpl &&
+    Array.isArray(tpl.systemKeys) &&
+    Array.isArray(tpl.humanNames)
+  ) {
+    const reqs = Array.isArray(tpl.requirements) ? tpl.requirements : [];
+    for (let i = 0; i < tpl.systemKeys.length; i++) {
+      const sKey = tpl.systemKeys[i];
+      const hName = tpl.humanNames[i];
+      if (!sKey && !hName) continue;
+      const reqText = String(reqs[i] || "").toLowerCase();
+      const isReq =
+        reqText.includes("обязательн") && !reqText.includes("необязательн");
+      registerField(sKey, hName, isReq);
+    }
+  } else if (useKaspiTemplate && Object.keys(sysToHuman).length > 0) {
+    Object.keys(sysToHuman).forEach((sKey) => {
+      registerField(sKey, sysToHuman[sKey], false);
+    });
+  }
+
+  return { fields, bySysKey, byHumanExact, byNormLabel, resolveDictFor };
+};
+
+window.openEditorMain = function (index) {
+  window.currentEditIndex = index;
+  const item = window.parsedInvoiceData[index];
+  window.tempAttrs = {};
+  window.tempClearedKeys = new Set(
+    item && Array.isArray(item._clearedAttrs) ? item._clearedAttrs : [],
+  );
+
+  let rawAttrs = {};
+  if (item && item.attributes) {
+    try {
+      rawAttrs =
+        typeof item.attributes === "string"
+          ? JSON.parse(item.attributes)
+          : item.attributes;
+    } catch (e) {}
+  }
+
+  const catalog = window.buildEditorFieldCatalog();
+  const SERVICE_ATTR_KEYS = new Set(["doc_no", "invoice_no", "document_id"]);
+
+  if (rawAttrs && typeof rawAttrs === "object") {
+    Object.keys(rawAttrs).forEach((k) => {
+      const rawVal = rawAttrs[k];
+      if (
+        rawVal === undefined ||
+        rawVal === null ||
+        rawVal === "undefined" ||
+        rawVal === "null"
+      ) {
+        return;
+      }
+      const val = String(rawVal).trim();
+      if (!val) return;
+      if (SERVICE_ATTR_KEYS.has(String(k).toLowerCase())) return;
+
+      const normK = window.normalizeParamLabel(k);
+      const entry =
+        catalog.byHumanExact[k] ||
+        catalog.bySysKey[k] ||
+        (normK && catalog.byNormLabel[normK]);
+
+      if (entry) {
+        if (entry.isSku) return;
+        const targetKey = entry.canonicalKey;
+        if (!window.tempAttrs[targetKey] || k === entry.canonicalKey) {
+          window.tempAttrs[targetKey] = val;
+        }
+      } else {
+        window.tempAttrs[k] = val;
+      }
+    });
+  }
+
+  renderEditorMainUI(item);
+};
+
+window.renderEditorMainUI = function (item) {
+  const lang = window.currentLang || localStorage.getItem("pos_lang") || "ru";
+  const t =
+    typeof translations !== "undefined" && translations[lang]
+      ? translations[lang]
+      : {};
+
+  const catalog = window.buildEditorFieldCatalog();
+  const clearedSet = window.tempClearedKeys || new Set();
+
   let mandatoryEmpty = [];
   let mandatoryFilled = [];
+  let mandatorySku = [];
   let optionalEmpty = [];
   let optionalFilled = [];
 
-  if (!window.applyToAllMap) window.applyToAllMap = {};
+  const seenCanonical = new Set();
 
-  Array.from(allKeys).forEach((k) => {
-    let rawVal = window.tempAttrs ? window.tempAttrs[k] : "";
+  const getCleanAttrVal = (key) => {
+    let rawVal = window.tempAttrs ? window.tempAttrs[key] : "";
     if (
       rawVal === "undefined" ||
       rawVal === "null" ||
       rawVal === null ||
       rawVal === undefined
-    )
+    ) {
       rawVal = "";
-    let val = String(rawVal).trim();
+    }
+    return String(rawVal).trim();
+  };
 
-    let humanName =
-      window.mapper2State && window.mapper2State.sysToHumanMap
-        ? window.mapper2State.sysToHumanMap[k]
-        : null;
+  // 1. Все параметры активного шаблона — строго по 1 разу на параметр (канонический ключ = humanName)
+  catalog.fields.forEach((entry) => {
+    seenCanonical.add(entry.canonicalKey);
 
-    let displayKey =
-      humanName ||
-      k
+    let val = getCleanAttrVal(entry.canonicalKey);
+    const lowerSys = entry.sysKey.toLowerCase();
+
+    if (
+      val === "" &&
+      item &&
+      !entry.isSku &&
+      !clearedSet.has(entry.canonicalKey) &&
+      !clearedSet.has(entry.sysKey)
+    ) {
+      if (
+        lowerSys === "name" ||
+        lowerSys === "model" ||
+        entry.normLabel === "название товара" ||
+        entry.normLabel === "название модели" ||
+        entry.normLabel === "наименование"
+      ) {
+        val = String(item.item_name || item.name || item.title || "").trim();
+      }
+    }
+
+    if (entry.isSku) {
+      val = t.inc_auto_fill || "Заполняется автоматически";
+    }
+
+    const fieldObj = {
+      canonicalKey: entry.canonicalKey,
+      cleanDisplayKey: entry.cleanDisplayKey,
+      val: val,
+      isSku: entry.isSku,
+      isReq: entry.isReq,
+      isDict: entry.isDict,
+      previewVal: val.length > 30 ? val.substring(0, 30) + "..." : val,
+    };
+
+    if (entry.isSku) {
+      mandatorySku.push(fieldObj);
+    } else if (entry.isReq) {
+      if (!val) mandatoryEmpty.push(fieldObj);
+      else mandatoryFilled.push(fieldObj);
+    } else {
+      if (!val) optionalEmpty.push(fieldObj);
+      else optionalFilled.push(fieldObj);
+    }
+  });
+
+  // 2. Возможные дополнительные атрибуты вне шаблона (без дублирования параметров шаблона)
+  if (window.tempAttrs) {
+    Object.keys(window.tempAttrs).forEach((k) => {
+      if (seenCanonical.has(k)) return;
+      const val = getCleanAttrVal(k);
+      if (!val) return;
+
+      let displayKey = k
         .split("*")
         .pop()
         .replace(/tires/gi, "")
@@ -3982,122 +4290,69 @@ window.renderEditorMainUI = function (item) {
         .replace(/general/gi, "")
         .replace(/\./g, "")
         .trim();
-    if (!displayKey) displayKey = k;
-    let cleanDisplayKey = displayKey.replace("*", "").trim();
-    let lowerDisp = cleanDisplayKey.toLowerCase();
-    let lowerK = k.toLowerCase();
+      if (!displayKey) displayKey = k;
+      const cleanDisplayKey = displayKey.replace(/\*/g, "").trim();
+      const normLabel = window.normalizeParamLabel(cleanDisplayKey);
 
-    // Автозаполнение только для Названия товара (если оно реально есть в шаблоне Каспи)
-    if (val === "" && item) {
-      if (
-        lowerK === "name" ||
-        lowerDisp === "название товара" ||
-        lowerDisp === "наименование"
-      ) {
-        val = item.item_name || item.name || item.title || "";
-      }
-    }
+      if (normLabel === "артикул" || k.toLowerCase().includes("sku")) return;
 
-    let isReq = false;
-    let prevCard = document.querySelector(`.req-card[onclick*="'${k}'"]`);
-    if (prevCard && prevCard.querySelector(".required")) {
-      isReq = true;
-    }
+      const isReq = normLabel === "бренд";
+      const dictArr = catalog.resolveDictFor(cleanDisplayKey, k);
+      const fieldObj = {
+        canonicalKey: k,
+        cleanDisplayKey: cleanDisplayKey,
+        val: val,
+        isSku: false,
+        isReq: isReq,
+        isDict: Boolean(dictArr && dictArr.length > 0),
+        previewVal: val.length > 30 ? val.substring(0, 30) + "..." : val,
+      };
 
-    // Принудительно обязательные только самые важные
-    if (lowerDisp === "бренд" || lowerDisp === "артикул") {
-      isReq = true;
-    }
-
-    let isSku = lowerK.includes("sku") || lowerDisp === "артикул";
-    let isDict = dicts[cleanDisplayKey] && dicts[cleanDisplayKey].length > 0;
-
-    // РОДНАЯ ЛОГИКА POS NOIR: если ключ есть в объекте, значит галочка стоит
-    let isGlobal = window.applyToAllMap[k] !== undefined;
-
-    if (isSku && val === "") {
-      val = t.inc_auto_fill || "Заполняется автоматически";
-    }
-
-    let isEmpty = val === "";
-    let fieldObj = {
-      k: k,
-      cleanDisplayKey: cleanDisplayKey,
-      val: val,
-      isGlobal: isGlobal,
-      isSku: isSku,
-      isReq: isReq,
-      isDict: isDict,
-      previewVal:
-        String(val).length > 30 ? String(val).substring(0, 30) + "..." : val,
-    };
-
-    if (isReq) {
-      if (isEmpty) mandatoryEmpty.push(fieldObj);
-      else mandatoryFilled.push(fieldObj);
-    } else {
-      if (isEmpty) optionalEmpty.push(fieldObj);
+      if (isReq) mandatoryFilled.push(fieldObj);
       else optionalFilled.push(fieldObj);
-    }
-  });
+    });
+  }
 
-  // 2. ФУНКЦИЯ ОТРИСОВКИ СПИСКА
+  // 3. Отрисовка строк параметров (через CSS-классы и переменные темы)
   const renderList = (fields) => {
     let html = "";
     fields.forEach((f) => {
-      let reqStar = f.isReq
-        ? `<span style="color:#ff4444; margin-left:4px; font-weight:bold; font-size:16px;">*</span>`
-        : "";
-
-      let applyAllText = t.inc_apply_all_badge
-        ? String(t.inc_apply_all_badge).toUpperCase()
-        : "КО ВСЕМ";
-      applyAllText = applyAllText.replace(/[✓✔]/g, "").trim();
-
-      let applyAllBadge = f.isGlobal
-        ? `<span style="background:rgba(50, 157, 250, 0.15); color:var(--accent-blue); padding:2px 6px; border-radius:4px; font-size:10px; font-weight:bold; margin-left: 8px; display:inline-flex; align-items:center; gap:3px;">✓ ${applyAllText}</span>`
+      const reqStar = f.isReq
+        ? '<span class="editor-req-star">*</span>'
         : "";
 
       let rightSideHtml = "";
-
-      if (f.val) {
-        let displayVal = f.isSku
-          ? t.inc_auto_fill || "Заполняется автоматически"
-          : f.previewVal;
-        rightSideHtml = `
-                  <div style="border: 1px solid #4CAF50; color: #4CAF50; padding: 5px 12px; border-radius: 4px; font-size: 11px; font-weight: bold; max-width: 160px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-right: ${f.isSku ? "0" : "8px"};">
-                      ✓ ${displayVal}
-                  </div>
-              `;
+      if (f.isSku) {
+        rightSideHtml = `<div class="editor-badge editor-badge--locked" data-i18n="inc_auto_fill">${t.inc_auto_fill || "Заполняется автоматически"}</div>`;
+      } else if (f.val) {
+        rightSideHtml = `<div class="editor-badge editor-badge--filled">✓ ${f.previewVal}</div>`;
       } else {
-        let actionText = f.isDict
+        const badgeKey = f.isDict ? "inc_dict_badge" : "inc_input_badge";
+        const actionText = f.isDict
           ? t.inc_dict_badge || "Справочник"
           : t.inc_input_badge || "Ввод";
-        rightSideHtml = `
-                  <div style="border: 1px solid #ff4444; color: #ff4444; padding: 5px 12px; border-radius: 4px; font-size: 11px; font-weight: bold; text-transform: uppercase; margin-right: 8px;">
-                      ${actionText}
-                  </div>
-              `;
+        rightSideHtml = `<div class="editor-badge editor-badge--empty" data-i18n="${badgeKey}">${actionText}</div>`;
       }
 
-      let onclickAttr = f.isSku
+      const encodedKey = encodeURIComponent(f.canonicalKey);
+      const onclickAttr = f.isSku
         ? ""
-        : `onclick="window.openEditorField('${f.k}')"`;
-      let rowStyle = f.isSku
-        ? "background: rgba(0,0,0,0.1); opacity: 0.6; cursor: not-allowed; pointer-events: none;"
-        : "background: transparent; cursor: pointer; transition: background 0.2s;";
-      let arrowIcon = f.isSku
+        : `onclick="window.openEditorField(decodeURIComponent('${encodedKey}'))"`;
+      const rowClass = f.isSku
+        ? "editor-param-row editor-param-row--locked"
+        : "editor-param-row";
+      const arrowIcon = f.isSku
         ? ""
-        : `<div style="color:var(--text-muted); font-size:18px;">&#10095;</div>`;
+        : '<div class="editor-row-arrow">&#10095;</div>';
 
       html += `
-          <div class="param-row" ${onclickAttr} style="display:flex; justify-content:space-between; align-items:center; padding:16px; border-bottom:1px solid var(--border-light, rgba(128,128,128,0.2)); ${rowStyle}">
-              <div style="flex: 1; min-width: 0; padding-right: 15px; display:flex; align-items:center;">
-                  <div style="font-size:14px; color:var(--text-main); font-weight:bold; text-transform:uppercase; display:flex; align-items:center; flex-wrap:wrap;">
-                      <span>${f.cleanDisplayKey}${reqStar}</span> ${applyAllBadge}
+          <div class="${rowClass}" ${onclickAttr}>
+              <div class="editor-param-left">
+                  <div class="editor-param-name">
+                      <span>${f.cleanDisplayKey}${reqStar}</span>
                   </div>
               </div>
-              <div style="flex-shrink: 0; display:flex; align-items:center;">
+              <div class="editor-param-right">
                   ${rightSideHtml}
                   ${arrowIcon}
               </div>
@@ -4106,24 +4361,24 @@ window.renderEditorMainUI = function (item) {
     return html;
   };
 
-  // 3. СКЛЕИВАЕМ БЛОКИ
+  // 4. Вариант А: сначала незаполненные красные, затем заполненные зелёные, системный «Артикул» в конце обязательных
   let finalHtml = "";
-  let mandatoryAll = mandatoryEmpty.concat(mandatoryFilled);
-  let optionalAll = optionalEmpty.concat(optionalFilled);
+  const mandatoryAll = mandatoryEmpty.concat(mandatoryFilled, mandatorySku);
+  const optionalAll = optionalEmpty.concat(optionalFilled);
 
   if (mandatoryAll.length > 0) {
     finalHtml +=
-      `
-      <div style="padding: 24px 16px 8px; font-size: 11px; color: #ff4444; text-transform: uppercase; font-weight: bold; letter-spacing: 1px; text-align: left; display: flex; align-items: center; gap: 6px; background: rgba(255,68,68,0.05);">
-        <div style="width:8px; height:8px; border-radius:50%; background:#ff4444;"></div> ${t.inc_mandatory_params || "Обязательные параметры"}
+      `<div class="editor-section-header editor-section-header--required">
+        <span class="editor-section-dot"></span>
+        <span data-i18n="inc_mandatory_params">${t.inc_mandatory_params || "Обязательные параметры"}</span>
       </div>` + renderList(mandatoryAll);
   }
 
   if (optionalAll.length > 0) {
     finalHtml +=
-      `
-      <div style="padding: 24px 16px 8px; font-size: 11px; color: var(--accent-blue); text-transform: uppercase; font-weight: bold; letter-spacing: 1px; text-align: left; display: flex; align-items: center; gap: 6px; background: rgba(50,157,250,0.05);">
-        <div style="width:8px; height:8px; border-radius:50%; background:var(--accent-blue);"></div> ${t.inc_optional_params || "Дополнительные параметры"}
+      `<div class="editor-section-header editor-section-header--optional">
+        <span class="editor-section-dot"></span>
+        <span data-i18n="inc_optional_params">${t.inc_optional_params || "Дополнительные параметры"}</span>
       </div>` + renderList(optionalAll);
   }
 
@@ -4134,66 +4389,137 @@ window.renderEditorMainUI = function (item) {
     document.body.appendChild(modalContainer);
   }
 
-  // === ИСПРАВЛЕНИЕ: Добавлен event.stopPropagation() в кнопки Отмена и Готово ===
   modalContainer.innerHTML = `
         <div id="editorMainModal" class="kaspi-modal-overlay">
             <div class="kaspi-modal-header">
-                <span onclick="event.stopPropagation(); document.getElementById('modalContainer').innerHTML='';" style="color:var(--text-muted); font-size:16px; cursor:pointer;">${t.inc_cancel || "Отмена"}</span>
-                <b style="font-size:16px; color:var(--text-main);">${t.inc_item_params || "Параметры"}</b>
-                <span onclick="event.stopPropagation(); window.saveAllEdits();" style="color:var(--accent-green); font-size:16px; font-weight:bold; cursor:pointer;">${t.inc_ready || "Готово"}</span>
+                <span onclick="event.stopPropagation(); document.getElementById('modalContainer').innerHTML='';" class="editor-action-cancel" data-i18n="inc_cancel">${t.inc_cancel || "ОТМЕНА"}</span>
+                <b class="editor-modal-title" data-i18n="inc_item_params">${t.inc_item_params || "Товар и параметры"}</b>
+                <span onclick="event.stopPropagation(); window.saveAllEdits();" class="editor-action-save" data-i18n="inc_ready">${t.inc_ready || "ГОТОВО"}</span>
             </div>
             <div class="kaspi-modal-subheader">
-                <div style="color:var(--accent-blue); font-weight:bold; font-size:14px;">${item.item_name || item.name || ""}</div>
+                <div class="editor-subheader-name">${(item && (item.item_name || item.name)) || ""}</div>
             </div>
-            <div style="flex:1; overflow-y:auto; background:var(--bg-body);">
-                ${finalHtml || `<div style="padding:20px; text-align:center; color:var(--text-muted);">${t.inc_no_params || "Нет доступных параметров"}</div>`}
+            <div class="editor-modal-body">
+                ${finalHtml || `<div class="editor-empty-state" data-i18n="inc_no_params">${t.inc_no_params || "Нет доступных параметров"}</div>`}
             </div>
         </div>
     `;
 };
 
 window.saveAllEdits = function () {
-  let item = window.parsedInvoiceData[window.currentEditIndex];
-  item.attributes =
-    Object.keys(window.tempAttrs).length > 0
-      ? JSON.stringify(window.tempAttrs)
-      : "";
+  const item = window.parsedInvoiceData[window.currentEditIndex];
+  if (!item) {
+    const mc = document.getElementById("modalContainer");
+    if (mc) mc.innerHTML = "";
+    return;
+  }
 
-  // ИСПРАВЛЕНИЕ: Пытаемся обновить invoiceGroups ТОЛЬКО если мы не в режиме экспорта
+  const catalog = window.buildEditorFieldCatalog();
+  const cleanAttrs = {};
+  const clearedSet = window.tempClearedKeys || new Set();
+
+  if (window.tempAttrs && typeof window.tempAttrs === "object") {
+    Object.keys(window.tempAttrs).forEach((k) => {
+      const rawVal = window.tempAttrs[k];
+      if (rawVal === undefined || rawVal === null) return;
+      const val = String(rawVal).trim();
+      if (!val) return;
+
+      const normK = window.normalizeParamLabel(k);
+      const entry =
+        catalog.byHumanExact[k] ||
+        catalog.bySysKey[k] ||
+        (normK && catalog.byNormLabel[normK]);
+
+      if (entry) {
+        if (entry.isSku) return;
+        cleanAttrs[entry.canonicalKey] = val;
+      } else {
+        if (normK === "артикул" || k.toLowerCase().includes("sku")) return;
+        cleanAttrs[k] = val;
+      }
+    });
+  }
+
+  // Сохраняем правки строго для текущего одного товара (без массового перетирания остальных позиций)
+  item.attributes =
+    Object.keys(cleanAttrs).length > 0 ? JSON.stringify(cleanAttrs) : "";
+  item._attributesObj = Object.assign({}, cleanAttrs);
+  item._clearedAttrs = Array.from(clearedSet);
+
+  // Синхронизируем плоские поля объекта (важно для ветки выгрузки и silentUpdateAttributesBackend)
+  const PROTECTED_ITEM_FIELDS = new Set([
+    "doc_no",
+    "supplier",
+    "item_id",
+    "item_name",
+    "qty",
+    "quantity",
+    "cost",
+    "price",
+    "cbm",
+    "weight",
+    "raw_logistics",
+    "staff_id",
+    "id",
+    "name",
+    "desc",
+    "description",
+    "barcode",
+    "hash",
+    "category",
+    "sku",
+    "merchant_sku",
+    "title",
+    "attributes",
+    "kaspi_attributes",
+    "params",
+    "export_metadata",
+    "sourceRowIndexes",
+    "_sourceRowIndexes",
+    "_hasCollisions",
+    "_collisionsList",
+    "_attributesObj",
+    "_clearedAttrs",
+  ]);
+
+  catalog.fields.forEach((entry) => {
+    if (entry.isSku) return;
+    const canKey = entry.canonicalKey;
+    const sysKey = entry.sysKey;
+    const val = cleanAttrs[canKey];
+
+    if (sysKey && sysKey !== canKey && !PROTECTED_ITEM_FIELDS.has(sysKey)) {
+      delete item[sysKey];
+    }
+
+    if (!PROTECTED_ITEM_FIELDS.has(canKey)) {
+      if (val !== undefined && val !== "") {
+        if (window.isKaspiExportMode || item[canKey] !== undefined) {
+          item[canKey] = val;
+        }
+      } else if (clearedSet.has(canKey) || (sysKey && clearedSet.has(sysKey))) {
+        delete item[canKey];
+      }
+    }
+  });
+
+  // Синхронизируем invoiceGroups в ветке приёмки
   if (
     !window.isKaspiExportMode &&
     window.invoiceGroups &&
     item.doc_no &&
-    window.invoiceGroups[item.doc_no]
+    window.invoiceGroups[item.doc_no] &&
+    Array.isArray(window.invoiceGroups[item.doc_no].items)
   ) {
-    window.invoiceGroups[item.doc_no].items[
-      window.currentEditIndex
-    ].attributes = item.attributes;
-  }
-
-  if (Object.keys(window.applyToAllMap).length > 0) {
-    window.parsedInvoiceData.forEach((row, rIdx) => {
-      if (rIdx === window.currentEditIndex) return;
-      let rowAttrs = {};
-      try {
-        if (row.attributes) rowAttrs = JSON.parse(row.attributes);
-      } catch (e) {}
-      Object.keys(window.applyToAllMap).forEach((globalKey) => {
-        rowAttrs[globalKey] = window.applyToAllMap[globalKey];
-      });
-      row.attributes = JSON.stringify(rowAttrs);
-
-      // ИСПРАВЛЕНИЕ: Массовое обновление для групп тоже защищаем
-      if (
-        !window.isKaspiExportMode &&
-        window.invoiceGroups &&
-        row.doc_no &&
-        window.invoiceGroups[row.doc_no]
-      ) {
-        window.invoiceGroups[row.doc_no].items[rIdx].attributes =
-          row.attributes;
-      }
-    });
+    const grpItems = window.invoiceGroups[item.doc_no].items;
+    const grpItem =
+      grpItems.find((gi) => gi === item) || grpItems[window.currentEditIndex];
+    if (grpItem) {
+      grpItem.attributes = item.attributes;
+      grpItem._attributesObj = Object.assign({}, cleanAttrs);
+      grpItem._clearedAttrs = item._clearedAttrs.slice();
+    }
   }
 
   document.getElementById("modalContainer").innerHTML = "";
@@ -4201,85 +4527,93 @@ window.saveAllEdits = function () {
 };
 
 // === 2. ПОЛНОЭКРАННОЕ ОКНО ПРАВКИ ОДНОГО ПОЛЯ ===
-window.openEditorField = function (originalKey) {
-  const t = translations[currentLang] || {};
-  let val = window.tempAttrs[originalKey] || "";
+window.openEditorField = function (canonicalKey) {
+  const lang = window.currentLang || localStorage.getItem("pos_lang") || "ru";
+  const t =
+    typeof translations !== "undefined" && translations[lang]
+      ? translations[lang]
+      : {};
 
-  let humanName = window.mapper2State.sysToHumanMap
-    ? window.mapper2State.sysToHumanMap[originalKey]
-    : null;
-  let displayKey =
-    humanName ||
-    originalKey
-      .split("*")
-      .pop()
-      .replace(/tires/gi, "")
-      .replace(/additional/gi, "")
-      .replace(/general/gi, "")
-      .replace(/\./g, "")
-      .trim();
-  if (!displayKey) displayKey = originalKey;
+  const catalog = window.buildEditorFieldCatalog();
+  const normK = window.normalizeParamLabel(canonicalKey);
+  const entry =
+    catalog.byHumanExact[canonicalKey] ||
+    catalog.bySysKey[canonicalKey] ||
+    (normK && catalog.byNormLabel[normK]);
+
+  const resolvedKey = entry ? entry.canonicalKey : canonicalKey;
+  const sysKey = entry ? entry.sysKey : "";
+  const displayKey = entry
+    ? entry.cleanDisplayKey
+    : String(canonicalKey || "")
+        .split("*")
+        .pop()
+        .replace(/tires/gi, "")
+        .replace(/additional/gi, "")
+        .replace(/general/gi, "")
+        .replace(/\./g, "")
+        .replace(/\*/g, "")
+        .trim() || canonicalKey;
+
+  let val =
+    (window.tempAttrs && window.tempAttrs[resolvedKey]) ||
+    (sysKey && window.tempAttrs && window.tempAttrs[sysKey]) ||
+    "";
+  val = String(val || "").trim();
+
+  // Если это Название товара/модели и значение ещё не переопределено вручную — подставляем текущее имя товара
+  if (val === "" && window.parsedInvoiceData && window.currentEditIndex !== null) {
+    const curItem = window.parsedInvoiceData[window.currentEditIndex];
+    const clearedSet = window.tempClearedKeys || new Set();
+    const lowerSys = String(sysKey || "").toLowerCase();
+    const lowerDisp = window.normalizeParamLabel(displayKey);
+    if (
+      curItem &&
+      !clearedSet.has(resolvedKey) &&
+      (lowerSys === "name" ||
+        lowerSys === "model" ||
+        lowerDisp === "название товара" ||
+        lowerDisp === "название модели" ||
+        lowerDisp === "наименование")
+    ) {
+      val = String(curItem.item_name || curItem.name || curItem.title || "").trim();
+    }
+  }
 
   // === 1. ПАРСИНГ ЛИМИТОВ ИЗ НАЗВАНИЯ ===
   let minChars = 0;
   let maxChars = 0;
 
-  // Ищем "мин" и забираем цифры (игнорируя пробелы, например "7 000")
   let minMatch = displayKey.match(/мин[^\d]*(\d[\d\s]*)/i);
-  if (minMatch) minChars = parseInt(minMatch[1].replace(/\s/g, ""));
+  if (minMatch) minChars = parseInt(minMatch[1].replace(/\s/g, ""), 10);
 
-  // Ищем "макс" и забираем цифры
   let maxMatch = displayKey.match(/макс[^\d]*(\d[\d\s]*)/i);
-  if (maxMatch) maxChars = parseInt(maxMatch[1].replace(/\s/g, ""));
+  if (maxMatch) maxChars = parseInt(maxMatch[1].replace(/\s/g, ""), 10);
 
-  let dict = null;
-  if (window.kaspiDicts) {
-    let cleanOrig = originalKey.toLowerCase().trim();
-    let cleanDisp = displayKey.toLowerCase().trim();
-    let targetDictKey = humanName ? humanName.toLowerCase().trim() : cleanDisp;
+  let dict =
+    (entry && entry.dict) || catalog.resolveDictFor(resolvedKey, sysKey);
 
-    let foundKey = Object.keys(window.kaspiDicts).find((dk) => {
-      let cleanDk = dk.toLowerCase().trim();
-      return (
-        cleanDk === targetDictKey ||
-        cleanDk === cleanOrig ||
-        cleanDk === cleanDisp
-      );
-    });
-
-    if (foundKey) dict = window.kaspiDicts[foundKey];
-  }
-
-  if (dict && !Array.isArray(dict)) {
-    if (typeof dict === "object") dict = Object.values(dict);
-  }
-
-  // РОДНАЯ ЛОГИКА POS NOIR: проверяем строго на !== undefined
-  if (!window.applyToAllMap) window.applyToAllMap = {};
-  let isGlobal = window.applyToAllMap[originalKey] !== undefined;
+  const encodedKey = encodeURIComponent(resolvedKey);
 
   let controlHtml = "";
   let listHtml = "";
 
-  let clearBtnHtml = `
-      <div onclick="window.clearSingleField('${originalKey}')" style="display:flex; align-items:center; justify-content:center; gap:8px; margin-top:10px; padding:12px; background:rgba(255,68,68,0.1); color:#ff4444; border-radius:8px; border:1px solid rgba(255,68,68,0.3); font-size:14px; font-weight:bold; cursor:pointer; transition:background 0.2s;">
-          <span>✖</span> ${t.inc_clear_selection || "Очистить выбор"}
+  const clearBtnHtml = `
+      <div onclick="window.clearSingleField(decodeURIComponent('${encodedKey}'))" class="kaspi-dict-clear-btn">
+          <span>✖</span> <span data-i18n="inc_clear_selection">${t.inc_clear_selection || "Очистить выбор"}</span>
       </div>`;
 
   window.clearSingleField = function (key) {
-    let input = document.getElementById("singleFieldInput");
+    const input = document.getElementById("singleFieldInput");
     if (input) input.value = "";
-    let applyAll = document.getElementById("singleFieldApplyAll");
-    if (applyAll) applyAll.checked = false;
     window.saveSingleField(key);
   };
 
-  // === 2. ГЛОБАЛЬНАЯ ФУНКЦИЯ ВАЛИДАЦИИ (С ПЕРЕВОДАМИ) ===
   window.validateAndSaveField = function (key, min, max) {
-    let input = document.getElementById("singleFieldInput");
+    const input = document.getElementById("singleFieldInput");
     if (!input) return window.saveSingleField(key);
 
-    let len = input.value.trim().length;
+    const len = input.value.trim().length;
     if (len > 0) {
       if (min > 0 && len < min) {
         return alert(
@@ -4295,102 +4629,97 @@ window.openEditorField = function (originalKey) {
     window.saveSingleField(key);
   };
 
-  // === 3. ЛОГИКА СЧЕТЧИКА ===
   let counterHtml = "";
   let onInputAttr = "";
 
   window.updateCharCount = function (min, max) {
-    let el = document.getElementById("singleFieldInput");
-    let counter = document.getElementById("charCounterSpan");
+    const el = document.getElementById("singleFieldInput");
+    const counter = document.getElementById("charCounterSpan");
     if (!el || !counter) return;
 
-    let len = el.value.trim().length;
-    let color = "var(--text-muted)";
+    const len = el.value.trim().length;
+    counter.classList.remove(
+      "editor-char-counter--error",
+      "editor-char-counter--ok",
+    );
 
-    if (min > 0 && len > 0 && len < min) color = "#ff4444";
-    else if (max > 0 && len > max) color = "#ff4444";
-    else if (len > 0) color = "var(--accent-green)";
+    if ((min > 0 && len > 0 && len < min) || (max > 0 && len > max)) {
+      counter.classList.add("editor-char-counter--error");
+    } else if (len > 0) {
+      counter.classList.add("editor-char-counter--ok");
+    }
 
-    counter.style.color = color;
     counter.innerText = len + (max > 0 ? " / " + max : "");
   };
 
   if (minChars > 0 || maxChars > 0) {
-    // Счетчик будет размещен в шапке
-    counterHtml = `<div id="charCounterSpan" style="font-size: 11px; font-weight: bold; color: var(--text-muted); margin-top: 2px;">0</div>`;
+    counterHtml = '<div id="charCounterSpan" class="editor-char-counter">0</div>';
     onInputAttr = `oninput="window.updateCharCount(${minChars}, ${maxChars})"`;
   }
 
+  // Строго без чекбокса и без массовой подсказки: правка меняет параметр только текущего одного товара
   if (dict && dict.length > 0) {
     window.currentFieldDict = dict;
     controlHtml = `
-        <div style="padding:15px 20px 10px 20px; background:var(--bg-body); flex-shrink:0; z-index:2; box-shadow: 0 4px 10px rgba(0,0,0,0.15);">
+        <div class="editor-field-controls">
             <input type="text" id="singleFieldInput" class="kaspi-input-field" value="${val.replace(/"/g, "&quot;")}" 
+                data-i18n-placeholder="inc_search_enter"
                 placeholder="${t.inc_search_enter || "Поиск..."}"
                 onfocus="this.select()"
                 oninput="window.filterDictList(this)">
-            
-            <label style="display:flex; align-items:center; gap:10px; margin-top:15px; padding:15px; background:var(--bg-panel); border-radius:8px; border:1px solid var(--border-light); cursor:pointer;">
-                <input type="checkbox" id="singleFieldApplyAll" ${isGlobal ? "checked" : ""} style="width:20px; height:20px;">
-                <span style="font-size:14px; color:var(--text-main);">${t.inc_apply_all || "Применить ко всем товарам"}</span>
-            </label>
             ${clearBtnHtml}
         </div>`;
 
     listHtml = `
-        <div style="flex:1; overflow-y:auto; padding: 10px 20px 20px 20px; -webkit-overflow-scrolling: touch;">
-            <ul id="dictList" style="list-style:none; padding:0; margin:0; background:var(--bg-panel); border-radius:8px; border:1px solid var(--border-light);">
+        <div class="editor-field-list-wrap">
+            <ul id="dictList" class="editor-field-list">
                 ${dict
-                  .map(
-                    (
-                      d,
-                    ) => `<li onclick="window.selectPreviewDictValue('${String(d).replace(/'/g, "\\'")}')" class="param-row">
-                    <span style="color:var(--text-main);">${d}</span>${d === val ? `<span style="color:var(--accent-blue);">✔</span>` : ""}
-                </li>`,
-                  )
+                  .map((d) => {
+                    const encodedVal = encodeURIComponent(String(d));
+                    const isSelected = d === val;
+                    return `<li onclick="window.selectPreviewDictValue(decodeURIComponent('${encodedVal}'))" class="kaspi-dict-item${isSelected ? " is-selected" : ""}">
+                    <span>${d}</span>${isSelected ? '<span class="kaspi-dict-check">✔</span>' : ""}
+                </li>`;
+                  })
                   .join("")}
             </ul>
         </div>`;
   } else {
     controlHtml = `
-        <div style="padding:15px 20px 10px 20px; background:var(--bg-body); flex-shrink:0; z-index:2;">
-            <label style="display:flex; align-items:center; gap:10px; padding:15px; background:var(--bg-panel); border-radius:8px; border:1px solid var(--border-light); cursor:pointer;">
-                <input type="checkbox" id="singleFieldApplyAll" ${isGlobal ? "checked" : ""} style="width:20px; height:20px;">
-                <span style="font-size:14px; color:var(--text-main);">${t.inc_apply_all || "Применить ко всем товарам"}</span>
-            </label>
+        <div class="editor-field-controls">
             ${clearBtnHtml}
         </div>`;
 
     listHtml = `
-        <div style="flex:1; overflow-y:auto; padding: 10px 20px 20px 20px; display:flex; flex-direction:column; -webkit-overflow-scrolling: touch;">
-            <textarea id="singleFieldInput" class="kaspi-input-field" placeholder="${displayKey}..." 
-                ${onInputAttr}
-                style="flex:1; min-height:250px; resize:none; line-height:1.5; font-family:inherit;">${val}</textarea>
+        <div class="editor-field-textarea-wrap">
+            <textarea id="singleFieldInput" class="kaspi-input-field editor-field-textarea" placeholder="${displayKey.replace(/"/g, "&quot;")}..." 
+                ${onInputAttr}>${val}</textarea>
         </div>`;
   }
 
-  let fieldModal = document.createElement("div");
+  const oldFieldModal = document.getElementById("editorFieldModal");
+  if (oldFieldModal) oldFieldModal.remove();
+
+  const fieldModal = document.createElement("div");
   fieldModal.id = "editorFieldModal";
   fieldModal.className = "kaspi-modal-overlay";
 
-  // === 4. ВЫРАВНИВАНИЕ ХЕДЕРА И ВСТРОЙКА СЧЕТЧИКА ===
   fieldModal.innerHTML = `
-        <div class="kaspi-modal-header" style="display: flex; align-items: center; justify-content: space-between;">
-            <span onclick="document.getElementById('editorFieldModal').remove()" style="color:var(--accent-blue); font-size:16px; cursor:pointer; display:flex; align-items:center; gap:5px; flex-shrink: 0;">
-                <span style="font-size:20px; margin-top:-2px;">&#10094;</span> 
+        <div class="kaspi-modal-header">
+            <span onclick="document.getElementById('editorFieldModal').remove()" class="kaspi-dict-back">
+                <span>&#10094;</span>
             </span>
-            <div style="flex: 1; display: flex; flex-direction: column; text-align: left; padding: 0 10px; overflow: hidden;">
-                <b style="font-size:14px; color:var(--text-main); text-transform:uppercase; text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${displayKey}</b>
+            <div class="editor-field-header-title">
+                <b class="editor-field-title-text">${displayKey}</b>
                 ${counterHtml}
             </div>
-            <span onclick="window.validateAndSaveField('${originalKey}', ${minChars}, ${maxChars})" style="color:var(--accent-green); font-size:16px; font-weight:bold; cursor:pointer; flex-shrink: 0;">${t.inc_save || "OK"}</span>
+            <span onclick="window.validateAndSaveField(decodeURIComponent('${encodedKey}'), ${minChars}, ${maxChars})" class="editor-action-save" data-i18n="inc_save">${t.inc_save || "ОК"}</span>
         </div>
         ${controlHtml}
         ${listHtml}
     `;
   document.getElementById("modalContainer").appendChild(fieldModal);
 
-  // Инициализируем счетчик при открытии
   if (minChars > 0 || maxChars > 0) {
     setTimeout(() => {
       if (window.updateCharCount) window.updateCharCount(minChars, maxChars);
@@ -4400,21 +4729,20 @@ window.openEditorField = function (originalKey) {
 
 // === АЛГОРИТМ УМНОГО ПОИСКА ===
 window.filterDictList = function (input) {
-  let filter = input.value.toLowerCase().trim();
-  let ul = document.getElementById("dictList");
+  const filter = input.value.toLowerCase().trim();
+  const ul = document.getElementById("dictList");
   if (!ul) return;
 
-  let dict = window.currentFieldDict || [];
+  const dict = window.currentFieldDict || [];
 
   if (!filter) {
     ul.innerHTML = dict
-      .map(
-        (
-          d,
-        ) => `<li onclick="window.selectPreviewDictValue('${d.replace(/'/g, "\\'")}')" class="param-row">
-            <span style="color:var(--text-main);">${d}</span>
-        </li>`,
-      )
+      .map((d) => {
+        const encodedVal = encodeURIComponent(String(d));
+        return `<li onclick="window.selectPreviewDictValue(decodeURIComponent('${encodedVal}'))" class="kaspi-dict-item">
+            <span>${d}</span>
+        </li>`;
+      })
       .join("");
     return;
   }
@@ -4422,18 +4750,20 @@ window.filterDictList = function (input) {
   let startsWith = [];
   let wordStart = [];
   let includes = [];
-  let safeFilter = filter.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  let highlightRegex = new RegExp(`(${safeFilter})`, "gi");
+  const safeFilter = filter.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const highlightRegex = new RegExp(`(${safeFilter})`, "gi");
 
   dict.forEach((d) => {
-    let lowerD = d.toLowerCase();
-    let highlightedD = d.replace(
+    const strD = String(d);
+    const lowerD = strD.toLowerCase();
+    const highlightedD = strD.replace(
       highlightRegex,
-      '<b style="color:var(--accent-yellow);">$1</b>',
+      '<b class="editor-dict-match">$1</b>',
     );
+    const encodedVal = encodeURIComponent(strD);
 
-    let liHtml = `<li onclick="window.selectPreviewDictValue('${d.replace(/'/g, "\\'")}')" class="param-row">
-            <span style="color:var(--text-main);">${highlightedD}</span>
+    const liHtml = `<li onclick="window.selectPreviewDictValue(decodeURIComponent('${encodedVal}'))" class="kaspi-dict-item">
+            <span>${highlightedD}</span>
         </li>`;
 
     if (lowerD.startsWith(filter)) {
@@ -4445,26 +4775,59 @@ window.filterDictList = function (input) {
     }
   });
 
-  ul.innerHTML = [...startsWith, ...wordStart, ...includes].join("");
+  const combined = [...startsWith, ...wordStart, ...includes];
+  if (combined.length === 0) {
+    const lang = window.currentLang || localStorage.getItem("pos_lang") || "ru";
+    const tr =
+      typeof translations !== "undefined" && translations[lang]
+        ? translations[lang]
+        : {};
+    ul.innerHTML = `<div class="kaspi-dict-empty">${tr.dict_not_found || "Ничего не найдено"}</div>`;
+    return;
+  }
+
+  ul.innerHTML = combined.join("");
 };
 
 window.selectPreviewDictValue = function (val) {
-  document.getElementById("singleFieldInput").value = val;
+  const input = document.getElementById("singleFieldInput");
+  if (input) input.value = val;
 };
 
-window.saveSingleField = function (originalKey) {
-  let newVal = document.getElementById("singleFieldInput").value.trim();
-  let applyAll = document.getElementById("singleFieldApplyAll").checked;
+window.saveSingleField = function (canonicalKey) {
+  const input = document.getElementById("singleFieldInput");
+  const newVal = input ? input.value.trim() : "";
 
-  window.tempAttrs[originalKey] = newVal;
+  const catalog = window.buildEditorFieldCatalog();
+  const normK = window.normalizeParamLabel(canonicalKey);
+  const entry =
+    catalog.byHumanExact[canonicalKey] ||
+    catalog.bySysKey[canonicalKey] ||
+    (normK && catalog.byNormLabel[normK]);
 
-  if (applyAll) {
-    window.applyToAllMap[originalKey] = newVal;
-  } else {
-    delete window.applyToAllMap[originalKey];
+  const resolvedKey = entry ? entry.canonicalKey : canonicalKey;
+  const sysKey = entry ? entry.sysKey : "";
+
+  if (!window.tempAttrs) window.tempAttrs = {};
+  if (!window.tempClearedKeys) window.tempClearedKeys = new Set();
+
+  // Удаляем возможный устаревший технический ключ-дубль
+  if (sysKey && sysKey !== resolvedKey) {
+    delete window.tempAttrs[sysKey];
   }
 
-  document.getElementById("editorFieldModal").remove();
+  if (newVal !== "") {
+    window.tempAttrs[resolvedKey] = newVal;
+    window.tempClearedKeys.delete(resolvedKey);
+    if (sysKey) window.tempClearedKeys.delete(sysKey);
+  } else {
+    delete window.tempAttrs[resolvedKey];
+    window.tempClearedKeys.add(resolvedKey);
+    if (sysKey) window.tempClearedKeys.add(sysKey);
+  }
+
+  const fieldModal = document.getElementById("editorFieldModal");
+  if (fieldModal) fieldModal.remove();
   window.renderEditorMainUI(window.parsedInvoiceData[window.currentEditIndex]);
 };
 
@@ -4676,11 +5039,7 @@ async function sendInvoiceToBackend() {
           itemAttrs = JSON.parse(sampleItem.attributes);
         }
         Object.keys(itemAttrs).forEach((key) => {
-          if (window.applyToAllMap && window.applyToAllMap[key]) {
-            autoGeneratedMapper[key] = "static_" + window.applyToAllMap[key];
-          } else {
-            autoGeneratedMapper[key] = "json_" + key;
-          }
+          autoGeneratedMapper[key] = "json_" + key;
         });
       } catch (e) {
         console.error("Ошибка при сборке маппера:", e);
@@ -4940,6 +5299,10 @@ window.openExportModal = async function () {
 
   window.mapper2State = window.mapper2State || {};
   window.mapper2State.colMap = {}; // Очищаем старый маппинг колонок
+  window.mapper2State.clearedKeys = {};
+  window.mapper2State.smartRulesApplied = false;
+  window.mapper2State.memorySplitsLoaded = false;
+  window.mapper2State.appliedTemplateHash = null;
 
   const modal = document.getElementById("export-modal");
   const container = document.getElementById("exportCardsContainer");
@@ -5453,6 +5816,10 @@ window.handleCardSelectForExport = async function (
           colMap: {},
           dictValues: {},
           splitRules: {},
+          clearedKeys: {},
+          smartRulesApplied: false,
+          memorySplitsLoaded: false,
+          appliedTemplateHash: null,
           invoiceHeaders: extractedHeaders,
           invoiceRows: window.parsedInvoiceData.map((item) =>
             extractedHeaders.map((h) => item[h]),
@@ -5523,34 +5890,60 @@ window.handleCardSelectForExport = async function (
       window.mapper2State.colMap = {};
       res.templateConfig.mapping = {};
 
-      // 1. Универсальная привязка ВСЕХ параметров по extractedHeaders (не затираем старыми индексами Excel!)
+      // 1. Универсальная привязка ВСЕХ параметров по extractedHeaders (не дублируем humanName и sysKey в colMap)
       extractedHeaders.forEach((header, idx) => {
         res.templateConfig.mapping[header] = header;
-        window.mapper2State.colMap[header] = idx;
 
-        // 🔥 ФИКС АВТОЗАПОЛНЕНИЯ ИЗ БАЗЫ: Увязываем русские названия характеристик с техническими ключами Kaspi
+        let mappedToSysKey = false;
         if (res.templateConfig.humanNames && res.templateConfig.systemKeys) {
           let humanIdx = res.templateConfig.humanNames.indexOf(header);
           if (humanIdx !== -1) {
             let sysKey = res.templateConfig.systemKeys[humanIdx];
             if (sysKey && sysKey !== "merchant_sku") {
               window.mapper2State.colMap[sysKey] = idx; // Маппер увидит это и зажжет зеленую галочку!
+              mappedToSysKey = true;
             }
           }
         }
+
+        if (!mappedToSysKey) {
+          window.mapper2State.colMap[header] = idx;
+        }
       });
 
-      // 2. Восстанавливаем сплиттеры чисто для визуала (данные уже готовы)
+      // 2. Восстанавливаем сплиттеры и dictValues; не затираем сохранённые индивидуальные значения из БД старым глобальным dictValues
       if (savedMeta.saved_complex_params) {
-        res.templateConfig.splitRules =
+        const restoredSplitRules =
           savedMeta.saved_complex_params.splitRules || {};
-        res.templateConfig.dictValues =
-          savedMeta.saved_complex_params.dictValues || {};
-        window.mapper2State.splitRules = res.templateConfig.splitRules;
-        window.mapper2State.dictValues = res.templateConfig.dictValues;
+        const restoredDictValues = Object.assign(
+          {},
+          savedMeta.saved_complex_params.dictValues || {},
+        );
+
+        Object.keys(restoredDictValues).forEach((dKey) => {
+          const mappedIdx = window.mapper2State.colMap[dKey];
+          if (mappedIdx !== undefined && mappedIdx >= 0) {
+            const headerName = extractedHeaders[mappedIdx];
+            const hasDbValues = window.parsedInvoiceData.some(
+              (it) =>
+                it &&
+                it[headerName] !== undefined &&
+                it[headerName] !== null &&
+                String(it[headerName]).trim() !== "",
+            );
+            if (hasDbValues) {
+              delete restoredDictValues[dKey];
+            }
+          }
+        });
+
+        res.templateConfig.splitRules = restoredSplitRules;
+        res.templateConfig.dictValues = restoredDictValues;
+        window.mapper2State.splitRules = restoredSplitRules;
+        window.mapper2State.dictValues = restoredDictValues;
         window.kaspiComplexParamsState = {
-          splitRules: res.templateConfig.splitRules,
-          dictValues: res.templateConfig.dictValues,
+          splitRules: restoredSplitRules,
+          dictValues: restoredDictValues,
         };
       }
 
