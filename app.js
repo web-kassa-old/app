@@ -307,7 +307,79 @@ if (langParam === "kz" || langParam === "ru") {
 
 // === БРОНИРОВАННЫЙ ДВИЖОК ЗАПРОСОВ (smartFetch) ===
 window.smartFetch = async function (url, payload, cacheKey, maxRetries = 3) {
-  const TIMEOUT_MS = 30000; // Ждем максимум 8 секунд на одну попытку
+  const TIMEOUT_MS = 30000; // Ждем максимум 30 секунд на одну попытку
+  const NO_CACHE_ACTIONS = new Set([
+    "database_clear",
+    "database_restore",
+    "smart_merge",
+    "delete_photo",
+    "upload_photo",
+    "income",
+    "batch_sync",
+    "update_bulk_prices",
+    "bulk_markup",
+    "rename_category",
+    "saveKaspiTemplate",
+    "updateKaspiMemory",
+    "markKaspiExportedBackend",
+    "silentUpdateAttributesBackend",
+    "emergency_relink",
+    "createTenant",
+  ]);
+
+  const normalizedCacheKey =
+    typeof cacheKey === "string" &&
+    cacheKey.trim() !== "" &&
+    cacheKey.trim() !== "undefined" &&
+    cacheKey.trim() !== "null"
+      ? cacheKey.trim()
+      : "";
+
+  const extractAction = (targetUrl, reqPayload) => {
+    const actions = [];
+    // 1. Проверяем action из объекта payload или распарсенного body (для POST)
+    if (reqPayload && typeof reqPayload === "object") {
+      if (reqPayload.action) actions.push(String(reqPayload.action).trim());
+      if (typeof reqPayload.body === "string") {
+        try {
+          const parsedBody = JSON.parse(reqPayload.body);
+          if (parsedBody && parsedBody.action) {
+            actions.push(String(parsedBody.action).trim());
+          }
+        } catch (e) {}
+      } else if (reqPayload.body && typeof reqPayload.body === "object" && reqPayload.body.action) {
+        actions.push(String(reqPayload.body.action).trim());
+      }
+    } else if (typeof reqPayload === "string") {
+      try {
+        const parsedPayload = JSON.parse(reqPayload);
+        if (parsedPayload && parsedPayload.action) {
+          actions.push(String(parsedPayload.action).trim());
+        }
+      } catch (e) {}
+    }
+
+    // 2. Проверяем action из query-параметров URL
+    if (typeof targetUrl === "string" && targetUrl) {
+      try {
+        const base =
+          typeof window !== "undefined" && window.location
+            ? window.location.href
+            : "https://localhost";
+        const parsedUrl = new URL(targetUrl, base);
+        const urlAction = parsedUrl.searchParams.get("action");
+        if (urlAction) actions.push(String(urlAction).trim());
+      } catch (e) {}
+    }
+    return actions;
+  };
+
+  const detectedActions = extractAction(url, payload);
+  const actionName = detectedActions[0] || "";
+  const isNoCacheAction = detectedActions.some((act) =>
+    NO_CACHE_ACTIONS.has(act),
+  );
+  const canUseCache = Boolean(normalizedCacheKey) && !isNoCacheAction;
 
   for (let i = 0; i < maxRetries; i++) {
     // Создаем контроллер для прерывания зависших запросов
@@ -336,9 +408,9 @@ window.smartFetch = async function (url, payload, cacheKey, maxRetries = 3) {
       // 3. Парсим данные
       const data = JSON.parse(text);
 
-      // 4. Успех! Тихо сохраняем в кэш
-      if (data && data.success) {
-        localStorage.setItem(cacheKey, text);
+      // 4. Успех! Тихо сохраняем в кэш только при валидном cacheKey и не-деструктивном action
+      if (canUseCache && data && data.success) {
+        localStorage.setItem(normalizedCacheKey, text);
       }
 
       return data;
@@ -346,7 +418,7 @@ window.smartFetch = async function (url, payload, cacheKey, maxRetries = 3) {
       clearTimeout(timeoutId);
       const isTimeout = error.name === "AbortError";
       console.warn(
-        `Попытка ${i + 1} из ${maxRetries} для ${payload.action} не удалась:`,
+        `Попытка ${i + 1} из ${maxRetries} для ${actionName || "request"} не удалась:`,
         isTimeout ? "Превышено время ожидания сервера" : error.message,
       );
 
@@ -357,9 +429,15 @@ window.smartFetch = async function (url, payload, cacheKey, maxRetries = 3) {
     }
   }
 
-  // === ПЛАН Б: ИНТЕРНЕТ ИЛИ ГУГЛ УПАЛ, ДОСТАЕМ ИЗ КЭША ===
-  console.warn(`Достаем данные для ${payload.action} из локального кэша.`);
-  const cachedText = localStorage.getItem(cacheKey);
+  // === ПЛАН Б: ИНТЕРНЕТ ИЛИ ГУГЛ УПАЛ, ДОСТАЕМ ИЗ КЭША (ЕСЛИ РАЗРЕШЕНО) ===
+  if (!canUseCache) {
+    return null;
+  }
+
+  console.warn(
+    `Достаем данные для ${actionName || normalizedCacheKey} из локального кэша.`,
+  );
+  const cachedText = localStorage.getItem(normalizedCacheKey);
 
   if (cachedText) {
     try {
@@ -6582,7 +6660,7 @@ window.startDatabaseClear = function () {
       };
 
       window
-        .smartFetch(GATEWAY_URL, payload, "cache_db_clear")
+        .smartFetch(GATEWAY_URL, payload, null)
         .then((response) => {
           if (response && response.success) {
             Swal.fire({
@@ -6704,7 +6782,7 @@ window.startDatabaseRestore = function () {
     };
 
     window
-      .smartFetch(GATEWAY_URL, payload, "cache_db_restore")
+      .smartFetch(GATEWAY_URL, payload, null)
       .then((response) => {
         if (response && response.success) {
           Swal.fire({
@@ -7519,7 +7597,7 @@ window.generateExportFile = async function (target = "local") {
     // ТИХОЕ АВТОСОХРАНЕНИЕ В БАЗУ ДАННЫХ
     if (window.isKaspiExportMode && exportItems.length > 0) {
       const url = typeof APPS_SCRIPT_URL !== "undefined" ? APPS_SCRIPT_URL : window.APPS_SCRIPT_URL;
-      const excludeKeys = [
+      const excludeKeys = new Set([
         "name",
         "price",
         "cost",
@@ -7532,10 +7610,25 @@ window.generateExportFile = async function (target = "local") {
         "item_name",
         "item_id",
         "id",
+        "code",
         "sku",
+        "артикул",
         "hash",
+        "item_hash",
         "doc_no",
         "export_metadata",
+        "supplier",
+        "raw_logistics",
+        "staff_id",
+        "category",
+        "title",
+        "cbm",
+        "weight",
+        "file_code",
+        "market_category",
+        "market_status",
+        "template_hash",
+        "logistics_block",
         "sourcerowindexes",
         "_sourcerowindexes",
         "attributes",
@@ -7545,7 +7638,7 @@ window.generateExportFile = async function (target = "local") {
         "_clearedattrs",
         "_hascollisions",
         "_collisionslist",
-      ];
+      ]);
 
       const itemsToUpdate = exportItems.map((item) => {
         const realId = item.item_id || item.id || "";
@@ -7553,16 +7646,29 @@ window.generateExportFile = async function (target = "local") {
         let baseAttrs = {};
         try { baseAttrs = typeof item.attributes === "string" ? JSON.parse(item.attributes || "{}") : (item.attributes || {}); } catch(e){}
         let liveAttrs = item._attributesObj || {};
-        let merged = Object.assign({}, liveAttrs, baseAttrs);
+        let rawMerged = Object.assign({}, liveAttrs, baseAttrs);
         const clearedList = Array.isArray(item._clearedAttrs) ? item._clearedAttrs : [];
         clearedList.forEach((ck) => {
-          delete merged[ck];
+          delete rawMerged[ck];
         });
 
         Object.keys(item).forEach(key => {
-            if (!excludeKeys.includes(key.toLowerCase()) && !clearedList.includes(key) && item[key] !== undefined && item[key] !== null && item[key] !== "" && merged[key] === undefined) {
-                merged[key] = item[key];
+            const lk = String(key || "").trim().toLowerCase();
+            if (!excludeKeys.has(lk) && !lk.startsWith("_") && !clearedList.includes(key) && item[key] !== undefined && item[key] !== null && typeof item[key] !== "object" && String(item[key]).trim() !== "" && rawMerged[key] === undefined) {
+                rawMerged[key] = item[key];
             }
+        });
+
+        // Финальный санитайзер перед отправкой в silentUpdateAttributesBackend
+        let merged = {};
+        Object.keys(rawMerged).forEach(key => {
+            const cleanKey = String(key || "").trim();
+            const lk = cleanKey.toLowerCase();
+            if (!cleanKey || cleanKey.startsWith("_") || excludeKeys.has(lk)) return;
+            const val = rawMerged[key];
+            if (val === null || val === undefined || typeof val === "object") return;
+            const strVal = String(val).trim();
+            if (strVal !== "") merged[cleanKey] = strVal;
         });
 
         return {

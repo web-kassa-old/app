@@ -37,7 +37,6 @@
       async
       defer
     ></script>
-    <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
   </head>
   <body>
@@ -2502,475 +2501,6 @@
               </button>
             </div>
           </div>
-
-          <!-- ========================================= -->
-          <!-- ОКНО БЫСТРОГО РЕДАКТИРОВАНИЯ (QUICK EDIT) -->
-          <!-- ========================================= -->
-          <div
-            id="modal-quick-edit"
-            class="modal-overlay"
-            style="display: none"
-            onclick="closeQuickEdit()"
-          >
-            <div class="settings-box" onclick="event.stopPropagation()">
-              <div class="r-title" style="margin-bottom: 20px">
-                РЕДАКТИРОВАНИЕ
-              </div>
-
-              <input type="hidden" id="qe-item-id" />
-
-              <div class="field-group" style="margin-bottom: 15px">
-                <label style="font-size: 12px; color: var(--text-muted)"
-                  >Наименование (используйте сканер)</label
-                >
-                <input
-                  type="text"
-                  id="qe-name"
-                  readonly
-                  onclick="setQeActiveField('qe-name')"
-                  style="
-                    width: 100%;
-                    padding: 12px;
-                    margin-top: 5px;
-                    background: var(--bg-card);
-                    border: 1px solid var(--border-main);
-                    color: var(--text-main);
-                    border-radius: 4px;
-                    box-sizing: border-box;
-                  "
-                />
-              </div>
-
-              <div
-                class="grid-row"
-                style="display: flex; gap: 10px; margin-bottom: 20px"
-              >
-                <div class="field-group" style="flex: 1">
-                  <label style="font-size: 12px; color: var(--text-muted)"
-                    >Цена</label
-                  >
-                  <input
-                    type="text"
-                    id="qe-price"
-                    readonly
-                    onclick="setQeActiveField('qe-price')"
-                    style="
-                      width: 100%;
-                      padding: 12px;
-                      margin-top: 5px;
-                      background: var(--bg-card);
-                      border: 2px solid var(--accent-blue);
-                      color: var(--text-main);
-                      border-radius: 4px;
-                      box-sizing: border-box;
-                      text-align: center;
-                      font-size: 18px;
-                      font-weight: bold;
-                    "
-                  />
-                </div>
-                <div class="field-group" style="flex: 1">
-                  <label style="font-size: 12px; color: var(--text-muted)"
-                    >Остаток</label
-                  >
-                  <input
-                    type="text"
-                    id="qe-stock"
-                    readonly
-                    onclick="setQeActiveField('qe-stock')"
-                    style="
-                      width: 100%;
-                      padding: 12px;
-                      margin-top: 5px;
-                      background: var(--bg-card);
-                      border: 1px solid var(--border-main);
-                      color: var(--text-main);
-                      border-radius: 4px;
-                      box-sizing: border-box;
-                      text-align: center;
-                      font-size: 18px;
-                      font-weight: bold;
-                    "
-                  />
-                </div>
-              </div>
-
-              <!-- КАСТОМНАЯ КЛАВИАТУРА ДЛЯ РЕДАКТИРОВАНИЯ -->
-              <div
-                class="numpad"
-                style="
-                  margin-bottom: 20px;
-                  grid-template-columns: repeat(3, 1fr);
-                  gap: 10px;
-                  display: grid;
-                "
-              >
-                <div
-                  class="num-btn"
-                  onmousedown="qeAddDigit('1', event)"
-                  ontouchstart="qeAddDigit('1', event)"
-                >
-                  1
-                </div>
-                <div
-                  class="num-btn"
-                  onmousedown="qeAddDigit('2', event)"
-                  ontouchstart="qeAddDigit('2', event)"
-                >
-                  2
-                </div>
-                <div
-                  class="num-btn"
-                  onmousedown="qeAddDigit('3', event)"
-                  ontouchstart="qeAddDigit('3', event)"
-                >
-                  3
-                </div>
-                <div
-                  class="num-btn"
-                  onmousedown="qeAddDigit('4', event)"
-                  ontouchstart="qeAddDigit('4', event)"
-                >
-                  4
-                </div>
-                <div
-                  class="num-btn"
-                  onmousedown="qeAddDigit('5', event)"
-                  ontouchstart="qeAddDigit('5', event)"
-                >
-                  5
-                </div>
-                <div
-                  class="num-btn"
-                  onmousedown="qeAddDigit('6', event)"
-                  ontouchstart="qeAddDigit('6', event)"
-                >
-                  6
-                </div>
-                <div
-                  class="num-btn"
-                  onmousedown="qeAddDigit('7', event)"
-                  ontouchstart="qeAddDigit('7', event)"
-                >
-                  7
-                </div>
-                <div
-                  class="num-btn"
-                  onmousedown="qeAddDigit('8', event)"
-                  ontouchstart="qeAddDigit('8', event)"
-                >
-                  8
-                </div>
-                <div
-                  class="num-btn"
-                  onmousedown="qeAddDigit('9', event)"
-                  ontouchstart="qeAddDigit('9', event)"
-                >
-                  9
-                </div>
-                <div
-                  class="num-btn btn-clear"
-                  onmousedown="qeClearField(event)"
-                  ontouchstart="qeClearField(event)"
-                >
-                  C
-                </div>
-                <div
-                  class="num-btn"
-                  onmousedown="qeAddDigit('0', event)"
-                  ontouchstart="qeAddDigit('0', event)"
-                >
-                  0
-                </div>
-                <div
-                  class="num-btn btn-clear"
-                  onmousedown="qeDelDigit(event)"
-                  ontouchstart="qeDelDigit(event)"
-                >
-                  ⌫
-                </div>
-              </div>
-
-              <button
-                class="btn-save-native"
-                onclick="saveQuickEdit()"
-                style="
-                  width: 100%;
-                  padding: 15px;
-                  background: var(--accent-green);
-                  color: white;
-                  border: none;
-                  border-radius: 4px;
-                  font-weight: bold;
-                  margin-bottom: 10px;
-                "
-              >
-                СОХРАНИТЬ
-              </button>
-              <button
-                class="cancel-btn"
-                style="
-                  width: 100%;
-                  padding: 15px;
-                  background: transparent;
-                  border: 1px solid var(--border-main);
-                  color: var(--text-muted);
-                  border-radius: 4px;
-                "
-                onclick="closeQuickEdit()"
-              >
-                ОТМЕНА
-              </button>
-            </div>
-          </div>
-
-          <!-- МОДАЛКА ВЫБОРА БЭКАПА (SMART MERGE) -->
-          <div
-            id="deep-restore-modal"
-            class="modal-overlay"
-            style="
-              display: none;
-              background: rgba(0, 0, 0, 0.75);
-              z-index: 10000;
-            "
-            onclick="closeDeepRestoreModal()"
-          >
-            <div
-              class="settings-box"
-              onclick="event.stopPropagation()"
-              style="
-                position: relative;
-                background: var(--bg-panel, #ffffff);
-                border: 1px solid var(--border-focus);
-                padding: 25px 20px;
-                box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
-                border-radius: 16px;
-                max-width: 400px;
-                width: 90%;
-                max-height: 80vh;
-                overflow-y: auto;
-                margin: 10vh auto;
-              "
-            >
-              <!-- Крестик закрытия -->
-              <button
-                onclick="closeDeepRestoreModal()"
-                style="
-                  position: absolute;
-                  top: 12px;
-                  right: 12px;
-                  width: 32px;
-                  height: 32px;
-                  background: rgba(234, 67, 53, 0.1);
-                  border: 1px solid #ea4335;
-                  border-radius: 6px;
-                  font-size: 22px;
-                  color: #ea4335;
-                  cursor: pointer;
-                  display: flex;
-                  align-items: center;
-                  justify-content: center;
-                  z-index: 10;
-                "
-              >
-                &times;
-              </button>
-
-              <div
-                class="r-title"
-                style="
-                  font-size: 15px;
-                  margin-bottom: 25px;
-                  text-align: center;
-                  font-weight: bold;
-                  color: var(--text-main);
-                  text-transform: uppercase;
-                  letter-spacing: 1px;
-                "
-                data-i18n="deep_restore_title"
-              >
-                ВЫБОР БЭКАПА
-              </div>
-
-              <!-- Состояние 1: Загрузка (Спиннер) -->
-              <div
-                id="deep-restore-loader"
-                style="text-align: center; padding: 30px 0"
-              >
-                <div
-                  style="
-                    display: inline-block;
-                    width: 40px;
-                    height: 40px;
-                    border: 4px solid var(--border-light);
-                    border-top: 4px solid #3f51b5;
-                    border-radius: 50%;
-                    animation: spin 1s linear infinite;
-                  "
-                ></div>
-                <div
-                  style="
-                    margin-top: 15px;
-                    font-size: 13px;
-                    color: var(--text-muted);
-                  "
-                  data-i18n="deep_restore_loading"
-                >
-                  Поиск файлов на Диске...
-                </div>
-              </div>
-
-              <!-- Состояние 2: Список файлов (Скрыт по умолчанию) -->
-              <div
-                id="deep-restore-list"
-                style="display: none; flex-direction: column; gap: 10px"
-              >
-                <!-- Сюда JS будет вставлять кнопки с датами -->
-              </div>
-            </div>
-          </div>
-
-          <style>
-            @keyframes spin {
-              0% {
-                transform: rotate(0deg);
-              }
-              100% {
-                transform: rotate(360deg);
-              }
-            }
-          </style>
-
-          <!-- === КАСТОМНЫЙ PROMPT ДЛЯ КАТЕГОРИИ === -->
-          <div
-            id="custom-prompt-modal"
-            class="modal-overlay"
-            style="
-              display: none;
-              position: fixed;
-              top: 0;
-              left: 0;
-              right: 0;
-              bottom: 0;
-              background: rgba(0, 0, 0, 0.7);
-              z-index: 100000;
-              justify-content: center;
-              align-items: flex-start;
-              padding-top: 10px;
-              overflow-y: auto;
-              backdrop-filter: blur(3px);
-            "
-          >
-            <div
-              style="
-                position: absolute;
-                top: 15px;
-                left: 50%;
-                transform: translateX(-50%);
-                background: var(--bg-modal);
-                padding: 20px;
-                border-radius: 8px;
-                width: 90%;
-                max-width: 320px;
-                border: 1px solid var(--border-light);
-                box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
-                box-sizing: border-box;
-              "
-            >
-              <h3
-                data-i18n="prompt_category_title"
-                style="
-                  margin-top: 0;
-                  margin-bottom: 15px;
-                  color: var(--text-main);
-                  font-size: 16px;
-                  text-align: center;
-                "
-              >
-                h3 data-i18n="prompt_category_title"> Укажите категорию шаблона
-              </h3>
-
-              <!-- Само поле ввода -->
-              <input
-                type="text"
-                id="custom-prompt-input"
-                onfocus="this.select()"
-                onclick="this.select()"
-                style="
-                  width: 100%;
-                  font-size: 16px;
-                  background: var(--bg-body);
-                  border: 1px solid var(--border-main);
-                  color: var(--text-main);
-                  padding: 12px;
-                  border-radius: 4px;
-                  box-sizing: border-box;
-                  margin-bottom: 15px;
-                "
-              />
-
-              <div
-                id="custom-prompt-logistics-block"
-                class="logistics-block-box"
-                style="display: none"
-              >
-                <label
-                  class="logistics-block-label"
-                  for="custom-prompt-logistics-select"
-                  data-i18n="inc_logistics_group"
-                  >Группа логистики:</label
-                >
-                <select
-                  id="custom-prompt-logistics-select"
-                  class="logistics-select"
-                ></select>
-                <div
-                  id="custom-prompt-logistics-hint"
-                  class="logistics-hint"
-                  style="display: none"
-                  data-i18n="inc_logistics_hint_auto"
-                >
-                  Автоподсказка по шаблону
-                </div>
-              </div>
-
-              <div style="display: flex; gap: 10px">
-                <button
-                  type="button"
-                  id="custom-prompt-cancel"
-                  style="
-                    flex: 1;
-                    padding: 10px;
-                    background: transparent;
-                    border: 1px solid var(--text-muted);
-                    color: var(--text-main);
-                    border-radius: 4px;
-                    cursor: pointer;
-                  "
-                  data-i18n="btn_cancel"
-                >
-                  Отмена
-                </button>
-                <button
-                  type="button"
-                  id="custom-prompt-ok"
-                  style="
-                    flex: 1;
-                    padding: 10px;
-                    background: var(--accent-green, #4caf50);
-                    color: #fff;
-                    border: none;
-                    border-radius: 4px;
-                    cursor: pointer;
-                    font-weight: bold;
-                  "
-                  data-i18n="btn_ok"
-                >
-                  ОК
-                </button>
-              </div>
-            </div>
-          </div>
         </div>
         <!-- ВКЛАДКА 2: НОВЫЙ ТОВАР -->
         <div
@@ -3929,6 +3459,476 @@
         </div>
       </div>
     </div>
+
+    <!-- ========================================= -->
+    <!-- ОКНО БЫСТРОГО РЕДАКТИРОВАНИЯ (QUICK EDIT) -->
+    <!-- ========================================= -->
+    <div
+      id="modal-quick-edit"
+      class="modal-overlay"
+      style="display: none"
+      onclick="closeQuickEdit()"
+    >
+      <div class="settings-box" onclick="event.stopPropagation()">
+        <div class="r-title" style="margin-bottom: 20px">
+          РЕДАКТИРОВАНИЕ
+        </div>
+
+        <input type="hidden" id="qe-item-id" />
+
+        <div class="field-group" style="margin-bottom: 15px">
+          <label style="font-size: 12px; color: var(--text-muted)"
+            >Наименование (используйте сканер)</label
+          >
+          <input
+            type="text"
+            id="qe-name"
+            readonly
+            onclick="setQeActiveField('qe-name')"
+            style="
+              width: 100%;
+              padding: 12px;
+              margin-top: 5px;
+              background: var(--bg-card);
+              border: 1px solid var(--border-main);
+              color: var(--text-main);
+              border-radius: 4px;
+              box-sizing: border-box;
+            "
+          />
+        </div>
+
+        <div
+          class="grid-row"
+          style="display: flex; gap: 10px; margin-bottom: 20px"
+        >
+          <div class="field-group" style="flex: 1">
+            <label style="font-size: 12px; color: var(--text-muted)"
+              >Цена</label
+            >
+            <input
+              type="text"
+              id="qe-price"
+              readonly
+              onclick="setQeActiveField('qe-price')"
+              style="
+                width: 100%;
+                padding: 12px;
+                margin-top: 5px;
+                background: var(--bg-card);
+                border: 2px solid var(--accent-blue);
+                color: var(--text-main);
+                border-radius: 4px;
+                box-sizing: border-box;
+                text-align: center;
+                font-size: 18px;
+                font-weight: bold;
+              "
+            />
+          </div>
+          <div class="field-group" style="flex: 1">
+            <label style="font-size: 12px; color: var(--text-muted)"
+              >Остаток</label
+            >
+            <input
+              type="text"
+              id="qe-stock"
+              readonly
+              onclick="setQeActiveField('qe-stock')"
+              style="
+                width: 100%;
+                padding: 12px;
+                margin-top: 5px;
+                background: var(--bg-card);
+                border: 1px solid var(--border-main);
+                color: var(--text-main);
+                border-radius: 4px;
+                box-sizing: border-box;
+                text-align: center;
+                font-size: 18px;
+                font-weight: bold;
+              "
+            />
+          </div>
+        </div>
+
+        <!-- КАСТОМНАЯ КЛАВИАТУРА ДЛЯ РЕДАКТИРОВАНИЯ -->
+        <div
+          class="numpad"
+          style="
+            margin-bottom: 20px;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            display: grid;
+          "
+        >
+          <div
+            class="num-btn"
+            onmousedown="qeAddDigit('1', event)"
+            ontouchstart="qeAddDigit('1', event)"
+          >
+            1
+          </div>
+          <div
+            class="num-btn"
+            onmousedown="qeAddDigit('2', event)"
+            ontouchstart="qeAddDigit('2', event)"
+          >
+            2
+          </div>
+          <div
+            class="num-btn"
+            onmousedown="qeAddDigit('3', event)"
+            ontouchstart="qeAddDigit('3', event)"
+          >
+            3
+          </div>
+          <div
+            class="num-btn"
+            onmousedown="qeAddDigit('4', event)"
+            ontouchstart="qeAddDigit('4', event)"
+          >
+            4
+          </div>
+          <div
+            class="num-btn"
+            onmousedown="qeAddDigit('5', event)"
+            ontouchstart="qeAddDigit('5', event)"
+          >
+            5
+          </div>
+          <div
+            class="num-btn"
+            onmousedown="qeAddDigit('6', event)"
+            ontouchstart="qeAddDigit('6', event)"
+          >
+            6
+          </div>
+          <div
+            class="num-btn"
+            onmousedown="qeAddDigit('7', event)"
+            ontouchstart="qeAddDigit('7', event)"
+          >
+            7
+          </div>
+          <div
+            class="num-btn"
+            onmousedown="qeAddDigit('8', event)"
+            ontouchstart="qeAddDigit('8', event)"
+          >
+            8
+          </div>
+          <div
+            class="num-btn"
+            onmousedown="qeAddDigit('9', event)"
+            ontouchstart="qeAddDigit('9', event)"
+          >
+            9
+          </div>
+          <div
+            class="num-btn btn-clear"
+            onmousedown="qeClearField(event)"
+            ontouchstart="qeClearField(event)"
+          >
+            C
+          </div>
+          <div
+            class="num-btn"
+            onmousedown="qeAddDigit('0', event)"
+            ontouchstart="qeAddDigit('0', event)"
+          >
+            0
+          </div>
+          <div
+            class="num-btn btn-clear"
+            onmousedown="qeDelDigit(event)"
+            ontouchstart="qeDelDigit(event)"
+          >
+            ⌫
+          </div>
+        </div>
+
+        <button
+          class="btn-save-native"
+          onclick="saveQuickEdit()"
+          style="
+            width: 100%;
+            padding: 15px;
+            background: var(--accent-green);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-weight: bold;
+            margin-bottom: 10px;
+          "
+        >
+          СОХРАНИТЬ
+        </button>
+        <button
+          class="cancel-btn"
+          style="
+            width: 100%;
+            padding: 15px;
+            background: transparent;
+            border: 1px solid var(--border-main);
+            color: var(--text-muted);
+            border-radius: 4px;
+          "
+          onclick="closeQuickEdit()"
+        >
+          ОТМЕНА
+        </button>
+      </div>
+    </div>
+
+    <!-- МОДАЛКА ВЫБОРА БЭКАПА (SMART MERGE) -->
+    <div
+      id="deep-restore-modal"
+      class="modal-overlay"
+      style="
+        display: none;
+        background: rgba(0, 0, 0, 0.75);
+        z-index: 10001;
+      "
+      onclick="closeDeepRestoreModal()"
+    >
+      <div
+        class="settings-box"
+        onclick="event.stopPropagation()"
+        style="
+          position: relative;
+          background: var(--bg-panel, #ffffff);
+          border: 1px solid var(--border-focus);
+          padding: 25px 20px;
+          box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+          border-radius: 16px;
+          max-width: 400px;
+          width: 90%;
+          max-height: 80vh;
+          overflow-y: auto;
+          margin: 10vh auto;
+        "
+      >
+        <!-- Крестик закрытия -->
+        <button
+          onclick="closeDeepRestoreModal()"
+          style="
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            width: 32px;
+            height: 32px;
+            background: rgba(234, 67, 53, 0.1);
+            border: 1px solid #ea4335;
+            border-radius: 6px;
+            font-size: 22px;
+            color: #ea4335;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+          "
+        >
+          &times;
+        </button>
+
+        <div
+          class="r-title"
+          style="
+            font-size: 15px;
+            margin-bottom: 25px;
+            text-align: center;
+            font-weight: bold;
+            color: var(--text-main);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+          "
+          data-i18n="deep_restore_title"
+        >
+          ВЫБОР БЭКАПА
+        </div>
+
+        <!-- Состояние 1: Загрузка (Спиннер) -->
+        <div
+          id="deep-restore-loader"
+          style="text-align: center; padding: 30px 0"
+        >
+          <div
+            style="
+              display: inline-block;
+              width: 40px;
+              height: 40px;
+              border: 4px solid var(--border-light);
+              border-top: 4px solid #3f51b5;
+              border-radius: 50%;
+              animation: spin 1s linear infinite;
+            "
+          ></div>
+          <div
+            style="
+              margin-top: 15px;
+              font-size: 13px;
+              color: var(--text-muted);
+            "
+            data-i18n="deep_restore_loading"
+          >
+            Поиск файлов на Диске...
+          </div>
+        </div>
+
+        <!-- Состояние 2: Список файлов (Скрыт по умолчанию) -->
+        <div
+          id="deep-restore-list"
+          style="display: none; flex-direction: column; gap: 10px"
+        >
+          <!-- Сюда JS будет вставлять кнопки с датами -->
+        </div>
+      </div>
+    </div>
+
+    <style>
+      @keyframes spin {
+        0% {
+          transform: rotate(0deg);
+        }
+        100% {
+          transform: rotate(360deg);
+        }
+      }
+    </style>
+
+    <!-- === КАСТОМНЫЙ PROMPT ДЛЯ КАТЕГОРИИ === -->
+    <div
+      id="custom-prompt-modal"
+      class="modal-overlay"
+      style="
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.7);
+        z-index: 100000;
+        justify-content: center;
+        align-items: flex-start;
+        padding-top: 10px;
+        overflow-y: auto;
+        backdrop-filter: blur(3px);
+      "
+    >
+      <div
+        style="
+          position: absolute;
+          top: 15px;
+          left: 50%;
+          transform: translateX(-50%);
+          background: var(--bg-modal);
+          padding: 20px;
+          border-radius: 8px;
+          width: 90%;
+          max-width: 320px;
+          border: 1px solid var(--border-light);
+          box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+          box-sizing: border-box;
+        "
+      >
+        <h3
+          data-i18n="prompt_category_title"
+          style="
+            margin-top: 0;
+            margin-bottom: 15px;
+            color: var(--text-main);
+            font-size: 16px;
+            text-align: center;
+          "
+        >
+          Укажите категорию шаблона
+        </h3>
+
+        <!-- Само поле ввода -->
+        <input
+          type="text"
+          id="custom-prompt-input"
+          onfocus="this.select()"
+          onclick="this.select()"
+          style="
+            width: 100%;
+            font-size: 16px;
+            background: var(--bg-body);
+            border: 1px solid var(--border-main);
+            color: var(--text-main);
+            padding: 12px;
+            border-radius: 4px;
+            box-sizing: border-box;
+            margin-bottom: 15px;
+          "
+        />
+
+        <div
+          id="custom-prompt-logistics-block"
+          class="logistics-block-box"
+          style="display: none"
+        >
+          <label
+            class="logistics-block-label"
+            for="custom-prompt-logistics-select"
+            data-i18n="inc_logistics_group"
+            >Группа логистики:</label
+          >
+          <select
+            id="custom-prompt-logistics-select"
+            class="logistics-select"
+          ></select>
+          <div
+            id="custom-prompt-logistics-hint"
+            class="logistics-hint"
+            style="display: none"
+            data-i18n="inc_logistics_hint_auto"
+          >
+            Автоподсказка по шаблону
+          </div>
+        </div>
+
+        <div style="display: flex; gap: 10px">
+          <button
+            type="button"
+            id="custom-prompt-cancel"
+            style="
+              flex: 1;
+              padding: 10px;
+              background: transparent;
+              border: 1px solid var(--text-muted);
+              color: var(--text-main);
+              border-radius: 4px;
+              cursor: pointer;
+            "
+            data-i18n="btn_cancel"
+          >
+            Отмена
+          </button>
+          <button
+            type="button"
+            id="custom-prompt-ok"
+            style="
+              flex: 1;
+              padding: 10px;
+              background: var(--accent-green, #4caf50);
+              color: #fff;
+              border: none;
+              border-radius: 4px;
+              cursor: pointer;
+              font-weight: bold;
+            "
+            data-i18n="btn_ok"
+          >
+            ОК
+          </button>
+        </div>
+      </div>
+    </div>
+
     <div id="smartMapperContainer"></div>
 
     <!-- Внешние библиотеки оставляем как есть -->

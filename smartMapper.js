@@ -8,8 +8,11 @@ window.detectComplexColumns = function (headers, rows) {
   if (!headers || !rows || headers.length === 0 || rows.length === 0) return [];
 
   const dict =
-    window.mapper2State?.dictValues ||
-    (typeof invoiceSynonyms !== "undefined" ? invoiceSynonyms : {});
+    typeof invoiceSynonyms !== "undefined" &&
+    invoiceSynonyms &&
+    Object.keys(invoiceSynonyms).length > 0
+      ? invoiceSynonyms
+      : window.invoiceSynonyms || {};
 
   // П1: Добавили Модель и Рисунок в список игнора
   const excludeKeys = [

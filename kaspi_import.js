@@ -888,11 +888,9 @@ window.processInvoiceFile = async function () {
   window.currentExportHash = null;
   window.kaspiExportItems = [];
 
-  const preservedDict =
-    window.mapper2State?.dictValues ||
-    (typeof invoiceSynonyms !== "undefined" ? invoiceSynonyms : {});
+  // Не подмешиваем словарь invoiceSynonyms в mapper2State.dictValues (dictValues хранит только константы/справочники Маппера-2)
   window.mapper2State = {
-    dictValues: preservedDict,
+    dictValues: {},
     colMap: {},
     splitRules: {},
     clearedKeys: {},
@@ -915,11 +913,6 @@ window.processInvoiceFile = async function () {
         if (data.synonyms && Object.keys(data.synonyms).length > 0) {
           if (typeof invoiceSynonyms !== "undefined") Object.assign(invoiceSynonyms, data.synonyms);
           window.invoiceSynonyms = typeof invoiceSynonyms !== "undefined" ? invoiceSynonyms : data.synonyms;
-          window.mapper2State.dictValues = Object.assign(
-            {},
-            window.mapper2State.dictValues || {},
-            data.synonyms,
-          );
         }
         if (Array.isArray(data.logisticsBlocks)) {
           window.logisticsBlocks = data.logisticsBlocks;
@@ -1202,7 +1195,10 @@ window.processInvoiceFile = async function () {
 
     let file_doc_no = "UNKNOWN";
     let file_supplier = "UNKNOWN";
-    let dict = window.mapper2State.dictValues || {};
+    let dict =
+      typeof invoiceSynonyms !== "undefined" && invoiceSynonyms
+        ? invoiceSynonyms
+        : window.invoiceSynonyms || {};
 
     const detectedSupplier = extractInvoiceSupplier(rows, dict);
     if (detectedSupplier) {
@@ -2308,10 +2304,6 @@ window.openColumnSelector = function (sysKey, reqName, isKaspi) {
   let currentlyMappedIndex = window.mapper2State.colMap
     ? window.mapper2State.colMap[sysKey]
     : undefined;
-  let currentSplitRule = window.mapper2State.splitRules
-    ? window.mapper2State.splitRules[sysKey]
-    : null;
-  let splitRules = window.mapper2State.splitRules || {};
   let usedByOthers = {};
 
   if (window.mapper2State.colMap) {
@@ -2323,8 +2315,6 @@ window.openColumnSelector = function (sysKey, reqName, isKaspi) {
       }
     });
   }
-
-  const regex = /\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]/g;
 
   window.mapper2State.invoiceHeaders.forEach((rawColName, index) => {
     let colName = String(rawColName || "").trim();
@@ -2371,45 +2361,15 @@ window.openColumnSelector = function (sysKey, reqName, isKaspi) {
     let isUsedByOther =
       usedByOthers[index] !== undefined && usedByOthers[index].length > 0;
 
-    let takenTokens = new Set();
-    let isFullyTaken = false;
-
-    if (isUsedByOther) {
-      usedByOthers[index].forEach((otherSysKey) => {
-        let rule = splitRules[otherSysKey];
-        if (rule && rule.length > 0) {
-          rule.forEach((t) => takenTokens.add(t));
-        } else {
-          isFullyTaken = true;
-        }
-      });
-    }
-
     let previewHtmlArr = [];
     previews.forEach((p) => {
       let text = p.orig;
-      let tokens = text.match(regex) || [];
-
-      let highlightedHtml = tokens
-        .map((tok, i) => {
-          let isCurrentSplit =
-            isSelected && currentSplitRule && currentSplitRule.includes(i);
-          let isTakenByOther = isFullyTaken || takenTokens.has(i);
-
-          if (isCurrentSplit) {
-            return `<b style="color:#000; background:var(--accent-green, #4CAF50); padding:0 3px; border-radius:3px;">${tok}</b>`;
-          } else if (isTakenByOther) {
-            return `<span style="color:#555; text-decoration:line-through; background:rgba(255,255,255,0.05); padding:0 2px; border-radius:2px;" title="Уже занято">${tok}</span>`;
-          } else {
-            return tok;
-          }
-        })
-        .join("");
-
-      if (isSelected && (!currentSplitRule || currentSplitRule.length === 0)) {
+      let highlightedHtml = text;
+      if (isSelected) {
         highlightedHtml = `<b style="color:var(--accent-green, #4CAF50);">${text}</b>`;
+      } else if (isUsedByOther) {
+        highlightedHtml = `<span style="color:#555; text-decoration:line-through; background:rgba(255,255,255,0.05); padding:0 2px; border-radius:2px;" title="Уже занято">${text}</span>`;
       }
-
       previewHtmlArr.push("- " + highlightedHtml);
     });
 
@@ -2417,12 +2377,6 @@ window.openColumnSelector = function (sysKey, reqName, isKaspi) {
       previewHtmlArr.length > 0
         ? previewHtmlArr.join("<br>")
         : `<span data-i18n="mapper_empty_col_no_data">${t.mapper_empty_col_no_data || "Пустая колонка (нет данных)"}</span>`;
-    let safePreview = previews[0]
-      ? String(previews[0].orig)
-          .replace(/[\r\n]+/g, " ")
-          .replace(/'/g, "\\'")
-          .replace(/"/g, '\\"')
-      : "";
 
     let itemStyle =
       "background: var(--bg-card, #252525); border: 1px solid var(--border-light, #333); border-radius: 6px; padding: 10px; margin-bottom: 10px; transition: 0.2s;";
@@ -2431,17 +2385,11 @@ window.openColumnSelector = function (sysKey, reqName, isKaspi) {
     if (isSelected) {
       itemStyle =
         "border: 2px solid var(--accent-green, #4CAF50); background: rgba(76, 175, 80, 0.05); border-radius: 6px; padding: 10px; margin-bottom: 10px;";
-      let splitNote =
-        currentSplitRule && currentSplitRule.length > 0
-          ? " (Часть)"
-          : " (Целиком)";
-      badgeHtml = `<div style="font-size: 10px; margin-bottom: 8px;"><span style="background: var(--accent-green, #4CAF50); color: #000; padding: 3px 8px; border-radius: 4px; font-weight: bold;">📌 ВЫБРАНО${splitNote.toUpperCase()}</span></div>`;
+      badgeHtml = `<div style="font-size: 10px; margin-bottom: 8px;"><span style="background: var(--accent-green, #4CAF50); color: #000; padding: 3px 8px; border-radius: 4px; font-weight: bold;">📌 ВЫБРАНО (ЦЕЛИКОМ)</span></div>`;
     } else if (isUsedByOther) {
       itemStyle =
         "background: #151515; border: 1px solid #222; border-radius: 6px; padding: 10px; margin-bottom: 10px; opacity: 0.9;";
-      let usedLabel = isFullyTaken
-        ? `⚠️ ${translations[currentLang].mapper_busy_full}`
-        : `⚠️ ${translations[currentLang].mapper_busy_part}`;
+      let usedLabel = `⚠️ ${translations[currentLang].mapper_busy_full}`;
       badgeHtml = `<div style="font-size: 10px; margin-bottom: 8px;"><span style="background: rgba(255, 152, 0, 0.15); border: 1px solid rgba(255, 152, 0, 0.4); color: #ff9800; padding: 3px 8px; border-radius: 4px; font-weight: bold;">${usedLabel}</span></div>`;
     }
 
@@ -2453,16 +2401,6 @@ window.openColumnSelector = function (sysKey, reqName, isKaspi) {
                     <div class="col-name" style="${isUsedByOther && !isSelected ? "color: #777;" : "font-weight:bold;"}">${displayColName}</div>
                     <div class="col-examples" style="margin-top: 6px; line-height: 1.4;">${previewText}</div>
                 </div>
-                <button class="btn-split" onclick="toggleSplitter(this, ${index}, '${safePreview}')" style="margin-left:10px;">✂️</button>
-            </div>
-            
-            <div class="splitter-zone" id="splitter-zone-${index}">
-                <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 8px;">Выберите фрагменты:</div>
-                <div id="token-container-${index}"></div>
-                <div style="margin-top: 10px; font-size: 13px; color: var(--accent-yellow);">
-                    Результат: <b id="split-result-${index}">...</b>
-                </div>
-                <button class="btn-apply-split" onclick="applySplitRule(${index}, '${safeColName}')">Применить правило</button>
             </div>
         </div>`;
   });
@@ -2728,138 +2666,6 @@ window.closeSheet = function () {
     () => (document.getElementById("sheet-overlay").style.display = "none"),
     300,
   );
-};
-
-// 4. СПЛИТТЕР (Регулярные выражения для нарезки токенов)
-window.activeTokensState = {};
-
-window.toggleSplitter = function (btn, colIndex, sampleText) {
-  const zone = document.getElementById("splitter-zone-" + colIndex);
-  if (zone.style.display === "block") {
-    zone.style.display = "none";
-    return;
-  }
-
-  document
-    .querySelectorAll(".splitter-zone")
-    .forEach((el) => (el.style.display = "none"));
-  zone.style.display = "block";
-
-  window.activeTokensState[colIndex] = [];
-  document.getElementById("split-result-" + colIndex).innerText = "...";
-
-  // Алгоритм разделения (дроби, цифры, слова, символы)
-  const regex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,]/g;
-  const matches = (sampleText || "").match(regex) || [];
-
-  const container = document.getElementById("token-container-" + colIndex);
-  container.innerHTML = "";
-
-  matches.forEach((token, tokenIndex) => {
-    const span = document.createElement("span");
-    span.innerText = token;
-    if (token.length === 1 && !/[a-zA-Zа-яА-ЯёЁ0-9]/.test(token))
-      span.className = "token separator";
-    else span.className = "token";
-
-    span.onclick = function () {
-      this.classList.toggle("active");
-      if (this.classList.contains("active")) {
-        window.activeTokensState[colIndex][tokenIndex] = true;
-      } else {
-        delete window.activeTokensState[colIndex][tokenIndex];
-      }
-
-      let resultArr = [];
-      for (let i = 0; i < matches.length; i++) {
-        if (window.activeTokensState[colIndex][i]) resultArr.push(matches[i]);
-      }
-      document.getElementById("split-result-" + colIndex).innerText =
-        resultArr.join("") || "...";
-    };
-    container.appendChild(span);
-  });
-};
-
-window.applySplitRule = function (colIndex, colName) {
-  const sysKey = window.mapper2State.currentSysKey;
-  const tokenIndices = [];
-  for (let idx in window.activeTokensState[colIndex]) {
-    if (window.activeTokensState[colIndex][idx])
-      tokenIndices.push(parseInt(idx));
-  }
-
-  if (tokenIndices.length === 0) return alert("Выберите фрагменты!");
-
-  // Сохраняем новые данные
-  window.mapper2State.clearedKeys = window.mapper2State.clearedKeys || {};
-  delete window.mapper2State.clearedKeys[sysKey];
-  if (
-    window.mapper2State.dictValues &&
-    typeof window.mapper2State.dictValues[sysKey] === "string"
-  ) {
-    delete window.mapper2State.dictValues[sysKey];
-  }
-  window.clearMapper2FieldAliases(sysKey);
-  window.mapper2State.colMap[sysKey] = colIndex;
-  window.mapper2State.splitRules[sysKey] = tokenIndices;
-
-  // Генерируем пример склейки из первой попавшейся непустой строки
-  let rawVal = "";
-  for (let i = 0; i < window.mapper2State.invoiceRows.length; i++) {
-    let val = String(window.mapper2State.invoiceRows[i][colIndex] || "").trim();
-    if (val) {
-      rawVal = val;
-      break;
-    }
-  }
-
-  // 1. КРАСИМ КНОПКУ
-  const statusEl = document.getElementById("status-" + sysKey);
-  if (statusEl) {
-    statusEl.className = "req-status status-filled";
-    statusEl.innerText = `✂️ ${colName}`;
-    statusEl.style.cssText =
-      "border: 1px solid #4CAF50; color: #4CAF50; background: rgba(76, 175, 80, 0.1); font-weight: bold;";
-  }
-
-  // 2. ДОБАВЛЯЕМ ВИЗУАЛЬНЫЙ ТОКЕНИЗАТОР
-  let subtitleEl = document.getElementById("subtitle-" + sysKey);
-  if (subtitleEl && subtitleEl.parentElement) {
-    let reqInfo = subtitleEl.parentElement;
-
-    // Удаляем старое превью, если оно там уже было
-    let oldPreview = document.getElementById("preview-" + sysKey);
-    if (oldPreview) oldPreview.remove();
-
-    // Удаляем старый "желтый" результат от старых скриптов, если он есть
-    let oldResult = reqInfo.querySelector(".req-result");
-    if (oldResult) oldResult.remove();
-
-    if (rawVal) {
-      const regex = /\d+,\d+|\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ,]/g;
-      const tokens = rawVal.match(regex) || [];
-
-      let highlighted = tokens
-        .map((tok, i) => {
-          if (tokenIndices.includes(i)) {
-            return `<b style="color:#000; background:var(--accent-green, #4CAF50); padding:0 3px; border-radius:3px;">${tok}</b>`;
-          } else {
-            return `<span style="color:#666; text-decoration:line-through;">${tok}</span>`;
-          }
-        })
-        .join("");
-
-      let extraPreviewHtml = `
-            <div id="preview-${sysKey}" style="margin-top: 6px; font-size: 11px; background: rgba(255,255,255,0.05); padding: 4px 8px; border-radius: 4px; display: inline-block;">
-                ${highlighted}
-            </div>`;
-
-      reqInfo.insertAdjacentHTML("beforeend", extraPreviewHtml);
-    }
-  }
-
-  closeSheet();
 };
 
 window.openKaspiDictSearch = function () {
@@ -3650,33 +3456,69 @@ window.applyMapper2Logic = function () {
     let itemHasCollisions = false;
     let itemCollisionsList = [];
 
-    const processAttribute = (key) => {
-      let lowerKey = String(key).toLowerCase();
-      let rawValue = getValue(key);
+    const FORBIDDEN_ATTR_KEYS = new Set([
+      "merchant_sku",
+      "sku",
+      "артикул",
+      "qty",
+      "quantity",
+      "price",
+      "cost",
+      "name",
+      "item_name",
+      "barcode",
+      "item_id",
+      "id",
+      "code",
+      "hash",
+      "item_hash",
+      "doc_no",
+      "export_metadata",
+      "supplier",
+      "raw_logistics",
+      "staff_id",
+      "category",
+      "title",
+      "desc",
+      "description",
+      "cbm",
+      "weight",
+      "file_code",
+      "market_category",
+      "market_status",
+      "template_hash",
+      "logistics_block",
+      "attributes",
+      "kaspi_attributes",
+      "params",
+      "sourcerowindexes",
+      "_sourcerowindexes",
+      "_attributesobj",
+      "_clearedattrs",
+      "_hascollisions",
+      "_collisionslist",
+    ]);
 
-      if (
-        [
-          "qty",
-          "price",
-          "cost",
-          "name",
-          "barcode",
-          "cbm",
-          "weight",
-          "item_id",
-          "item_name",
-          "id",
-          "sku",
-          "merchant_sku",
-        ]?.includes(lowerKey)
-      )
+    const processAttribute = (key) => {
+      let cleanKey = String(key || "").trim();
+      let lowerKey = cleanKey.toLowerCase();
+      if (!cleanKey || cleanKey.startsWith("_") || FORBIDDEN_ATTR_KEYS.has(lowerKey))
         return;
-      if (!rawValue) return;
+
+      let rawValue = getValue(key);
+      if (rawValue === null || rawValue === undefined || typeof rawValue === "object")
+        return;
+      if (String(rawValue).trim() === "") return;
 
       let humanName =
         state.sysToHumanMap && state.sysToHumanMap[key]
           ? state.sysToHumanMap[key]
           : key;
+      let cleanHuman = String(humanName || "").trim();
+      let lowerHuman = cleanHuman.toLowerCase();
+      if (!cleanHuman || cleanHuman.startsWith("_") || FORBIDDEN_ATTR_KEYS.has(lowerHuman))
+        return;
+
       let searchString = rawValue;
 
       let dict = window.kaspiDicts && window.kaspiDicts[humanName];
@@ -3736,36 +3578,12 @@ window.applyMapper2Logic = function () {
             excelColumnName: excelHeader || "ДАННЫЕ ИЗ НАКЛАДНОЙ",
           });
         } else {
-          if (
-            ![
-              "item_id",
-              "item_name",
-              "id",
-              "sku",
-              "qty",
-              "price",
-              "barcode",
-            ]?.includes(String(humanName).toLowerCase())
-          ) {
-            attributesObj[humanName] = rawValue;
-          }
+          attributesObj[cleanHuman] = String(rawValue).trim();
         }
         return;
       }
 
-      if (
-        ![
-          "item_id",
-          "item_name",
-          "id",
-          "sku",
-          "qty",
-          "price",
-          "barcode",
-        ]?.includes(String(humanName).toLowerCase())
-      ) {
-        attributesObj[humanName] = matchedDictValue;
-      }
+      attributesObj[cleanHuman] = String(matchedDictValue).trim();
     };
 
     let allKeys = new Set(Object.keys(state.colMap));
@@ -3784,9 +3602,18 @@ window.applyMapper2Logic = function () {
 
     allKeys.forEach((key) => processAttribute(key));
 
-    let cleanAttributesObj = Object.assign({}, attributesObj);
-    delete cleanAttributesObj["Артикул"];
-    delete cleanAttributesObj["sku"];
+    let cleanAttributesObj = {};
+    Object.keys(attributesObj).forEach((k) => {
+      const ck = String(k || "").trim();
+      if (!ck || ck.startsWith("_") || FORBIDDEN_ATTR_KEYS.has(ck.toLowerCase())) {
+        return;
+      }
+      const v = attributesObj[k];
+      if (v !== null && v !== undefined && typeof v !== "object" && String(v).trim() !== "") {
+        cleanAttributesObj[ck] = String(v).trim();
+      }
+    });
+    attributesObj = cleanAttributesObj;
 
     let finalAttributes =
       Object.keys(cleanAttributesObj).length > 0
@@ -5297,14 +5124,26 @@ window.showMapperArea = function () {
 
 // === ФУНКЦИЯ-СБОРЩИК МЕТАДАННЫХ ДЛЯ KASPI (ИСПРАВЛЕННАЯ) ===
 window.buildKaspiExportMetadata = function () {
-  let complexParams = window.kaspiComplexParamsState || {};
+  let complexParams = Object.assign({}, window.kaspiComplexParamsState || {});
+
+  const rawDictSource =
+    (window.mapper2State && window.mapper2State.dictValues) ||
+    complexParams.dictValues ||
+    {};
+  const cleanDictValues = {};
+  Object.keys(rawDictSource).forEach((k) => {
+    const v = rawDictSource[k];
+    // В export_metadata пишем только реальные строковые константы/справочники Маппера-2 (без массивов Synonyms)
+    if (typeof v === "string" && v.trim() !== "") {
+      cleanDictValues[k] = v.trim();
+    }
+  });
 
   if (window.mapper2State) {
     complexParams.splitRules =
       window.mapper2State.splitRules || complexParams.splitRules || {};
-    complexParams.dictValues =
-      window.mapper2State.dictValues || complexParams.dictValues || {};
   }
+  complexParams.dictValues = cleanDictValues;
 
   let finalMapping = {};
   if (window.mapper2State && window.mapper2State.colMap) {
@@ -6131,16 +5970,27 @@ window.handleCardSelectForExport = async function (
       });
 
       // Удаляем системную колонку attributes и служебные поля для Маппера
+      const EXCLUDED_EXPORT_HEADERS = new Set([
+        "attributes",
+        "kaspi_attributes",
+        "params",
+        "sourcerowindexes",
+        "_sourcerowindexes",
+        "doc_no",
+        "export_metadata",
+        "hash",
+        "item_hash",
+        "supplier",
+        "raw_logistics",
+        "staff_id",
+        "category",
+        "title",
+        "file_code",
+      ]);
       const allHeaders = new Set();
       window.parsedInvoiceData.forEach((item) => {
         Object.keys(item).forEach((k) => {
-          if (
-            k !== "attributes" &&
-            k !== "kaspi_attributes" &&
-            k !== "params" &&
-            k !== "sourceRowIndexes" &&
-            k !== "_sourceRowIndexes"
-          ) {
+          if (!EXCLUDED_EXPORT_HEADERS.has(String(k || "").trim().toLowerCase())) {
             allHeaders.add(k);
           }
         });
@@ -6264,10 +6114,14 @@ window.handleCardSelectForExport = async function (
       if (savedMeta.saved_complex_params) {
         const restoredSplitRules =
           savedMeta.saved_complex_params.splitRules || {};
-        const restoredDictValues = Object.assign(
-          {},
-          savedMeta.saved_complex_params.dictValues || {},
-        );
+        const rawRestoredDict = savedMeta.saved_complex_params.dictValues || {};
+        const restoredDictValues = {};
+        Object.keys(rawRestoredDict).forEach((dKey) => {
+          const val = rawRestoredDict[dKey];
+          if (typeof val === "string" && val.trim() !== "") {
+            restoredDictValues[dKey] = val.trim();
+          }
+        });
 
         Object.keys(restoredDictValues).forEach((dKey) => {
           const mappedIdx = window.mapper2State.colMap[dKey];
