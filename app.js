@@ -1840,6 +1840,11 @@ function sm(m) {
   } else {
     document.body.style.removeProperty("--bg-body");
   }
+
+  // Перерисовываем корзину, чтобы мгновенно скрыть/показать предупреждение резерва при смене режима
+  if (typeof cart !== "undefined" && cart.length > 0 && typeof update === "function") {
+    update();
+  }
 }
 
 function addPin(digit) {
@@ -2149,15 +2154,16 @@ async function load(isFullSync = false) {
 
       if (!pingText.trim().startsWith("<")) {
         const pingData = JSON.parse(pingText);
-        if (pingData.success && pingData.timestamp) {
+        if (pingData.success && pingData.timestamp !== undefined && pingData.timestamp !== null) {
+          const pingTs = String(pingData.timestamp).trim();
           if (
-            localTimestamp === pingData.timestamp &&
+            String(localTimestamp).trim() === pingTs &&
             localStorage.getItem("logistics_blocks_cache") !== null
           ) {
             console.log("✅ База актуальна, загрузка отменена.");
             return;
           }
-          window._pendingTimestamp = pingData.timestamp;
+          window._pendingTimestamp = pingTs;
         }
       }
     } catch (pingErr) {
@@ -2285,11 +2291,22 @@ async function load(isFullSync = false) {
 
     localStorage.setItem(cacheKey, JSON.stringify(t));
 
-    if (window._pendingTimestamp) {
-      localStorage.setItem("db_timestamp", window._pendingTimestamp);
+    const nextServerTs =
+      data.server_timestamp !== undefined &&
+      data.server_timestamp !== null &&
+      String(data.server_timestamp).trim() !== ""
+        ? String(data.server_timestamp).trim()
+        : window._pendingTimestamp !== undefined &&
+            window._pendingTimestamp !== null &&
+            String(window._pendingTimestamp).trim() !== ""
+          ? String(window._pendingTimestamp).trim()
+          : "";
+
+    if (nextServerTs) {
+      localStorage.setItem("db_timestamp", nextServerTs);
+    }
+    if (window._pendingTimestamp !== undefined) {
       delete window._pendingTimestamp;
-    } else if (isFullSync) {
-      localStorage.setItem("db_timestamp", new Date().getTime().toString());
     }
   } catch (e) {
     console.error("Ошибка обработки полученных данных", e);
@@ -2479,6 +2496,32 @@ function handleFocus(elem, rowId) {
   setTimeout(alignRow, 750);
 }
 
+function buildKaspiCheckBtnHtml(itemId) {
+  return `
+    <div style="width: 100%; margin-top: 8px;">
+        <button onclick="checkKaspiFromCart('${itemId}', this)" style="width: 100%; background: var(--bg-card); color: var(--accent-red); border: 2px dashed var(--accent-red); padding: 10px; border-radius: 4px; font-size: 12px; font-weight: 900; cursor: pointer; text-transform: uppercase; transition: 0.2s;">
+            ${translations[currentLang].kaspi_check_btn}
+        </button>
+    </div>
+  `;
+}
+
+function updateCartRowWarning(itemId) {
+  const item = cart.find((x) => String(x.id) === String(itemId));
+  const row = document.getElementById(`r-${itemId}`);
+  const wrap = document.getElementById(`kaspi-wrap-${itemId}`);
+  if (!item || !row || !wrap) return;
+
+  const remainingStock = item.stock - item.qty;
+  const minStockLevel = item.min_stock !== undefined ? item.min_stock : 1;
+  const shouldWarn = mode !== "return" && remainingStock <= minStockLevel;
+
+  row.style.background = shouldWarn ? "var(--bg-danger-dim)" : "var(--bg-panel)";
+  row.style.border = shouldWarn ? "2px solid var(--accent-red)" : "1px solid var(--border-main)";
+  // Всегда сбрасываем предыдущий проверенный статус/disabled кнопки при изменении количества
+  wrap.innerHTML = shouldWarn ? buildKaspiCheckBtnHtml(item.id) : "";
+}
+
 function update() {
   document.getElementById("cart-list").innerHTML = cart
     .map((item, idx) => {
@@ -2490,17 +2533,10 @@ function update() {
 
       let minStockLevel = item.min_stock !== undefined ? item.min_stock : 1;
 
-      if (remainingStock <= minStockLevel) {
+      if (mode !== "return" && remainingStock <= minStockLevel) {
         rowBgColor = "var(--bg-danger-dim)";
         rowBorder = "2px solid var(--accent-red)";
-
-        kaspiBtnHtml = `
-                        <div style="width: 100%; margin-top: 8px;">
-                            <button onclick="checkKaspiFromCart('${item.id}', this)" style="width: 100%; background: var(--bg-card); color: var(--accent-red); border: 2px dashed var(--accent-red); padding: 10px; border-radius: 4px; font-size: 12px; font-weight: 900; cursor: pointer; text-transform: uppercase; transition: 0.2s;">
-                                ${translations[currentLang].kaspi_check_btn}
-                            </button>
-                        </div>
-                    `;
+        kaspiBtnHtml = buildKaspiCheckBtnHtml(item.id);
       }
       // ===============================================
 
@@ -2524,7 +2560,7 @@ function update() {
                             <button class="q-btn" onclick="qty('${item.id}',-1)">-</button>
                             <input type="text" inputmode="numeric" class="q-val" value="${item.qty.toLocaleString("ru-RU")}" 
                                 onfocus="handleFocus(this, 'r-${item.id}')" 
-                                oninput="cart[${idx}].qty=parseInt(this.value.replace(/\\s/g, ''))||0; total()" 
+                                oninput="cart[${idx}].qty=parseInt(this.value.replace(/\\s/g, ''))||0; total(); updateCartRowWarning('${item.id}');" 
                                 onblur="if(cart[${idx}].qty <= 0) { rm('${item.id}'); } else { this.value = cart[${idx}].qty.toLocaleString('ru-RU'); }">
                             <button class="q-btn" onclick="qty('${item.id}',1)">+</button>
                         </div>
@@ -2538,7 +2574,7 @@ function update() {
                         </div>
                     </div>
                     
-                    ${kaspiBtnHtml}
+                    <div class="kaspi-check-wrap" id="kaspi-wrap-${item.id}">${kaspiBtnHtml}</div>
 
                 </div>`;
     })
@@ -2547,10 +2583,14 @@ function update() {
 }
 
 async function checkKaspiFromCart(itemId, btnElem) {
-  if (!navigator.onLine) return alert(translations[currentLang].kaspi_err_net);
+  const tr = translations[currentLang];
+  if (!navigator.onLine) return alert(tr.kaspi_err_net);
+
+  const cartItem = cart.find((x) => String(x.id) === String(itemId));
+  const requestedQty = cartItem && Number(cartItem.qty) > 0 ? Number(cartItem.qty) : 1;
 
   const originalText = btnElem.innerHTML;
-  btnElem.innerHTML = translations[currentLang].kaspi_checking;
+  btnElem.innerHTML = tr.kaspi_checking;
   btnElem.disabled = true;
   btnElem.style.opacity = "0.7";
 
@@ -2561,40 +2601,69 @@ async function checkKaspiFromCart(itemId, btnElem) {
         api_key: CLIENT_API_KEY,
         action: "check_kaspi",
         item_id: itemId,
+        requested_qty: requestedQty,
       }),
     });
 
     const res = await response.json();
+    btnElem.style.opacity = "1";
+
+    const availNum = res.available !== undefined ? Number(res.available) : 0;
+    const pcsShort = tr.kaspi_pcs_short || "шт.";
+    const availLabel = tr.kaspi_avail_short || "Доступно:";
+    const dbOnlyNoteHtml = res.kaspi_error
+      ? `<div style="font-size: 10px; font-weight: 600; opacity: 0.9; margin-top: 3px; text-transform: none;">${tr.kaspi_db_only_note || "(Kaspi недоступен, проверка по базе)"}</div>`
+      : "";
 
     if (res.safe === false) {
-      // Умный поиск цифры (количества штук) в ответе сервера
-      let match = res.message ? res.message.match(/\((\d+)/) : null;
-      let qty = match ? match[1] : "!";
+      const reservedQty = Number(res.reserved_qty) || 0;
+      const freshReserve = Number(res.fresh_kaspi_reserve) || 0;
+      const minStockVal = res.min_stock !== undefined ? Number(res.min_stock) : 1;
 
-      // 1. Делаем кнопку сплошной красной с белым текстом
       btnElem.style.background = "var(--accent-red)";
       btnElem.style.color = "#ffffff";
       btnElem.style.border = "2px solid var(--accent-red)";
 
-      // 2. Выделяем количество и "НЕ ПРОДАВАТЬ!" ярко-желтым цветом
-      btnElem.innerHTML = `⚠️ ${translations[currentLang].kaspi_danger} <span style="color: #ffd700; font-size: 1.1em; font-weight: 900; margin-left: 4px; text-shadow: 1px 1px 2px rgba(0,0,0,0.5);">${qty} ${translations[currentLang].kaspi_pcs}</span>`;
+      const isKaspiReserveReason =
+        res.reason === "kaspi_reserve" ||
+        freshReserve > 0 ||
+        (reservedQty > 0 && res.reason !== "min_stock");
+
+      if (isKaspiReserveReason) {
+        const totalRes = reservedQty + freshReserve;
+        const freshPart =
+          freshReserve > 0 && reservedQty > 0
+            ? ` (+${freshReserve} ${tr.kaspi_fresh_label || "нов."})`
+            : "";
+        btnElem.innerHTML =
+          `⚠️ ${tr.kaspi_danger} <span style="color: #ffd700; font-size: 1.1em; font-weight: 900; margin-left: 4px; text-shadow: 1px 1px 2px rgba(0,0,0,0.5);">${totalRes}${freshPart} ${tr.kaspi_pcs}</span>` +
+          `<div style="font-size: 11px; font-weight: 700; margin-top: 3px;">${availLabel} ${availNum} ${pcsShort}</div>` +
+          dbOnlyNoteHtml;
+      } else {
+        btnElem.innerHTML =
+          `⚠️ ${tr.kaspi_min_stock_danger || "СТРАХОВОЙ МИН. ОСТАТОК:"} <span style="color: #ffd700; font-size: 1.05em; font-weight: 900;">${minStockVal} ${pcsShort}</span>` +
+          `<div style="font-size: 11px; font-weight: 700; margin-top: 3px;">${availLabel} ${availNum} ${pcsShort}</div>` +
+          dbOnlyNoteHtml;
+      }
 
       if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
     } else if (res.safe === true) {
       btnElem.style.background = "var(--bg-success-dim)";
       btnElem.style.color = "var(--accent-green)";
       btnElem.style.border = "2px solid var(--accent-green)";
-      btnElem.innerHTML = `✅ ${translations[currentLang].kaspi_safe}`;
+      btnElem.innerHTML =
+        `✅ ${tr.kaspi_safe} <span style="margin-left: 4px; font-weight: 900;">(${availLabel} ${availNum} ${pcsShort})</span>` +
+        dbOnlyNoteHtml;
     } else if (res.warning) {
       btnElem.style.background = "var(--bg-hover)";
       btnElem.style.color = "var(--text-main)";
       btnElem.style.border = "1px solid var(--border-focus)";
-      btnElem.innerHTML = `⚙️ ${translations[currentLang].kaspi_no_token}`;
+      btnElem.innerHTML = `⚙️ ${tr.kaspi_no_token}`;
     } else {
-      btnElem.innerHTML = `❌ ${translations[currentLang].kaspi_err_api}`;
+      btnElem.innerHTML = `❌ ${tr.kaspi_err_api}`;
     }
   } catch (e) {
-    alert(translations[currentLang].kaspi_err_server);
+    alert(tr.kaspi_err_server);
     btnElem.innerHTML = originalText;
     btnElem.disabled = false;
     btnElem.style.opacity = "1";
