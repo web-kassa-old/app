@@ -114,6 +114,7 @@ function initGoogleAuth() {
                 body: JSON.stringify({
                   action: "check_status",
                   email: currentEmail,
+                  google_access_token: clientAccessToken,
                 }),
               });
             })
@@ -305,9 +306,52 @@ if (langParam === "kz" || langParam === "ru") {
   currentLang = localStorage.getItem("pos_lang") || "ru";
 }
 
+// === ХЕЛПЕРЫ СЕССИИ (ВОЛНА 3А: HMAC session_token и мягкий возврат на ПИН без потери offlineQueue) ===
+window.getSessionToken = function () {
+  return localStorage.getItem("session_token") || "";
+};
+
+window.handleAuthExpired = function (serverMessage) {
+  if (window._handlingAuthExpired) return;
+  window._handlingAuthExpired = true;
+  try {
+    currentUser = null;
+    localStorage.removeItem("session_token");
+    localStorage.removeItem("user_role");
+    localStorage.removeItem("user_uid");
+    localStorage.removeItem("DRIVE_DATA");
+    if (typeof stopBackgroundPulse === "function") {
+      stopBackgroundPulse();
+    }
+    const badge = document.getElementById("cashier-info");
+    if (badge) badge.style.display = "none";
+    const pinScreen = document.getElementById("pin-screen");
+    if (pinScreen) pinScreen.style.display = "flex";
+    if (typeof clearPin === "function") clearPin();
+    const errEl = document.getElementById("login-error");
+    if (errEl) {
+      errEl.innerText =
+        serverMessage || "Сессия истекла. Введите ПИН-код повторно.";
+      errEl.style.color = "var(--accent-yellow)";
+      errEl.style.visibility = "visible";
+    }
+  } finally {
+    setTimeout(() => {
+      window._handlingAuthExpired = false;
+    }, 1500);
+  }
+};
+
 // === БРОНИРОВАННЫЙ ДВИЖОК ЗАПРОСОВ (smartFetch) ===
 window.smartFetch = async function (url, payload, cacheKey, maxRetries = 3) {
   const TIMEOUT_MS = 30000; // Ждем максимум 30 секунд на одну попытку
+  const NO_SESSION_ACTIONS = new Set([
+    "check_status",
+    "checkLicense",
+    "createTenant",
+    "verifyPin",
+    "emergency_relink",
+  ]);
   const NO_CACHE_ACTIONS = new Set([
     "database_clear",
     "database_restore",
@@ -381,6 +425,18 @@ window.smartFetch = async function (url, payload, cacheKey, maxRetries = 3) {
   );
   const canUseCache = Boolean(normalizedCacheKey) && !isNoCacheAction;
 
+  // Автоматически подмешиваем session_token во все авторизованные POST-запросы через smartFetch
+  let finalPayload = payload;
+  const needsSession = !detectedActions.some((act) =>
+    NO_SESSION_ACTIONS.has(act),
+  );
+  if (needsSession && payload && typeof payload === "object" && !Array.isArray(payload)) {
+    const sessTok = window.getSessionToken();
+    if (sessTok && !payload.session_token) {
+      finalPayload = Object.assign({}, payload, { session_token: sessTok });
+    }
+  }
+
   for (let i = 0; i < maxRetries; i++) {
     // Создаем контроллер для прерывания зависших запросов
     const controller = new AbortController();
@@ -390,7 +446,7 @@ window.smartFetch = async function (url, payload, cacheKey, maxRetries = 3) {
       const response = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "text/plain;charset=utf-8" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(finalPayload),
         redirect: "follow",
         signal: controller.signal, // Привязываем контроллер
       });
@@ -407,6 +463,12 @@ window.smartFetch = async function (url, payload, cacheKey, maxRetries = 3) {
 
       // 3. Парсим данные
       const data = JSON.parse(text);
+
+      // 3.5. При истёкшей/отозванной сессии мягко возвращаем на ПИН без ретраев и без очистки offlineQueue
+      if (data && data.error === "AUTH_EXPIRED") {
+        window.handleAuthExpired(data.message);
+        return data;
+      }
 
       // 4. Успех! Тихо сохраняем в кэш только при валидном cacheKey и не-деструктивном action
       if (canUseCache && data && data.success) {
@@ -508,9 +570,17 @@ window.syncOfflineQueue = async function () {
   const badge = document.getElementById("sync-icon"); // Берем именно шестеренку!
   if (badge) badge.classList.add("syncing-active");
 
+  const sessTok = window.getSessionToken();
+  if (!sessTok) {
+    window.isSyncing = false;
+    if (badge) badge.classList.remove("syncing-active");
+    return;
+  }
+
   const payload = {
     action: "batch_sync",
     api_key: CLIENT_API_KEY,
+    session_token: sessTok,
     tasks: queue,
   };
 
@@ -528,6 +598,12 @@ window.syncOfflineQueue = async function () {
     }
 
     const response = JSON.parse(text);
+
+    if (response && response.error === "AUTH_EXPIRED") {
+      // НЕ очищаем offlineQueue! После повторного ввода ПИН очередь досинхронизируется.
+      window.handleAuthExpired(response.message);
+      return;
+    }
 
     if (response && response.success) {
       localStorage.setItem("offlineQueue", "[]");
@@ -1658,6 +1734,7 @@ window.saveNewProduct = function () {
   }
 
   // 4. Отправляем запрос на бэкенд
+  payload.session_token = window.getSessionToken();
   fetch(typeof GATEWAY_URL !== "undefined" ? GATEWAY_URL : "", {
     method: "POST",
     body: JSON.stringify(payload),
@@ -1665,6 +1742,10 @@ window.saveNewProduct = function () {
   })
     .then((res) => res.json())
     .then((response) => {
+      if (response && response.error === "AUTH_EXPIRED") {
+        window.handleAuthExpired(response.message);
+        return;
+      }
       if (response && response.error) {
         alert(translations[currentLang].msg_server_err + response.error); // ПЕРЕВОД
       } else {
@@ -1956,10 +2037,19 @@ async function handleAutoLogin(val) {
       localStorage.removeItem("pos_fails");
       localStorage.removeItem("pos_block");
 
+      // Записываем session_token в localStorage ДО вызова login() / load()!
+      if (res.session_token) {
+        localStorage.setItem("session_token", res.session_token);
+      }
+
       localStorage.setItem("offline_pin", securedPin);
       localStorage.setItem("offline_user", JSON.stringify(res.user));
 
-      localStorage.setItem("DRIVE_DATA", JSON.stringify(res.driveData));
+      if (res.driveData) {
+        localStorage.setItem("DRIVE_DATA", JSON.stringify(res.driveData));
+      } else {
+        localStorage.removeItem("DRIVE_DATA");
+      }
 
       field.style.color = "var(--accent-green)";
       err.innerText = translations[currentLang].pin_granted;
@@ -1973,6 +2063,11 @@ async function handleAutoLogin(val) {
         err.innerText = translations[currentLang].pin_wrong;
       }, 400);
     } else {
+      if (res.error === "RATE_LIMITED") {
+        const rateErr = new Error("RATE_LIMITED");
+        rateErr.serverMessage = res.message;
+        throw rateErr;
+      }
       // Защита от битых ключей
       if (
         res.error &&
@@ -1986,6 +2081,20 @@ async function handleAutoLogin(val) {
     }
   } catch (error) {
     console.error("Ошибка авторизации:", error);
+
+    if (error.message === "RATE_LIMITED") {
+      field.style.color = "var(--accent-red)";
+      field.classList.add("error-shake");
+      err.innerText = error.serverMessage || "Слишком много попыток. Повторите позже.";
+      err.style.color = "var(--accent-red)";
+      err.style.visibility = "visible";
+      setTimeout(() => {
+        field.classList.remove("error-shake");
+        field.style.color = "var(--accent-yellow)";
+        clearPin();
+      }, 1500);
+      return;
+    }
 
     // Автоматический сброс при битом ключе
     if (error.message === "BAD_API_KEY") {
@@ -2050,8 +2159,14 @@ async function login(user) {
   // 1. ЖДЕМ загрузку основной базы
   await refreshPosData(true);
 
-  // 2. База скачалась! Подгружаем справочники
-  if (typeof loadSuppliers === "function") {
+  // 1.5. Если в офлайн-очереди есть несинхронизированные чеки (например, после переавторизации) — досинхронизируем
+  if (typeof window.syncOfflineQueue === "function" && navigator.onLine) {
+    window.syncOfflineQueue();
+  }
+
+  // 2. База скачалась! Справочники поставщиков и шаблонов Kaspi загружаем для менеджера
+  const isManagerUser = user && user.role === "manager";
+  if (isManagerUser && typeof loadSuppliers === "function") {
     loadSuppliers();
   }
 
@@ -2060,7 +2175,7 @@ async function login(user) {
   // Если пунктов больше 2 (дефолтные "-- Выберите --" и "Новый шаблон"), значит список уже скачан
   const isAlreadyLoaded = tplSelect && tplSelect.options.length > 2;
 
-  if (typeof loadKaspiTemplatesFromServer === "function" && !isAlreadyLoaded) {
+  if (isManagerUser && typeof loadKaspiTemplatesFromServer === "function" && !isAlreadyLoaded) {
     loadKaspiTemplatesFromServer(true);
   }
 
@@ -2072,8 +2187,12 @@ async function login(user) {
 
 function logout() {
   currentUser = null;
+  localStorage.removeItem("session_token");
+  localStorage.removeItem("DRIVE_DATA");
+  localStorage.removeItem("offline_user");
+  localStorage.removeItem("offline_pin");
   localStorage.removeItem("user_role");
-  localStorage.removeItem("user_uid"); // Стираем данные сессии
+  localStorage.removeItem("user_uid"); // Стираем все данные сессии сотрудника
   document.getElementById("cashier-info").style.display = "none";
   document.getElementById("pin-screen").style.display = "flex";
   clearPin();
@@ -2128,11 +2247,13 @@ async function load(isFullSync = false) {
   if (typeof currentUser === "undefined" || !currentUser) return;
 
   // === БЛОК 1: МИКРО-ПИНГ (С ТАЙМ-АУТОМ 4 СЕК) ===
+  const activeSessionToken = window.getSessionToken();
   if (!isFullSync && localStorage.getItem("db_cache")) {
     try {
       const pingPayload = {
         action: "ping",
         api_key: typeof CLIENT_API_KEY !== "undefined" ? CLIENT_API_KEY : "",
+        session_token: activeSessionToken,
       };
 
       const pingController = new AbortController();
@@ -2154,6 +2275,10 @@ async function load(isFullSync = false) {
 
       if (!pingText.trim().startsWith("<")) {
         const pingData = JSON.parse(pingText);
+        if (pingData && pingData.error === "AUTH_EXPIRED") {
+          window.handleAuthExpired(pingData.message);
+          return;
+        }
         if (pingData.success && pingData.timestamp !== undefined && pingData.timestamp !== null) {
           const pingTs = String(pingData.timestamp).trim();
           if (
@@ -2178,7 +2303,7 @@ async function load(isFullSync = false) {
   let fetchSuccess = false;
   let data = null;
   const timeToSend = isFullSync ? "0" : localTimestamp;
-  const fetchUrl = `${typeof APPS_SCRIPT_URL !== "undefined" ? APPS_SCRIPT_URL : ""}?action=getInitialData&api_key=${typeof CLIENT_API_KEY !== "undefined" ? CLIENT_API_KEY : ""}&t=${Date.now()}&uid=${savedUid}&role=${savedRole}&last_sync=${timeToSend}`;
+  const fetchUrl = `${typeof APPS_SCRIPT_URL !== "undefined" ? APPS_SCRIPT_URL : ""}?action=getInitialData&api_key=${encodeURIComponent(typeof CLIENT_API_KEY !== "undefined" ? CLIENT_API_KEY : "")}&session_token=${encodeURIComponent(activeSessionToken)}&t=${Date.now()}&last_sync=${encodeURIComponent(timeToSend)}`;
 
   for (let i = 0; i < 3; i++) {
     try {
@@ -2197,6 +2322,10 @@ async function load(isFullSync = false) {
         throw new Error("Сервер вернул HTML вместо JSON");
 
       data = JSON.parse(text);
+      if (data && data.error === "AUTH_EXPIRED") {
+        window.handleAuthExpired(data.message);
+        return;
+      }
       fetchSuccess = true;
       break;
     } catch (err) {
@@ -2599,6 +2728,7 @@ async function checkKaspiFromCart(itemId, btnElem) {
       method: "POST",
       body: JSON.stringify({
         api_key: CLIENT_API_KEY,
+        session_token: window.getSessionToken(),
         action: "check_kaspi",
         item_id: itemId,
         requested_qty: requestedQty,
@@ -2606,6 +2736,13 @@ async function checkKaspiFromCart(itemId, btnElem) {
     });
 
     const res = await response.json();
+    if (res && res.error === "AUTH_EXPIRED") {
+      window.handleAuthExpired(res.message);
+      btnElem.innerHTML = originalText;
+      btnElem.disabled = false;
+      btnElem.style.opacity = "1";
+      return;
+    }
     btnElem.style.opacity = "1";
 
     const availNum = res.available !== undefined ? Number(res.available) : 0;
@@ -3020,11 +3157,15 @@ async function renderReport() {
     if (cachedReport) reportDataToRender = JSON.parse(cachedReport);
   } else {
     try {
-      let url = `${APPS_SCRIPT_URL}?action=report&date=${serverStart}&endDate=${serverEnd}&api_key=${CLIENT_API_KEY}&t=${Date.now()}`;
+      let url = `${APPS_SCRIPT_URL}?action=report&date=${encodeURIComponent(serverStart)}&endDate=${encodeURIComponent(serverEnd)}&api_key=${encodeURIComponent(CLIENT_API_KEY)}&session_token=${encodeURIComponent(window.getSessionToken())}&t=${Date.now()}`;
       if (currentUser && currentUser.role !== "manager")
-        url += `&seller_id=${currentUser.uid}`;
+        url += `&seller_id=${encodeURIComponent(currentUser.uid)}`;
       const response = await fetch(url, { redirect: "follow" });
       const data = await response.json();
+      if (data && data.error === "AUTH_EXPIRED") {
+        window.handleAuthExpired(data.message);
+        return;
+      }
       if (!data.error) {
         reportDataToRender = data.report || [];
         localStorage.setItem(cacheKey, JSON.stringify(reportDataToRender));
@@ -3547,12 +3688,17 @@ function openItemMenu(id) {
         method: "POST",
         body: JSON.stringify({
           api_key: CLIENT_API_KEY,
+          session_token: window.getSessionToken(),
           action: "get_photo",
           file_id: fileId,
         }),
       })
         .then((res) => res.json())
         .then((data) => {
+          if (data && data.error === "AUTH_EXPIRED") {
+            window.handleAuthExpired(data.message);
+            return;
+          }
           if (data.success && data.base64) {
             // Отрисовываем полученное фото
             preview.innerHTML = `<img src="${data.base64}" onclick="openFullscreen('${data.base64}')" style="max-width: 100%; max-height: 250px; border-radius: 8px; border: 1px solid var(--border-focus); margin-top: 10px; cursor: zoom-in;">`;
@@ -3632,6 +3778,7 @@ async function confirmUpload() {
       method: "POST",
       body: JSON.stringify({
         api_key: CLIENT_API_KEY,
+        session_token: window.getSessionToken(),
         action: "upload_photo",
         item_id: selectedItemId,
         base64: tempBase64,
@@ -3639,6 +3786,10 @@ async function confirmUpload() {
     });
 
     const responseData = await res.json();
+    if (responseData && responseData.error === "AUTH_EXPIRED") {
+      window.handleAuthExpired(responseData.message);
+      return;
+    }
 
     if (responseData.success) {
       btnSaveDb.innerText = "✅ " + translations[currentLang].btn_saved;
@@ -3691,12 +3842,17 @@ async function deletePhoto() {
       method: "POST",
       body: JSON.stringify({
         api_key: CLIENT_API_KEY,
+        session_token: window.getSessionToken(),
         action: "delete_photo",
         item_id: selectedItemId,
       }),
     });
 
     const responseData = await res.json();
+    if (responseData && responseData.error === "AUTH_EXPIRED") {
+      window.handleAuthExpired(responseData.message);
+      return;
+    }
 
     if (responseData.success) {
       // 1. Стираем фото из памяти
@@ -4712,6 +4868,7 @@ async function submitSetup(email) {
       body: JSON.stringify({
         action: "checkLicense",
         email: email,
+        google_access_token: clientAccessToken,
         storeName: storeName,
       }),
     });
@@ -4844,6 +5001,7 @@ async function submitSetup(email) {
       body: JSON.stringify({
         action: "createTenant",
         email: email,
+        google_access_token: clientAccessToken,
         storeName: storeName,
         plan: planType,
         lang: currentLang,
@@ -6633,12 +6791,17 @@ async function handleDriveClick(btnElement, dataKey, expectedName) {
       method: "POST",
       body: JSON.stringify({
         api_key: token,
+        session_token: window.getSessionToken(),
         action: "recoverFolder",
         folder_type: dataKey,
       }),
     });
 
     const res = await response.json();
+    if (res && res.error === "AUTH_EXPIRED") {
+      window.handleAuthExpired(res.message);
+      return;
+    }
 
     if (res.success && res.newId) {
       // Сохраняем новый ID в память и сразу открываем
@@ -6891,6 +7054,7 @@ async function openDeepRestoreModal() {
 
   const payload = JSON.stringify({
     api_key: token,
+    session_token: window.getSessionToken(),
     action: "get_available_backups",
   });
 
@@ -6923,6 +7087,10 @@ async function openDeepRestoreModal() {
       }
 
       res = JSON.parse(text);
+      if (res && res.error === "AUTH_EXPIRED") {
+        window.handleAuthExpired(res.message);
+        return;
+      }
       break; // Успешно получили и распарсили JSON — выходим из цикла
     } catch (err) {
       clearTimeout(timeoutId);
@@ -7027,6 +7195,7 @@ window.startSmartMerge = function (fileId, fileDate) {
         action: "smart_merge",
         file_id: fileId,
         api_key: token,
+        session_token: window.getSessionToken(),
       };
 
       fetch(GATEWAY_URL, {
@@ -7035,6 +7204,11 @@ window.startSmartMerge = function (fileId, fileDate) {
       })
         .then((res) => res.json())
         .then((response) => {
+          if (response && response.error === "AUTH_EXPIRED") {
+            Swal.close();
+            window.handleAuthExpired(response.message);
+            return;
+          }
           if (response && response.success) {
             refreshPosData(true);
             Swal.fire({
@@ -7749,7 +7923,7 @@ window.generateExportFile = async function (target = "local") {
 
       fetch(url, {
         method: "POST",
-        body: JSON.stringify({ action: "silentUpdateAttributesBackend", api_key: typeof CLIENT_API_KEY !== "undefined" ? CLIENT_API_KEY : window.CLIENT_API_KEY, items: itemsToUpdate }),
+        body: JSON.stringify({ action: "silentUpdateAttributesBackend", api_key: typeof CLIENT_API_KEY !== "undefined" ? CLIENT_API_KEY : window.CLIENT_API_KEY, session_token: window.getSessionToken(), items: itemsToUpdate }),
       }).catch((e) => console.error("Ошибка сети при сохранении параметров:", e));
     }
 
@@ -7776,6 +7950,7 @@ window.generateExportFile = async function (target = "local") {
           body: JSON.stringify({
             action: "markKaspiExportedBackend",
             api_key: typeof CLIENT_API_KEY !== "undefined" ? CLIENT_API_KEY : window.CLIENT_API_KEY,
+            session_token: window.getSessionToken(),
             rowIndexes: exportedRowIndexes,
             templateHash: exportTemplateHash,
             exportedBarcodes: exportedBarcodes,

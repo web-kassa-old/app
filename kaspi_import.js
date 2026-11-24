@@ -905,11 +905,17 @@ window.processInvoiceFile = async function () {
       ? translations[currentLang].inc_loading_dict : "Загрузка словаря переводов...";
     window.showLoading(dictText);
     try {
-      const fetchUrl = `${typeof APPS_SCRIPT_URL !== "undefined" ? APPS_SCRIPT_URL : ""}?action=getInitialData&api_key=${typeof CLIENT_API_KEY !== "undefined" ? CLIENT_API_KEY : ""}&t=${Date.now()}&uid=${localStorage.getItem("user_uid") || ""}&role=${localStorage.getItem("user_role") || ""}&last_sync=0`;
+      const sessTok = typeof window.getSessionToken === "function" ? window.getSessionToken() : (localStorage.getItem("session_token") || "");
+      const fetchUrl = `${typeof APPS_SCRIPT_URL !== "undefined" ? APPS_SCRIPT_URL : ""}?action=getInitialData&api_key=${encodeURIComponent(typeof CLIENT_API_KEY !== "undefined" ? CLIENT_API_KEY : "")}&session_token=${encodeURIComponent(sessTok)}&t=${Date.now()}&last_sync=0`;
       const res = await fetch(fetchUrl);
       const text = await res.text();
       if (!text.trim().startsWith("<")) {
         const data = JSON.parse(text);
+        if (data && data.error === "AUTH_EXPIRED") {
+          if (typeof window.handleAuthExpired === "function") window.handleAuthExpired(data.message);
+          window.hideLoading();
+          return;
+        }
         if (data.synonyms && Object.keys(data.synonyms).length > 0) {
           if (typeof invoiceSynonyms !== "undefined") Object.assign(invoiceSynonyms, data.synonyms);
           window.invoiceSynonyms = typeof invoiceSynonyms !== "undefined" ? invoiceSynonyms : data.synonyms;
@@ -5307,6 +5313,7 @@ async function sendInvoiceToBackend() {
         body: JSON.stringify({
           master_url: APPS_SCRIPT_URL,
           api_key: CLIENT_API_KEY,
+          session_token: typeof window.getSessionToken === "function" ? window.getSessionToken() : (localStorage.getItem("session_token") || ""),
           action: "income",
           data: group.items,
           files: group.originalFiles,
@@ -5325,8 +5332,12 @@ async function sendInvoiceToBackend() {
       const res = await response.json();
       clearInterval(fakeProgress);
 
+      if (res && res.error === "AUTH_EXPIRED") {
+        if (typeof window.handleAuthExpired === "function") window.handleAuthExpired(res.message);
+        throw new Error(res.message || "Сессия истекла");
+      }
       if (!res.success) {
-        throw new Error(res.error);
+        throw new Error(res.message || res.error);
       }
     } catch (err) {
       clearInterval(fakeProgress);
@@ -5525,9 +5536,14 @@ window.openExportModal = async function () {
       body: JSON.stringify({
         action: "getPendingExportsBackend",
         api_key: CLIENT_API_KEY,
+        session_token: typeof window.getSessionToken === "function" ? window.getSessionToken() : (localStorage.getItem("session_token") || ""),
       }),
     });
     const res = await response.json();
+    if (res && res.error === "AUTH_EXPIRED") {
+      if (typeof window.handleAuthExpired === "function") window.handleAuthExpired(res.message);
+      return;
+    }
 
     if (res?.success && res?.pendingGroups?.length > 0) {
       // Генерируем красивые плашки
@@ -5848,6 +5864,7 @@ window.handleCardSelectForExport = async function (
     const payload = {
       action: "getKaspiExportItemsBackend",
       api_key: CLIENT_API_KEY,
+      session_token: typeof window.getSessionToken === "function" ? window.getSessionToken() : (localStorage.getItem("session_token") || ""),
       hash: selectedHash,
       status: isExported ? "exported" : "pending",
     };
@@ -5864,6 +5881,10 @@ window.handleCardSelectForExport = async function (
     } catch (e) {
       console.error("Сервер вернул не JSON:", text);
       throw new Error("Сбой на сервере. Ответ: " + text.substring(0, 150));
+    }
+    if (res && res.error === "AUTH_EXPIRED") {
+      if (typeof window.handleAuthExpired === "function") window.handleAuthExpired(res.message);
+      return;
     }
 
     if (
