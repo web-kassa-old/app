@@ -301,16 +301,30 @@
             clearPin();
         }
 
+        async function adminPost(payload) {
+            const response = await fetch(API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify(payload),
+                redirect: 'follow'
+            });
+            return await response.json();
+        }
+
         async function refreshData() {
             const tbody = document.getElementById('table-body');
             tbody.innerHTML = `<tr><td colspan="2" class="loader">ОБНОВЛЕНИЕ БАЗЫ...</td></tr>`;
             try {
-                const response = await fetch(`${API_URL}?action=get_tenants&pin=${currentPin}&_=${Date.now()}`, { redirect: 'follow' });
-                const data = await response.json();
-                if (data.error !== "ACCESS_DENIED") {
+                const data = await adminPost({ action: 'get_tenants', pin: currentPin });
+                if (data && data.success && Array.isArray(data.tenants)) {
+                    renderTable(data.tenants);
+                } else if (Array.isArray(data)) {
                     renderTable(data);
-                } else {
+                } else if (data && (data.error === "ACCESS_DENIED" || data.error === "RATE_LIMITED" || data.error === "ADMIN_NOT_CONFIGURED")) {
+                    alert(data.message || data.error);
                     lockApp();
+                } else {
+                    throw new Error((data && (data.message || data.error)) || 'Неизвестная ошибка');
                 }
             } catch (e) {
                 tbody.innerHTML = `<tr><td colspan="2" class="loader" style="color:#ef4444;">ОШИБКА СИНХРОНИЗАЦИИ</td></tr>`;
@@ -323,11 +337,13 @@
             document.getElementById('pin-msg').innerText = "VERIFYING...";
             
             try {
-                const response = await fetch(`${API_URL}?action=get_tenants&pin=${currentPin}&_=${Date.now()}`, { redirect: 'follow' });
-                const data = await response.json();
+                const data = await adminPost({ action: 'get_tenants', pin: currentPin });
                 
-                if (data.error === "ACCESS_DENIED") {
-                    document.getElementById('pin-msg').innerText = "ACCESS DENIED";
+                if (data && data.error) {
+                    const errText = data.error === "RATE_LIMITED"
+                        ? (data.message || "RATE LIMITED")
+                        : (data.error === "ADMIN_NOT_CONFIGURED" ? "ADMIN_PIN NOT SET" : "ACCESS DENIED");
+                    document.getElementById('pin-msg').innerText = errText;
                     document.getElementById('pin-msg').style.color = "#ef4444";
                     updateDots(true);
                     setTimeout(() => {
@@ -337,11 +353,12 @@
                         updateDots();
                     }, 3000);
                 } else {
+                    const tenants = (data && Array.isArray(data.tenants)) ? data.tenants : (Array.isArray(data) ? data : []);
                     isAuthenticating = false; 
                     toggleNumpad(true);       
                     document.getElementById('pin-screen').style.display = 'none';
                     document.getElementById('main-app').style.display = 'block';
-                    renderTable(data);
+                    renderTable(tenants);
                 }
             } catch (error) {
                 document.getElementById('pin-msg').innerText = "CONNECTION ERROR";
@@ -424,8 +441,12 @@
             
             button.disabled = true; button.innerText = 'ОЖИДАЙТЕ...';
             try {
-                const response = await fetch(`${API_URL}?action=toggle_status&api_key=${apiKey}&current_status=${currentStatus}&pin=${currentPin}`, { redirect: 'follow' });
-                const res = await response.json();
+                const res = await adminPost({
+                    action: 'toggle_status',
+                    pin: currentPin,
+                    api_key: apiKey,
+                    current_status: currentStatus
+                });
                 if (res.error) throw new Error(res.message || res.error);
                 
                 const newStatus = res.newStatus;
@@ -514,11 +535,17 @@
             btn.disabled = true; btn.innerText = 'СОХРАНЕНИЕ...';
 
             try {
-                const query = `?action=update_tenant&pin=${currentPin}&api_key=${encodeURIComponent(apiKey)}&client_name=${encodeURIComponent(newName)}&date_end=${encodeURIComponent(newDate)}&warning_days=${encodeURIComponent(newWarning)}&contact=${encodeURIComponent(newContact)}&notes=${encodeURIComponent(newNotes)}`;
-                
-                const response = await fetch(`${API_URL}${query}`, { redirect: 'follow' });
-                const res = await response.json();
-                if (res.error) throw new Error(res.error || res.message);
+                const res = await adminPost({
+                    action: 'update_tenant',
+                    pin: currentPin,
+                    api_key: apiKey,
+                    client_name: newName,
+                    date_end: newDate,
+                    warning_days: newWarning,
+                    contact: newContact,
+                    notes: newNotes
+                });
+                if (res.error) throw new Error(res.message || res.error);
                 
                 closeEditModal();
                 refreshData(); 
@@ -555,22 +582,18 @@
 
             const payload = {
                 action: 'createTenant',
+                admin_pin: currentPin,
                 name: name,
                 days: days,
                 email: email
             };
 
             try {
-                // Отправляем POST запрос, как мы настроили в Code.gs
-                const response = await fetch(API_URL, {
-                    method: 'POST',
-                    body: JSON.stringify(payload)
-                });
-                
-                const result = await response.json();
+                // Отправляем POST запрос с ADMIN_PIN в теле JSON
+                const result = await adminPost(payload);
 
                 if (result.success) {
-                    alert(`✅ Базы успешно созданы!\nНовый ключ: ${result.apiKey}`);
+                    alert(`✅ Базы успешно созданы!\nНовый ключ: ${result.api_key || result.apiKey}`);
                     
                     // Очищаем форму
                     document.getElementById('add-name').value = '';
