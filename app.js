@@ -1,3 +1,22 @@
+// === ЕДИНЫЕ ХЕЛПЕРЫ ЗАЩИТЫ ОТ XSS (ВОЛНА 3Б) ===
+window.escapeHtml = function (str) {
+  return String(str === null || str === undefined ? "" : str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+};
+
+window.isSafeImageDataUrl = function (src) {
+  return (
+    typeof src === "string" &&
+    /^data:image\/(jpeg|jpg|png|webp|gif|bmp);base64,[A-Za-z0-9+/=\s]+$/i.test(
+      src.trim(),
+    )
+  );
+};
+
 window.showLoading = function (text, i18nKey = null) {
   let loader = document.getElementById("globalLoader");
 
@@ -161,13 +180,13 @@ function initGoogleAuth() {
             .catch((err) => {
               console.error("КРИТИЧЕСКАЯ ОШИБКА:", err);
 
-              // Отрисовка ошибки с учетом словаря
+              // Отрисовка ошибки с учетом словаря (экранирование ответа сервера)
               googleScreen.innerHTML = `
                             <div style="color: #ff6b6b; padding: 20px; text-align: left; background: #1a1a1a; border-radius: 8px; border: 1px solid #333;">
-                                <h2 data-i18n="auth_error_title" style="margin-top: 0;">${translations[currentLang].auth_error_title}</h2>
-                                <pre style="white-space: pre-wrap; font-size: 13px; background: #000; padding: 10px; border-radius: 4px; color: #ffb3b3;">${err.message}</pre>
+                                <h2 data-i18n="auth_error_title" style="margin-top: 0;">${window.escapeHtml(translations[currentLang].auth_error_title)}</h2>
+                                <pre style="white-space: pre-wrap; font-size: 13px; background: #000; padding: 10px; border-radius: 4px; color: #ffb3b3;">${window.escapeHtml(err && err.message ? err.message : String(err))}</pre>
                                 <button onclick="window.location.reload(true)" data-i18n="auth_retry" style="margin-top: 15px; padding: 10px 20px; background: #ff6b6b; color: #fff; border: none; border-radius: 4px; cursor: pointer;">
-                                    ${translations[currentLang].auth_retry}
+                                    ${window.escapeHtml(translations[currentLang].auth_retry)}
                                 </button>
                             </div>
                         `;
@@ -863,19 +882,20 @@ window.renderSupplierList = function () {
 
   // Формируем вертикальный список поставщиков (display: block и рамка снизу)
   let html = suppliers
-    .map(
-      (s) => `
-        <div onclick="window.selectSupplier('${s}')" style="padding: 12px; border-bottom: 1px solid rgba(255,255,255,0.1); cursor: pointer; display: block; text-align: left;">
-            ${s}
+    .map((s) => {
+      const safeSup = window.escapeHtml(s);
+      return `
+        <div data-val="${safeSup}" onclick="window.selectSupplier(this.dataset.val)" style="padding: 12px; border-bottom: 1px solid rgba(255,255,255,0.1); cursor: pointer; display: block; text-align: left;">
+            ${safeSup}
         </div>
-    `,
-    )
+    `;
+    })
     .join("");
 
   // Добавляем кнопку "+ Новый поставщик" в конец списка
   html += `
         <div onclick="window.selectSupplier('NEW')" style="padding: 12px; color: #ff9800; cursor: pointer; display: block; text-align: left; font-weight: bold;">
-            ${newBtnText}
+            ${window.escapeHtml(newBtnText)}
         </div>
     `;
 
@@ -1030,7 +1050,7 @@ window.openQuickEditModal = function (id) {
                     <div style="margin-bottom: 10px;">
                         <label data-i18n="qe_barcode" style="display: block; font-size: 10px; margin-bottom: 2px;">${t("qe_barcode")}</label>
                         <div style="display: flex; margin-bottom: 8px;">
-                            <input type="text" id="qe-barcode" value="${item.barcode || ""}" placeholder="${t("qe_barcode_placeholder")}" inputmode="numeric" maxlength="13" onfocus="this.select()" onclick="this.select()" oninput="window.formatNtInput(this)" style="flex: 1; border-top-right-radius: 0; border-bottom-right-radius: 0; border-right: none; background: var(--bg-card); border-top: 1px solid var(--border-main); border-bottom: 1px solid var(--border-main); border-left: 1px solid var(--border-main); color: var(--text-main); padding: 12px; font-size: 15px; box-sizing: border-box; transition: all 0.2s ease;">
+                            <input type="text" id="qe-barcode" value="${escapeHtml(item.barcode || "")}" placeholder="${escapeHtml(t("qe_barcode_placeholder"))}" inputmode="numeric" maxlength="13" onfocus="this.select()" onclick="this.select()" oninput="window.formatNtInput(this)" style="flex: 1; border-top-right-radius: 0; border-bottom-right-radius: 0; border-right: none; background: var(--bg-card); border-top: 1px solid var(--border-main); border-bottom: 1px solid var(--border-main); border-left: 1px solid var(--border-main); color: var(--text-main); padding: 12px; font-size: 15px; box-sizing: border-box; transition: all 0.2s ease;">
                             <button type="button" onclick="window.startQuaggaScanner()" style="padding: 0 15px; border: 1px solid var(--border-main); background: var(--bg-overlay); border-top-right-radius: 4px; border-bottom-right-radius: 4px; color: var(--text-main); font-size: 18px; cursor: pointer; transition: all 0.2s ease;">📷</button>
                         </div>
                         
@@ -1126,7 +1146,7 @@ window.openQuickEditModal = function (id) {
 
                         <!-- НИЖНИЕ КНОПКИ (Сохранить, ПРИХОД, Закрыть) -->
                 <div id="qe-bottom-buttons" style="display: flex; gap: 8px;">
-                    <button type="button" data-i18n="qe_save" onclick="window.saveQuickEdit('${item.id}')" style="flex: 2; padding: 10px; border: none; background: #2e7d32; color: #fff; border-radius: 4px; font-weight: bold; font-size: 14px; text-transform: uppercase; cursor: pointer;">${t("qe_save")}</button>
+                    <button type="button" data-i18n="qe_save" data-item-id="${escapeHtml(item.id)}" onclick="window.saveQuickEdit(this.dataset.itemId)" style="flex: 2; padding: 10px; border: none; background: #2e7d32; color: #fff; border-radius: 4px; font-weight: bold; font-size: 14px; text-transform: uppercase; cursor: pointer;">${escapeHtml(t("qe_save"))}</button>
                     
                     <!-- Кнопка открытия прихода -->
                     <button type="button" id="btn-open-receive" data-i18n="qe_btn_open_receive" style="flex: 1; padding: 12px; border: none; background: #ff9800; color: #fff; border-radius: 4px; font-weight: bold; font-size: 16px; cursor: pointer;">${t("qe_btn_open_receive")}</button>
@@ -1625,9 +1645,8 @@ window.saveQuickEdit = function (id) {
   }
 
   // ==========================================
-  // ОТПРАВКА НА СЕРВЕР
+  // ОТПРАВКА НА СЕРВЕР (без вывода payload/api_key в консоль)
   // ==========================================
-  console.log("Улетает на сервер:", payload);
   // === СОХРАНЯЕМ ИЗМЕНЕНИЯ В КЭШ, ЧТОБЫ ОНИ НЕ ИСЧЕЗЛИ ===
   if (typeof db !== "undefined") {
     localStorage.setItem("db_cache", JSON.stringify(db));
@@ -1801,6 +1820,18 @@ async function getSecurePin(rawPin) {
   return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+// Солёный хэш ПИН-кода для локального offline_pin (соль = CLIENT_API_KEY)
+async function getOfflinePinHash(rawPin) {
+  const salt =
+    localStorage.getItem("CLIENT_API_KEY") ||
+    (typeof CLIENT_API_KEY !== "undefined" ? CLIENT_API_KEY : "");
+  const encoder = new TextEncoder();
+  const data = encoder.encode(String(salt).trim() + ":" + String(rawPin).trim());
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 function renderCategories() {
   const categories = new Set();
   document.querySelectorAll(".c-item").forEach((el) => {
@@ -1820,18 +1851,20 @@ function renderCategories() {
                 ontouchmove="cancelCatHold()"
                 ontouchcancel="cancelCatHold()" 
                 onclick="handleCatClick('all')" 
-                data-i18n="cat_all">${translations[currentLang].cat_all}</div>`;
+                data-i18n="cat_all">${window.escapeHtml(translations[currentLang].cat_all)}</div>`;
 
   categories.forEach((c) => {
+    const safeCat = window.escapeHtml(c);
     html += `<div class="cat-btn ${currentCategory === c ? "active" : ""}" 
-                onmousedown="startCatHold('${c}', event)" 
+                data-cat="${safeCat}"
+                onmousedown="startCatHold(this.dataset.cat, event)" 
                 onmouseup="cancelCatHold()" 
                 onmouseleave="cancelCatHold()" 
-                ontouchstart="startCatHold('${c}', event)" 
+                ontouchstart="startCatHold(this.dataset.cat, event)" 
                 ontouchend="cancelCatHold()" 
                 ontouchmove="cancelCatHold()"
                 ontouchcancel="cancelCatHold()" 
-                onclick="handleCatClick('${c}')">${c}</div>`;
+                onclick="handleCatClick(this.dataset.cat)">${safeCat}</div>`;
   });
 
   bar.innerHTML = html;
@@ -1958,13 +1991,14 @@ async function handleAutoLogin(val) {
   const field = document.getElementById("pin-field");
 
   const securedPin = await getSecurePin(val);
+  const offlineSaltedPin = await getOfflinePinHash(val);
 
   // === НАЧАЛО: УМНАЯ ОФЛАЙН-АВТОРИЗАЦИЯ ===
   if (!navigator.onLine) {
     const savedPin = localStorage.getItem("offline_pin");
     const savedUser = localStorage.getItem("offline_user");
 
-    if (savedPin && savedUser && securedPin === savedPin) {
+    if (savedPin && savedUser && offlineSaltedPin === savedPin) {
       field.style.color = "var(--accent-green)";
       err.innerText =
         translations[currentLang].pin_granted +
@@ -2042,7 +2076,7 @@ async function handleAutoLogin(val) {
         localStorage.setItem("session_token", res.session_token);
       }
 
-      localStorage.setItem("offline_pin", securedPin);
+      localStorage.setItem("offline_pin", offlineSaltedPin);
       localStorage.setItem("offline_user", JSON.stringify(res.user));
 
       if (res.driveData) {
@@ -2187,12 +2221,33 @@ async function login(user) {
 
 function logout() {
   currentUser = null;
-  localStorage.removeItem("session_token");
-  localStorage.removeItem("DRIVE_DATA");
-  localStorage.removeItem("offline_user");
-  localStorage.removeItem("offline_pin");
-  localStorage.removeItem("user_role");
-  localStorage.removeItem("user_uid"); // Стираем все данные сессии сотрудника
+  db = [];
+  staffList = [];
+  window.suppliers = [];
+  window.suppliersList = [];
+
+  // Полная гигиена кэша общей кассы (строго сохраняем CLIENT_API_KEY, offlineQueue, pos_lang, pos_theme)
+  const keysToRemove = [
+    "session_token",
+    "DRIVE_DATA",
+    "offline_user",
+    "offline_pin",
+    "user_role",
+    "user_uid",
+    "db_cache",
+    "db_timestamp",
+    "kaspiTemplatesCache",
+    "suppliersCache",
+    "suppliers_cache",
+    "staff_cache",
+  ];
+  keysToRemove.forEach((k) => localStorage.removeItem(k));
+  Object.keys(localStorage).forEach((k) => {
+    if (k.startsWith("report_") || k.startsWith("totals_cache_")) {
+      localStorage.removeItem(k);
+    }
+  });
+
   document.getElementById("cashier-info").style.display = "none";
   document.getElementById("pin-screen").style.display = "flex";
   clearPin();
@@ -2504,27 +2559,31 @@ function render() {
   catalog.innerHTML = db
     .map((i) => {
       const hasPhoto = i.img && i.img.toString().length > 10;
+      const safeId = window.escapeHtml(i.id);
+      const safeName = window.escapeHtml(i.name || "Без названия");
+      const safeCat = window.escapeHtml(i.category || "");
       // Компактная иконка вместо слова ФОТО с правильным курсором
-      const photoBadge = `<span onclick="openItemMenu('${i.id}'); event.stopPropagation();" style="display:flex; align-items:center; justify-content:center; width: 28px; height: 28px; background-color: ${hasPhoto ? "var(--accent-yellow)" : "var(--bg-hover)"}; color: ${hasPhoto ? "#000" : "var(--text-muted)"}; font-size: 15px; border-radius: 4px; margin-right: 8px; border: 1px solid ${hasPhoto ? "var(--accent-yellow)" : "var(--border-focus)"}; flex-shrink: 0; cursor: pointer; user-select: none;">📷</span>`;
+      const photoBadge = `<span data-item-id="${safeId}" onclick="openItemMenu(this.dataset.itemId); event.stopPropagation();" style="display:flex; align-items:center; justify-content:center; width: 28px; height: 28px; background-color: ${hasPhoto ? "var(--accent-yellow)" : "var(--bg-hover)"}; color: ${hasPhoto ? "#000" : "var(--text-muted)"}; font-size: 15px; border-radius: 4px; margin-right: 8px; border: 1px solid ${hasPhoto ? "var(--accent-yellow)" : "var(--border-focus)"}; flex-shrink: 0; cursor: pointer; user-select: none;">📷</span>`;
 
       const roundedPrice = Math.round(Number(i.price) || 0);
 
       return `<div class="c-item" 
-                    onmousedown="window.startItemHold('${i.id}', event)" 
+                    data-item-id="${safeId}"
+                    onmousedown="window.startItemHold(this.dataset.itemId, event)" 
                     onmouseup="window.cancelItemHold()" 
                     onmouseleave="window.cancelItemHold()" 
-                    ontouchstart="window.startItemHold('${i.id}', event)" 
+                    ontouchstart="window.startItemHold(this.dataset.itemId, event)" 
                     ontouchend="window.cancelItemHold()" 
                     ontouchcancel="window.cancelItemHold()" 
                     oncontextmenu="event.preventDefault(); return false;"
-                    onclick="window.handleItemClick('${i.id}', event)" 
-                    data-cat="${i.category || ""}">
+                    onclick="window.handleItemClick(this.dataset.itemId, event)" 
+                    data-cat="${safeCat}">
                     <div class="i-name" style="display:flex; align-items:center; flex: 1; min-width: 0;">
                         ${photoBadge} 
                         
                         <div style="display: flex; align-items: center; gap: 6px; flex: 1; overflow-x: auto; white-space: nowrap; scrollbar-width: none;">
-                            <span style="color: var(--text-main); font-size: 13px;">${i.name || "Без названия"}</span>
-                            <span style="color: var(--text-muted); font-size: 11px; font-family: 'Roboto', sans-serif; font-weight: normal;">#${i.id}</span>
+                            <span style="color: var(--text-main); font-size: 13px;">${safeName}</span>
+                            <span style="color: var(--text-muted); font-size: 11px; font-family: 'Roboto', sans-serif; font-weight: normal;">#${safeId}</span>
                         </div>
                         
                     </div>
@@ -2626,10 +2685,11 @@ function handleFocus(elem, rowId) {
 }
 
 function buildKaspiCheckBtnHtml(itemId) {
+  const safeId = window.escapeHtml(itemId);
   return `
     <div style="width: 100%; margin-top: 8px;">
-        <button onclick="checkKaspiFromCart('${itemId}', this)" style="width: 100%; background: var(--bg-card); color: var(--accent-red); border: 2px dashed var(--accent-red); padding: 10px; border-radius: 4px; font-size: 12px; font-weight: 900; cursor: pointer; text-transform: uppercase; transition: 0.2s;">
-            ${translations[currentLang].kaspi_check_btn}
+        <button data-item-id="${safeId}" onclick="checkKaspiFromCart(this.dataset.itemId, this)" style="width: 100%; background: var(--bg-card); color: var(--accent-red); border: 2px dashed var(--accent-red); padding: 10px; border-radius: 4px; font-size: 12px; font-weight: 900; cursor: pointer; text-transform: uppercase; transition: 0.2s;">
+            ${window.escapeHtml(translations[currentLang].kaspi_check_btn)}
         </button>
     </div>
   `;
@@ -2654,6 +2714,8 @@ function updateCartRowWarning(itemId) {
 function update() {
   document.getElementById("cart-list").innerHTML = cart
     .map((item, idx) => {
+      const safeId = window.escapeHtml(item.id);
+      const safeName = window.escapeHtml(item.name);
       // === ПРОВЕРКА КРИТИЧЕСКОГО ОСТАТКА ДЛЯ ОТРИСОВКИ КНОПКИ ===
       let remainingStock = item.stock - item.qty;
       let rowBgColor = "var(--bg-panel)";
@@ -2670,40 +2732,40 @@ function update() {
       // ===============================================
 
       return `
-                <div class="cart-row" id="r-${item.id}" style="background: ${rowBgColor}; border: ${rowBorder}; padding: 6px 10px; display: flex; flex-direction: column; gap: 6px; border-radius: 4px; margin-bottom: 3px; color: var(--text-main);">
+                <div class="cart-row" id="r-${safeId}" style="background: ${rowBgColor}; border: ${rowBorder}; padding: 6px 10px; display: flex; flex-direction: column; gap: 6px; border-radius: 4px; margin-bottom: 3px; color: var(--text-main);">
                     
                     <div style="display: flex; justify-content: space-between; align-items: center;">
                         <div style="display: flex; align-items: center; gap: 6px; flex: 1; overflow-x: auto; white-space: nowrap; scrollbar-width: none;">
-                            <span style="color: var(--text-main); font-size: 13px; font-weight: bold;">${item.name}</span>
-                            <span style="color: var(--text-muted); font-size: 11px; font-family: 'Roboto', sans-serif; font-weight: normal;">#${item.id}</span>
+                            <span style="color: var(--text-main); font-size: 13px; font-weight: bold;">${safeName}</span>
+                            <span style="color: var(--text-muted); font-size: 11px; font-family: 'Roboto', sans-serif; font-weight: normal;">#${safeId}</span>
                         </div>
                         
                         <div style="display: flex; justify-content: flex-end; align-items: center; width: 110px; flex-shrink: 0;">
                             <span style="color: var(--text-muted); font-size: 12px; font-family: 'Roboto', sans-serif; text-decoration: ${item.origPrice && item.origPrice !== item.price ? "line-through" : "none"};">${item.origPrice ? item.origPrice.toLocaleString("ru-RU") : item.price.toLocaleString("ru-RU")} ₸</span>
-                            <div onclick="rm('${item.id}')" style="color:var(--accent-red); font-size:18px; font-weight:bold; cursor:pointer; margin-left: 10px; line-height: 1; user-select: none;">✕</div>
+                            <div data-item-id="${safeId}" onclick="rm(this.dataset.itemId)" style="color:var(--accent-red); font-size:18px; font-weight:bold; cursor:pointer; margin-left: 10px; line-height: 1; user-select: none;">✕</div>
                         </div>
                     </div>
                     
                     <div style="display: flex; justify-content: space-between; align-items: center;">
                         <div class="qty-box">
-                            <button class="q-btn" onclick="qty('${item.id}',-1)">-</button>
-                            <input type="text" inputmode="numeric" class="q-val" value="${item.qty.toLocaleString("ru-RU")}" 
-                                onfocus="handleFocus(this, 'r-${item.id}')" 
-                                oninput="cart[${idx}].qty=parseInt(this.value.replace(/\\s/g, ''))||0; total(); updateCartRowWarning('${item.id}');" 
-                                onblur="if(cart[${idx}].qty <= 0) { rm('${item.id}'); } else { this.value = cart[${idx}].qty.toLocaleString('ru-RU'); }">
-                            <button class="q-btn" onclick="qty('${item.id}',1)">+</button>
+                            <button class="q-btn" data-item-id="${safeId}" onclick="qty(this.dataset.itemId,-1)">-</button>
+                            <input type="text" inputmode="numeric" class="q-val" data-item-id="${safeId}" value="${item.qty.toLocaleString("ru-RU")}" 
+                                onfocus="handleFocus(this, 'r-' + this.dataset.itemId)" 
+                                oninput="cart[${idx}].qty=parseInt(this.value.replace(/\\s/g, ''))||0; total(); updateCartRowWarning(this.dataset.itemId);" 
+                                onblur="if(cart[${idx}].qty <= 0) { rm(this.dataset.itemId); } else { this.value = cart[${idx}].qty.toLocaleString('ru-RU'); }">
+                            <button class="q-btn" data-item-id="${safeId}" onclick="qty(this.dataset.itemId,1)">+</button>
                         </div>
                                                 
                         <div style="position: relative; width: 110px; flex-shrink: 0;">
-                            <input type="text" inputmode="numeric" class="p-input" value="${item.price.toLocaleString("ru-RU")}" 
-                                onfocus="handleFocus(this, 'r-${item.id}')" 
+                            <input type="text" inputmode="numeric" class="p-input" data-item-id="${safeId}" value="${item.price.toLocaleString("ru-RU")}" 
+                                onfocus="handleFocus(this, 'r-' + this.dataset.itemId)" 
                                 oninput="cart[${idx}].price=parseFloat(this.value.replace(/\\s/g, '').replace(',', '.'))||0; total()" 
                                 onblur="this.value = cart[${idx}].price.toLocaleString('ru-RU')">
                             <span style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); color: var(--accent-yellow); font-size: 14px; pointer-events: none; font-family: 'Roboto', sans-serif; font-weight: bold;">₸</span>
                         </div>
                     </div>
                     
-                    <div class="kaspi-check-wrap" id="kaspi-wrap-${item.id}">${kaspiBtnHtml}</div>
+                    <div class="kaspi-check-wrap" id="kaspi-wrap-${safeId}">${kaspiBtnHtml}</div>
 
                 </div>`;
     })
@@ -2870,7 +2932,7 @@ function initPay(methodCode, methodName) {
   document.getElementById("r-items-list").innerHTML = cart
     .map(
       (c) =>
-        `<div class="r-item"><span>${c.name}</span><b>${c.qty} x ${c.price.toLocaleString()}</b></div>`,
+        `<div class="r-item"><span>${window.escapeHtml(c.name)}</span><b>${c.qty} x ${c.price.toLocaleString()}</b></div>`,
     )
     .join("");
   document.getElementById("r-total").innerText =
@@ -3437,13 +3499,13 @@ async function renderReport() {
       for (let seller in item.sellers) {
         let s = item.sellers[seller];
         let lbl = isSaleMode ? uiStr.sale : uiStr.ret;
-        detHtml += `<div class="acc-detail-row"><span>${lbl} (${s.qty}) 👤 ${seller} | ${uiStr.avg} ${Math.round(s.sum / s.qty).toLocaleString()} ₸</span><span style="color:${sumColor}">${signPrefix}${s.sum.toLocaleString()}</span></div>`;
+        detHtml += `<div class="acc-detail-row"><span>${window.escapeHtml(lbl)} (${s.qty}) 👤 ${window.escapeHtml(seller)} | ${window.escapeHtml(uiStr.avg)} ${Math.round(s.sum / s.qty).toLocaleString()} ₸</span><span style="color:${sumColor}">${signPrefix}${s.sum.toLocaleString()}</span></div>`;
       }
 
       htmlString += `
-                <div class="acc-item" data-name="${item.name.toLowerCase()}" style="border-left: 3px solid ${mColor};" onclick="this.classList.toggle('open')">
+                <div class="acc-item" data-name="${window.escapeHtml(String(item.name || "").toLowerCase())}" style="border-left: 3px solid ${mColor};" onclick="this.classList.toggle('open')">
                     <div class="acc-header">
-                        <div class="acc-title-col">${item.name}${methodTag}</div>
+                        <div class="acc-title-col">${window.escapeHtml(item.name)}${methodTag}</div>
                         <div class="acc-qty-col">${item.qty}</div>
                         <div class="acc-sum-col" style="color:${sumColor}">${signPrefix}${item.sum.toLocaleString()} <span class="arr">▼</span></div>
                     </div>
@@ -3461,7 +3523,7 @@ async function renderReport() {
       let mColor = methodColors[mGroup] || "var(--text-muted)";
       let methodTag =
         reportState.method === "all"
-          ? ` <span style="color:${mColor}; font-size:10px;">[${methodNames[mGroup]}]</span>`
+          ? ` <span style="color:${mColor}; font-size:10px;">[${window.escapeHtml(methodNames[mGroup] || mGroup)}]</span>`
           : "";
 
       let detHtml = "";
@@ -3470,7 +3532,7 @@ async function renderReport() {
         let s = q * Math.abs(c.price);
         txSum += s;
         txQty += q;
-        detHtml += `<div class="acc-detail-row"><span>${c.name}</span><span style="color:${sumColor}">${q} x ${Math.abs(c.price).toLocaleString()}</span></div>`;
+        detHtml += `<div class="acc-detail-row"><span>${window.escapeHtml(c.name)}</span><span style="color:${sumColor}">${q} x ${Math.abs(c.price).toLocaleString()}</span></div>`;
       });
 
       if (mGroup === "market") {
@@ -3489,19 +3551,22 @@ async function renderReport() {
         let strNet = translations[currentLang].report_market_net || "К выплате";
 
         if (tCom > 0)
-          detHtml += `<div class="acc-detail-row" style="color: var(--accent-red); font-size: 11px;"><span>↳ ${strCom}</span><span>-${tCom.toLocaleString()}</span></div>`;
+          detHtml += `<div class="acc-detail-row" style="color: var(--accent-red); font-size: 11px;"><span>↳ ${window.escapeHtml(strCom)}</span><span>-${tCom.toLocaleString()}</span></div>`;
         if (tLog > 0)
-          detHtml += `<div class="acc-detail-row" style="color: var(--accent-red); font-size: 11px;"><span>↳ ${strLog}</span><span>-${tLog.toLocaleString()}</span></div>`;
+          detHtml += `<div class="acc-detail-row" style="color: var(--accent-red); font-size: 11px;"><span>↳ ${window.escapeHtml(strLog)}</span><span>-${tLog.toLocaleString()}</span></div>`;
 
-        detHtml += `<div class="acc-detail-row" style="font-weight: bold; border-top: 1px dashed var(--border-main); margin-top: 4px; padding-top: 4px;"><span>${strNet}</span><span style="color:${sumColor}">${tNet.toLocaleString()}</span></div>`;
+        detHtml += `<div class="acc-detail-row" style="font-weight: bold; border-top: 1px dashed var(--border-main); margin-top: 4px; padding-top: 4px;"><span>${window.escapeHtml(strNet)}</span><span style="color:${sumColor}">${tNet.toLocaleString()}</span></div>`;
 
         txSum = tNet;
       }
 
+      const safeDate = window.escapeHtml(tx.date);
+      const safeTime = window.escapeHtml(tx.time);
+      const safeSeller = window.escapeHtml(tx.seller);
       htmlString += `
-                <div class="acc-item" data-name="${tx.date} ${tx.time}" style="border-left: 3px solid ${mColor};" onclick="this.classList.toggle('open')">
+                <div class="acc-item" data-name="${safeDate} ${safeTime}" style="border-left: 3px solid ${mColor};" onclick="this.classList.toggle('open')">
                     <div class="acc-header">
-                        <div class="acc-title-col">${tx.date} ${tx.time}${methodTag} <span style="font-size:10px; font-weight:normal; color:var(--text-muted); display:block;">👤 ${tx.seller}</span></div>
+                        <div class="acc-title-col">${safeDate} ${safeTime}${methodTag} <span style="font-size:10px; font-weight:normal; color:var(--text-muted); display:block;">👤 ${safeSeller}</span></div>
                         <div class="acc-qty-col">${txQty}</div>
                         <div class="acc-sum-col" style="color:${sumColor}">${signPrefix}${txSum.toLocaleString()} <span class="arr">▼</span></div>
                     </div>
@@ -3699,9 +3764,16 @@ function openItemMenu(id) {
             window.handleAuthExpired(data.message);
             return;
           }
-          if (data.success && data.base64) {
-            // Отрисовываем полученное фото
-            preview.innerHTML = `<img src="${data.base64}" onclick="openFullscreen('${data.base64}')" style="max-width: 100%; max-height: 250px; border-radius: 8px; border: 1px solid var(--border-focus); margin-top: 10px; cursor: zoom-in;">`;
+          if (data.success && data.base64 && window.isSafeImageDataUrl(data.base64)) {
+            // Безопасная отрисовка растрового data:image/* через DOM API (без XSS и inline base64)
+            const safeSrc = data.base64.trim();
+            preview.innerHTML = "";
+            const imgEl = document.createElement("img");
+            imgEl.src = safeSrc;
+            imgEl.style.cssText =
+              "max-width: 100%; max-height: 250px; border-radius: 8px; border: 1px solid var(--border-focus); margin-top: 10px; cursor: zoom-in;";
+            imgEl.addEventListener("click", () => openFullscreen(safeSrc));
+            preview.appendChild(imgEl);
           } else {
             throw new Error("Server rejected photo");
           }
@@ -3754,8 +3826,16 @@ async function handlePhoto(event) {
       canvas.height = height;
       canvas.getContext("2d").drawImage(img, 0, 0, width, height);
       tempBase64 = canvas.toDataURL("image/jpeg", 0.7);
-      document.getElementById("photo-preview").innerHTML =
-        `<img src="${tempBase64}" onclick="openFullscreen('${tempBase64}')" style="max-width: 100%; max-height: 250px; border-radius: 8px; border: 1px solid var(--border-focus); margin-top: 10px; cursor: zoom-in;">`;
+      const previewEl = document.getElementById("photo-preview");
+      previewEl.innerHTML = "";
+      if (window.isSafeImageDataUrl(tempBase64)) {
+        const imgEl = document.createElement("img");
+        imgEl.src = tempBase64;
+        imgEl.style.cssText =
+          "max-width: 100%; max-height: 250px; border-radius: 8px; border: 1px solid var(--border-focus); margin-top: 10px; cursor: zoom-in;";
+        imgEl.addEventListener("click", () => openFullscreen(tempBase64));
+        previewEl.appendChild(imgEl);
+      }
       document.getElementById("btn-add-cart").style.display = "none";
       document.getElementById("btn-save-db").style.display = "block";
       document.getElementById("btn-take-photo").style.display = "none";
@@ -4461,10 +4541,12 @@ window.triggerCategoryRename = function() {
         categories.delete(oldName);
         
         categories.forEach(cat => {
-            html += `<div data-val="${cat}" data-text="${cat}" onclick="handleRenameCatClick(this)" style="padding: 10px; cursor: pointer; border-bottom: 1px solid var(--border-light); color: var(--text-main);">${cat}</div>`;
+            const safeCat = window.escapeHtml(cat);
+            html += `<div data-val="${safeCat}" data-text="${safeCat}" onclick="handleRenameCatClick(this)" style="padding: 10px; cursor: pointer; border-bottom: 1px solid var(--border-light); color: var(--text-main);">${safeCat}</div>`;
         });
         
-        html += `<div data-val="new" data-text="${t.cat_rename_new_btn || "+ Новая категория"}" onclick="handleRenameCatClick(this)" style="padding: 10px; cursor: pointer; color: var(--accent-green, #4caf50); font-weight: bold;">${t.cat_rename_new_btn || "+ Новая категория"}</div>`;
+        const safeNewCatBtn = window.escapeHtml(t.cat_rename_new_btn || "+ Новая категория");
+        html += `<div data-val="new" data-text="${safeNewCatBtn}" onclick="handleRenameCatClick(this)" style="padding: 10px; cursor: pointer; color: var(--accent-green, #4caf50); font-weight: bold;">${safeNewCatBtn}</div>`;
         
         dropdownWrap.innerHTML = html;
     }
@@ -4684,7 +4766,7 @@ function showInstallerForm(email) {
             
             <div style="background: var(--bg-hover); padding: 12px; border-radius: 6px; text-align: center; margin-bottom: 25px; border: 1px solid var(--border-main); font-size: 14px;">
                 <span style="color: var(--text-muted);" data-i18n="setup_account">Аккаунт:</span>
-                <strong style="color: var(--text-main); margin-left: 5px;">${email}</strong>
+                <strong style="color: var(--text-main); margin-left: 5px;">${window.escapeHtml(email)}</strong>
             </div>
 
             <div style="margin-bottom: 20px;">
@@ -5436,13 +5518,14 @@ window.renderCustomSupplierDropdown = function (filterText = "") {
 
   // Рисуем список
   dropdown.innerHTML = filtered
-    .map(
-      (s) => `
-        <div onclick="window.selectCustomSupplier('${s}')" style="padding: 12px; border-bottom: 1px solid rgba(255,255,255,0.1); cursor: pointer; display: block; text-align: left; color: #fff;">
-            ${s}
+    .map((s) => {
+      const safeSup = window.escapeHtml(s);
+      return `
+        <div data-val="${safeSup}" onclick="window.selectCustomSupplier(this.dataset.val)" style="padding: 12px; border-bottom: 1px solid rgba(255,255,255,0.1); cursor: pointer; display: block; text-align: left; color: #fff;">
+            ${safeSup}
         </div>
-    `,
-    )
+    `;
+    })
     .join("");
 };
 
@@ -5558,11 +5641,11 @@ window.filterFullscreenSuppliers = function () {
     a.localeCompare(b, undefined, { sensitivity: "base" }),
   );
 
-  // Генерируем HTML списка
+  // Генерируем HTML списка (экранирование от XSS + data-val вместо inline JS-строки)
   const htmlStr = filtered
     .map((s) => {
-      const safeStr = s.replace(/'/g, "\\'").replace(/"/g, "&quot;");
-      return `<div class="supp-list-item" onclick="window.selectFullscreenSupplier('${safeStr}', false)" style="padding: 12px 0; font-size: 15px; cursor: pointer;">${s}</div>`;
+      const safeStr = window.escapeHtml(s);
+      return `<div class="supp-list-item" data-val="${safeStr}" onclick="window.selectFullscreenSupplier(this.dataset.val, false)" style="padding: 12px 0; font-size: 15px; cursor: pointer;">${safeStr}</div>`;
     })
     .join("");
 
@@ -5579,7 +5662,7 @@ window.filterFullscreenSuppliers = function () {
         typeof translations !== "undefined" && translations[currentLang]
           ? translations[currentLang].modal_add_supplier
           : "Добавить";
-      btn.innerHTML = `${addText} "<b>${filterText}</b>"`;
+      btn.innerHTML = `${window.escapeHtml(addText)} "<b>${window.escapeHtml(filterText)}</b>"`;
       btn.onclick = function () {
         window.selectFullscreenSupplier(filterText, true);
       };
@@ -5792,13 +5875,13 @@ window.renderNtCategories = function () {
   if (uniqueCategories.length > 0) {
     html += uniqueCategories
       .map((cat) => {
-        const safeCat = cat.replace(/'/g, "\\'").replace(/"/g, "&quot;");
+        const safeCat = window.escapeHtml(cat);
         return `
-                <div onclick="window.selectNtCategory(event, '${safeCat}')" 
+                <div data-val="${safeCat}" onclick="window.selectNtCategory(event, this.dataset.val)" 
                      style="padding: 14px 15px; font-size: 15px; cursor: pointer; border-bottom: 1px solid var(--border-light); color: var(--text-main); transition: background 0.2s;" 
                      onmouseover="this.style.background='var(--bg-overlay)'" 
                      onmouseout="this.style.background='transparent'">
-                    ${cat}
+                    ${safeCat}
                 </div>
             `;
       })
@@ -7122,7 +7205,7 @@ async function openDeepRestoreModal() {
   } catch (error) {
     document.getElementById("deep-restore-loader").style.display = "none";
     listContainer.style.display = "flex";
-    listContainer.innerHTML = `<div style="color: #EA4335; text-align: center; padding: 15px;">❌ Ошибка доступа к архиву: <br>${error.message}</div>`;
+    listContainer.innerHTML = `<div style="color: #EA4335; text-align: center; padding: 15px;">❌ Ошибка доступа к архиву: <br>${window.escapeHtml(error && error.message ? error.message : String(error))}</div>`;
   }
 }
 
@@ -7145,14 +7228,16 @@ function renderBackupsList(files) {
     return;
   }
 
-  // Если файлы есть, собираем из них кнопки
+  // Если файлы есть, собираем из них кнопки (экранирование + data-* без inline JS-строк)
   let html = "";
   files.forEach(function (file) {
+    const safeFileId = window.escapeHtml(file.id);
+    const safeCleanName = window.escapeHtml(file.cleanName);
     html += `
-        <button onclick="startSmartMerge('${file.id}', '${file.cleanName}')" style="background: var(--bg-panel); color: var(--text-main); padding: 14px 16px; border-radius: 10px; font-size: 13px; font-weight: 600; border: 1px solid var(--border-light); cursor: pointer; display: flex; align-items: center; justify-content: space-between; text-align: left; box-shadow: 0 2px 4px rgba(0,0,0,0.02); transition: background 0.2s;">
+        <button data-file-id="${safeFileId}" data-file-name="${safeCleanName}" onclick="startSmartMerge(this.dataset.fileId, this.dataset.fileName)" style="background: var(--bg-panel); color: var(--text-main); padding: 14px 16px; border-radius: 10px; font-size: 13px; font-weight: 600; border: 1px solid var(--border-light); cursor: pointer; display: flex; align-items: center; justify-content: space-between; text-align: left; box-shadow: 0 2px 4px rgba(0,0,0,0.02); transition: background 0.2s;">
             <span style="display: flex; align-items: center; gap: 10px;">
                 <span style="font-size: 18px;">📅</span> 
-                ${file.cleanName}
+                ${safeCleanName}
             </span>
         </button>`;
   });
@@ -7166,7 +7251,7 @@ window.startSmartMerge = function (fileId, fileDate) {
 
   Swal.fire({
     title: translations[currentLang]["smart_merge_title"],
-    html: `${translations[currentLang]["smart_merge_text1"]} <b>${fileDate}</b>.<br><br><span style="font-size: 13px; color: var(--text-muted, #999);">${translations[currentLang]["smart_merge_text2"]}</span>`,
+    html: `${window.escapeHtml(translations[currentLang]["smart_merge_text1"])} <b>${window.escapeHtml(fileDate)}</b>.<br><br><span style="font-size: 13px; color: var(--text-muted, #999);">${window.escapeHtml(translations[currentLang]["smart_merge_text2"])}</span>`,
     background: "var(--bg-panel, #ffffff)",
     color: "var(--text-main, #333333)",
     showCancelButton: true,
@@ -8367,11 +8452,13 @@ window.loadKaspiTemplatesFromServer = async function (isSilent = false) {
     ) {
       result.templates.forEach((tpl) => {
         if (typeof tpl === "object" && tpl !== null) {
-          // === ГЛАВНОЕ ИЗМЕНЕНИЕ: value теперь берет хэш ===
-          const optValue = tpl.hash ? tpl.hash : tpl.name;
-optionsHTML += `<option value="${optValue}" data-hash="${optValue}" data-name="${tpl.name}">${tpl.name}</option>`;
+          // === ГЛАВНОЕ ИЗМЕНЕНИЕ: value теперь берет хэш (с экранированием от XSS) ===
+          const optValue = window.escapeHtml(tpl.hash ? tpl.hash : tpl.name);
+          const safeTplName = window.escapeHtml(tpl.name);
+          optionsHTML += `<option value="${optValue}" data-hash="${optValue}" data-name="${safeTplName}">${safeTplName}</option>`;
         } else {
-          optionsHTML += `<option value="${tpl}">${tpl}</option>`;
+          const safeTpl = window.escapeHtml(tpl);
+          optionsHTML += `<option value="${safeTpl}">${safeTpl}</option>`;
         }
       });
     } else if (!result || !result.success) {
