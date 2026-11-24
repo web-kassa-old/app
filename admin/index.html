@@ -243,6 +243,28 @@
         
         window.cachedTenants = [];
 
+        function escapeHtml(str) {
+            return String(str === null || str === undefined ? '' : str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        // Делегированный обработчик кликов по таблице (без inline onclick со строками тенантов)
+        document.getElementById('table-body').addEventListener('click', function(e) {
+            const nameEl = e.target.closest('.client-name[data-api-key]');
+            if (nameEl) {
+                openEditModal(nameEl.dataset.apiKey);
+                return;
+            }
+            const btnEl = e.target.closest('button[data-action="toggle-block"]');
+            if (btnEl) {
+                toggleBlock(btnEl.dataset.apiKey, btnEl.dataset.status, btnEl);
+            }
+        });
+
         document.getElementById('edit-contact').addEventListener('input', function() {
             const callBtn = document.getElementById('call-btn');
             const cleanPhone = String(this.value).replace(/[^\d+]/g, '');
@@ -409,17 +431,21 @@
                     let badgeText = 'Остаток: ' + daysLeft; 
                     let btnClass = isBlocked ? 'btn-green' : 'btn-red';
                     let btnLabel = isBlocked ? 'РАЗБЛОКИРОВАТЬ' : 'ЗАБЛОКИРОВАТЬ';
+                    const safeKey = escapeHtml(t.api_key);
+                    const safeName = escapeHtml(t.client_name);
+                    const safeStatus = escapeHtml(t.status);
+                    const safeBadgeText = escapeHtml(badgeText);
                     
                     html += `
-                        <tr id="row-${t.api_key}" class="${rowClass}">
+                        <tr data-row-key="${safeKey}" class="${rowClass}">
                             <td class="client-col">
-                                <span class="client-name" onclick="openEditModal('${t.api_key}')">${t.client_name}</span>
-                                <span class="client-key">${t.api_key}</span>
+                                <span class="client-name" data-api-key="${safeKey}">${safeName}</span>
+                                <span class="client-key">${safeKey}</span>
                             </td>
                             <td>
                                 <div class="control-cell">
-                                    <div id="badge-${t.api_key}" class="days-badge ${badgeClass}">${badgeText}</div>
-                                    <button id="btn-${t.api_key}" class="btn ${btnClass}" onclick="toggleBlock('${t.api_key}', '${t.status}')">
+                                    <div class="days-badge ${badgeClass}">${safeBadgeText}</div>
+                                    <button data-action="toggle-block" data-api-key="${safeKey}" data-status="${safeStatus}" class="btn ${btnClass}">
                                         ${btnLabel}
                                     </button>
                                 </div>
@@ -433,9 +459,9 @@
             tbody.innerHTML = html;
         }
 
-        async function toggleBlock(apiKey, currentStatus) {
-            const button = document.getElementById(`btn-${apiKey}`);
-            const row = document.getElementById(`row-${apiKey}`);
+        async function toggleBlock(apiKey, currentStatus, buttonEl) {
+            const button = buttonEl;
+            const row = button ? button.closest('tr') : null;
             const actionText = (currentStatus === 'active') ? 'заблокировать' : 'разблокировать';
             if (!confirm(`Вы уверены, что хотите ${actionText} ${apiKey}?`)) return;
             
@@ -451,11 +477,11 @@
                 
                 const newStatus = res.newStatus;
                 if (newStatus === 'active') {
-                    row.classList.remove('locked-row'); button.className = 'btn btn-red'; button.innerText = 'ЗАБЛОКИРОВАТЬ';
+                    if (row) row.classList.remove('locked-row'); button.className = 'btn btn-red'; button.innerText = 'ЗАБЛОКИРОВАТЬ';
                 } else {
-                    row.classList.add('locked-row'); button.className = 'btn btn-green'; button.innerText = 'РАЗБЛОКИРОВАТЬ';
+                    if (row) row.classList.add('locked-row'); button.className = 'btn btn-green'; button.innerText = 'РАЗБЛОКИРОВАТЬ';
                 }
-                button.setAttribute('onclick', `toggleBlock('${apiKey}', '${newStatus}')`);
+                button.dataset.status = newStatus;
                 
                 const t = window.cachedTenants.find(item => item.api_key === apiKey);
                 if(t) t.status = newStatus;
