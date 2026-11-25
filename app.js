@@ -2527,6 +2527,9 @@ async function load(isFullSync = false) {
     if (window._pendingTimestamp !== undefined) {
       delete window._pendingTimestamp;
     }
+    if (data && data.sync_warning && typeof window.maybeShowPullSyncWarning === "function") {
+      window.maybeShowPullSyncWarning(data.sync_warning);
+    }
   } catch (e) {
     console.error("Ошибка обработки полученных данных", e);
   }
@@ -3785,6 +3788,45 @@ function showPhotoNotice(icon, textKey, detailText = "") {
   }
 }
 
+window.maybeShowPullSyncWarning = function (syncWarning, forceShow = false) {
+  try {
+    if (!syncWarning || !syncWarning.pull_inactive) return;
+    const role =
+      (currentUser && currentUser.role) ||
+      localStorage.getItem("user_role") ||
+      "";
+    if (String(role).trim().toLowerCase() !== "manager") return;
+
+    const now = Date.now();
+    const lastShown = Number(window._lastPullSyncWarningAt) || 0;
+    if (!forceShow && now - lastShown < 30 * 60 * 1000) return;
+    window._lastPullSyncWarningAt = now;
+
+    const dict = translations[currentLang] || translations.ru || {};
+    const title = dict.pull_sync_warning_title || "";
+    const count = Number(syncWarning.pending_count) || 1;
+    const body = String(dict.pull_sync_warning_body || "").replace(
+      "{count}",
+      String(count),
+    );
+    const okLabel = dict.pull_sync_btn_ok || dict.btn_close || "OK";
+
+    if (typeof Swal !== "undefined" && Swal && typeof Swal.fire === "function") {
+      Swal.fire({
+        icon: "warning",
+        title: title,
+        text: body,
+        confirmButtonText: okLabel,
+        confirmButtonColor: "var(--accent-blue)",
+        background: "var(--bg-modal)",
+        color: "var(--text-main)",
+      });
+    } else if (body) {
+      alert(body);
+    }
+  } catch (ignore) {}
+};
+
 function renderPhotoPreviewImg(previewEl, safeSrc) {
   previewEl.innerHTML = "";
   const imgEl = document.createElement("img");
@@ -3889,6 +3931,10 @@ function openItemMenu(id) {
           if (data.success && data.base64 && window.isSafeImageDataUrl(data.base64)) {
             const safeSrc = data.base64.trim();
             photoRamCache.set(itemKey, safeSrc);
+            if (data.updated_url && typeof data.updated_url === "string") {
+              item.img = data.updated_url;
+              persistDbAfterPhotoOp();
+            }
             if (String(selectedItemId) === itemKey && !tempBase64) {
               renderPhotoPreviewImg(preview, safeSrc);
             }
@@ -4095,6 +4141,12 @@ async function confirmUpload() {
       }
       persistDbAfterPhotoOp(responseData.updated_at);
       render();
+      if (responseData.sync_warning && typeof window.maybeShowPullSyncWarning === "function") {
+        window.maybeShowPullSyncWarning(responseData.sync_warning);
+      }
+    } else if (responseData && responseData.error === "BUFFER_QUOTA_EXCEEDED") {
+      rollbackUpload();
+      showPhotoNotice("warning", "buffer_quota_exceeded");
     } else {
       console.error("Сервер вернул ошибку при фоновом сохранении фото:", responseData);
       rollbackUpload();
@@ -7176,6 +7228,8 @@ async function handleDriveClick(btnElement, dataKey, expectedName) {
           ? `https://docs.google.com/spreadsheets/d/${res.newId}/edit`
           : `https://drive.google.com/drive/folders/${res.newId}`;
       window.open(url, "_blank");
+    } else if (res.success && res.queued) {
+      showPhotoNotice("info", "folder_recover_queued");
     } else {
       alert(
         "Ошибка при создании папки: " +

@@ -5336,8 +5336,18 @@ async function sendInvoiceToBackend() {
         if (typeof window.handleAuthExpired === "function") window.handleAuthExpired(res.message);
         throw new Error(res.message || "Сессия истекла");
       }
+      if (res && res.error === "BUFFER_QUOTA_EXCEEDED") {
+        const quotaMsg =
+          (translations[currentLang] && translations[currentLang].buffer_quota_exceeded) ||
+          res.message ||
+          res.error;
+        throw new Error(quotaMsg);
+      }
       if (!res.success) {
         throw new Error(res.message || res.error);
+      }
+      if (res.sync_warning && typeof window.maybeShowPullSyncWarning === "function") {
+        window.maybeShowPullSyncWarning(res.sync_warning);
       }
     } catch (err) {
       clearInterval(fakeProgress);

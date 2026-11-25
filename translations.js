@@ -581,6 +581,14 @@ const translations = {
     col_hint_size: "Размер / Габариты",
     mapper_empty_col_no_data: "Пустая колонка (нет данных)",
     inc_enter_text: "Введите текст...",
+    pull_sync_warning_title: "Требуется активация Google Диска",
+    pull_sync_warning_body:
+      "В очереди синхронизации накопилось файлов: {count}. Откройте таблицу Trade Control → ⚙️ Касса → 🛡️ Активировать архивацию.",
+    pull_sync_btn_ok: "Понятно",
+    buffer_quota_exceeded:
+      "Буфер синхронизации переполнен. Откройте таблицу Trade Control → ⚙️ Касса → 🛡️ Активировать архивацию, чтобы освободить место.",
+    folder_recover_queued:
+      "Создание папки поставлено в очередь синхронизации Диска (до 5 минут).",
   },
   kz: {
     btn_sale: "САТУ",
@@ -1164,5 +1172,13 @@ const translations = {
     col_hint_size: "Өлшемі / Габариттері",
     mapper_empty_col_no_data: "Бос баған (деректер жоқ)",
     inc_enter_text: "Мәтінді енгізіңіз...",
+    pull_sync_warning_title: "Google Дискіні іске қосу қажет",
+    pull_sync_warning_body:
+      "Синхрондау кезегінде жиналған файлдар саны: {count}. Trade Control кестесін ашып → ⚙️ Касса → 🛡️ Архивтеуді іске қосу түймесін басыңыз.",
+    pull_sync_btn_ok: "Түсінікті",
+    buffer_quota_exceeded:
+      "Синхрондау буфері толып кетті. Орын босату үшін Trade Control кестесінде ⚙️ Касса → 🛡️ Архивтеуді іске қосу түймесін басыңыз.",
+    folder_recover_queued:
+      "Қалтаны жасау Google Диск синхрондау кезегіне қойылды (5 минутқа дейін).",
   },
 };
