@@ -573,6 +573,21 @@ window.updateQueueBadge = function () {
 
 // 3. Главная функция отправки "грузовика" на сервер
 window.isSyncing = false; // Защита от двойной отправки (throttle)
+window._activeBgSyncTasks = 0; // Счётчик активных фоновых задач для индикатора #sync-icon
+
+window.beginBgSyncIndicator = function () {
+  window._activeBgSyncTasks = (window._activeBgSyncTasks || 0) + 1;
+  const badge = document.getElementById("sync-icon");
+  if (badge) badge.classList.add("syncing-active");
+};
+
+window.endBgSyncIndicator = function () {
+  window._activeBgSyncTasks = Math.max(0, (window._activeBgSyncTasks || 0) - 1);
+  if (window._activeBgSyncTasks === 0) {
+    const badge = document.getElementById("sync-icon");
+    if (badge) badge.classList.remove("syncing-active");
+  }
+};
 
 window.syncOfflineQueue = async function () {
   if (window.isSyncing || !navigator.onLine) return;
@@ -581,29 +596,21 @@ window.syncOfflineQueue = async function () {
   if (queue.length === 0) return;
 
   window.isSyncing = true;
-
-  // ==========================================
-  // Включаем пульсацию индикатора
-  // ==========================================
-  // const badge = document.getElementById('твой_id_индикатора'); // Укажи ID элемента!
-  const badge = document.getElementById("sync-icon"); // Берем именно шестеренку!
-  if (badge) badge.classList.add("syncing-active");
-
-  const sessTok = window.getSessionToken();
-  if (!sessTok) {
-    window.isSyncing = false;
-    if (badge) badge.classList.remove("syncing-active");
-    return;
-  }
-
-  const payload = {
-    action: "batch_sync",
-    api_key: CLIENT_API_KEY,
-    session_token: sessTok,
-    tasks: queue,
-  };
+  window.beginBgSyncIndicator();
 
   try {
+    const sessTok = window.getSessionToken();
+    if (!sessTok) {
+      return;
+    }
+
+    const payload = {
+      action: "batch_sync",
+      api_key: CLIENT_API_KEY,
+      session_token: sessTok,
+      tasks: queue,
+    };
+
     const res = await fetch(GATEWAY_URL, {
       method: "POST",
       body: JSON.stringify(payload),
@@ -632,11 +639,7 @@ window.syncOfflineQueue = async function () {
     console.error("Связь оборвалась в пути или таймаут:", err.message);
   } finally {
     window.isSyncing = false;
-
-    // ==========================================
-    // Выключаем пульсацию индикатора
-    // ==========================================
-    if (badge) badge.classList.remove("syncing-active");
+    window.endBgSyncIndicator();
   }
 };
 
@@ -711,6 +714,10 @@ let db = [],
   cart = [],
   mode = "sale",
   pendingMethod = null;
+const photoRamCache = new Map(); // RAM-кэш base64 фото (itemId -> data:image/...), НЕ в localStorage
+const photoOpSeq = new Map(); // Per-item счётчик фото-операций для защиты от гонок
+const pendingPhotoOps = new Map(); // Активные фоновые операции по товарам (itemId -> { seq, type })
+let photoSessionEpoch = 0; // Эпоха сессии для отсечения устаревших ответов после logout()
 let staffList = [],
   currentUser = null;
 let currentPinInput = "";
@@ -2226,6 +2233,14 @@ function logout() {
   window.suppliers = [];
   window.suppliersList = [];
 
+  // Очищаем оперативный RAM-кэш и состояние фоновых операций с фото
+  photoSessionEpoch++;
+  photoRamCache.clear();
+  pendingPhotoOps.clear();
+  photoOpSeq.clear();
+  selectedItemId = null;
+  tempBase64 = null;
+
   // Полная гигиена кэша общей кассы (строго сохраняем CLIENT_API_KEY, offlineQueue, pos_lang, pos_theme)
   const keysToRemove = [
     "session_token",
@@ -2397,17 +2412,37 @@ async function load(isFullSync = false) {
     return;
   }
 
-  // === БЛОК 3: УМНОЕ СЛИЯНИЕ (Оставлено без изменений) ===
+  // === БЛОК 3: УМНОЕ СЛИЯНИЕ (с защитой активных фоновых фото-операций) ===
   try {
     if (data.items) {
+      const prevImgById = new Map(
+        (db || []).map((item) => [String(item.id), item.img || ""]),
+      );
+      const mergedIncoming = data.items.map((rawItem) => {
+        const key = String(rawItem.id);
+        const pendingOp = pendingPhotoOps.get(key);
+        if (pendingOp) {
+          const preservedImg =
+            pendingOp.type === "delete" ? "" : prevImgById.get(key) || "";
+          return Object.assign({}, rawItem, { img: preservedImg });
+        }
+        if (
+          prevImgById.has(key) &&
+          String(prevImgById.get(key) || "") !== String(rawItem.img || "")
+        ) {
+          photoRamCache.delete(key);
+        }
+        return rawItem;
+      });
+
       if (isFullSync || localTimestamp === "0" || !db || db.length === 0) {
-        db = data.items;
+        db = mergedIncoming;
         console.log("📥 Полная загрузка базы: " + db.length + " товаров.");
       } else {
-        let updatedCount = data.items.length;
+        let updatedCount = mergedIncoming.length;
         if (updatedCount > 0) {
           let dbMap = new Map(db.map((item) => [item.id, item]));
-          data.items.forEach((newItem) => {
+          mergedIncoming.forEach((newItem) => {
             dbMap.set(newItem.id, newItem);
           });
           db = Array.from(dbMap.values());
@@ -2558,7 +2593,9 @@ function render() {
   }
   catalog.innerHTML = db
     .map((i) => {
-      const hasPhoto = i.img && i.img.toString().length > 10;
+      const hasPhoto =
+        photoRamCache.has(String(i.id)) ||
+        (i.img && i.img.toString().length > 10);
       const safeId = window.escapeHtml(i.id);
       const safeName = window.escapeHtml(i.name || "Без названия");
       const safeCat = window.escapeHtml(i.category || "");
@@ -3726,11 +3763,75 @@ window.addEventListener("load", () => {
 
 let selectedItemId = null,
   tempBase64 = null;
+
+function showPhotoNotice(icon, textKey, detailText = "") {
+  const dict = translations[currentLang] || translations.ru || {};
+  const baseText = dict[textKey] || "";
+  const message = detailText ? `${baseText}: ${detailText}` : baseText;
+  if (typeof Swal !== "undefined" && Swal && typeof Swal.fire === "function") {
+    Swal.fire({
+      toast: true,
+      position: "top-end",
+      icon: icon,
+      title: message,
+      showConfirmButton: false,
+      timer: icon === "error" ? 4500 : 3500,
+      timerProgressBar: true,
+      background: "var(--bg-modal)",
+      color: "var(--text-main)",
+    });
+  } else if (message) {
+    alert(message);
+  }
+}
+
+function renderPhotoPreviewImg(previewEl, safeSrc) {
+  previewEl.innerHTML = "";
+  const imgEl = document.createElement("img");
+  imgEl.src = safeSrc;
+  imgEl.style.cssText =
+    "max-width: 100%; max-height: 250px; border-radius: 8px; border: 1px solid var(--border-focus); margin-top: 10px; cursor: zoom-in;";
+  imgEl.addEventListener("click", () => openFullscreen(safeSrc));
+  previewEl.appendChild(imgEl);
+}
+
+function persistDbAfterPhotoOp(updatedAt) {
+  try {
+    localStorage.setItem("db_cache", JSON.stringify(db));
+  } catch (storageErr) {
+    console.error("Ошибка обновления db_cache после фото-операции:", storageErr);
+  }
+  if (
+    updatedAt !== undefined &&
+    updatedAt !== null &&
+    String(updatedAt).trim() !== ""
+  ) {
+    const nextTs = Number(updatedAt);
+    const currTs = Number(localStorage.getItem("db_timestamp") || "0");
+    if (!Number.isFinite(currTs) || (Number.isFinite(nextTs) && nextTs >= currTs)) {
+      localStorage.setItem("db_timestamp", String(updatedAt).trim());
+    }
+  }
+}
+
+function refreshItemModalIfOpen(itemKey) {
+  const modal = document.getElementById("item-menu-modal");
+  if (
+    modal &&
+    modal.style.display !== "none" &&
+    String(selectedItemId) === itemKey &&
+    !tempBase64
+  ) {
+    openItemMenu(itemKey);
+  }
+}
+
 function openItemMenu(id) {
   const targetId = id && typeof id === "object" ? id.id : id;
+  const itemKey = String(targetId || "");
   selectedItemId = targetId;
   tempBase64 = null;
-  const item = db.find((x) => String(x.id) === String(targetId));
+  const item = db.find((x) => String(x.id) === itemKey);
   if (!item) {
     console.error("openItemMenu: товар не найден в db по id:", id);
     return;
@@ -3740,20 +3841,29 @@ function openItemMenu(id) {
   document.getElementById("btn-add-cart").style.display = "block";
   document.getElementById("btn-save-db").style.display = "none";
 
-  if (item.img && item.img.length > 5) {
+  // 1. Сначала проверяем оперативный RAM-кэш (мгновенный показ без get_photo)
+  const cachedSrc = photoRamCache.get(itemKey);
+  if (cachedSrc && window.isSafeImageDataUrl(cachedSrc)) {
+    renderPhotoPreviewImg(preview, cachedSrc.trim());
+    document.getElementById("btn-take-photo").style.display = "none";
+    document.getElementById("btn-retake-photo").style.display = "block";
+    document.getElementById("btn-delete-photo").style.display = "block";
+  } else if (item.img && item.img.length > 5) {
     const match = item.img.match(/[-\w]{25,}/);
     if (match) {
       const fileId = match[0];
+      const fetchSeq = photoOpSeq.get(itemKey) || 0;
+      const fetchEpoch = photoSessionEpoch;
 
-      // 1. Показываем статус загрузки
+      // Показываем статус загрузки
       preview.innerHTML = `<div style="color:var(--text-muted); font-size:12px; padding:20px;">⏳ ${translations[currentLang].msg_loading_photo}</div>`;
 
-      // 2. Настраиваем кнопки
+      // Настраиваем кнопки
       document.getElementById("btn-take-photo").style.display = "none";
       document.getElementById("btn-retake-photo").style.display = "block";
       document.getElementById("btn-delete-photo").style.display = "block";
 
-      // 3. Запрашиваем фото напрямую через наш сервер (в обход блокировок браузера)
+      // Запрашиваем фото напрямую через наш сервер (в обход блокировок браузера)
       fetch(APPS_SCRIPT_URL, {
         method: "POST",
         body: JSON.stringify({
@@ -3765,27 +3875,44 @@ function openItemMenu(id) {
       })
         .then((res) => res.json())
         .then((data) => {
+          if (
+            fetchEpoch !== photoSessionEpoch ||
+            (photoOpSeq.get(itemKey) || 0) !== fetchSeq ||
+            pendingPhotoOps.has(itemKey)
+          ) {
+            return;
+          }
           if (data && data.error === "AUTH_EXPIRED") {
             window.handleAuthExpired(data.message);
             return;
           }
           if (data.success && data.base64 && window.isSafeImageDataUrl(data.base64)) {
-            // Безопасная отрисовка растрового data:image/* через DOM API (без XSS и inline base64)
             const safeSrc = data.base64.trim();
-            preview.innerHTML = "";
-            const imgEl = document.createElement("img");
-            imgEl.src = safeSrc;
-            imgEl.style.cssText =
-              "max-width: 100%; max-height: 250px; border-radius: 8px; border: 1px solid var(--border-focus); margin-top: 10px; cursor: zoom-in;";
-            imgEl.addEventListener("click", () => openFullscreen(safeSrc));
-            preview.appendChild(imgEl);
+            photoRamCache.set(itemKey, safeSrc);
+            if (String(selectedItemId) === itemKey && !tempBase64) {
+              renderPhotoPreviewImg(preview, safeSrc);
+            }
           } else {
             throw new Error("Server rejected photo");
           }
         })
         .catch((e) => {
-          preview.innerHTML = `<div style="color:var(--accent-yellow); padding: 15px; border: 1px dashed var(--accent-yellow); border-radius: 8px; font-size: 11px; font-weight: bold;">${translations[currentLang].photo_err}</div>`;
+          console.error("Ошибка загрузки фото (get_photo):", e);
+          if (
+            fetchEpoch === photoSessionEpoch &&
+            String(selectedItemId) === itemKey &&
+            !tempBase64 &&
+            (photoOpSeq.get(itemKey) || 0) === fetchSeq &&
+            !pendingPhotoOps.has(itemKey)
+          ) {
+            preview.innerHTML = `<div style="color:var(--accent-yellow); padding: 15px; border: 1px dashed var(--accent-yellow); border-radius: 8px; font-size: 11px; font-weight: bold;">${translations[currentLang].photo_err}</div>`;
+          }
         });
+    } else {
+      preview.innerHTML = "";
+      document.getElementById("btn-take-photo").style.display = "block";
+      document.getElementById("btn-retake-photo").style.display = "none";
+      document.getElementById("btn-delete-photo").style.display = "none";
     }
   } else {
     preview.innerHTML = "";
@@ -3834,12 +3961,7 @@ async function handlePhoto(event) {
       const previewEl = document.getElementById("photo-preview");
       previewEl.innerHTML = "";
       if (window.isSafeImageDataUrl(tempBase64)) {
-        const imgEl = document.createElement("img");
-        imgEl.src = tempBase64;
-        imgEl.style.cssText =
-          "max-width: 100%; max-height: 250px; border-radius: 8px; border: 1px solid var(--border-focus); margin-top: 10px; cursor: zoom-in;";
-        imgEl.addEventListener("click", () => openFullscreen(tempBase64));
-        previewEl.appendChild(imgEl);
+        renderPhotoPreviewImg(previewEl, tempBase64);
       }
       document.getElementById("btn-add-cart").style.display = "none";
       const btnSaveDbEl = document.getElementById("btn-save-db");
@@ -3857,138 +3979,264 @@ async function handlePhoto(event) {
     img.src = e.target.result;
   };
   reader.readAsDataURL(file);
+  event.target.value = "";
 }
 
 async function confirmUpload() {
-  if (!navigator.onLine) return alert(translations[currentLang].msg_sync_error);
+  if (!navigator.onLine) {
+    showPhotoNotice("warning", "photo_offline_required");
+    return;
+  }
+
+  const targetId = selectedItemId;
+  const itemKey = String(targetId || "");
+  const base64ToUpload = typeof tempBase64 === "string" ? tempBase64.trim() : "";
+
+  if (!itemKey || !base64ToUpload || !window.isSafeImageDataUrl(base64ToUpload)) {
+    showPhotoNotice("error", "photo_invalid_error");
+    return;
+  }
+
+  const item = db.find((x) => String(x.id) === itemKey);
+  const prevImg = item ? item.img || "" : "";
+  const prevRamBase64 = photoRamCache.has(itemKey)
+    ? photoRamCache.get(itemKey)
+    : null;
+
+  // Защита от гонок: фиксируем номер операции и эпоху сессии
+  const seq = (photoOpSeq.get(itemKey) || 0) + 1;
+  const opEpoch = photoSessionEpoch;
+  photoOpSeq.set(itemKey, seq);
+  pendingPhotoOps.set(itemKey, { seq, type: "upload" });
+
+  // Сбрасываем временный буфер (защита от повторного клика) и обновляем UI мгновенно
+  tempBase64 = null;
+  photoRamCache.set(itemKey, base64ToUpload);
+
   const btnSaveDb = document.getElementById("btn-save-db");
-  const resetSaveBtn = () => {
+  if (btnSaveDb) {
     btnSaveDb.innerHTML =
       '💾 <span data-i18n="btn_save_db">' +
       translations[currentLang].btn_save_db +
       "</span>";
     btnSaveDb.disabled = false;
-  };
-  btnSaveDb.innerText = translations[currentLang].btn_saving;
-  btnSaveDb.disabled = true;
+  }
 
-  let responseData;
+  render();
+  if (typeof openItemMenu === "function") {
+    openItemMenu(targetId);
+  }
+
+  const isCurrentOp = () =>
+    opEpoch === photoSessionEpoch && photoOpSeq.get(itemKey) === seq;
+
+  const rollbackUpload = () => {
+    if (prevRamBase64 !== null) {
+      photoRamCache.set(itemKey, prevRamBase64);
+    } else {
+      photoRamCache.delete(itemKey);
+    }
+    const curItem = db.find((x) => String(x.id) === itemKey);
+    if (curItem) curItem.img = prevImg;
+    if (pendingPhotoOps.get(itemKey)?.seq === seq) {
+      pendingPhotoOps.delete(itemKey);
+    }
+    persistDbAfterPhotoOp();
+    render();
+    refreshItemModalIfOpen(itemKey);
+  };
+
+  // Фоновая отправка через общий индикатор #sync-icon
+  window.beginBgSyncIndicator();
   try {
+    const sessTok = window.getSessionToken();
+    if (!sessTok) {
+      if (isCurrentOp()) {
+        rollbackUpload();
+        window.handleAuthExpired();
+      }
+      return;
+    }
+
     const res = await fetch(APPS_SCRIPT_URL, {
       method: "POST",
       body: JSON.stringify({
         api_key: CLIENT_API_KEY,
-        session_token: window.getSessionToken(),
+        session_token: sessTok,
         action: "upload_photo",
-        item_id: selectedItemId,
-        base64: tempBase64,
+        item_id: targetId,
+        base64: base64ToUpload,
       }),
     });
 
     if (!res.ok) {
       throw new Error(`HTTP ${res.status} ${res.statusText || ""}`.trim());
     }
-    responseData = await res.json();
+
+    const text = await res.text();
+    if (text.trim().startsWith("<")) {
+      throw new Error("Server returned HTML instead of JSON");
+    }
+    const responseData = JSON.parse(text);
+
+    if (!isCurrentOp()) return;
+
+    if (responseData && responseData.error === "AUTH_EXPIRED") {
+      rollbackUpload();
+      window.handleAuthExpired(responseData.message);
+      return;
+    }
+
+    if (responseData && responseData.success && responseData.url) {
+      const curItem = db.find((x) => String(x.id) === itemKey);
+      if (curItem) curItem.img = responseData.url;
+      if (pendingPhotoOps.get(itemKey)?.seq === seq) {
+        pendingPhotoOps.delete(itemKey);
+      }
+      persistDbAfterPhotoOp(responseData.updated_at);
+      render();
+    } else {
+      console.error("Сервер вернул ошибку при фоновом сохранении фото:", responseData);
+      rollbackUpload();
+      showPhotoNotice(
+        "error",
+        "photo_bg_upload_error",
+        responseData && responseData.error ? String(responseData.error) : "",
+      );
+    }
   } catch (e) {
-    console.error("Ошибка сети при сохранении фото (confirmUpload):", e);
-    alert(translations[currentLang].err_network);
-    resetSaveBtn();
+    console.error("Ошибка фонового сохранения фото (confirmUpload):", e);
+    if (isCurrentOp()) {
+      rollbackUpload();
+      showPhotoNotice("error", "photo_bg_upload_error");
+    }
+  } finally {
+    window.endBgSyncIndicator();
+  }
+}
+
+async function deletePhoto() {
+  if (!navigator.onLine) {
+    showPhotoNotice("warning", "photo_offline_required");
     return;
   }
 
+  const targetId = selectedItemId;
+  const itemKey = String(targetId || "");
+  if (!itemKey) return;
+
+  // Единое окно подтверждения на выбранном языке
+  if (!confirm(translations[currentLang].confirm_delete_photo)) return;
+
+  const item = db.find((x) => String(x.id) === itemKey);
+  const prevImg = item ? item.img || "" : "";
+  const prevRamBase64 = photoRamCache.has(itemKey)
+    ? photoRamCache.get(itemKey)
+    : null;
+
+  // Защита от гонок: фиксируем номер операции и эпоху сессии
+  const seq = (photoOpSeq.get(itemKey) || 0) + 1;
+  const opEpoch = photoSessionEpoch;
+  photoOpSeq.set(itemKey, seq);
+  pendingPhotoOps.set(itemKey, { seq, type: "delete" });
+
+  // Оптимистично очищаем RAM-кэш, ссылку и мгновенно обновляем UI
+  tempBase64 = null;
+  photoRamCache.delete(itemKey);
+  if (item) item.img = "";
+
+  const btnDelete = document.getElementById("btn-delete-photo");
+  const textSpan = document.getElementById("delete-photo-text");
+  if (textSpan) textSpan.innerText = translations[currentLang].btn_delete_photo;
+  if (btnDelete) btnDelete.disabled = false;
+
+  render();
+  if (typeof openItemMenu === "function") {
+    openItemMenu(targetId);
+  }
+
+  const isCurrentOp = () =>
+    opEpoch === photoSessionEpoch && photoOpSeq.get(itemKey) === seq;
+
+  const rollbackDelete = () => {
+    if (prevRamBase64 !== null) {
+      photoRamCache.set(itemKey, prevRamBase64);
+    }
+    const curItem = db.find((x) => String(x.id) === itemKey);
+    if (curItem) curItem.img = prevImg;
+    if (pendingPhotoOps.get(itemKey)?.seq === seq) {
+      pendingPhotoOps.delete(itemKey);
+    }
+    persistDbAfterPhotoOp();
+    render();
+    refreshItemModalIfOpen(itemKey);
+  };
+
+  // Фоновое удаление через общий индикатор #sync-icon
+  window.beginBgSyncIndicator();
   try {
+    const sessTok = window.getSessionToken();
+    if (!sessTok) {
+      if (isCurrentOp()) {
+        rollbackDelete();
+        window.handleAuthExpired();
+      }
+      return;
+    }
+
+    const res = await fetch(APPS_SCRIPT_URL, {
+      method: "POST",
+      body: JSON.stringify({
+        api_key: CLIENT_API_KEY,
+        session_token: sessTok,
+        action: "delete_photo",
+        item_id: targetId,
+      }),
+    });
+
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status} ${res.statusText || ""}`.trim());
+    }
+
+    const text = await res.text();
+    if (text.trim().startsWith("<")) {
+      throw new Error("Server returned HTML instead of JSON");
+    }
+    const responseData = JSON.parse(text);
+
+    if (!isCurrentOp()) return;
+
     if (responseData && responseData.error === "AUTH_EXPIRED") {
-      resetSaveBtn();
+      rollbackDelete();
       window.handleAuthExpired(responseData.message);
       return;
     }
 
     if (responseData && responseData.success) {
-      btnSaveDb.innerText = "✅ " + translations[currentLang].btn_saved;
-
-      // 1. Сохраняем новую ссылку
-      const targetId = selectedItemId;
-      const item = db.find((x) => String(x.id) === String(targetId));
-      if (item) item.img = responseData.url;
-
-      // 2. Мгновенно перерисовываем список на фоне (иконка станет желтой)
-      render();
-
-      // 3. Тихо обновляем окно товара (передаём ID товара, а не объект item)
-      if (typeof openItemMenu === "function" && targetId) {
-        openItemMenu(targetId);
+      const curItem = db.find((x) => String(x.id) === itemKey);
+      if (curItem) curItem.img = "";
+      if (pendingPhotoOps.get(itemKey)?.seq === seq) {
+        pendingPhotoOps.delete(itemKey);
       }
-
-      // 4. Восстанавливаем кнопку для следующего фото
-      resetSaveBtn();
-    } else {
-      console.error("Сервер вернул ошибку при сохранении фото:", responseData);
-      alert(
-        translations[currentLang].err_server +
-          (responseData && responseData.error ? ": " + responseData.error : ""),
-      );
-      resetSaveBtn();
-    }
-  } catch (e) {
-    console.error("Ошибка обновления интерфейса после сохранения фото:", e);
-    resetSaveBtn();
-  }
-}
-
-async function deletePhoto() {
-  if (!navigator.onLine) return alert(translations[currentLang].msg_sync_error);
-
-  // Единое окно подтверждения на выбранном языке
-  if (!confirm(translations[currentLang].confirm_delete_photo)) return;
-
-  const btnDelete = document.getElementById("btn-delete-photo");
-  const textSpan = document.getElementById("delete-photo-text"); // Теперь меняем только этот SPAN
-
-  // Блокируем и ставим текст ожидания
-  textSpan.innerText = translations[currentLang].msg_photo_deleting;
-  btnDelete.disabled = true;
-
-  try {
-    const res = await fetch(APPS_SCRIPT_URL, {
-      method: "POST",
-      body: JSON.stringify({
-        api_key: CLIENT_API_KEY,
-        session_token: window.getSessionToken(),
-        action: "delete_photo",
-        item_id: selectedItemId,
-      }),
-    });
-
-    const responseData = await res.json();
-    if (responseData && responseData.error === "AUTH_EXPIRED") {
-      window.handleAuthExpired(responseData.message);
-      return;
-    }
-
-    if (responseData.success) {
-      // 1. Стираем фото из памяти
-      const item = db.find((x) => x.id === selectedItemId);
-      if (item) item.img = "";
-
-      // 2. Гасим желтую иконку в главном списке
+      persistDbAfterPhotoOp(responseData.updated_at);
       render();
-
-      // 3. Перерисовываем меню товара (кнопка спрячется)
-      openItemMenu(selectedItemId);
-
-      // 4. САМОЕ ВАЖНОЕ: ВОССТАНАВЛИВАЕМ КНОПКУ ДЛЯ СЛЕДУЮЩИХ ТОВАРОВ!
-      textSpan.innerText = translations[currentLang].btn_delete_photo;
-      btnDelete.disabled = false;
     } else {
-      alert(translations[currentLang].err_server + ": " + responseData.error);
-      textSpan.innerText = translations[currentLang].btn_delete_photo;
-      btnDelete.disabled = false;
+      console.error("Сервер вернул ошибку при фоновом удалении фото:", responseData);
+      rollbackDelete();
+      showPhotoNotice(
+        "error",
+        "photo_bg_delete_error",
+        responseData && responseData.error ? String(responseData.error) : "",
+      );
     }
   } catch (e) {
-    console.error("Ошибка удаления фото (deletePhoto):", e);
-    alert(translations[currentLang].err_network);
-    textSpan.innerText = translations[currentLang].btn_delete_photo;
-    btnDelete.disabled = false;
+    console.error("Ошибка фонового удаления фото (deletePhoto):", e);
+    if (isCurrentOp()) {
+      rollbackDelete();
+      showPhotoNotice("error", "photo_bg_delete_error");
+    }
+  } finally {
+    window.endBgSyncIndicator();
   }
 }
 let fsScale = 1,
