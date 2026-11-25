@@ -3727,9 +3727,14 @@ window.addEventListener("load", () => {
 let selectedItemId = null,
   tempBase64 = null;
 function openItemMenu(id) {
-  selectedItemId = id;
+  const targetId = id && typeof id === "object" ? id.id : id;
+  selectedItemId = targetId;
   tempBase64 = null;
-  const item = db.find((x) => x.id === id);
+  const item = db.find((x) => String(x.id) === String(targetId));
+  if (!item) {
+    console.error("openItemMenu: товар не найден в db по id:", id);
+    return;
+  }
   document.getElementById("menu-item-name").innerText = item.name;
   const preview = document.getElementById("photo-preview");
   document.getElementById("btn-add-cart").style.display = "block";
@@ -3837,7 +3842,13 @@ async function handlePhoto(event) {
         previewEl.appendChild(imgEl);
       }
       document.getElementById("btn-add-cart").style.display = "none";
-      document.getElementById("btn-save-db").style.display = "block";
+      const btnSaveDbEl = document.getElementById("btn-save-db");
+      btnSaveDbEl.innerHTML =
+        '💾 <span data-i18n="btn_save_db">' +
+        translations[currentLang].btn_save_db +
+        "</span>";
+      btnSaveDbEl.disabled = false;
+      btnSaveDbEl.style.display = "block";
       document.getElementById("btn-take-photo").style.display = "none";
       document.getElementById("btn-retake-photo").style.display = "block";
       document.getElementById("btn-cancel-modal").innerText =
@@ -3851,8 +3862,17 @@ async function handlePhoto(event) {
 async function confirmUpload() {
   if (!navigator.onLine) return alert(translations[currentLang].msg_sync_error);
   const btnSaveDb = document.getElementById("btn-save-db");
-  btnSaveDb.innerText = "⏳ " + translations[currentLang].btn_saving;
+  const resetSaveBtn = () => {
+    btnSaveDb.innerHTML =
+      '💾 <span data-i18n="btn_save_db">' +
+      translations[currentLang].btn_save_db +
+      "</span>";
+    btnSaveDb.disabled = false;
+  };
+  btnSaveDb.innerText = translations[currentLang].btn_saving;
   btnSaveDb.disabled = true;
+
+  let responseData;
   try {
     const res = await fetch(APPS_SCRIPT_URL, {
       method: "POST",
@@ -3865,42 +3885,53 @@ async function confirmUpload() {
       }),
     });
 
-    const responseData = await res.json();
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status} ${res.statusText || ""}`.trim());
+    }
+    responseData = await res.json();
+  } catch (e) {
+    console.error("Ошибка сети при сохранении фото (confirmUpload):", e);
+    alert(translations[currentLang].err_network);
+    resetSaveBtn();
+    return;
+  }
+
+  try {
     if (responseData && responseData.error === "AUTH_EXPIRED") {
+      resetSaveBtn();
       window.handleAuthExpired(responseData.message);
       return;
     }
 
-    if (responseData.success) {
+    if (responseData && responseData.success) {
       btnSaveDb.innerText = "✅ " + translations[currentLang].btn_saved;
 
       // 1. Сохраняем новую ссылку
-      const item = db.find((x) => x.id === selectedItemId);
+      const targetId = selectedItemId;
+      const item = db.find((x) => String(x.id) === String(targetId));
       if (item) item.img = responseData.url;
 
       // 2. Мгновенно перерисовываем список на фоне (иконка станет желтой)
       render();
 
-      // 3. Тихо обновляем окно товара
-      // Запускаем перерисовку открытого меню, чтобы фотка появилась сразу
-      if (typeof openItemMenu === "function" && item) {
-        openItemMenu(item);
+      // 3. Тихо обновляем окно товара (передаём ID товара, а не объект item)
+      if (typeof openItemMenu === "function" && targetId) {
+        openItemMenu(targetId);
       }
+
+      // 4. Восстанавливаем кнопку для следующего фото
+      resetSaveBtn();
     } else {
-      alert(translations[currentLang].err_server);
-      btnSaveDb.innerHTML =
-        '💾 <span data-i18n="btn_save_db">' +
-        translations[currentLang].btn_save_db +
-        "</span>";
-      btnSaveDb.disabled = false;
+      console.error("Сервер вернул ошибку при сохранении фото:", responseData);
+      alert(
+        translations[currentLang].err_server +
+          (responseData && responseData.error ? ": " + responseData.error : ""),
+      );
+      resetSaveBtn();
     }
   } catch (e) {
-    alert(translations[currentLang].err_network);
-    btnSaveDb.innerHTML =
-      '💾 <span data-i18n="btn_save_db">' +
-      translations[currentLang].btn_save_db +
-      "</span>";
-    btnSaveDb.disabled = false;
+    console.error("Ошибка обновления интерфейса после сохранения фото:", e);
+    resetSaveBtn();
   }
 }
 
@@ -3954,6 +3985,7 @@ async function deletePhoto() {
       btnDelete.disabled = false;
     }
   } catch (e) {
+    console.error("Ошибка удаления фото (deletePhoto):", e);
     alert(translations[currentLang].err_network);
     textSpan.innerText = translations[currentLang].btn_delete_photo;
     btnDelete.disabled = false;
