@@ -2460,3 +2460,64 @@ button,
     color: var(--text-dark);
     border: 1px solid var(--accent-green);
 }
+
+/* Кнопка ручного выбора строки шапки в сите и режим выбора строки */
+.complex-manual-header-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: 100%;
+    margin: -8px 0 14px;
+    padding: 9px 12px;
+    border-radius: 8px;
+    background: var(--bg-card);
+    border: 1px dashed var(--accent-blue);
+    color: var(--accent-blue);
+    font-size: 12.5px;
+    font-weight: 700;
+    cursor: pointer;
+    box-sizing: border-box;
+    transition: background-color 0.15s ease, opacity 0.15s ease;
+}
+
+.complex-manual-header-btn:hover,
+.complex-manual-header-btn:active {
+    background: var(--bg-hover);
+}
+
+.sheet-selector-overlay.is-header-picker {
+    z-index: 1000010;
+}
+
+.sheet-preview-hint-bar {
+    padding: 7px 12px;
+    font-size: 12px;
+    color: var(--accent-blue);
+    background: var(--bg-body);
+    border-bottom: 1px solid var(--border-light);
+    font-weight: 400;
+    flex-shrink: 0;
+}
+
+.sheet-preview-table--pickable tbody tr {
+    cursor: pointer;
+}
+
+.sheet-preview-table--pickable tbody tr:hover td {
+    background: var(--bg-hover);
+}
+
+.sheet-preview-table--pickable tbody tr.is-selected-header-row th.sheet-preview-row-hdr {
+    background: var(--accent-blue);
+    color: var(--bg-panel);
+    border-right-color: var(--accent-blue);
+    border-bottom-color: var(--accent-blue);
+}
+
+.sheet-preview-table--pickable tbody tr.is-selected-header-row td {
+    background: var(--stock-bg);
+    color: var(--stock-text);
+    border-bottom: 2px solid var(--stock-border);
+    font-weight: 700;
+}

@@ -164,6 +164,13 @@ window.translateColumnHeader = function (header) {
 };
 
 window.showComplexColumnSelector = function (headers, rows, templateData) {
+  const existingOverlay = document.getElementById("complexColsOverlay");
+  if (existingOverlay && existingOverlay.parentNode) {
+    existingOverlay.parentNode.removeChild(existingOverlay);
+  }
+
+  const tr = getSheetPreviewTranslator();
+
   const overlay = document.createElement("div");
   overlay.className = "complex-overlay";
   overlay.id = "complexColsOverlay";
@@ -197,49 +204,171 @@ window.showComplexColumnSelector = function (headers, rows, templateData) {
     return bestVal;
   };
 
-  let html = `<h3 class="complex-title" data-i18n="complex_title">Настройка сложных колонок</h3>`;
-  html += `<p class="complex-desc" data-i18n="complex_desc">
-                Отметьте галочкой колонки, в которых склеено несколько параметров (например, Габариты или Размер). 
-                Остальные колонки скрипт загрузит напрямую.
-             </p>`;
+  const titleEl = document.createElement("h3");
+  titleEl.className = "complex-title";
+  titleEl.setAttribute("data-i18n", "complex_title");
+  titleEl.textContent = tr("complex_title");
 
-  html += `<div class="complex-list">`;
+  const descEl = document.createElement("p");
+  descEl.className = "complex-desc";
+  descEl.setAttribute("data-i18n", "complex_desc");
+  descEl.textContent = tr("complex_desc");
+
+  modal.appendChild(titleEl);
+  modal.appendChild(descEl);
+
+  // Страховка на случай нестандартных файлов: выбор строки шапки вручную
+  const state = window.mapper2State || {};
+  if (state.rawSheet && Array.isArray(state.rawRows) && state.rawRows.length > 0) {
+    const manualHeaderBtn = document.createElement("button");
+    manualHeaderBtn.type = "button";
+    manualHeaderBtn.className = "complex-manual-header-btn";
+
+    const iconSpan = document.createElement("span");
+    iconSpan.textContent = "🧭";
+
+    const labelSpan = document.createElement("span");
+    labelSpan.setAttribute("data-i18n", "complex_manual_header_btn");
+    labelSpan.textContent = tr("complex_manual_header_btn");
+
+    manualHeaderBtn.appendChild(iconSpan);
+    manualHeaderBtn.appendChild(labelSpan);
+
+    manualHeaderBtn.addEventListener("click", async () => {
+      const sheetRowOffset = Number.isInteger(state.sheetRowOffset)
+        ? state.sheetRowOffset
+        : 0;
+      const currentExcelRow = Number.isInteger(state.selectedHeaderRowIdx)
+        ? state.selectedHeaderRowIdx + sheetRowOffset
+        : sheetRowOffset;
+
+      const pickedExcelRow = await openManualHeaderRowPickerModal(
+        state.rawSheet,
+        state.rawRows,
+        currentExcelRow,
+      );
+      if (pickedExcelRow === null) return;
+
+      const pickedRowIdx = Math.max(0, pickedExcelRow - sheetRowOffset);
+      const ok = applyParsedInvoiceTable(
+        state.rawRows,
+        state.rawSheet,
+        sheetRowOffset,
+        state.selectedSheetName || "",
+        { forcedHeaderRowIdx: pickedRowIdx },
+      );
+
+      if (!ok) return;
+
+      if (overlay.parentNode) {
+        overlay.parentNode.removeChild(overlay);
+      }
+      window.showComplexColumnSelector(
+        window.mapper2State.invoiceHeaders || [],
+        window.mapper2State.invoiceRows || [],
+        templateData,
+      );
+    });
+
+    modal.appendChild(manualHeaderBtn);
+  }
+
+  const listEl = document.createElement("div");
+  listEl.className = "complex-list";
 
   headers.forEach((header, idx) => {
-    let originalName = header || `Колонка ${idx + 1}`;
+    const originalName = header || `${tr("col_prefix")} ${idx + 1}`;
     const hint = window.getColumnHeaderHint(originalName);
-    let colName = originalName;
+
+    const labelEl = document.createElement("label");
+    labelEl.className = "complex-label";
+
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.className = "complex-col-cb";
+    cb.value = originalName;
+
+    const contentDiv = document.createElement("div");
+    contentDiv.style.flex = "1";
+
+    const nameDiv = document.createElement("div");
+    nameDiv.className = "complex-name";
+    nameDiv.textContent = originalName;
+
     if (hint && hint.label) {
-      const i18nAttr = hint.i18nKey ? ` data-i18n="${hint.i18nKey}"` : "";
-      colName = `${originalName} <span class="col-header-hint">(<span${i18nAttr}>${hint.label}</span>)</span>`;
+      const hintWrap = document.createElement("span");
+      hintWrap.className = "col-header-hint";
+      hintWrap.appendChild(document.createTextNode(" ("));
+      const hintInner = document.createElement("span");
+      if (hint.i18nKey) {
+        hintInner.setAttribute("data-i18n", hint.i18nKey);
+      }
+      hintInner.textContent = hint.label;
+      hintWrap.appendChild(hintInner);
+      hintWrap.appendChild(document.createTextNode(")"));
+      nameDiv.appendChild(hintWrap);
     }
 
-    let sampleVal = getComplexExample(idx);
+    contentDiv.appendChild(nameDiv);
 
+    let sampleVal = getComplexExample(idx);
     if (sampleVal.length > 40) sampleVal = sampleVal.substring(0, 40) + "...";
 
-    let displayVal = sampleVal
-      ? `<div class="complex-example"><span data-i18n="complex_example">Пример:</span> <span class="complex-tag">${sampleVal}</span></div>`
-      : `<div class="complex-example" style="opacity:0.5;" data-i18n="complex_empty">(Пустая колонка)</div>`;
+    const exampleDiv = document.createElement("div");
+    exampleDiv.className = "complex-example";
 
-    html += `
-            <label class="complex-label">
-                <input type="checkbox" class="complex-col-cb" value="${originalName}">
-                <div style="flex: 1;">
-                    <div class="complex-name">${colName}</div>
-                    ${displayVal}
-                </div>
-            </label>
-        `;
+    if (sampleVal) {
+      const exLabel = document.createElement("span");
+      exLabel.setAttribute("data-i18n", "complex_example");
+      exLabel.textContent = tr("complex_example");
+
+      const exTag = document.createElement("span");
+      exTag.className = "complex-tag";
+      exTag.textContent = sampleVal;
+
+      exampleDiv.appendChild(exLabel);
+      exampleDiv.appendChild(document.createTextNode(" "));
+      exampleDiv.appendChild(exTag);
+    } else {
+      exampleDiv.style.opacity = "0.5";
+      exampleDiv.setAttribute("data-i18n", "complex_empty");
+      exampleDiv.textContent = tr("complex_empty");
+    }
+
+    contentDiv.appendChild(exampleDiv);
+    labelEl.appendChild(cb);
+    labelEl.appendChild(contentDiv);
+    listEl.appendChild(labelEl);
   });
 
-  html += `</div>`;
-  html += `<div style="display:flex; justify-content:space-between; margin-top:20px;">
-                <button id="btnComplexBack" class="complex-btn" style="background: var(--bg-card); color: var(--text-main); border: 1px solid var(--border-main);" data-i18n="inc_back">🡠 НАЗАД</button>
-                <button id="btnComplexNext" class="complex-btn" data-i18n="btn_next">ДАЛЕЕ ➔</button>
-             </div>`;
+  modal.appendChild(listEl);
 
-  modal.innerHTML = html;
+  const actionsDiv = document.createElement("div");
+  actionsDiv.style.display = "flex";
+  actionsDiv.style.justifyContent = "space-between";
+  actionsDiv.style.marginTop = "20px";
+
+  const backBtn = document.createElement("button");
+  backBtn.type = "button";
+  backBtn.id = "btnComplexBack";
+  backBtn.className = "complex-btn";
+  backBtn.style.background = "var(--bg-card)";
+  backBtn.style.color = "var(--text-main)";
+  backBtn.style.border = "1px solid var(--border-main)";
+  backBtn.setAttribute("data-i18n", "inc_back");
+  backBtn.textContent = tr("inc_back");
+
+  const nextBtn = document.createElement("button");
+  nextBtn.type = "button";
+  nextBtn.id = "btnComplexNext";
+  nextBtn.className = "complex-btn";
+  nextBtn.setAttribute("data-i18n", "btn_next");
+  nextBtn.textContent = tr("btn_next");
+
+  actionsDiv.appendChild(backBtn);
+  actionsDiv.appendChild(nextBtn);
+  modal.appendChild(actionsDiv);
+
   overlay.appendChild(modal);
   document.body.appendChild(overlay);
 
@@ -248,21 +377,21 @@ window.showComplexColumnSelector = function (headers, rows, templateData) {
   }
 
   // Обработчик кнопки НАЗАД
-  document.getElementById("btnComplexBack").addEventListener("click", () => {
-    document.body.removeChild(overlay);
+  backBtn.addEventListener("click", () => {
+    if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
     if (typeof window.navigateIncomeStep === "function")
       window.navigateIncomeStep(1);
   });
 
   // Обработчик кнопки ДАЛЕЕ
-  document.getElementById("btnComplexNext").addEventListener("click", () => {
+  nextBtn.addEventListener("click", () => {
     const checkboxes = modal.querySelectorAll(".complex-col-cb:checked");
     const selected = Array.from(checkboxes).map((cb) => cb.value);
 
     window.complexColumnsToTokenize = selected;
     window.mapper2State.lastComplexColumns = selected;
 
-    document.body.removeChild(overlay);
+    if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
 
     if (selected.length > 0) {
       window.navigateIncomeStep("smart");
@@ -956,9 +1085,18 @@ function formatSheetCellForPreview(cell) {
   return raw.replace(/[\r\n]+/g, " ");
 }
 
-function buildSheetPreviewTable(rawSheet, totalRows, tr) {
+function buildSheetPreviewTable(rawSheet, totalRows, tr, options = {}) {
   const MAX_PREVIEW_ROWS = 30;
   const MAX_PREVIEW_COLS = 25;
+  const interactiveHeaderPick = Boolean(options && options.interactiveHeaderPick);
+  const onRowSelect =
+    options && typeof options.onRowSelect === "function"
+      ? options.onRowSelect
+      : null;
+  let selectedExcelRow =
+    options && Number.isInteger(options.selectedExcelRow)
+      ? options.selectedExcelRow
+      : -1;
 
   const makeEmptyResult = () => {
     const emptyEl = document.createElement("div");
@@ -1066,7 +1204,9 @@ function buildSheetPreviewTable(rawSheet, totalRows, tr) {
   });
 
   const table = document.createElement("table");
-  table.className = "sheet-preview-table";
+  table.className = interactiveHeaderPick
+    ? "sheet-preview-table sheet-preview-table--pickable"
+    : "sheet-preview-table";
 
   const thead = document.createElement("thead");
   const headRow = document.createElement("tr");
@@ -1085,9 +1225,15 @@ function buildSheetPreviewTable(rawSheet, totalRows, tr) {
 
   const tbody = document.createElement("tbody");
   const bodyFrag = document.createDocumentFragment();
+  const rowElements = [];
 
   for (let r = 0; r < previewRows; r++) {
     const trEl = document.createElement("tr");
+    trEl.dataset.excelRow = String(r);
+    if (interactiveHeaderPick && r === selectedExcelRow) {
+      trEl.classList.add("is-selected-header-row");
+    }
+
     const rowTh = document.createElement("th");
     rowTh.className = "sheet-preview-row-hdr";
     rowTh.textContent = String(r + 1);
@@ -1119,7 +1265,23 @@ function buildSheetPreviewTable(rawSheet, totalRows, tr) {
       trEl.appendChild(td);
     }
 
+    rowElements.push(trEl);
     bodyFrag.appendChild(trEl);
+  }
+
+  if (interactiveHeaderPick) {
+    tbody.addEventListener("click", (e) => {
+      const clickedRow = e.target && e.target.closest ? e.target.closest("tr") : null;
+      if (!clickedRow || clickedRow.parentNode !== tbody) return;
+      const rowIdx = parseInt(clickedRow.dataset.excelRow, 10);
+      if (isNaN(rowIdx)) return;
+
+      selectedExcelRow = rowIdx;
+      rowElements.forEach((el) => {
+        el.classList.toggle("is-selected-header-row", el === clickedRow);
+      });
+      if (onRowSelect) onRowSelect(rowIdx);
+    });
   }
 
   tbody.appendChild(bodyFrag);
@@ -1131,6 +1293,871 @@ function buildSheetPreviewTable(rawSheet, totalRows, tr) {
       : tr("sheet_preview_all_rows", { total: totalRows });
 
   return { isEmpty: false, element: table, caption };
+}
+
+function openManualHeaderRowPickerModal(rawSheet, rawRows, initialExcelRow) {
+  return new Promise((resolve) => {
+    const tr = getSheetPreviewTranslator();
+
+    const existing = document.getElementById("header-row-picker-overlay");
+    if (existing && existing.parentNode) {
+      existing.parentNode.removeChild(existing);
+    }
+
+    let pickedExcelRow = Number.isInteger(initialExcelRow) && initialExcelRow >= 0
+      ? initialExcelRow
+      : 0;
+
+    const overlay = document.createElement("div");
+    overlay.id = "header-row-picker-overlay";
+    overlay.className = "sheet-selector-overlay is-header-picker";
+
+    const cleanup = () => {
+      document.removeEventListener("keydown", onKeyDown);
+      if (overlay.parentNode) {
+        overlay.parentNode.removeChild(overlay);
+      }
+    };
+
+    const cancel = () => {
+      cleanup();
+      resolve(null);
+    };
+
+    const onKeyDown = (e) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        cancel();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+
+    const modal = document.createElement("div");
+    modal.className = "sheet-preview-modal";
+
+    const header = document.createElement("div");
+    header.className = "sheet-preview-header";
+
+    const titleEl = document.createElement("div");
+    titleEl.className = "sheet-preview-title";
+    titleEl.textContent = tr("header_picker_title");
+
+    const closeBtn = document.createElement("button");
+    closeBtn.type = "button";
+    closeBtn.className = "sheet-preview-icon-btn";
+    closeBtn.setAttribute("aria-label", tr("btn_cancel"));
+    closeBtn.title = tr("btn_cancel");
+    closeBtn.textContent = "✕";
+    closeBtn.addEventListener("click", cancel);
+
+    header.appendChild(titleEl);
+    header.appendChild(closeBtn);
+
+    const hintBar = document.createElement("div");
+    hintBar.className = "sheet-preview-hint-bar";
+    hintBar.textContent = tr("header_picker_hint");
+
+    const viewport = document.createElement("div");
+    viewport.className = "sheet-preview-viewport";
+
+    const metaEl = document.createElement("div");
+    metaEl.className = "sheet-preview-meta";
+
+    const updateMeta = (baseCaption) => {
+      const selectedPart = tr("header_picker_selected", {
+        row: pickedExcelRow + 1,
+      });
+      metaEl.textContent = baseCaption
+        ? `${selectedPart} • ${baseCaption}`
+        : selectedPart;
+    };
+
+    const preview = buildSheetPreviewTable(
+      rawSheet,
+      Array.isArray(rawRows) ? rawRows.length : 0,
+      tr,
+      {
+        interactiveHeaderPick: true,
+        selectedExcelRow: pickedExcelRow,
+        onRowSelect: (rowIdx) => {
+          pickedExcelRow = rowIdx;
+          updateMeta(preview.caption);
+        },
+      },
+    );
+
+    viewport.appendChild(preview.element);
+    updateMeta(preview.caption);
+
+    const actionsBar = document.createElement("div");
+    actionsBar.className = "sheet-preview-actions";
+
+    const cancelBtn = document.createElement("button");
+    cancelBtn.type = "button";
+    cancelBtn.className = "sheet-preview-btn sheet-preview-btn--secondary";
+    cancelBtn.textContent = tr("btn_cancel");
+    cancelBtn.addEventListener("click", cancel);
+
+    const applyBtn = document.createElement("button");
+    applyBtn.type = "button";
+    applyBtn.className = "sheet-preview-btn sheet-preview-btn--primary";
+    applyBtn.textContent = tr("header_picker_apply");
+    applyBtn.disabled = preview.isEmpty;
+    applyBtn.addEventListener("click", () => {
+      cleanup();
+      resolve(pickedExcelRow);
+    });
+
+    actionsBar.appendChild(cancelBtn);
+    actionsBar.appendChild(applyBtn);
+
+    modal.appendChild(header);
+    modal.appendChild(hintBar);
+    modal.appendChild(viewport);
+    modal.appendChild(metaEl);
+    modal.appendChild(actionsBar);
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+  });
+}
+
+// === УМНОЕ ОПРЕДЕЛЕНИЕ ШАПКИ, СКЛЕЙКА 2-ЭТАЖНОЙ ШАПКИ И ОТСЕЧЕНИЕ ПОДВАЛА ===
+
+function cleanInvoiceCellText(val) {
+  return String(val === undefined || val === null ? "" : val)
+    .replace(/[\r\n]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function parseInvoiceNumber(val) {
+  const raw = cleanInvoiceCellText(val);
+  if (!raw || raw.includes("%")) return NaN;
+
+  // Убираем распространённые обозначения валют в начале/конце
+  let s = raw
+    .replace(/^(?:US\$|USD|EUR|KZT|RUB|CNY|RMB|GBP|₸|\$|€|₽|¥)\s*/i, "")
+    .replace(/\s*(?:US\$|USD|EUR|KZT|RUB|CNY|RMB|GBP|₸|\$|€|₽|¥)$/i, "")
+    .replace(/[\s\u00A0]+/g, "");
+
+  if (!s || /[a-zA-Zа-яА-Я]/.test(s)) return NaN;
+
+  const hasComma = s.includes(",");
+  const hasDot = s.includes(".");
+
+  if (hasComma && hasDot) {
+    if (s.lastIndexOf(",") > s.lastIndexOf(".")) {
+      // Формат 1.250,50
+      s = s.replace(/\./g, "").replace(",", ".");
+    } else {
+      // Формат 1,250.50
+      s = s.replace(/,/g, "");
+    }
+  } else if (hasComma) {
+    const parts = s.split(",");
+    if (parts.length === 2 && parts[1].length <= 2) {
+      // Десятичная запятая: 7,50 / 120,00
+      s = parts[0] + "." + parts[1];
+    } else {
+      // Разделитель тысяч: 1,250
+      s = s.replace(/,/g, "");
+    }
+  }
+
+  if (!/^-?\d+(?:\.\d+)?$/.test(s)) return NaN;
+  const num = Number(s);
+  return Number.isFinite(num) ? num : NaN;
+}
+
+function isNumericLikeCell(val) {
+  return !isNaN(parseInvoiceNumber(val));
+}
+
+function isUnitOrCurrencyLabel(val) {
+  const s = cleanInvoiceCellText(val).replace(/^[\(\[]+|[\)\]]+$/g, "").trim();
+  if (!s || s.length > 14) return false;
+  return /^(?:USD|US\$|EUR|KZT|RUB|CNY|RMB|GBP|₸|\$|€|₽|¥|SETS?|PCS?|PC|EA|EACH|UNIT|UNITS|NOS?\.?|BOX(?:ES)?|CTNS?|CARTONS?|PKGS?|PACKS?|BAGS?|PAIRS?|ROLLS?|KG|KGS|G|GR|MT|TONS?|LBS?|CBM|M3|M2|M|CM|MM|L|ML|ШТ\.?|КГ|ГР|ТГ|УП\.?|КОР\.?|КОМПЛ\.?|ПАР|М2|М3|М)$/i.test(
+    s,
+  );
+}
+
+const INVOICE_FOOTER_PHRASE_RE =
+  /\b(?:TOTAL\s+AMOUNT\s+SAY|AMOUNT\s+SAY|SAY\s*:|SAY\s+U\.?S\.?|GRAND\s+TOTAL|SUB[-\s]?TOTAL|SUBTOTAL|NET\s+TOTAL|GROSS\s+TOTAL|INVOICE\s+TOTAL|TOTAL\s+VALUE|TOTAL\s+QTY|TOTAL\s+QUANTITY|TOTAL\s+PACKAGES|TOTAL\s+CARTONS|TOTAL\s+WEIGHT|TOTAL\s+CBM|ИТОГО|ВСЕГО\s+К\s+ОПЛАТЕ|ВСЕГО\s+НА\s+СУММУ|PAYMENT\s+TERMS?|REMARKS?|ARBITRATION|BENEFICIARY|BANK\s+DETAILS?|SWIFT\s+CODE|ACCOUNT\s+NO|SHIPPING\s+MARKS?|COUNTRY\s+OF\s+ORIGIN|PORT\s+OF\s+(?:LOADING|DISCHARGE)|SIGNED\s+BY|AUTHORIZED\s+SIGNATURE)\b/i;
+
+const INVOICE_STANDALONE_TOTAL_RE =
+  /^(?:TOTAL|GRAND\s+TOTAL|SUB[-\s]?TOTAL|SUBTOTAL|ИТОГО|ВСЕГО)\s*[:：]?$/i;
+
+const INVOICE_CONTAINER_RE =
+  /(?:\b\d+\s*[xх×*]\s*(?:20|40|45)\s*(?:GP|HC|HQ|FT|OT|RF)?'?|\b(?:20GP|40GP|40HC|40HQ|45HC|45HQ)\b)/i;
+
+const INVOICE_INCOTERM_CELL_RE =
+  /^(?:FOB|CIF|CFR|C&F|EXW|FCA|CPT|CIP|DAP|DPU|DDP)(?:\s+[A-ZА-Я0-9.,\-\s]{1,30})?$/i;
+
+function isFooterOrServiceCell(val) {
+  const s = cleanInvoiceCellText(val);
+  if (!s) return false;
+  if (INVOICE_FOOTER_PHRASE_RE.test(s)) return true;
+  if (INVOICE_STANDALONE_TOTAL_RE.test(s)) return true;
+  if (INVOICE_CONTAINER_RE.test(s)) return true;
+  if (INVOICE_INCOTERM_CELL_RE.test(s)) return true;
+  return false;
+}
+
+function getRowHorizontalMergeMeta(row, rawSheet, excelRowIdx) {
+  const spansByCol = new Map();
+  let maxSpan = 1;
+
+  if (rawSheet && Array.isArray(rawSheet["!merges"]) && Number.isInteger(excelRowIdx)) {
+    rawSheet["!merges"].forEach((m) => {
+      if (!m || !m.s || !m.e) return;
+      const sr = Math.min(m.s.r, m.e.r);
+      const er = Math.max(m.s.r, m.e.r);
+      const sc = Math.min(m.s.c, m.e.c);
+      const ec = Math.max(m.s.c, m.e.c);
+      if (excelRowIdx < sr || excelRowIdx > er) return;
+      const span = ec - sc + 1;
+      if (span >= 2) {
+        if (span > maxSpan) maxSpan = span;
+        for (let c = sc; c <= ec; c++) {
+          spansByCol.set(c, { sc, ec, span });
+        }
+      }
+    });
+  }
+
+  // Фоллбэк: если rawSheet нет, определяем горизонтальные дубли по подряд идущим одинаковым непустым ячейкам
+  if (spansByCol.size === 0 && Array.isArray(row)) {
+    let c = 0;
+    while (c < row.length) {
+      const val = cleanInvoiceCellText(row[c]);
+      if (!val) {
+        c++;
+        continue;
+      }
+      let end = c;
+      while (end + 1 < row.length && cleanInvoiceCellText(row[end + 1]) === val) {
+        end++;
+      }
+      const span = end - c + 1;
+      if (span >= 2) {
+        if (span > maxSpan) maxSpan = span;
+        for (let k = c; k <= end; k++) {
+          spansByCol.set(k, { sc: c, ec: end, span });
+        }
+      }
+      c = end + 1;
+    }
+  }
+
+  return { maxSpan, spansByCol };
+}
+
+function getUniqueRowTexts(row) {
+  const seen = new Set();
+  const list = [];
+  if (!Array.isArray(row)) return list;
+  for (let c = 0; c < row.length; c++) {
+    const txt = cleanInvoiceCellText(row[c]);
+    if (!txt) continue;
+    const norm = txt.toLowerCase();
+    if (!seen.has(norm)) {
+      seen.add(norm);
+      list.push(txt);
+    }
+  }
+  return list;
+}
+
+function isFooterInvoiceRow(row, rawSheet, excelRowIdx, expectedColCount) {
+  const uniqueTexts = getUniqueRowTexts(row);
+  if (uniqueTexts.length === 0) return false;
+
+  // А) Явные фразы итогов / контейнеров / инкотермс / реквизитов в любой ячейке строки
+  if (uniqueTexts.some((txt) => isFooterOrServiceCell(txt))) {
+    return true;
+  }
+
+  // Б) Нумерованные пункты договора ("1. The seller...", "2. Shipment...")
+  const startText = uniqueTexts.slice(0, 3).join(" ");
+  if (/^[1-9]\s*\.\s*[A-Za-zА-Яа-я]/.test(startText) && startText.length > 15) {
+    return true;
+  }
+
+  // В) Структурная аномалия контракта: мало уникальных колонок, но есть длинный текст (> 45 символов)
+  const hasLongText = uniqueTexts.some((txt) => txt.length > 45);
+  if (hasLongText && uniqueTexts.length <= 3) {
+    return true;
+  }
+
+  // Г) Широкое горизонтальное объединение (например, A17:F17 или A18:I18) при малом числе уникальных колонок
+  const mergeMeta = getRowHorizontalMergeMeta(row, rawSheet, excelRowIdx);
+  const colThreshold = expectedColCount
+    ? Math.max(4, Math.floor(expectedColCount * 0.6))
+    : 4;
+  if (mergeMeta.maxSpan >= 3 && uniqueTexts.length <= colThreshold) {
+    return true;
+  }
+
+  return false;
+}
+
+function isRealisticDataRow(row, rawSheet, excelRowIdx, expectedColCount) {
+  if (!Array.isArray(row)) return false;
+  const filledCount = row.filter((c) => cleanInvoiceCellText(c) !== "").length;
+  if (filledCount === 0) return false;
+  if (isFooterInvoiceRow(row, rawSheet, excelRowIdx, expectedColCount)) {
+    return false;
+  }
+
+  const uniqueTexts = getUniqueRowTexts(row);
+  const numCount = row.filter((c) => isNumericLikeCell(c)).length;
+  const minUnique = expectedColCount && expectedColCount <= 2 ? 2 : 3;
+
+  return filledCount >= minUnique && uniqueTexts.length >= minUnique && numCount >= 1;
+}
+
+function buildHeaderKeywordMatchers(globalSyns) {
+  const rawKeys = [];
+  ["price", "barcode", "name", "qty"].forEach((k) => {
+    if (globalSyns && Array.isArray(globalSyns[k])) {
+      rawKeys.push(...globalSyns[k]);
+    }
+  });
+
+  rawKeys.push(
+    "code",
+    "brand",
+    "size",
+    "pattern",
+    "pr",
+    "li/ss",
+    "model",
+    "spec",
+    "specification",
+    "description",
+    "item",
+    "product",
+    "sku",
+    "article",
+    "quantity",
+    "qty",
+    "unit price",
+    "price",
+    "total amount",
+    "amount",
+    "sets",
+    "pcs",
+    "usd",
+    "weight",
+    "cbm",
+    "штрихкод",
+    "артикул",
+    "наименование",
+    "товар",
+    "бренд",
+    "размер",
+    "модель",
+    "кол-во",
+    "количество",
+    "цена",
+    "сумма",
+    "ед",
+  );
+
+  const exactSet = new Set();
+  const substrList = [];
+
+  rawKeys.forEach((raw) => {
+    const clean = String(raw || "")
+      .toLowerCase()
+      .replace(/\s+/g, "");
+    if (!clean) return;
+    exactSet.add(clean);
+    if (clean.length >= 4 && !substrList.includes(clean)) {
+      substrList.push(clean);
+    }
+  });
+
+  return function matchesHeaderKeyword(cellText) {
+    const trimmed = cleanInvoiceCellText(cellText);
+    // Слишком длинные предложения (> 45 символов) почти никогда не являются названием колонки
+    if (!trimmed || trimmed.length > 45) return false;
+    const norm = trimmed.toLowerCase().replace(/\s+/g, "");
+    if (exactSet.has(norm)) return true;
+    return substrList.some((key) => norm.includes(key));
+  };
+}
+
+function isSubHeaderInvoiceRow(
+  nextRow,
+  upperRow,
+  rawSheet,
+  nextExcelRowIdx,
+  upperExcelRowIdx,
+  matchesHeaderKeyword,
+) {
+  if (!Array.isArray(nextRow)) return false;
+  const uniqueNext = getUniqueRowTexts(nextRow);
+  if (uniqueNext.length < 2) return false;
+  if (isFooterInvoiceRow(nextRow, rawSheet, nextExcelRowIdx, uniqueNext.length)) {
+    return false;
+  }
+
+  // Подшапка не должна содержать товарных чисел/цен
+  const numCount = uniqueNext.filter((txt) => isNumericLikeCell(txt)).length;
+  if (numCount > 0) return false;
+
+  const longCount = uniqueNext.filter((txt) => txt.length > 35).length;
+  if (longCount > 0) return false;
+
+  const unitCount = uniqueNext.filter((txt) => isUnitOrCurrencyLabel(txt)).length;
+  const keywordCount = uniqueNext.filter((txt) => matchesHeaderKeyword(txt)).length;
+  const upperMerge = getRowHorizontalMergeMeta(upperRow, rawSheet, upperExcelRowIdx);
+
+  return unitCount >= 1 || keywordCount >= 2 || (upperMerge.maxSpan >= 2 && uniqueNext.length > getUniqueRowTexts(upperRow).length);
+}
+
+function isValidUpperHeaderRow(upperRow, rawSheet, upperExcelRowIdx) {
+  if (!Array.isArray(upperRow)) return false;
+  const uniqueUpper = getUniqueRowTexts(upperRow);
+  if (uniqueUpper.length < 2) return false;
+
+  // Верхняя строка шапки может иметь широкий групповой заголовок (например, SPECIFICATION на A9:F9),
+  // поэтому проверяем именно служебные/подвальные фразы, реквизиты и числа, а не ширину merge
+  if (uniqueUpper.some((txt) => isFooterOrServiceCell(txt))) {
+    return false;
+  }
+
+  const startText = uniqueUpper.slice(0, 3).join(" ");
+  if (/^[1-9]\s*\.\s*[A-Za-zА-Яа-я]/.test(startText) && startText.length > 15) {
+    return false;
+  }
+
+  // Если в строке есть реквизиты документа вида "Invoice No: 123" или "Buyer: ABC" — это не верхняя шапка таблицы
+  const colonMetaCount = uniqueUpper.filter(
+    (txt) => /:\s*\S/.test(txt) && txt.length > 10,
+  ).length;
+  if (colonMetaCount >= 1) return false;
+
+  const numCount = uniqueUpper.filter((txt) => isNumericLikeCell(txt)).length;
+  if (numCount > 0 && numCount >= uniqueUpper.length / 2) return false;
+
+  const tooLongCount = uniqueUpper.filter((txt) => txt.length > 45).length;
+  if (tooLongCount >= uniqueUpper.length / 2) return false;
+
+  return true;
+}
+
+function buildMergedInvoiceHeaders(rows, headerIdx, rawSheet, sheetRowOffset) {
+  const bottomRow = rows[headerIdx] || [];
+  const upperIdx = headerIdx - 1;
+  const upperRow = upperIdx >= 0 ? rows[upperIdx] || [] : [];
+  const upperExcelRowIdx = upperIdx + sheetRowOffset;
+  const hasValidUpper =
+    upperIdx >= 0 && isValidUpperHeaderRow(upperRow, rawSheet, upperExcelRowIdx);
+
+  const upperMergeMeta = hasValidUpper
+    ? getRowHorizontalMergeMeta(upperRow, rawSheet, upperExcelRowIdx)
+    : { maxSpan: 1, spansByCol: new Map() };
+
+  let colCount = Math.max(bottomRow.length, hasValidUpper ? upperRow.length : 0);
+  while (colCount > 0) {
+    const b = cleanInvoiceCellText(bottomRow[colCount - 1]);
+    const u = hasValidUpper ? cleanInvoiceCellText(upperRow[colCount - 1]) : "";
+    if (b || u) break;
+    colCount--;
+  }
+
+  const headers = [];
+  for (let idx = 0; idx < colCount; idx++) {
+    let topText = hasValidUpper ? cleanInvoiceCellText(upperRow[idx]) : "";
+    let botText = cleanInvoiceCellText(bottomRow[idx]);
+
+    // Длинные фразы (> 35 символов) из верхней строки не приклеиваем к заголовкам
+    if (topText.length > 35) topText = "";
+
+    if (!topText && !botText) {
+      headers.push("");
+      continue;
+    }
+    if (!topText) {
+      headers.push(botText);
+      continue;
+    }
+    if (!botText) {
+      headers.push(topText);
+      continue;
+    }
+    if (topText.toLowerCase() === botText.toLowerCase()) {
+      headers.push(botText);
+      continue;
+    }
+
+    // Нижняя строка — единица измерения или валюта (SETS, USD, PCS, KG...): "QUANTITY (SETS)", "UNIT PRICE (USD)"
+    if (isUnitOrCurrencyLabel(botText)) {
+      headers.push(`${topText} (${botText})`);
+      continue;
+    }
+
+    // Проверяем, является ли верхняя ячейка общим групповым заголовком (как SPECIFICATION на A9:F9)
+    // над конкретными разными названиями колонок (Code, Brand, Size, PR, LI/SS, Pattern)
+    const spanInfo = upperMergeMeta.spansByCol.get(idx);
+    if (spanInfo && spanInfo.span >= 2) {
+      const subLabels = new Set();
+      for (let c = spanInfo.sc; c <= spanInfo.ec; c++) {
+        const sub = cleanInvoiceCellText(bottomRow[c]);
+        if (sub && !isUnitOrCurrencyLabel(sub)) {
+          subLabels.add(sub.toLowerCase());
+        }
+      }
+      if (subLabels.size >= 2) {
+        headers.push(botText);
+        continue;
+      }
+    }
+
+    headers.push(`${topText} ${botText}`);
+  }
+
+  return headers;
+}
+
+function parseInvoiceTableFromSheet(
+  rows,
+  rawSheet,
+  sheetRowOffset,
+  globalSyns,
+  options = {},
+) {
+  const offset = Number.isInteger(sheetRowOffset) ? sheetRowOffset : 0;
+  const matchesHeaderKeyword = buildHeaderKeywordMatchers(globalSyns);
+  let headerIdx = -1;
+
+  if (
+    options &&
+    Number.isInteger(options.forcedHeaderRowIdx) &&
+    options.forcedHeaderRowIdx >= 0 &&
+    options.forcedHeaderRowIdx < rows.length
+  ) {
+    headerIdx = options.forcedHeaderRowIdx;
+
+    // Если пользователь кликнул верхнюю строку 2-этажной шапки (например, строку 9),
+    // а строка 10 является текстовой подшапкой перед данными — объединяем их автоматически
+    if (
+      headerIdx + 1 < rows.length &&
+      isSubHeaderInvoiceRow(
+        rows[headerIdx + 1],
+        rows[headerIdx],
+        rawSheet,
+        headerIdx + 1 + offset,
+        headerIdx + offset,
+        matchesHeaderKeyword,
+      )
+    ) {
+      headerIdx = headerIdx + 1;
+    }
+  } else {
+    const scanLimit = Math.min(40, rows.length);
+    let bestScore = -Infinity;
+    let fallbackTwoColIdx = -1;
+    let fallbackTwoColScore = -Infinity;
+
+    for (let i = 0; i < scanLimit; i++) {
+      const row = rows[i] || [];
+      const excelRowIdx = i + offset;
+      const uniqueTexts = getUniqueRowTexts(row);
+
+      if (uniqueTexts.length < 2) continue;
+
+      // Дисквалифицируем строки итогов/подвала/контейнеров/инкотермс
+      if (uniqueTexts.some((txt) => isFooterOrServiceCell(txt))) continue;
+
+      // Дисквалифицируем строки, где доминируют длинные предложения (> 45 символов)
+      const longTexts = uniqueTexts.filter((txt) => txt.length > 45);
+      if (longTexts.length >= Math.ceil(uniqueTexts.length / 2)) continue;
+      if (uniqueTexts.some((txt) => txt.length > 60) && uniqueTexts.length <= 3) {
+        continue;
+      }
+
+      // Дисквалифицируем числовые строки (товары / итоги)
+      const numericUniqueCount = uniqueTexts.filter((txt) =>
+        isNumericLikeCell(txt),
+      ).length;
+      if (
+        numericUniqueCount >= 2 ||
+        numericUniqueCount / uniqueTexts.length >= 0.4
+      ) {
+        continue;
+      }
+
+      // Считаем совпадения маркеров шапки строго по УНИКАЛЬНЫМ коротким значениям (<= 45 симв.)
+      let uniqueKeywordMatches = 0;
+      let shortNonNumCount = 0;
+      uniqueTexts.forEach((txt) => {
+        if (txt.length <= 45 && !isNumericLikeCell(txt)) {
+          shortNonNumCount++;
+          if (matchesHeaderKeyword(txt)) {
+            uniqueKeywordMatches++;
+          }
+        }
+      });
+
+      if (uniqueKeywordMatches < 2) continue;
+
+      // Проверяем наличие реальных товарных строк НИЖЕ строки-кандидата
+      // (учитывая возможную 2-ю строку подшапки сразу на i+1)
+      let dataStartCheck = i + 1;
+      if (
+        dataStartCheck < rows.length &&
+        isSubHeaderInvoiceRow(
+          rows[dataStartCheck],
+          row,
+          rawSheet,
+          dataStartCheck + offset,
+          excelRowIdx,
+          matchesHeaderKeyword,
+        )
+      ) {
+        dataStartCheck++;
+      }
+
+      let dataRowsBelow = 0;
+      let emptyRun = 0;
+      for (
+        let k = dataStartCheck;
+        k < Math.min(rows.length, dataStartCheck + 25);
+        k++
+      ) {
+        const candRow = rows[k] || [];
+        const candFilled = candRow.filter(
+          (c) => cleanInvoiceCellText(c) !== "",
+        ).length;
+        if (candFilled === 0) {
+          emptyRun++;
+          if (emptyRun >= 2) break;
+          continue;
+        }
+        emptyRun = 0;
+        if (
+          isFooterInvoiceRow(
+            candRow,
+            rawSheet,
+            k + offset,
+            Math.max(uniqueTexts.length, row.length),
+          )
+        ) {
+          break;
+        }
+        if (
+          isRealisticDataRow(
+            candRow,
+            rawSheet,
+            k + offset,
+            Math.max(uniqueTexts.length, row.length),
+          )
+        ) {
+          dataRowsBelow++;
+        }
+      }
+
+      // Строка без товарных данных под ней не может быть шапкой таблицы
+      if (dataRowsBelow === 0) continue;
+
+      const mergeMeta = getRowHorizontalMergeMeta(row, rawSheet, excelRowIdx);
+      const wideMergePenalty = mergeMeta.maxSpan >= 3 ? 4 : 0;
+      const longCellPenalty = longTexts.length * 8;
+
+      const score =
+        uniqueKeywordMatches * 10 +
+        shortNonNumCount * 1.5 +
+        Math.min(dataRowsBelow, 10) * 2 -
+        wideMergePenalty -
+        longCellPenalty;
+
+      if (uniqueTexts.length >= 3) {
+        if (score > bestScore) {
+          bestScore = score;
+          headerIdx = i;
+        }
+      } else if (uniqueTexts.length === 2 && uniqueKeywordMatches === 2) {
+        if (score > fallbackTwoColScore) {
+          fallbackTwoColScore = score;
+          fallbackTwoColIdx = i;
+        }
+      }
+    }
+
+    if (headerIdx === -1 && fallbackTwoColIdx !== -1) {
+      headerIdx = fallbackTwoColIdx;
+    }
+
+    // Если победила верхняя строка 2-этажной шапки — сдвигаем на нижнюю строку подшапки
+    if (
+      headerIdx >= 0 &&
+      headerIdx + 1 < rows.length &&
+      isSubHeaderInvoiceRow(
+        rows[headerIdx + 1],
+        rows[headerIdx],
+        rawSheet,
+        headerIdx + 1 + offset,
+        headerIdx + offset,
+        matchesHeaderKeyword,
+      )
+    ) {
+      headerIdx = headerIdx + 1;
+    }
+
+    // Фоллбэк (если шапка нестандартная и без известных маркеров): ищем первую товарную строку
+    if (headerIdx === -1) {
+      for (let i = 0; i < Math.min(50, rows.length); i++) {
+        const row = rows[i] || [];
+        if (isRealisticDataRow(row, rawSheet, i + offset, row.length)) {
+          headerIdx = i > 0 ? i - 1 : 0;
+          break;
+        }
+      }
+    }
+  }
+
+  if (headerIdx < 0) {
+    return { headerIdx: -1, headers: [], dataRows: [] };
+  }
+
+  const headers = buildMergedInvoiceHeaders(rows, headerIdx, rawSheet, offset);
+  const firstDataRowIdx = headerIdx + 1;
+
+  // Извлекаем полезные строки товаров и жёстко обрубаем подвал
+  const validRows = [];
+  let strikes = 0;
+
+  for (let i = firstDataRowIdx; i < rows.length; i++) {
+    const row = rows[i] || [];
+    const excelRowIdx = i + offset;
+    const filledCellsCount = row.filter(
+      (c) => cleanInvoiceCellText(c) !== "",
+    ).length;
+
+    if (filledCellsCount === 0) {
+      strikes++;
+      if (strikes >= 2) break;
+      continue;
+    }
+
+    // Жёсткая остановка на подвале (1x40HC', FOB, TOTAL AMOUNT SAY, итоги, пункты договора, широкие merge-баннеры)
+    if (isFooterInvoiceRow(row, rawSheet, excelRowIdx, headers.length)) {
+      break;
+    }
+
+    const uniqueCount = getUniqueRowTexts(row).length;
+    const numCount = row.filter((c) => isNumericLikeCell(c)).length;
+    const minCols = headers.length <= 2 ? 2 : 3;
+
+    if (filledCellsCount >= minCols && uniqueCount >= minCols && numCount >= 1) {
+      validRows.push(row);
+      strikes = 0;
+    } else {
+      strikes++;
+      if (strikes >= 2) break;
+    }
+  }
+
+  // Вторичный фильтр по цене и идентификатору товара
+  const headersToSearch = headers.map((h) =>
+    String(h).toLowerCase().replace(/\s+/g, ""),
+  );
+
+  const findCol = (keys, fallbacks) => {
+    let syns = [];
+    keys.forEach((k) => {
+      if (globalSyns && globalSyns[k]) syns = syns.concat(globalSyns[k]);
+    });
+    syns = syns
+      .concat(fallbacks)
+      .map((s) => String(s).toLowerCase().replace(/\s+/g, ""))
+      .filter(Boolean);
+    return headersToSearch.findIndex((h) =>
+      syns.some((syn) => h && h.includes(syn)),
+    );
+  };
+
+  const priceIdx = findCol(
+    ["price", "Розничная цена", "Закупочная цена"],
+    ["unitprice", "usd", "цена", "стоимость", "amount"],
+  );
+  const idIdx = findCol(
+    ["barcode", "Артикул / Код товара", "id", "code"],
+    ["артикул", "штрихкод"],
+  );
+  const nameIdx = findCol(
+    ["name", "Бренд / Производитель", "Наименование товара"],
+    ["brand", "бренд", "наименование", "товар", "size", "pattern"],
+  );
+
+  let finalRows = validRows;
+  if (priceIdx !== -1 && (idIdx !== -1 || nameIdx !== -1)) {
+    finalRows = validRows.filter((row) => {
+      if (!row || row.length === 0) return false;
+
+      const price = parseInvoiceNumber(row[priceIdx]);
+      if (isNaN(price) || price <= 0) return false;
+
+      const rawId = idIdx !== -1 ? cleanInvoiceCellText(row[idIdx]) : "";
+      const rawName = nameIdx !== -1 ? cleanInvoiceCellText(row[nameIdx]) : "";
+      if (!rawId && !rawName) return false;
+
+      if (isFooterOrServiceCell(rawId) || isFooterOrServiceCell(rawName)) {
+        return false;
+      }
+
+      return true;
+    });
+  }
+
+  return { headerIdx, headers, dataRows: finalRows };
+}
+
+function applyParsedInvoiceTable(
+  rows,
+  rawSheet,
+  sheetRowOffset,
+  selectedSheetName,
+  options = {},
+) {
+  const globalSyns =
+    typeof invoiceSynonyms !== "undefined" && invoiceSynonyms
+      ? invoiceSynonyms
+      : window.invoiceSynonyms || {};
+
+  const parsed = parseInvoiceTableFromSheet(
+    rows,
+    rawSheet,
+    sheetRowOffset,
+    globalSyns,
+    options,
+  );
+
+  if (parsed.headerIdx < 0) return false;
+
+  window.mapper2State.selectedHeaderRowIdx = parsed.headerIdx;
+  window.mapper2State.invoiceHeaders = parsed.headers;
+  window.mapper2State.invoiceRows = parsed.dataRows;
+
+  const fileContentStr =
+    window.mapper2State.docNo +
+    "_" +
+    window.mapper2State.supplier +
+    "_" +
+    selectedSheetName +
+    "_" +
+    JSON.stringify(window.mapper2State.invoiceRows.slice(0, 5));
+  let hashNum = 0;
+  for (let i = 0; i < fileContentStr.length; i++) {
+    hashNum = (hashNum << 5) - hashNum + fileContentStr.charCodeAt(i);
+    hashNum |= 0;
+  }
+  window.mapper2State.fileHash = "hash_" + Math.abs(hashNum).toString(16);
+
+  return true;
 }
 
 function openExcelSheetSelectorModal(validSheets, processedSheets, fileRegistryKey) {
@@ -1172,6 +2199,8 @@ function openExcelSheetSelectorModal(validSheets, processedSheets, fileRegistryK
       resolve({
         name: sheetData.name,
         rows: sheetData.rows,
+        rawSheet: sheetData.rawSheet,
+        sheetRowOffset: sheetData.sheetRowOffset || 0,
       });
     };
 
@@ -1569,6 +2598,15 @@ window.processInvoiceFile = async function () {
         });
       }
 
+      let sheetRowOffset = 0;
+      if (sheet["!ref"]) {
+        try {
+          sheetRowOffset = Math.max(0, XLSX.utils.decode_range(sheet["!ref"]).s.r);
+        } catch (_) {
+          sheetRowOffset = 0;
+        }
+      }
+
       let sRows = XLSX.utils.sheet_to_json(unpackedSheet, { header: 1 });
       if (sRows && sRows.length > 0) {
         // Проверяем, есть ли на листе реальные данные, а не просто пустые строки
@@ -1576,7 +2614,12 @@ window.processInvoiceFile = async function () {
           row.some((cell) => String(cell || "").trim() !== ""),
         );
         if (hasContent) {
-          validSheets.push({ name: sName, rows: sRows, rawSheet: sheet });
+          validSheets.push({
+            name: sName,
+            rows: sRows,
+            rawSheet: sheet,
+            sheetRowOffset: sheetRowOffset,
+          });
         }
       }
     }
@@ -1594,6 +2637,8 @@ window.processInvoiceFile = async function () {
       selectedSheetInfo = {
         name: validSheets[0].name,
         rows: validSheets[0].rows,
+        rawSheet: validSheets[0].rawSheet,
+        sheetRowOffset: validSheets[0].sheetRowOffset || 0,
       };
     } else {
       // Инициализируем реестр обработанных листов для этого файла
@@ -1615,6 +2660,13 @@ window.processInvoiceFile = async function () {
 
     let rows = selectedSheetInfo.rows;
     let selectedSheetName = selectedSheetInfo.name;
+    let selectedRawSheet = selectedSheetInfo.rawSheet || null;
+    let selectedSheetRowOffset = selectedSheetInfo.sheetRowOffset || 0;
+
+    window.mapper2State.rawSheet = selectedRawSheet;
+    window.mapper2State.rawRows = rows;
+    window.mapper2State.sheetRowOffset = selectedSheetRowOffset;
+    window.mapper2State.selectedSheetName = selectedSheetName;
 
     let file_doc_no = "UNKNOWN";
     let file_supplier = "UNKNOWN";
@@ -1642,223 +2694,15 @@ window.processInvoiceFile = async function () {
       window.mapper2State.docNo = `IN-${String(now.getDate()).padStart(2, "0")}.${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}`;
     }
 
-    // 🔥 АВТО-ОПРЕДЕЛЕНИЕ ГРАНИЦ ДАННЫХ И СКЛЕЙКА ШАПКИ
-    let firstDataRowIdx = -1;
-    let headerIdx = -1;
-    let globalSyns = typeof invoiceSynonyms !== "undefined" ? invoiceSynonyms : {};
-    
-    // Собираем ключевые слова для поиска шапки (code, brand, qty, price и их синонимы)
-    let searchKeys = [];
-    ["price", "barcode", "name", "qty"].forEach((k) => {
-      if (globalSyns[k]) searchKeys = searchKeys.concat(globalSyns[k]);
-    });
-    // Добавляем жесткие маркеры, типичные для инвойсов
-    searchKeys = searchKeys.concat(["code", "brand", "description", "quantity", "unit price", "amount", "штрихкод", "наименование", "кол-во", "цена"]);
-    
-    searchKeys = searchKeys.map((s) => String(s).toLowerCase().replace(/\s+/g, ""));
+    // 🔥 УМНОЕ АВТО-ОПРЕДЕЛЕНИЕ ШАПКИ, СКЛЕЙКА 2-ЭТАЖНОЙ ШАПКИ И ОТСЕЧЕНИЕ ПОДВАЛА
+    const parsedOk = applyParsedInvoiceTable(
+      rows,
+      selectedRawSheet,
+      selectedSheetRowOffset,
+      selectedSheetName,
+    );
 
-    // Ищем строку, в которой больше всего совпадений с маркерами шапки
-    let maxMatches = 0;
-    
-    for (let i = 0; i < Math.min(30, rows.length); i++) {
-      let row = rows[i] || [];
-      let matchCount = 0;
-      
-      row.forEach(cell => {
-         let cleanCell = String(cell).toLowerCase().replace(/\s+/g, "");
-         if (cleanCell && searchKeys.some(key => cleanCell.includes(key))) {
-            matchCount++;
-         }
-      });
-
-      // Если в строке найдено хотя бы 2 слова из шапки (например, Code и Quantity)
-      if (matchCount >= 2 && matchCount > maxMatches) {
-         maxMatches = matchCount;
-         headerIdx = i;
-      }
-    }
-
-    // Если шапку по маркерам не нашли, пробуем старый метод (ищем первую строку с числами)
-    if (headerIdx === -1) {
-      for (let i = 0; i < Math.min(50, rows.length); i++) {
-        let row = rows[i] || [];
-        let filledCellsCount = row.filter((c) => String(c).trim() !== "").length;
-        let numCount = row.filter((c) => {
-          let val = String(c).trim().replace(/,/g, "");
-          return val !== "" && !isNaN(Number(val));
-        }).length;
-        
-        let hasTotal = row.some((c) => String(c).toUpperCase()?.includes("TOTAL") || String(c).toUpperCase()?.includes("ИТОГО"));
-
-        if (filledCellsCount >= 4 && numCount >= 1 && !hasTotal) {
-          headerIdx = i > 0 ? i - 1 : 0;
-          break;
-        }
-      }
-    }
-
-    if (headerIdx >= 0) {
-      firstDataRowIdx = headerIdx + 1; // Данные начинаются сразу под шапкой
-
-      // Склеиваем шапку (двухэтажную, если есть)
-      let rawHeaders = rows[headerIdx] || [];
-      let upperHeaders = headerIdx > 0 ? rows[headerIdx - 1] || [] : [];
-
-      window.mapper2State.invoiceHeaders = rawHeaders.map((bottomText, idx) => {
-        let topText = String(upperHeaders[idx] || "").replace(/[\r\n]+/g, " ").trim();
-        let botText = String(bottomText || "").replace(/[\r\n]+/g, " ").trim();
-
-        // Проверяем, не является ли верхняя строка куском договора. 
-        // Если она слишком длинная (больше 30 символов), игнорируем её.
-        if (topText.length > 30) topText = "";
-
-        if (topText && botText && topText.toLowerCase() !== botText.toLowerCase()) {
-          return `${topText} ${botText}`;
-        }
-        return botText || topText;
-      });
-
-      // Передаем в парсер только полезные данные, отсекая случайные пустые строки и подвал (контракты/итоги)
-      let validRows = [];
-      let strikes = 0; 
-
-      for (let i = firstDataRowIdx; i < rows.length; i++) {
-        let row = rows[i] || [];
-        
-        // 1. Считаем только непустые ячейки
-        let filledCells = row.filter((c) => String(c).trim() !== "");
-        let filledCellsCount = filledCells.length;
-        
-        if (filledCellsCount === 0) {
-          strikes++;
-          if (strikes >= 2) break; // Две пустые строки = конец
-          continue;
-        }
-
-        // ==========================================
-        // 2. ДЕТЕКТОР ФУТЕРА (Жесткая остановка)
-        // ==========================================
-        // Берем текст первых трех колонок для анализа
-        let startText = row.slice(0, 3).map(c => String(c).trim()).join(" ");
-        let startTextUpper = startText.toUpperCase();
-        
-        // А) Поиск слов-маркеров, гарантированно означающих конец таблицы
-        let hasFooterWords = startTextUpper.includes("TOTAL") || 
-                             startTextUpper.includes("ИТОГО") || 
-                             startTextUpper.includes("SAY U.S") || 
-                             startTextUpper.includes("PAYMENT") || 
-                             startTextUpper.includes("REMARK") ||
-                             startTextUpper.includes("ARBITRATION");
-                             
-        // Б) Детектор пунктов договора (например: "1. The seller...", "2. The buyer...")
-        // Ищет начало строки вида "Цифра + Точка + Текст"
-        let isContractList = /^[1-9]\s*\.\s*[A-Za-zА-Яа-я]/.test(startText) && startText.length > 15;
-
-        // В) Структурная аномалия контракта: 
-        // Мало заполненных колонок (<=3), но при этом есть ячейка с текстом длиннее 45 символов
-        let hasLongText = row.some(c => String(c).trim().length > 45);
-        let isTextHeavyFooter = hasLongText && filledCellsCount <= 3; 
-
-        // Если сработал любой из триггеров подвала — немедленно обрубаем чтение всего файла ниже!
-        if (hasFooterWords || isContractList || isTextHeavyFooter) {
-            break; 
-        }
-
-        // ==========================================
-        // 3. ПРОВЕРКА ВАЛИДНОСТИ ТОВАРНОЙ СТРОКИ
-        // ==========================================
-        let numCount = row.filter((c) => {
-          let val = String(c).trim().replace(/,/g, ".");
-          // Строго проверяем, что это число, оно не пустое и это не процент (вроде 30%)
-          return val !== "" && !isNaN(Number(val)) && !val.includes("%"); 
-        }).length;
-
-        // Товарная строка обязана иметь минимум 3 колонки (Артикул, Имя, Количество и т.д.) и хотя бы 1 число
-        if (filledCellsCount >= 3 && numCount >= 1) {
-          validRows.push(row);
-          strikes = 0; // Строка хорошая, сбрасываем счетчик ошибок
-        } else {
-          strikes++;
-          if (strikes >= 2) break; // Если две строки подряд оказались не похожи на товары - выходим
-        }
-      }
-
-      window.mapper2State.invoiceRows = validRows;
-      let headersToSearch = window.mapper2State.invoiceHeaders.map((h) =>
-        String(h).toLowerCase().replace(/\s+/g, ""),
-      );
-
-      const findCol = (keys, fallbacks) => {
-        let syns = [];
-        keys.forEach((k) => {
-          if (globalSyns[k]) syns = syns.concat(globalSyns[k]);
-        });
-        syns = syns
-          .concat(fallbacks)
-          .map((s) => String(s).toLowerCase().replace(/\s+/g, ""))
-          .filter(Boolean);
-        return headersToSearch.findIndex((h) =>
-          syns.some((syn) => h?.includes(syn)),
-        );
-      };
-
-      let priceIdx = findCol(
-        ["price", "Розничная цена", "Закупочная цена"],
-        ["usd", "цена", "стоимость", "amount"],
-      );
-      let idIdx = findCol(
-        ["barcode", "Артикул / Код товара", "id", "code"],
-        ["артикул", "штрихкод"],
-      );
-      let nameIdx = findCol(
-        ["name", "Бренд / Производитель", "Наименование товара"],
-        ["brand", "бренд", "наименование", "товар"],
-      );
-
-      if (priceIdx !== -1 && (idIdx !== -1 || nameIdx !== -1)) {
-        window.mapper2State.invoiceRows =
-          window.mapper2State.invoiceRows.filter((row) => {
-            if (!row || row.length === 0) return false;
-
-            let rawPrice = String(row[priceIdx] || "")
-              .replace(",", ".")
-              .replace(/[^0-9.-]/g, "");
-            let price = parseFloat(rawPrice);
-            if (isNaN(price) || price <= 0) return false;
-
-            let rawId = idIdx !== -1 ? String(row[idIdx] || "").trim() : "";
-            let rawName =
-              nameIdx !== -1 ? String(row[nameIdx] || "").trim() : "";
-            let hasIdentifier = rawId !== "" || rawName !== "";
-
-            if (!hasIdentifier) return false;
-            if (
-              rawId.toUpperCase()?.includes("TOTAL") ||
-              rawName.toUpperCase()?.includes("TOTAL")
-            ) {
-              return false;
-            }
-
-            return true;
-          });
-      }
-
-      // Добавляем selectedSheetName для уникальности каждого листа
-      let fileContentStr =
-        window.mapper2State.docNo +
-        "_" +
-        window.mapper2State.supplier +
-        "_" +
-        selectedSheetName +
-        "_" +
-        JSON.stringify(window.mapper2State.invoiceRows.slice(0, 5));
-      let hashNum = 0;
-      for (let i = 0; i < fileContentStr.length; i++) {
-        hashNum = (hashNum << 5) - hashNum + fileContentStr.charCodeAt(i);
-        hashNum |= 0;
-      }
-      window.mapper2State.fileHash = "hash_" + Math.abs(hashNum).toString(16);
-
+    if (parsedOk) {
       // ⚡ ИСПРАВЛЕНИЕ: Принудительно прячем системный лоадер, чтобы он не перекрывал Сито!
       if (typeof window.hideLoading === "function") window.hideLoading();
 
