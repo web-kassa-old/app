@@ -13,6 +13,51 @@ document.addEventListener("change", function (e) {
   }
 });
 
+// Принудительный сброс flex-каркаса, инлайн-стилей высоты/overflow и scrollTop у Маппера-2 (для iOS Safari)
+window.resetMapper2ModalLayout = function (options = {}) {
+  const shouldResetScroll = options.resetScroll !== false;
+
+  const incomeModal = document.getElementById("income-modal");
+  const modalCard = document.getElementById("incomeModalCard");
+  const tabImport = document.getElementById("tab-import");
+  const tabNew = document.getElementById("tab-new-product");
+  const mapper2Area = document.getElementById("mapper2Area");
+  const cardsContainer = document.getElementById("mapper2CardsContainer");
+
+  const clearTempBoxStyles = (el) => {
+    if (!el) return;
+    el.style.height = "";
+    el.style.maxHeight = "";
+    el.style.minHeight = "";
+    el.style.overflow = "";
+    el.style.overflowY = "";
+    el.style.marginTop = "";
+  };
+
+  if (incomeModal && incomeModal.style.display && incomeModal.style.display !== "none") {
+    incomeModal.style.display = "flex";
+  }
+  clearTempBoxStyles(modalCard);
+  if (modalCard) modalCard.style.display = "flex";
+
+  clearTempBoxStyles(tabImport);
+  if (tabImport && (!tabNew || tabNew.style.display === "none" || !tabNew.style.display)) {
+    tabImport.style.display = "flex";
+  }
+
+  clearTempBoxStyles(mapper2Area);
+  clearTempBoxStyles(cardsContainer);
+
+  if (shouldResetScroll && cardsContainer) {
+    cardsContainer.scrollTop = 0;
+    if (typeof requestAnimationFrame === "function") {
+      requestAnimationFrame(() => {
+        if (cardsContainer) cardsContainer.scrollTop = 0;
+      });
+    }
+  }
+};
+
 function toggleIncomeModule() {
   const modal = document.getElementById("income-modal");
 
@@ -42,8 +87,14 @@ function toggleIncomeModule() {
       window.populateLogisticsSelect(intLogSelect, "");
     }
     modal.style.display = "flex";
+    if (typeof window.resetMapper2ModalLayout === "function") {
+      window.resetMapper2ModalLayout({ resetScroll: true });
+    }
   } else {
     modal.style.display = "none";
+    if (typeof window.closeSheet === "function") {
+      window.closeSheet();
+    }
   }
 }
 
@@ -2887,6 +2938,9 @@ window.navigateIncomeStep = function (stepNumber, isBack = false) {
     if (typeof window.renderMapper2Cards === "function") {
       window.renderMapper2Cards(window.currentTemplateData || window.lastTemplateData || null);
     }
+    if (typeof window.resetMapper2ModalLayout === "function") {
+      window.resetMapper2ModalLayout({ resetScroll: true });
+    }
   } else if (stepNumber === 3 && step3) {
     step3.style.display = "flex";
     if (tabs) tabs.style.display = "none";
@@ -3396,15 +3450,21 @@ window.renderMapper2Cards = function (templateData) {
 
     let nameI18nAttr = req.nameKey ? `data-i18n="${req.nameKey}"` : "";
     let descI18nAttr = req.descKey ? `data-i18n="${req.descKey}"` : "";
+    const escAttr = (v) =>
+      String(v === undefined || v === null ? "" : v)
+        .replace(/&/g, "&amp;")
+        .replace(/"/g, "&quot;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
 
     let cardHtml = `
-        <div class="req-card" onclick="openColumnSelector('${req.sysKey}', '${req.name.replace(/'/g, "\\'")}', ${req.isKaspi === true})">
+        <div class="req-card" data-syskey="${escAttr(req.sysKey)}" data-reqname="${escAttr(req.name)}" data-iskaspi="${req.isKaspi === true ? "1" : "0"}">
             <div class="req-info">
-                <span class="req-title ${req.req ? "required" : ""}" ${nameI18nAttr}>${req.name}</span>
-                <span class="req-subtitle" id="subtitle-${req.sysKey}" ${descI18nAttr}>${req.desc}</span>
+                <span class="req-title ${req.req ? "required" : ""}" ${nameI18nAttr}>${escAttr(req.name)}</span>
+                <span class="req-subtitle" id="subtitle-${escAttr(req.sysKey)}" ${descI18nAttr}>${escAttr(req.desc)}</span>
                 ${extraPreviewHtml}
             </div>
-            <div class="req-status ${statusClass}" id="status-${req.sysKey}" style="${statusStyle}" ${statusI18n}>${statusText}</div>
+            <div class="req-status ${statusClass}" id="status-${escAttr(req.sysKey)}" style="${statusStyle}" ${statusI18n}>${escAttr(statusText)}</div>
         </div>`;
 
     if (statusClass === "status-filled") {
@@ -3420,21 +3480,42 @@ window.renderMapper2Cards = function (templateData) {
 
   if (htmlRequired) {
     finalHtml +=
-      `<div class="section-header" data-i18n="req_fill_title" style="color: #ff4444; padding: 15px 10px 5px; font-size: 11px; text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px;">🔴 ${t.req_fill_title || "Обязательные для заполнения"}</div>` +
+      `<div class="section-header" data-i18n="req_fill_title" style="color: var(--accent-red); padding: 12px 6px 6px; font-size: 11px; text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px;">🔴 ${t.req_fill_title || "Обязательные для заполнения"}</div>` +
       htmlRequired;
   }
   if (htmlOptional) {
     finalHtml +=
-      `<div class="section-header" data-i18n="add_params_title" style="color: var(--accent-blue); padding: 15px 10px 5px; font-size: 11px; text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px;">🔵 ${t.add_params_title || "Дополнительные параметры"}</div>` +
+      `<div class="section-header" data-i18n="add_params_title" style="color: var(--accent-blue); padding: 12px 6px 6px; font-size: 11px; text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px;">🔵 ${t.add_params_title || "Дополнительные параметры"}</div>` +
       htmlOptional;
   }
   if (htmlFilled) {
     finalHtml +=
-      `<div class="section-header" data-i18n="desc_invoice_sys" style="color: var(--accent-green); padding: 15px 10px 5px; font-size: 11px; text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px;">✅ ${t.desc_invoice_sys || "Из накладной и системы"}</div>` +
+      `<div class="section-header" data-i18n="desc_invoice_sys" style="color: var(--accent-green); padding: 12px 6px 6px; font-size: 11px; text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px;">✅ ${t.desc_invoice_sys || "Из накладной и системы"}</div>` +
       htmlFilled;
   }
 
+  const mapper2AreaEl = document.getElementById("mapper2Area");
+  const isFreshMapperOpen =
+    arguments.length > 0 ||
+    !mapper2AreaEl ||
+    mapper2AreaEl.style.display === "none";
+
   container.innerHTML = finalHtml;
+
+  // Делегированный клик по карточкам (устойчив к кавычкам в названиях атрибутов и без inline-onclick)
+  if (!container.dataset.cardClickBound) {
+    container.dataset.cardClickBound = "1";
+    container.addEventListener("click", (e) => {
+      const card = e.target && e.target.closest ? e.target.closest(".req-card[data-syskey]") : null;
+      if (!card) return;
+      const sKey = card.getAttribute("data-syskey");
+      const rName = card.getAttribute("data-reqname") || sKey;
+      const isK = card.getAttribute("data-iskaspi") === "1";
+      if (typeof window.openColumnSelector === "function") {
+        window.openColumnSelector(sKey, rName, isK);
+      }
+    });
+  }
 
   const parseBtn = document.getElementById("parseInvoiceBtn");
   if (parseBtn) parseBtn.style.display = "none";
@@ -3451,7 +3532,10 @@ window.renderMapper2Cards = function (templateData) {
   const currency = document.getElementById("mapperCurrencyBlock");
   if (currency) currency.style.display = "none";
 
-  document.getElementById("mapper2Area").style.display = "flex";
+  if (mapper2AreaEl) mapper2AreaEl.style.display = "flex";
+  if (typeof window.resetMapper2ModalLayout === "function") {
+    window.resetMapper2ModalLayout({ resetScroll: isFreshMapperOpen });
+  }
 
   // 🔥 ЛОГИКА ДЛЯ РЕЖИМА ЭКСПОРТА И ПЕРЕВОДОВ (КНОПКИ ВНИЗУ МАППЕРА)
   const applyBtn = document.getElementById("applyMapper2Btn");
@@ -3604,10 +3688,11 @@ window.openColumnSelector = function (sysKey, reqName, isKaspi) {
   const colList = document.getElementById("sheet-col-list");
 
   // 🔥 УМНАЯ ПРОВЕРКА: Есть ли у этого поля реальный справочник в Kaspi?
-  let hasDict =
-    window.kaspiDicts &&
-    window.kaspiDicts[reqName] &&
-    window.kaspiDicts[reqName].length > 0;
+  const resolvedDict =
+    typeof window.resolveKaspiDictForAttr === "function"
+      ? window.resolveKaspiDictForAttr(reqName, sysKey)
+      : window.kaspiDicts && window.kaspiDicts[reqName];
+  let hasDict = Boolean(resolvedDict && resolvedDict.length > 0);
 
   let dictBtnHtml = "";
   if (isKaspi) {
@@ -3653,7 +3738,14 @@ window.openColumnSelector = function (sysKey, reqName, isKaspi) {
     });
   }
 
-  window.mapper2State.invoiceHeaders.forEach((rawColName, index) => {
+  const safeHeaders = Array.isArray(window.mapper2State.invoiceHeaders)
+    ? window.mapper2State.invoiceHeaders
+    : [];
+  const safeRows = Array.isArray(window.mapper2State.invoiceRows)
+    ? window.mapper2State.invoiceRows
+    : [];
+
+  safeHeaders.forEach((rawColName, index) => {
     let colName = String(rawColName || "").trim();
     if (!colName) colName = `[Колонка ${index + 1} Пустой заголовок]`;
 
@@ -3682,10 +3774,10 @@ window.openColumnSelector = function (sysKey, reqName, isKaspi) {
     let previews = [];
     for (
       let i = 0;
-      i < Math.min(10, window.mapper2State.invoiceRows.length);
+      i < Math.min(10, safeRows.length);
       i++
     ) {
-      let val = String(window.mapper2State.invoiceRows[i][index] || "").trim();
+      let val = String((safeRows[i] && safeRows[i][index]) || "").trim();
       // Убрана проверка на дубликаты, теперь всегда берем первые 3 заполненные строки
       if (val && previews.length < 3) {
         previews.push({ orig: val });
@@ -3742,6 +3834,7 @@ window.openColumnSelector = function (sysKey, reqName, isKaspi) {
         </div>`;
   });
 
+  colList.scrollTop = 0;
   document.getElementById("sheet-overlay").style.display = "block";
   setTimeout(
     () => (document.getElementById("sheet-overlay").style.opacity = "1"),
@@ -4008,7 +4101,12 @@ window.closeSheet = function () {
 window.openKaspiDictSearch = function () {
   let sysKey = window.mapper2State.currentSysKey;
   let reqName = window.mapper2State.currentReqName;
-  let dict = window.kaspiDicts[reqName] || [];
+  let dict =
+    (typeof window.resolveKaspiDictForAttr === "function"
+      ? window.resolveKaspiDictForAttr(reqName, sysKey)
+      : null) ||
+    (window.kaspiDicts && window.kaspiDicts[reqName]) ||
+    [];
 
   const lang = window.currentLang || localStorage.getItem("pos_lang") || "ru";
   const t =
@@ -7917,13 +8015,28 @@ window.handleCardSelectForExport = async function (
       if (exportModal) exportModal.style.display = "none";
 
       function showParents(elementId) {
+        const FLEX_IDS = new Set([
+          "income-modal",
+          "incomeModalCard",
+          "tab-import",
+          "mapper2Area",
+          "invoicePreviewArea",
+        ]);
+        const tabNew = document.getElementById("tab-new-product");
+        if (tabNew) tabNew.style.display = "none";
+
         let el = document.getElementById(elementId);
         while (el && el.tagName !== "BODY") {
+          const isFlexTarget =
+            FLEX_IDS.has(el.id) ||
+            el.classList.contains("income-modal-card") ||
+            el.classList.contains("income-modal-overlay");
           if (
             window.getComputedStyle(el).display === "none" ||
-            el.style.display === "none"
+            el.style.display === "none" ||
+            (isFlexTarget && el.style.display !== "flex")
           ) {
-            el.style.display = "block";
+            el.style.display = isFlexTarget ? "flex" : "block";
           }
           el = el.parentElement;
         }
@@ -8211,12 +8324,18 @@ window.handleCardSelectForExport = async function (
         if (step2) step2.style.display = "none";
         if (step3) step3.style.display = "flex";
         showParents("invoicePreviewArea");
+        if (typeof window.resetMapper2ModalLayout === "function") {
+          window.resetMapper2ModalLayout({ resetScroll: true });
+        }
         window.renderPreviewTable();
       } else {
         if (step3) step3.style.display = "none";
         if (exportBtnArea) exportBtnArea.style.display = "none";
         if (step2) step2.style.display = "flex";
         showParents("mapper2Area");
+        if (typeof window.resetMapper2ModalLayout === "function") {
+          window.resetMapper2ModalLayout({ resetScroll: true });
+        }
       }
     } else {
       const trExp = getSheetPreviewTranslator();
