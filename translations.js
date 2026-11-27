@@ -618,6 +618,26 @@ const translations = {
     export_warn_more: "...и ещё {count}",
     export_warn_btn_fix: "Вернуться и поправить",
     export_warn_btn_force: "Выгрузить всё равно",
+    err_select_val: "Пожалуйста, сначала выберите значение из списка.",
+    inc_select_kaspi_tpl: "Пожалуйста, выберите шаблон Kaspi из списка!",
+    inc_tpl_load_err: "Ошибка загрузки шаблона: ",
+    inc_process_err: "Ошибка обработки: ",
+    inc_no_table_found: "Не удалось найти таблицу с товарами",
+    inc_build_empty_err:
+      "Не удалось сформировать товары. Проверьте, что в колонках «Количество» и «Цена» указаны корректные числовые значения.",
+    inc_tokenizer_not_loaded:
+      "Найдены сложные форматы, но модуль Токенизатора ещё не загружен.",
+    inc_unnamed_item: "Товар",
+    inc_reading_invoice: "Чтение накладной...",
+    kaspi_export_server_err: "Ошибка сервера: ",
+    kaspi_export_critical_err: "Критическая ошибка: ",
+    kaspi_export_no_items:
+      "Не удалось загрузить данные или нет товаров для выгрузки.",
+    kaspi_tpl_parse_err: "Не удалось распознать структуру шаблона Kaspi.",
+    kaspi_file_read_err: "Ошибка чтения файла: ",
+    notice_title_error: "Ошибка",
+    notice_title_warning: "Внимание",
+    notice_title_success: "Готово",
   },
   kz: {
     btn_sale: "САТУ",
@@ -1238,5 +1258,25 @@ const translations = {
     export_warn_more: "...және тағы {count}",
     export_warn_btn_fix: "Қайтып түзету",
     export_warn_btn_force: "Бәрібір жүктеп шығару",
+    err_select_val: "Алдымен тізімнен мәнді таңдаңыз.",
+    inc_select_kaspi_tpl: "Тізімнен Kaspi шаблонын таңдаңыз!",
+    inc_tpl_load_err: "Шаблонды жүктеу қатесі: ",
+    inc_process_err: "Өңдеу қатесі: ",
+    inc_no_table_found: "Тауарлар кестесін табу мүмкін болмады",
+    inc_build_empty_err:
+      "Тауарларды құрастыру мүмкін болмады. «Саны» және «Бағасы» бағандарында дұрыс сандық мәндер көрсетілгенін тексеріңіз.",
+    inc_tokenizer_not_loaded:
+      "Күрделі форматтар табылды, бірақ Токенизатор модулі әлі жүктелмеген.",
+    inc_unnamed_item: "Тауар",
+    inc_reading_invoice: "Жүкқұжатты оқу...",
+    kaspi_export_server_err: "Сервер қатесі: ",
+    kaspi_export_critical_err: "Критикалық қате: ",
+    kaspi_export_no_items:
+      "Деректерді жүктеу мүмкін болмады немесе жүктеп шығаруға тауарлар жоқ.",
+    kaspi_tpl_parse_err: "Kaspi шаблонының құрылымын анықтау мүмкін болмады.",
+    kaspi_file_read_err: "Файлды оқу қатесі: ",
+    notice_title_error: "Қате",
+    notice_title_warning: "Назар аударыңыз",
+    notice_title_success: "Дайын",
   },
 };

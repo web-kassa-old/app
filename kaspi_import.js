@@ -1431,16 +1431,19 @@ function cleanInvoiceCellText(val) {
 }
 
 function parseInvoiceNumber(val) {
+  if (typeof val === "number") {
+    return Number.isFinite(val) ? val : NaN;
+  }
   const raw = cleanInvoiceCellText(val);
   if (!raw || raw.includes("%")) return NaN;
 
-  // Убираем распространённые обозначения валют в начале/конце
+  // Убираем распространённые обозначения валют в начале/конце (вкл. US$, $, €, ₸, ₽, ¥, £, USD, KZT, тг.)
   let s = raw
-    .replace(/^(?:US\$|USD|EUR|KZT|RUB|CNY|RMB|GBP|₸|\$|€|₽|¥)\s*/i, "")
-    .replace(/\s*(?:US\$|USD|EUR|KZT|RUB|CNY|RMB|GBP|₸|\$|€|₽|¥)$/i, "")
-    .replace(/[\s\u00A0]+/g, "");
+    .replace(/^(?:US\$|USD|EUR|KZT|RUB|CNY|RMB|GBP|₸|\$|€|₽|¥|£|тг\.?|тенге|руб\.?)\s*/i, "")
+    .replace(/\s*(?:US\$|USD|EUR|KZT|RUB|CNY|RMB|GBP|₸|\$|€|₽|¥|£|тг\.?|тенге|руб\.?)$/i, "")
+    .replace(/[\s\u00A0\u202F]+/g, "");
 
-  if (!s || /[a-zA-Zа-яА-Я]/.test(s)) return NaN;
+  if (!s || /[a-zA-Zа-яА-ЯёЁ]/.test(s)) return NaN;
 
   const hasComma = s.includes(",");
   const hasDot = s.includes(".");
@@ -1468,6 +1471,73 @@ function parseInvoiceNumber(val) {
   const num = Number(s);
   return Number.isFinite(num) ? num : NaN;
 }
+
+window.parseInvoiceNumber = parseInvoiceNumber;
+
+// Штатная стилизованная модалка уведомлений (вместо системного browser alert, XSS-safe, dark/light, ru/kz)
+window.showKaspiNotice = function (message, options = {}) {
+  return new Promise((resolve) => {
+    const tr = getSheetPreviewTranslator();
+    const type = (options && options.type) || "warning";
+    const existing = document.getElementById("kaspi-notice-overlay");
+    if (existing && existing.parentNode) existing.parentNode.removeChild(existing);
+
+    const overlay = document.createElement("div");
+    overlay.id = "kaspi-notice-overlay";
+    overlay.className = "kaspi-notice-overlay";
+
+    const close = () => {
+      document.removeEventListener("keydown", onKeyDown);
+      if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+      resolve();
+    };
+
+    const onKeyDown = (e) => {
+      if (e.key === "Escape" || e.key === "Enter") {
+        e.preventDefault();
+        close();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+
+    const modal = document.createElement("div");
+    modal.className = `kaspi-notice-modal kaspi-notice-modal--${type}`;
+
+    const iconMap = { error: "❌", warning: "⚠️", success: "✅", info: "ℹ️" };
+    const titleKeyMap = {
+      error: "notice_title_error",
+      warning: "notice_title_warning",
+      success: "notice_title_success",
+      info: "notice_title_warning",
+    };
+
+    const headerEl = document.createElement("div");
+    headerEl.className = "kaspi-notice-header";
+    const iconSpan = document.createElement("span");
+    iconSpan.textContent = iconMap[type] || "⚠️";
+    const titleSpan = document.createElement("span");
+    titleSpan.textContent =
+      (options && options.title) || tr(titleKeyMap[type] || "notice_title_warning");
+    headerEl.appendChild(iconSpan);
+    headerEl.appendChild(titleSpan);
+
+    const bodyEl = document.createElement("div");
+    bodyEl.className = "kaspi-notice-body";
+    bodyEl.textContent = String(message === undefined || message === null ? "" : message);
+
+    const closeBtn = document.createElement("button");
+    closeBtn.type = "button";
+    closeBtn.className = "kaspi-notice-btn";
+    closeBtn.textContent = tr("btn_close");
+    closeBtn.addEventListener("click", close);
+
+    modal.appendChild(headerEl);
+    modal.appendChild(bodyEl);
+    modal.appendChild(closeBtn);
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+  });
+};
 
 function isNumericLikeCell(val) {
   return !isNaN(parseInvoiceNumber(val));
@@ -2426,9 +2496,10 @@ function openExcelSheetSelectorModal(validSheets, processedSheets, fileRegistryK
 }
 
 window.processInvoiceFile = async function () {
+  const tr = getSheetPreviewTranslator();
   const fileInput = document.getElementById("invoiceFileInput");
   if (!fileInput || !fileInput.files.length)
-    return alert(translations[currentLang]?.inc_no_file || "Выберите файл");
+    return window.showKaspiNotice(tr("inc_no_file"), { type: "warning" });
 
   // ⚡ 1. ЖЕСТКИЙ СБРОС СОСТОЯНИЯ (ВЕТКА ПРИЕМКИ — ЭКСПОРТ ВЫКЛЮЧЕН)
   window.isKaspiExportMode = false;
@@ -2497,20 +2568,15 @@ window.processInvoiceFile = async function () {
     const templateSelect = document.getElementById("kaspiTemplateSelect");
     const templateName = templateSelect ? templateSelect.value : "";
     if (!templateName)
-      return alert("Пожалуйста, выберите шаблон Kaspi из списка!");
+      return window.showKaspiNotice(tr("inc_select_kaspi_tpl"), { type: "warning" });
 
     window.kaspiTemplateCache = window.kaspiTemplateCache || {};
 
     if (window.kaspiTemplateCache[templateName]) {
       templateData = window.kaspiTemplateCache[templateName];
-      window.showLoading("Чтение накладной...");
+      window.showLoading(tr("inc_reading_invoice"));
     } else {
-      let tText =
-        typeof translations !== "undefined" &&
-        translations[currentLang] &&
-        translations[currentLang].kaspi_download_tpl
-          ? translations[currentLang].kaspi_download_tpl
-          : "Скачивание структуры шаблона...";
+      let tText = tr("kaspi_download_tpl");
       window.showLoading(tText);
 
       try {
@@ -2535,15 +2601,17 @@ window.processInvoiceFile = async function () {
 
           window.kaspiTemplateCache[templateName] = templateData;
         } else {
-          throw new Error("Структура шапок пустая");
+          throw new Error(tr("kaspi_tpl_parse_err"));
         }
       } catch (err) {
         window.hideLoading();
-        return alert("Ошибка загрузки шаблона: " + err.message);
+        return window.showKaspiNotice(tr("inc_tpl_load_err") + err.message, {
+          type: "error",
+        });
       }
     }
   } else {
-    window.showLoading("Чтение накладной...");
+    window.showLoading(tr("inc_reading_invoice"));
   }
 
   try {
@@ -2720,12 +2788,14 @@ window.processInvoiceFile = async function () {
         window.renderMapper2Cards(templateData);
       }
     } else {
-      throw new Error("Не удалось найти таблицу с товарами");
+      throw new Error(tr("inc_no_table_found"));
     }
   } catch (err) {
     window.hideLoading();
     console.error(err);
-    alert("Ошибка обработки: " + err.message);
+    window.showKaspiNotice(tr("inc_process_err") + err.message, {
+      type: "error",
+    });
   }
 };
 
@@ -3947,8 +4017,9 @@ window.openKaspiDictSearch = function () {
       : {};
 
   if (dict.length === 0) {
-    return alert(
+    return window.showKaspiNotice(
       (t.msg_dict_empty_1 || "") + reqName + (t.msg_dict_empty_2 || ""),
+      { type: "warning" },
     );
   }
 
@@ -4121,14 +4192,8 @@ window.confirmKaspiDictSelection = function () {
       return;
     }
 
-    const lang = window.currentLang || localStorage.getItem("pos_lang") || "ru";
-    const tr =
-      typeof translations !== "undefined" && translations[lang]
-        ? translations[lang]
-        : {};
-    return alert(
-      tr.err_select_val || "Пожалуйста, сначала выберите значение из списка.",
-    );
+    const tr = getSheetPreviewTranslator();
+    return window.showKaspiNotice(tr("err_select_val"), { type: "warning" });
   }
 
   if (typeof window.selectDictionaryValue === "function") {
@@ -4369,16 +4434,10 @@ window.applyMapper2Logic = function () {
 
   if (!isExportBranch) {
     if (!hasQty || !hasPrice || !hasName) {
-      const lang =
-        window.currentLang || localStorage.getItem("pos_lang") || "ru";
-      const tr =
-        typeof translations !== "undefined" && translations[lang]
-          ? translations[lang]
-          : {};
-      const errorMsg =
-        tr.mapper_err_missing_cols ||
-        "⚠️ Обязательно привяжите колонки (или введите вручную):\n1. Наименование (или model)\n2. Количество (qty)\n3. Цена (price/cost)";
-      return alert(errorMsg);
+      const tr = getSheetPreviewTranslator();
+      return window.showKaspiNotice(tr("mapper_err_missing_cols"), {
+        type: "warning",
+      });
     }
   }
 
@@ -4656,17 +4715,11 @@ window.applyMapper2Logic = function () {
     // Для наименования товара в POS сначала берём колонку/значение name, а model используем только как фоллбэк
     let rawName = getValue("name") || getValue("model");
 
-    let qty = parseFloat(rawQty) || 0;
-    let price = parseFloat(String(rawPrice).replace(",", "."));
+    let parsedQty = parseInvoiceNumber(rawQty);
+    let qty = !isNaN(parsedQty) && parsedQty >= 0 ? parsedQty : 0;
+    let price = parseInvoiceNumber(rawPrice);
 
     if (!isExportBranch && (isNaN(price) || price <= 0)) {
-      return;
-    }
-
-    let hasIdentifier =
-      (rawId && String(rawId).trim() !== "") ||
-      (rawName && String(rawName).trim() !== "");
-    if (!isExportBranch && !hasIdentifier) {
       return;
     }
 
@@ -4676,7 +4729,6 @@ window.applyMapper2Logic = function () {
         ? String(getValue("barcode") || "").trim()
         : "";
     let barcode = /^\d{13}$/.test(explicitBarcodeVal) ? explicitBarcodeVal : "";
-    let name = rawName || rawId || "Без названия";
 
     // === ЧИСТЫЙ СБОР raw_logistics (включая неразобранные атрибутные колонки, без системных полей/артикулов/сумм) ===
     const rawIdNorm = String(rawId || "").trim().toLowerCase();
@@ -4722,12 +4774,31 @@ window.applyMapper2Logic = function () {
 
     let rawLogisticsStr = rawLogisticsParts.join(" ");
 
+    // Пустые текстовые колонки (например, Brand / Pattern) не должны отбрасывать валидную строку с ценой и количеством
+    const cleanRawName = String(rawName || "").trim();
+    const cleanRawId = String(rawId || "").trim();
+    const trLocal = getSheetPreviewTranslator();
+    let hasIdentifier =
+      cleanRawName !== "" ||
+      cleanRawId !== "" ||
+      rawLogisticsStr.trim() !== "" ||
+      qty > 0;
+    if (!isExportBranch && !hasIdentifier) {
+      return;
+    }
+
+    let name =
+      cleanRawName ||
+      cleanRawId ||
+      rawLogisticsStr.trim() ||
+      `${trLocal("inc_unnamed_item")} #${index + 1}`;
+
     let rawCbm = getValue("cbm");
-    let cbm = rawCbm ? parseFloat(String(rawCbm).replace(",", ".")) : "";
+    let parsedCbm = rawCbm ? parseInvoiceNumber(rawCbm) : NaN;
+    let cbm = !isNaN(parsedCbm) ? parsedCbm : "";
     let rawWeight = getValue("weight");
-    let weight = rawWeight
-      ? parseFloat(String(rawWeight).replace(",", "."))
-      : "";
+    let parsedWeight = rawWeight ? parseInvoiceNumber(rawWeight) : NaN;
+    let weight = !isNaN(parsedWeight) ? parsedWeight : "";
 
     let attributesObj = {};
     let itemHasCollisions = false;
@@ -4977,9 +5048,10 @@ window.applyMapper2Logic = function () {
   });
 
   if (window.parsedInvoiceData.length === 0 && !isExportBranch) {
-    return alert(
-      "Не удалось сформировать товары. Убедитесь, что в колонках «Количество» и «Цена» находятся ТОЛЬКО цифры.",
-    );
+    const tr = getSheetPreviewTranslator();
+    return window.showKaspiNotice(tr("inc_build_empty_err"), {
+      type: "warning",
+    });
   }
 
   if (
@@ -4989,7 +5061,10 @@ window.applyMapper2Logic = function () {
     if (typeof window.startTokenizerQueue === "function") {
       window.startTokenizerQueue();
     } else {
-      alert("Найдены сложные форматы, но модуль Токенизатора еще не загружен.");
+      const tr = getSheetPreviewTranslator();
+      window.showKaspiNotice(tr("inc_tokenizer_not_loaded"), {
+        type: "warning",
+      });
     }
     return;
   }
@@ -6449,10 +6524,14 @@ window.openEditorField = function (canonicalKey, options = {}) {
     const len = input.value.trim().length;
     if (len > 0) {
       if (min > 0 && len < min) {
-        return alert(tr("err_min_chars") + min);
+        return window.showKaspiNotice(tr("err_min_chars") + min, {
+          type: "warning",
+        });
       }
       if (max > 0 && len > max) {
-        return alert(tr("err_max_chars") + max);
+        return window.showKaspiNotice(tr("err_max_chars") + max, {
+          type: "warning",
+        });
       }
     }
     window.saveSingleField(key);
@@ -7095,15 +7174,17 @@ async function sendInvoiceToBackend() {
     return;
   }
 
+  const trSend = getSheetPreviewTranslator();
   if (!window.parsedInvoiceData || window.parsedInvoiceData.length === 0)
-    return alert(translations[currentLang].inc_empty_cart);
+    return window.showKaspiNotice(trSend("inc_empty_cart"), { type: "warning" });
 
   const docKeys = Object.keys(window.invoiceGroups);
   const docInput = document.getElementById("ui-doc-no");
 
   if (docKeys.length === 1 && docInput) {
     const finalDocNo = docInput.value.trim();
-    if (!finalDocNo) return alert(translations[currentLang].inc_doc_empty);
+    if (!finalDocNo)
+      return window.showKaspiNotice(trSend("inc_doc_empty"), { type: "warning" });
     if (finalDocNo !== docKeys[0]) {
       window.invoiceGroups[finalDocNo] = window.invoiceGroups[docKeys[0]];
       delete window.invoiceGroups[docKeys[0]];
@@ -7277,7 +7358,9 @@ async function sendInvoiceToBackend() {
         errorMsg = translations[currentLang].server_dup_fp;
       }
 
-      alert(translations[currentLang].inc_send_err + errorMsg);
+      await window.showKaspiNotice(trSend("inc_send_err") + errorMsg, {
+        type: "error",
+      });
       if (btn) {
         btn.disabled = false;
         btn.style.opacity = "1";
@@ -7292,7 +7375,7 @@ async function sendInvoiceToBackend() {
   statusText.style.color = "var(--accent-green)";
 
   setTimeout(async () => {
-    alert(translations[currentLang].inc_all_done);
+    await window.showKaspiNotice(trSend("inc_all_done"), { type: "success" });
 
     // ⚡ ФИКС: Жестко прячем блок сопоставления и экраны превью
     const idsToHide = [
@@ -8136,15 +8219,19 @@ window.handleCardSelectForExport = async function (
         showParents("mapper2Area");
       }
     } else {
-      const err =
-        res.error ||
-        "Не удалось загрузить данные или нет товаров для выгрузки.";
-      alert("⚠️ Ошибка сервера: " + err);
+      const trExp = getSheetPreviewTranslator();
+      const err = res.error || trExp("kaspi_export_no_items");
+      window.showKaspiNotice(trExp("kaspi_export_server_err") + err, {
+        type: "error",
+      });
       if (btnArea) btnArea.style.display = "none";
     }
   } catch (e) {
     console.error("Полная ошибка загрузки данных партии:", e);
-    alert("⚠️ Критическая ошибка: " + e.message);
+    const trExp = getSheetPreviewTranslator();
+    window.showKaspiNotice(trExp("kaspi_export_critical_err") + e.message, {
+      type: "error",
+    });
   } finally {
     if (typeof window.hideLoading === "function") window.hideLoading();
   }
@@ -8379,7 +8466,10 @@ window.handleTemplateUpload = async function (event) {
 
         if (humanNames.length === 0 || systemKeys.length === 0) {
           if (typeof window.hideLoading === "function") window.hideLoading();
-          alert("Ошибка: Не удалось распознать структуру шаблона Kaspi.");
+          const trTpl = getSheetPreviewTranslator();
+          window.showKaspiNotice(trTpl("kaspi_tpl_parse_err"), {
+            type: "error",
+          });
           if (fileNameSpan) {
             fileNameSpan.innerText = "📄 Загрузить пустой шаблон (.xml, .xlsx)";
             fileNameSpan.style.color = "var(--text-main)";
@@ -8603,7 +8693,10 @@ window.handleTemplateUpload = async function (event) {
         }
       } catch (err) {
         console.error(err);
-        alert("Ошибка чтения файла: " + err.message);
+        const trTpl = getSheetPreviewTranslator();
+        window.showKaspiNotice(trTpl("kaspi_file_read_err") + err.message, {
+          type: "error",
+        });
         if (fileNameSpan) {
           fileNameSpan.innerText = "📄 Загрузить пустой шаблон (.xml, .xlsx)";
           fileNameSpan.style.color = "var(--text-main)";
