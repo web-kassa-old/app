@@ -4583,8 +4583,8 @@ window.applyMapper2Logic = function () {
         );
 
         if (tokenObjects.length > 0) {
-          let anchorIndex = tokenObjects.findIndex((t) =>
-            /\d/.test(t.cleanText),
+          let anchorIndex = tokenObjects.findIndex(
+            (t) => /\d/.test(t.cleanText) || t.isPhrase,
           );
           if (anchorIndex === -1) anchorIndex = 0;
 
@@ -4592,33 +4592,43 @@ window.applyMapper2Logic = function () {
             tok.universalIndex = 100 + (idx - anchorIndex);
           });
 
-          const sigTokens = tokenObjects.filter(
-            (t) => !/^[a-zA-Zа-яА-ЯёЁ]+$/.test(t.cleanText),
-          );
-          const sig = sigTokens
-            .map((t) => (/\d/.test(t.cleanText) ? "N" : "S"))
-            .join("-");
+          const sig =
+            typeof window.computeSmartTokenSignature === "function"
+              ? window.computeSmartTokenSignature(tokenObjects)
+              : tokenObjects
+                  .filter(
+                    (t) =>
+                      !t.isPhrase && !/^[a-zA-Zа-яА-ЯёЁ]+$/.test(t.cleanText),
+                  )
+                  .map((t) => (/\d/.test(t.cleanText) ? "N" : "S"))
+                  .join("-");
 
-          let targetIndices = null;
-          let sigFound = false;
+          const targetDict =
+            typeof window.resolveKaspiDictForAttr === "function"
+              ? window.resolveKaspiDictForAttr(primaryKey, kaspiKey)
+              : null;
 
           if (
             state.splitRules[excelHeader] &&
-            state.splitRules[excelHeader][sig]
+            typeof window.extractTokenByRuleOrAnchor === "function"
           ) {
-            sigFound = true;
-            targetIndices = state.splitRules[excelHeader][sig][primaryKey];
-          }
-          if (
-            !targetIndices &&
-            state.splitRules[primaryKey] &&
-            state.splitRules[primaryKey][sig]
-          ) {
-            sigFound = true;
-            targetIndices = state.splitRules[primaryKey][sig];
+            const extracted = window.extractTokenByRuleOrAnchor(
+              tokenObjects,
+              state.splitRules[excelHeader],
+              sig,
+              primaryKey,
+              targetDict,
+            );
+            if (extracted && extracted.matched) {
+              return extracted.value;
+            }
           }
 
-          if (sigFound) {
+          if (
+            state.splitRules[primaryKey] &&
+            state.splitRules[primaryKey][sig] !== undefined
+          ) {
+            const targetIndices = state.splitRules[primaryKey][sig];
             if (targetIndices !== undefined && targetIndices !== null) {
               let resultArr = [];
               let indicesArray = Array.isArray(targetIndices)
@@ -4788,31 +4798,22 @@ window.applyMapper2Logic = function () {
 
       let searchString = rawValue;
 
-      let dict = window.kaspiDicts && window.kaspiDicts[humanName];
-      let hasDictionary = dict && Array.isArray(dict) && dict.length > 0;
-      let foundMatch = false;
-      let matchedDictValue = searchString;
-
-      if (hasDictionary) {
-        for (let dv of dict) {
-          let strDv = String(dv).trim();
-          let baseDv = strDv.split("(")[0].trim();
-          let isStrictNumber = /^[\d\.]+$/.test(String(searchString).trim());
-
-          if (
-            strDv.toLowerCase() === String(searchString).trim().toLowerCase() ||
-            baseDv.toLowerCase() ===
-              String(searchString).trim().toLowerCase() ||
-            (isStrictNumber &&
-              !isNaN(parseFloat(baseDv)) &&
-              parseFloat(baseDv) === parseFloat(searchString))
-          ) {
-            matchedDictValue = strDv;
-            foundMatch = true;
-            break;
-          }
-        }
-      }
+      let dict =
+        typeof window.resolveKaspiDictForAttr === "function"
+          ? window.resolveKaspiDictForAttr(humanName, key)
+          : window.kaspiDicts && window.kaspiDicts[humanName];
+      let hasDictionary = Boolean(dict && Array.isArray(dict) && dict.length > 0);
+      let matchResult =
+        typeof window.matchValueInKaspiDict === "function"
+          ? window.matchValueInKaspiDict(searchString, dict)
+          : {
+              matched: !hasDictionary,
+              value: String(searchString).trim(),
+              normalized: String(searchString).trim(),
+              isDictField: hasDictionary,
+            };
+      let foundMatch = matchResult.matched;
+      let matchedDictValue = matchResult.value;
 
       if (
         window.currentImportMode === "kaspi" &&
@@ -4845,7 +4846,8 @@ window.applyMapper2Logic = function () {
             excelColumnName: excelHeader || "ДАННЫЕ ИЗ НАКЛАДНОЙ",
           });
         } else {
-          attributesObj[cleanHuman] = String(rawValue).trim();
+          // Значения нет в values — НЕ обнуляем и НЕ обрезаем, сохраняем нормализованное значение
+          attributesObj[cleanHuman] = String(matchedDictValue).trim();
         }
         return;
       }
@@ -5038,10 +5040,288 @@ window.tempAttrs = {};
 window.tempClearedKeys = new Set();
 window.currentFieldDict = [];
 
+// === ВАЛИДАЦИЯ АТРИБУТОВ ПО СПРАВОЧНИКУ VALUES И ПРЕДУПРЕЖДЕНИЕ ПЕРЕД ЭКСПОРТОМ ===
+
+window.formatAttrDisplayKey = function (rawKey) {
+  const sysToHuman =
+    (window.mapper2State && window.mapper2State.sysToHumanMap) || {};
+  const humanName = sysToHuman[rawKey];
+  if (humanName) return String(humanName).replace(/\*/g, "").trim();
+  const cleaned = String(rawKey || "")
+    .split("*")
+    .pop()
+    .replace(/tires/gi, "")
+    .replace(/additional/gi, "")
+    .replace(/general/gi, "")
+    .replace(/\./g, "")
+    .trim();
+  return cleaned || String(rawKey || "");
+};
+
+window.collectOutOfDictIssues = function (itemsList) {
+  const items = Array.isArray(itemsList)
+    ? itemsList
+    : Array.isArray(window.parsedInvoiceData)
+      ? window.parsedInvoiceData
+      : [];
+
+  const result = {
+    totalCells: 0,
+    affectedItemIndices: new Set(),
+    issuesByItem: new Map(),
+    aggregated: [],
+  };
+
+  const isKaspiContext =
+    window.isKaspiExportMode === true || window.currentImportMode === "kaspi";
+  if (!isKaspiContext || items.length === 0) return result;
+
+  const SERVICE_ATTRS = new Set([
+    "doc_no",
+    "invoice_no",
+    "document_id",
+    "merchant_sku",
+    "sku",
+    "артикул",
+  ]);
+  const aggMap = new Map();
+
+  items.forEach((item, idx) => {
+    if (!item || !item.attributes) return;
+    let parsed = null;
+    try {
+      parsed =
+        typeof item.attributes === "string"
+          ? JSON.parse(item.attributes)
+          : item.attributes;
+    } catch (_) {
+      return;
+    }
+    if (!parsed || typeof parsed !== "object") return;
+
+    Object.keys(parsed).forEach((k) => {
+      const lowerK = String(k || "").trim().toLowerCase();
+      if (!lowerK || SERVICE_ATTRS.has(lowerK)) return;
+      const val = String(parsed[k] === undefined || parsed[k] === null ? "" : parsed[k]).trim();
+      if (!val) return;
+
+      const displayKey = window.formatAttrDisplayKey(k);
+      const dict =
+        typeof window.resolveKaspiDictForAttr === "function"
+          ? window.resolveKaspiDictForAttr(displayKey, k)
+          : null;
+      if (!dict || dict.length === 0) return;
+
+      const check =
+        typeof window.matchValueInKaspiDict === "function"
+          ? window.matchValueInKaspiDict(val, dict)
+          : { matched: true };
+
+      if (!check.matched) {
+        result.totalCells++;
+        result.affectedItemIndices.add(idx);
+        if (!result.issuesByItem.has(idx)) {
+          result.issuesByItem.set(idx, new Set());
+        }
+        result.issuesByItem.get(idx).add(k);
+
+        const aggKey = `${displayKey}:::${val}`;
+        if (!aggMap.has(aggKey)) {
+          aggMap.set(aggKey, { displayKey, value: val, count: 0 });
+        }
+        aggMap.get(aggKey).count++;
+      }
+    });
+  });
+
+  result.aggregated = Array.from(aggMap.values()).sort(
+    (a, b) => b.count - a.count || a.displayKey.localeCompare(b.displayKey),
+  );
+  return result;
+};
+
+window.confirmExportWithOutOfDictWarning = function (itemsList) {
+  const issues = window.collectOutOfDictIssues(itemsList);
+  if (!issues || issues.totalCells === 0) {
+    return Promise.resolve(true);
+  }
+
+  return new Promise((resolve) => {
+    const tr = getSheetPreviewTranslator();
+    const existing = document.getElementById("kaspi-export-warn-overlay");
+    if (existing && existing.parentNode) existing.parentNode.removeChild(existing);
+
+    const overlay = document.createElement("div");
+    overlay.id = "kaspi-export-warn-overlay";
+    overlay.className = "kaspi-export-warn-overlay";
+
+    const cleanup = () => {
+      document.removeEventListener("keydown", onKeyDown);
+      if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+    };
+
+    const goFix = () => {
+      cleanup();
+      window._previewOnlyOutOfDict = true;
+      if (typeof window.renderPreviewTable === "function") {
+        window.renderPreviewTable();
+      }
+      resolve(false);
+    };
+
+    const forceExport = () => {
+      cleanup();
+      resolve(true);
+    };
+
+    const onKeyDown = (e) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        goFix();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+
+    const modal = document.createElement("div");
+    modal.className = "kaspi-export-warn-modal";
+
+    const titleEl = document.createElement("div");
+    titleEl.className = "kaspi-export-warn-title";
+    const warnIcon = document.createElement("span");
+    warnIcon.textContent = "⚠️";
+    const titleSpan = document.createElement("span");
+    titleSpan.textContent = tr("export_warn_title");
+    titleEl.appendChild(warnIcon);
+    titleEl.appendChild(titleSpan);
+
+    const descEl = document.createElement("div");
+    descEl.className = "kaspi-export-warn-desc";
+    descEl.textContent = tr("export_warn_desc");
+
+    const listEl = document.createElement("ul");
+    listEl.className = "kaspi-export-warn-list";
+
+    const MAX_SHOWN = 8;
+    const shownItems = issues.aggregated.slice(0, MAX_SHOWN);
+    shownItems.forEach((g) => {
+      const li = document.createElement("li");
+      li.className = "kaspi-export-warn-item";
+      li.textContent = tr("export_warn_item_fmt", {
+        col: g.displayKey,
+        val: g.value,
+        count: g.count,
+      });
+      listEl.appendChild(li);
+    });
+
+    if (issues.aggregated.length > MAX_SHOWN) {
+      const moreLi = document.createElement("li");
+      moreLi.className = "kaspi-export-warn-more";
+      moreLi.textContent = tr("export_warn_more", {
+        count: issues.aggregated.length - MAX_SHOWN,
+      });
+      listEl.appendChild(moreLi);
+    }
+
+    const actionsEl = document.createElement("div");
+    actionsEl.className = "kaspi-export-warn-actions";
+
+    const fixBtn = document.createElement("button");
+    fixBtn.type = "button";
+    fixBtn.className = "kaspi-export-warn-btn kaspi-export-warn-btn--fix";
+    fixBtn.textContent = tr("export_warn_btn_fix");
+    fixBtn.addEventListener("click", goFix);
+
+    const forceBtn = document.createElement("button");
+    forceBtn.type = "button";
+    forceBtn.className = "kaspi-export-warn-btn kaspi-export-warn-btn--force";
+    forceBtn.textContent = tr("export_warn_btn_force");
+    forceBtn.addEventListener("click", forceExport);
+
+    actionsEl.appendChild(fixBtn);
+    actionsEl.appendChild(forceBtn);
+
+    modal.appendChild(titleEl);
+    modal.appendChild(descEl);
+    modal.appendChild(listEl);
+    modal.appendChild(actionsEl);
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+  });
+};
+
+window.openDirectCellEditor = function (itemIndex, attrKey) {
+  if (!window.parsedInvoiceData || !window.parsedInvoiceData[itemIndex]) return;
+
+  window.currentEditIndex = itemIndex;
+  const item = window.parsedInvoiceData[itemIndex];
+  window.tempAttrs = {};
+  window.tempClearedKeys = new Set(
+    item && Array.isArray(item._clearedAttrs) ? item._clearedAttrs : [],
+  );
+
+  let rawAttrs = {};
+  if (item && item.attributes) {
+    try {
+      rawAttrs =
+        typeof item.attributes === "string"
+          ? JSON.parse(item.attributes)
+          : item.attributes;
+    } catch (_) {}
+  }
+
+  const catalog = window.buildEditorFieldCatalog();
+  const SERVICE_ATTR_KEYS = new Set(["doc_no", "invoice_no", "document_id"]);
+
+  if (rawAttrs && typeof rawAttrs === "object") {
+    Object.keys(rawAttrs).forEach((k) => {
+      const rawVal = rawAttrs[k];
+      if (
+        rawVal === undefined ||
+        rawVal === null ||
+        rawVal === "undefined" ||
+        rawVal === "null"
+      ) {
+        return;
+      }
+      const val = String(rawVal).trim();
+      if (!val) return;
+      if (SERVICE_ATTR_KEYS.has(String(k).toLowerCase())) return;
+
+      const normK = window.normalizeParamLabel(k);
+      const entry =
+        catalog.byHumanExact[k] ||
+        catalog.bySysKey[k] ||
+        (normK && catalog.byNormLabel[normK]);
+
+      if (entry) {
+        if (entry.isSku) return;
+        const targetKey = entry.canonicalKey;
+        if (!window.tempAttrs[targetKey] || k === entry.canonicalKey) {
+          window.tempAttrs[targetKey] = val;
+        }
+      } else {
+        window.tempAttrs[k] = val;
+      }
+    });
+  }
+
+  let modalContainer = document.getElementById("modalContainer");
+  if (!modalContainer) {
+    modalContainer = document.createElement("div");
+    modalContainer.id = "modalContainer";
+    document.body.appendChild(modalContainer);
+  }
+  modalContainer.textContent = "";
+
+  window.openEditorField(attrKey, { directSave: true });
+};
+
 // === ОТРИСОВКА ГЛАВНОЙ ТАБЛИЦЫ ===
 window.renderPreviewTable = function () {
   const state = window.mapper2State;
   const t = translations[currentLang] || translations["ru"];
+  const tr = getSheetPreviewTranslator();
 
   if (typeof window.autoCleanInvoiceAttributes === "function") {
     window.autoCleanInvoiceAttributes();
@@ -5071,107 +5351,295 @@ window.renderPreviewTable = function () {
       state.docNo;
   }
 
-  const supplierI18nAttr = !state.supplier
-    ? `data-i18n="inc_not_specified"`
-    : "";
+  const metaContainer = document.getElementById("invoiceMetadata");
+  if (metaContainer) {
+    metaContainer.textContent = "";
+    const metaBox = document.createElement("div");
+    metaBox.style.cssText =
+      "display: flex; justify-content: space-between; align-items: center; font-size: 11px; padding: 10px; background: var(--bg-panel); border-radius: 8px; border: 1px solid var(--border-light);";
 
-  document.getElementById("invoiceMetadata").innerHTML = `
-        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; padding: 10px; background: var(--bg-panel); border-radius: 8px; border: 1px solid var(--border-light);">
-            <div><span data-i18n="inc_supplier" style="color:var(--text-muted);">${t.inc_supplier || "Пост:"}</span> <b ${supplierI18nAttr} style="color:var(--accent-yellow);">${state.supplier || t.inc_not_specified || "Не указан"}</b></div>
-            <div><span data-i18n="inc_doc_short" style="color:var(--text-muted);">${t.inc_doc_short || "Док:"}</span> <b style="color:var(--accent-yellow);">${realDocNo}</b></div>
-            <div><span data-i18n="inc_pos" style="color:var(--text-muted);">${t.inc_pos || "Поз:"}</span> <b style="color:var(--accent-yellow);">${window.parsedInvoiceData.length}</b></div>
-        </div>
-    `;
+    const addMetaItem = (labelKey, fallbackLabel, valText, valI18nKey) => {
+      const wrap = document.createElement("div");
+      const lbl = document.createElement("span");
+      lbl.setAttribute("data-i18n", labelKey);
+      lbl.style.color = "var(--text-muted)";
+      lbl.textContent = t[labelKey] || fallbackLabel;
+      const b = document.createElement("b");
+      b.style.color = "var(--accent-yellow)";
+      if (valI18nKey) b.setAttribute("data-i18n", valI18nKey);
+      b.textContent = String(valText);
+      wrap.appendChild(lbl);
+      wrap.appendChild(document.createTextNode(" "));
+      wrap.appendChild(b);
+      metaBox.appendChild(wrap);
+    };
 
-  document.getElementById("invoiceTableBody").innerHTML =
-    window.parsedInvoiceData
-      .map((item, index) => {
-        let attrsHtml = "";
-        let displayCode = null;
+    addMetaItem(
+      "inc_supplier",
+      "Пост:",
+      state.supplier || tr("inc_not_specified"),
+      !state.supplier ? "inc_not_specified" : "",
+    );
+    addMetaItem("inc_doc_short", "Док:", realDocNo || "");
+    addMetaItem("inc_pos", "Поз:", (window.parsedInvoiceData || []).length);
+    metaContainer.appendChild(metaBox);
+  }
 
-        if (item.attributes) {
-          try {
-            let parsed = JSON.parse(item.attributes);
+  // Сканируем значения вне справочника values и рендерим предупреждающую плашку над таблицей
+  const dictIssues = window.collectOutOfDictIssues(window.parsedInvoiceData);
+  if (dictIssues.totalCells === 0) {
+    window._previewOnlyOutOfDict = false;
+  }
 
-            if (parsed.item_id && isNaN(Number(parsed.item_id))) {
-              displayCode = parsed.item_id;
+  const previewAreaEl = document.getElementById("invoicePreviewArea");
+  const tableContainerEl = document.getElementById("invoiceTableContainer");
+  let warnBanner = document.getElementById("kaspiDictWarnBanner");
+  if (!warnBanner && previewAreaEl && tableContainerEl) {
+    warnBanner = document.createElement("div");
+    warnBanner.id = "kaspiDictWarnBanner";
+    previewAreaEl.insertBefore(warnBanner, tableContainerEl);
+  }
+
+  if (warnBanner) {
+    warnBanner.textContent = "";
+    if (dictIssues.totalCells > 0) {
+      warnBanner.className = "kaspi-dict-warn-banner";
+      warnBanner.style.display = "flex";
+
+      const topRow = document.createElement("div");
+      topRow.className = "kaspi-dict-warn-banner-top";
+
+      const titleDiv = document.createElement("div");
+      titleDiv.className = "kaspi-dict-warn-banner-title";
+      const iconSp = document.createElement("span");
+      iconSp.textContent = "⚠️";
+      const titleSp = document.createElement("span");
+      titleSp.textContent = tr("dict_warn_banner_title", {
+        count: dictIssues.totalCells,
+      });
+      titleDiv.appendChild(iconSp);
+      titleDiv.appendChild(titleSp);
+
+      const filterBtn = document.createElement("button");
+      filterBtn.type = "button";
+      filterBtn.className = window._previewOnlyOutOfDict
+        ? "kaspi-dict-warn-filter-btn is-active"
+        : "kaspi-dict-warn-filter-btn";
+      filterBtn.textContent = window._previewOnlyOutOfDict
+        ? tr("dict_warn_filter_all", {
+            count: (window.parsedInvoiceData || []).length,
+          })
+        : tr("dict_warn_filter_problem", {
+            count: dictIssues.affectedItemIndices.size,
+          });
+      filterBtn.addEventListener("click", () => {
+        window._previewOnlyOutOfDict = !window._previewOnlyOutOfDict;
+        window.renderPreviewTable();
+        if (tableContainerEl) tableContainerEl.scrollTop = 0;
+      });
+
+      topRow.appendChild(titleDiv);
+      topRow.appendChild(filterBtn);
+
+      const descDiv = document.createElement("div");
+      descDiv.className = "kaspi-dict-warn-banner-desc";
+      descDiv.textContent = tr("dict_warn_banner_desc");
+
+      warnBanner.appendChild(topRow);
+      warnBanner.appendChild(descDiv);
+    } else {
+      warnBanner.style.display = "none";
+    }
+  }
+
+  const tbody = document.getElementById("invoiceTableBody");
+  if (tbody) {
+    tbody.textContent = "";
+    const frag = document.createDocumentFragment();
+    const editBtnLabel = tr("inc_edit_params");
+    const cellWarnHint = tr("dict_warn_cell_hint");
+
+    (window.parsedInvoiceData || []).forEach((item, index) => {
+      if (
+        window._previewOnlyOutOfDict &&
+        !dictIssues.affectedItemIndices.has(index)
+      ) {
+        return;
+      }
+
+      let displayCode = null;
+      let parsedAttrs = null;
+
+      if (item.attributes) {
+        try {
+          parsedAttrs =
+            typeof item.attributes === "string"
+              ? JSON.parse(item.attributes)
+              : item.attributes;
+          if (parsedAttrs && parsedAttrs.item_id && isNaN(Number(parsedAttrs.item_id))) {
+            displayCode = parsedAttrs.item_id;
+          }
+        } catch (_) {
+          parsedAttrs = null;
+        }
+      }
+
+      if (!displayCode) {
+        displayCode =
+          item.item_id || item.sku || item.barcode || item.id || "AUTO";
+        if (
+          /^\d{12,13}$/.test(displayCode) &&
+          item.sku &&
+          !/^\d{12,13}$/.test(item.sku)
+        ) {
+          displayCode = item.sku;
+        }
+      }
+
+      // Строка 1: Название, код, кол-во, цена
+      const trTop = document.createElement("tr");
+
+      const tdMain = document.createElement("td");
+      tdMain.className = "col-main";
+      tdMain.style.cssText =
+        "padding:12px 8px 4px 8px; vertical-align: top; border-bottom: none;";
+
+      const nameDiv = document.createElement("div");
+      nameDiv.style.cssText = "font-weight:bold; font-size:13px; line-height:1.2;";
+      nameDiv.textContent = String(item.item_name || item.name || "");
+
+      const metaSub = document.createElement("div");
+      metaSub.style.cssText =
+        "display: flex; align-items: center; gap: 8px; margin-top: 6px;";
+
+      const codeSpan = document.createElement("span");
+      codeSpan.style.cssText =
+        "color:var(--accent-blue); font-weight:bold; font-size:11px;";
+      codeSpan.textContent = `${tr("col_hint_id") || "Код"}: ${displayCode}`;
+      metaSub.appendChild(codeSpan);
+
+      if (!item.barcode) {
+        const eanSpan = document.createElement("span");
+        eanSpan.style.cssText =
+          "font-size:9px; color:var(--accent-green); background: var(--bg-success-dim); padding: 2px 6px; border-radius: 4px; font-weight: bold;";
+        eanSpan.textContent = "+ EAN-13";
+        metaSub.appendChild(eanSpan);
+      }
+
+      tdMain.appendChild(nameDiv);
+      tdMain.appendChild(metaSub);
+
+      const tdMin = document.createElement("td");
+      tdMin.className = "col-min";
+      tdMin.style.cssText =
+        "padding:12px 8px 4px 8px; vertical-align: top; text-align:right; width: 70px; border-bottom: none;";
+
+      const qtyDiv = document.createElement("div");
+      qtyDiv.style.cssText =
+        "font-size:12px; color:var(--text-muted); margin-bottom: 4px;";
+      qtyDiv.textContent = Number(item.qty || 0).toLocaleString("ru-RU");
+
+      const costDiv = document.createElement("div");
+      costDiv.style.cssText =
+        "font-size:13px; font-weight:bold; color:var(--accent-yellow);";
+      costDiv.textContent = Number(item.cost || 0).toLocaleString("ru-RU");
+
+      tdMin.appendChild(qtyDiv);
+      tdMin.appendChild(costDiv);
+
+      trTop.appendChild(tdMain);
+      trTop.appendChild(tdMin);
+      frag.appendChild(trTop);
+
+      // Строка 2: Кликабельные ячейки атрибутов + кнопка "Изменить параметры"
+      const trAttrs = document.createElement("tr");
+      trAttrs.style.borderBottom = "1px solid var(--border-light)";
+
+      const tdAttrs = document.createElement("td");
+      tdAttrs.colSpan = 2;
+      tdAttrs.style.cssText = "padding: 0 8px 12px 8px; border-top: none;";
+
+      const itemIssuesSet = dictIssues.issuesByItem.get(index) || new Set();
+
+      if (parsedAttrs && typeof parsedAttrs === "object") {
+        const attrKeys = Object.keys(parsedAttrs).filter(
+          (k) =>
+            !["doc_no", "invoice_no", "document_id"].includes(
+              String(k).toLowerCase(),
+            ),
+        );
+
+        if (attrKeys.length > 0) {
+          const attrsList = document.createElement("div");
+          attrsList.className = "preview-attrs-list";
+
+          attrKeys.forEach((k) => {
+            const displayKey = window.formatAttrDisplayKey(k);
+            const fullVal = String(parsedAttrs[k] || "");
+            const shortVal =
+              fullVal.length > 36 ? fullVal.substring(0, 36) + "..." : fullVal;
+            const isWarn = itemIssuesSet.has(k);
+
+            const attrBtn = document.createElement("button");
+            attrBtn.type = "button";
+            attrBtn.className = isWarn
+              ? "preview-attr-row preview-attr-row--warn"
+              : "preview-attr-row preview-attr-row--ok";
+            if (isWarn) attrBtn.title = cellWarnHint;
+
+            const mainLine = document.createElement("div");
+            mainLine.className = "preview-attr-row-main";
+
+            const keySpan = document.createElement("span");
+            keySpan.className = "preview-attr-key";
+            keySpan.textContent = `${displayKey}:`;
+
+            const valSpan = document.createElement("span");
+            valSpan.className = "preview-attr-val";
+            valSpan.textContent = isWarn ? `⚠️ ${shortVal}` : shortVal;
+
+            mainLine.appendChild(keySpan);
+            mainLine.appendChild(valSpan);
+            attrBtn.appendChild(mainLine);
+
+            if (isWarn) {
+              const hintDiv = document.createElement("div");
+              hintDiv.className = "preview-attr-hint";
+              hintDiv.textContent = cellWarnHint;
+              attrBtn.appendChild(hintDiv);
             }
 
-            attrsHtml =
-              `<div style="display: flex; flex-direction: column; gap: 4px; margin-top: 8px;">` +
-              Object.keys(parsed)
-                // 🔥 Безопасный ?.includes
-                .filter(
-                  (k) =>
-                    !["doc_no", "invoice_no", "document_id"]?.includes(
-                      String(k).toLowerCase(),
-                    ),
-                )
-                .map((k) => {
-                  let humanName = window.mapper2State.sysToHumanMap
-                    ? window.mapper2State.sysToHumanMap[k]
-                    : null;
-                  let displayKey =
-                    humanName ||
-                    k
-                      .split("*")
-                      .pop()
-                      .replace(/tires/gi, "")
-                      .replace(/additional/gi, "")
-                      .replace(/general/gi, "")
-                      .replace(/\./g, "")
-                      .trim();
-                  if (!displayKey) displayKey = k;
+            attrBtn.addEventListener("click", () => {
+              window.openDirectCellEditor(index, k);
+            });
 
-                  let val = parsed[k];
-                  if (val.length > 30) val = val.substring(0, 30) + "...";
+            attrsList.appendChild(attrBtn);
+          });
 
-                  return `<div style="font-size: 11px; background: rgba(76, 175, 80, 0.1); border: 1px solid rgba(76, 175, 80, 0.3); padding: 6px 8px; border-radius: 4px; display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; line-height: 1.3;">
-                                            <span style="color:var(--text-muted); flex: 1;">${displayKey}:</span> 
-                                            <b style="color:var(--accent-green); text-align: right; max-width: 55%; word-break: break-word;">${val}</b>
-                                        </div>`;
-                })
-                .join("") +
-              `</div>`;
-          } catch (e) {}
+          tdAttrs.appendChild(attrsList);
         }
+      }
 
-        if (!displayCode) {
-          displayCode =
-            item.item_id || item.sku || item.barcode || item.id || "AUTO";
-          if (
-            /^\d{12,13}$/.test(displayCode) &&
-            item.sku &&
-            !/^\d{12,13}$/.test(item.sku)
-          ) {
-            displayCode = item.sku;
-          }
-        }
+      const editBtn = document.createElement("button");
+      editBtn.type = "button";
+      editBtn.style.cssText =
+        "width: 100%; background: var(--bg-card); border: 1px dashed var(--border-light); color: var(--text-muted); cursor: pointer; border-radius: 4px; font-size: 11px; margin-top: 10px; padding: 10px;";
+      editBtn.appendChild(document.createTextNode("✏ "));
+      const editSpan = document.createElement("span");
+      editSpan.setAttribute("data-i18n", "inc_edit_params");
+      editSpan.textContent = editBtnLabel;
+      editBtn.appendChild(editSpan);
+      editBtn.addEventListener("click", () => {
+        window.openEditorMain(index);
+      });
 
-        return `
-            <tr>
-                <td class="col-main" style="padding:12px 8px 4px 8px; vertical-align: top; border-bottom: none;">
-                    <div style="font-weight:bold; font-size:13px; line-height:1.2;">${item.item_name}</div>
-                    <div style="display: flex; align-items: center; gap: 8px; margin-top: 6px;">
-                        <span style="color:var(--accent-blue); font-weight:bold; font-size:11px;">Код: ${displayCode}</span>
-                        ${!item.barcode ? `<span style="font-size:9px; color:var(--accent-green); background: rgba(46, 204, 113, 0.1); padding: 2px 6px; border-radius: 4px; font-weight: bold;">+ EAN-13</span>` : ""}
-                    </div>
-                </td>
-                <td class="col-min" style="padding:12px 8px 4px 8px; vertical-align: top; text-align:right; width: 70px; border-bottom: none;">
-                    <div style="font-size:12px; color:var(--text-muted); margin-bottom: 4px;">${Number(item.qty).toLocaleString("ru-RU")}</div>
-                    <div style="font-size:13px; font-weight:bold; color:var(--accent-yellow);">${Number(item.cost).toLocaleString("ru-RU")}</div>
-                </td>
-            </tr>
-            <tr style="border-bottom:1px solid var(--border-light);">
-                <td colspan="2" style="padding: 0 8px 12px 8px; border-top: none;">
-                    ${attrsHtml}
-                    <button onclick="window.openEditorMain(${index})" style="width: 100%; background: rgba(128,128,128,0.05); border: 1px dashed var(--border-light); color: var(--text-muted); cursor: pointer; border-radius: 4px; font-size: 11px; margin-top: 10px; padding: 10px;">
-                        ✏ <span data-i18n="inc_edit_params">${t.inc_edit_params || "Изменить параметры"}</span>
-                    </button>
-                </td>
-            </tr>`;
-      })
-      .join("");
+      tdAttrs.appendChild(editBtn);
+      trAttrs.appendChild(tdAttrs);
+      frag.appendChild(trAttrs);
+    });
+
+    tbody.appendChild(frag);
+  }
 
   const isExportBranch = window.isKaspiExportMode === true;
   const step3 = document.getElementById("invoicePreviewArea");
@@ -5594,6 +6062,13 @@ window.renderEditorMainUI = function (item) {
       val = t.inc_auto_fill || "Заполняется автоматически";
     }
 
+    const isOutOfDict =
+      !entry.isSku &&
+      entry.isDict &&
+      val !== "" &&
+      typeof window.matchValueInKaspiDict === "function" &&
+      !window.matchValueInKaspiDict(val, entry.dict).matched;
+
     const fieldObj = {
       canonicalKey: entry.canonicalKey,
       cleanDisplayKey: entry.cleanDisplayKey,
@@ -5601,6 +6076,7 @@ window.renderEditorMainUI = function (item) {
       isSku: entry.isSku,
       isReq: entry.isReq,
       isDict: entry.isDict,
+      isOutOfDict: isOutOfDict,
       previewVal: val.length > 30 ? val.substring(0, 30) + "..." : val,
     };
 
@@ -5665,7 +6141,13 @@ window.renderEditorMainUI = function (item) {
       if (f.isSku) {
         rightSideHtml = `<div class="editor-badge editor-badge--locked" data-i18n="inc_auto_fill">${t.inc_auto_fill || "Заполняется автоматически"}</div>`;
       } else if (f.val) {
-        rightSideHtml = `<div class="editor-badge editor-badge--filled">✓ ${f.previewVal}</div>`;
+        const safePreview = String(f.previewVal)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;");
+        rightSideHtml = f.isOutOfDict
+          ? `<div class="editor-badge editor-badge--warn">⚠️ ${safePreview}</div>`
+          : `<div class="editor-badge editor-badge--filled">✓ ${safePreview}</div>`;
       } else {
         const badgeKey = f.isDict ? "inc_dict_badge" : "inc_input_badge";
         const actionText = f.isDict
@@ -5867,12 +6349,10 @@ window.saveAllEdits = function () {
 };
 
 // === 2. ПОЛНОЭКРАННОЕ ОКНО ПРАВКИ ОДНОГО ПОЛЯ ===
-window.openEditorField = function (canonicalKey) {
-  const lang = window.currentLang || localStorage.getItem("pos_lang") || "ru";
-  const t =
-    typeof translations !== "undefined" && translations[lang]
-      ? translations[lang]
-      : {};
+window.openEditorField = function (canonicalKey, options = {}) {
+  const tr = getSheetPreviewTranslator();
+  const directSave = Boolean(options && options.directSave);
+  window.currentFieldDirectSave = directSave;
 
   const catalog = window.buildEditorFieldCatalog();
   const normK = window.normalizeParamLabel(canonicalKey);
@@ -5885,15 +6365,7 @@ window.openEditorField = function (canonicalKey) {
   const sysKey = entry ? entry.sysKey : "";
   const displayKey = entry
     ? entry.cleanDisplayKey
-    : String(canonicalKey || "")
-        .split("*")
-        .pop()
-        .replace(/tires/gi, "")
-        .replace(/additional/gi, "")
-        .replace(/general/gi, "")
-        .replace(/\./g, "")
-        .replace(/\*/g, "")
-        .trim() || canonicalKey;
+    : window.formatAttrDisplayKey(canonicalKey);
 
   let val =
     (window.tempAttrs && window.tempAttrs[resolvedKey]) ||
@@ -5931,23 +6403,17 @@ window.openEditorField = function (canonicalKey) {
   if (maxMatch) maxChars = parseInt(maxMatch[1].replace(/\s/g, ""), 10);
 
   let dict =
-    (entry && entry.dict) || catalog.resolveDictFor(resolvedKey, sysKey);
+    (entry && entry.dict) ||
+    catalog.resolveDictFor(resolvedKey, sysKey) ||
+    (typeof window.resolveKaspiDictForAttr === "function"
+      ? window.resolveKaspiDictForAttr(resolvedKey, sysKey)
+      : null);
 
   const isDictField = Boolean(dict && dict.length > 0);
   window.currentFieldIsDict = isDictField;
   window.currentFieldSelectedVal = val;
+  window.currentFieldDict = isDictField ? dict : [];
 
-  const encodedKey = encodeURIComponent(resolvedKey);
-
-  let controlHtml = "";
-  let listHtml = "";
-
-  const clearBtnHtml = `
-      <div onclick="window.clearSingleField(${minChars}, ${maxChars})" class="kaspi-dict-clear-btn">
-          <span>✖</span> <span data-i18n="inc_clear_selection">${t.inc_clear_selection || "Очистить выбор"}</span>
-      </div>`;
-
-  // Кнопка очистки меняет только локальное состояние окна (не трогает window.tempAttrs до нажатия «ОК»)
   window.clearSingleField = function (min, max) {
     if (window.currentFieldIsDict) {
       window.currentFieldSelectedVal = "";
@@ -5983,21 +6449,14 @@ window.openEditorField = function (canonicalKey) {
     const len = input.value.trim().length;
     if (len > 0) {
       if (min > 0 && len < min) {
-        return alert(
-          (t.err_min_chars || "Слишком коротко! Минимум символов: ") + min,
-        );
+        return alert(tr("err_min_chars") + min);
       }
       if (max > 0 && len > max) {
-        return alert(
-          (t.err_max_chars || "Превышен лимит! Максимум символов: ") + max,
-        );
+        return alert(tr("err_max_chars") + max);
       }
     }
     window.saveSingleField(key);
   };
-
-  let counterHtml = "";
-  let onInputAttr = "";
 
   window.updateCharCount = function (min, max) {
     const el = document.getElementById("singleFieldInput");
@@ -6016,46 +6475,8 @@ window.openEditorField = function (canonicalKey) {
       counter.classList.add("editor-char-counter--ok");
     }
 
-    counter.innerText = len + (max > 0 ? " / " + max : "");
+    counter.textContent = len + (max > 0 ? " / " + max : "");
   };
-
-  if (isDictField) {
-    counterHtml = `<div id="editorDictCountInfo" class="kaspi-dict-count"><span id="editorDictCountText" data-i18n="dict_total">${t.dict_total || "Всего:"}</span> <span id="editorDictTotalCount">${dict.length}</span></div>`;
-  } else if (minChars > 0 || maxChars > 0) {
-    counterHtml = '<div id="charCounterSpan" class="editor-char-counter">0</div>';
-    onInputAttr = `oninput="window.updateCharCount(${minChars}, ${maxChars})"`;
-  }
-
-  // Строго без чекбокса и без массовой подсказки: правка меняет параметр только текущего одного товара
-  if (isDictField) {
-    window.currentFieldDict = dict;
-    controlHtml = `
-        <div class="editor-field-controls">
-            <input type="text" id="singleFieldSearchInput" class="kaspi-input-field" value="${val.replace(/"/g, "&quot;")}"
-                data-i18n-placeholder="inc_search_enter"
-                placeholder="${t.inc_search_enter || "Поиск..."}"
-                oninput="window.filterDictList(this)">
-            ${clearBtnHtml}
-        </div>`;
-
-    listHtml = `
-        <div class="editor-field-list-wrap">
-            <ul id="dictList" class="editor-field-list"></ul>
-        </div>`;
-  } else {
-    controlHtml = `
-        <div class="editor-field-controls">
-            ${clearBtnHtml}
-        </div>`;
-
-    listHtml = `
-        <div class="editor-field-textarea-wrap">
-            <textarea id="singleFieldInput" class="kaspi-input-field editor-field-textarea"
-                data-i18n-placeholder="inc_enter_text"
-                placeholder="${t.inc_enter_text || "Введите текст..."}"
-                ${onInputAttr}>${val}</textarea>
-        </div>`;
-  }
 
   const oldFieldModal = document.getElementById("editorFieldModal");
   if (oldFieldModal) oldFieldModal.remove();
@@ -6064,25 +6485,126 @@ window.openEditorField = function (canonicalKey) {
   fieldModal.id = "editorFieldModal";
   fieldModal.className = "kaspi-modal-overlay";
 
-  fieldModal.innerHTML = `
-        <div class="kaspi-modal-header">
-            <span onclick="document.getElementById('editorFieldModal').remove()" class="kaspi-dict-back">
-                <span>&#10094;</span>
-            </span>
-            <div class="editor-field-header-title">
-                <b class="editor-field-title-text">${displayKey}</b>
-                ${counterHtml}
-            </div>
-            <span onclick="window.validateAndSaveField(decodeURIComponent('${encodedKey}'), ${minChars}, ${maxChars})" class="editor-action-save" data-i18n="inc_save">${t.inc_save || "ОК"}</span>
-        </div>
-        ${controlHtml}
-        ${listHtml}
-    `;
-  document.getElementById("modalContainer").appendChild(fieldModal);
+  // Header (DOM API / textContent — XSS-safe)
+  const headerDiv = document.createElement("div");
+  headerDiv.className = "kaspi-modal-header";
+
+  const backSpan = document.createElement("span");
+  backSpan.className = "kaspi-dict-back";
+  const backArrow = document.createElement("span");
+  backArrow.textContent = "❮";
+  backSpan.appendChild(backArrow);
+  backSpan.addEventListener("click", () => {
+    fieldModal.remove();
+    if (directSave) {
+      const mc = document.getElementById("modalContainer");
+      if (mc) mc.textContent = "";
+    }
+  });
+
+  const titleWrap = document.createElement("div");
+  titleWrap.className = "editor-field-header-title";
+
+  const titleB = document.createElement("b");
+  titleB.className = "editor-field-title-text";
+  titleB.textContent = displayKey;
+  titleWrap.appendChild(titleB);
 
   if (isDictField) {
-    // Автовыделение текста при фокусе/клике, если в поле подставлено текущее выбранное значение
-    const searchInput = document.getElementById("singleFieldSearchInput");
+    const countDiv = document.createElement("div");
+    countDiv.id = "editorDictCountInfo";
+    countDiv.className = "kaspi-dict-count";
+    const countLbl = document.createElement("span");
+    countLbl.id = "editorDictCountText";
+    countLbl.setAttribute("data-i18n", "dict_total");
+    countLbl.textContent = tr("dict_total");
+    const countNum = document.createElement("span");
+    countNum.id = "editorDictTotalCount";
+    countNum.textContent = String(dict.length);
+    countDiv.appendChild(countLbl);
+    countDiv.appendChild(document.createTextNode(" "));
+    countDiv.appendChild(countNum);
+    titleWrap.appendChild(countDiv);
+  } else if (minChars > 0 || maxChars > 0) {
+    const charCounter = document.createElement("div");
+    charCounter.id = "charCounterSpan";
+    charCounter.className = "editor-char-counter";
+    charCounter.textContent = "0";
+    titleWrap.appendChild(charCounter);
+  }
+
+  const saveSpan = document.createElement("span");
+  saveSpan.className = "editor-action-save";
+  saveSpan.setAttribute("data-i18n", "inc_save");
+  saveSpan.textContent = tr("inc_save");
+  saveSpan.addEventListener("click", () => {
+    window.validateAndSaveField(resolvedKey, minChars, maxChars);
+  });
+
+  headerDiv.appendChild(backSpan);
+  headerDiv.appendChild(titleWrap);
+  headerDiv.appendChild(saveSpan);
+  fieldModal.appendChild(headerDiv);
+
+  // Controls
+  const controlsDiv = document.createElement("div");
+  controlsDiv.className = "editor-field-controls";
+
+  let searchInput = null;
+  if (isDictField) {
+    searchInput = document.createElement("input");
+    searchInput.type = "text";
+    searchInput.id = "singleFieldSearchInput";
+    searchInput.className = "kaspi-input-field";
+    searchInput.value = val;
+    searchInput.setAttribute("data-i18n-placeholder", "inc_search_enter");
+    searchInput.placeholder = tr("inc_search_enter");
+    searchInput.addEventListener("input", () => {
+      window.filterDictList(searchInput);
+    });
+    controlsDiv.appendChild(searchInput);
+  }
+
+  const clearBtn = document.createElement("div");
+  clearBtn.className = "kaspi-dict-clear-btn";
+  const clearX = document.createElement("span");
+  clearX.textContent = "✖";
+  const clearLbl = document.createElement("span");
+  clearLbl.setAttribute("data-i18n", "inc_clear_selection");
+  clearLbl.textContent = tr("inc_clear_selection");
+  clearBtn.appendChild(clearX);
+  clearBtn.appendChild(document.createTextNode(" "));
+  clearBtn.appendChild(clearLbl);
+  clearBtn.addEventListener("click", () => {
+    window.clearSingleField(minChars, maxChars);
+  });
+  controlsDiv.appendChild(clearBtn);
+  fieldModal.appendChild(controlsDiv);
+
+  if (isDictField) {
+    // Зона произвольного значения (позволяет ввести любой текст, даже если его нет в values)
+    const customWrap = document.createElement("div");
+    customWrap.id = "editorCustomValWrap";
+    customWrap.className = "editor-custom-val-wrap";
+    customWrap.style.display = "none";
+    fieldModal.appendChild(customWrap);
+
+    const listWrap = document.createElement("div");
+    listWrap.className = "editor-field-list-wrap";
+    const ul = document.createElement("ul");
+    ul.id = "dictList";
+    ul.className = "editor-field-list";
+    listWrap.appendChild(ul);
+    fieldModal.appendChild(listWrap);
+
+    let mc = document.getElementById("modalContainer");
+    if (!mc) {
+      mc = document.createElement("div");
+      mc.id = "modalContainer";
+      document.body.appendChild(mc);
+    }
+    mc.appendChild(fieldModal);
+
     if (searchInput) {
       const selectIfMatchesCurrent = () => {
         const curSel = String(window.currentFieldSelectedVal || "").trim();
@@ -6098,30 +6620,26 @@ window.openEditorField = function (canonicalKey) {
       });
     }
 
-    const ul = document.getElementById("dictList");
-    if (ul) {
-      ul.addEventListener("click", (e) => {
-        const li = e.target.closest("li[data-dict-idx]");
-        if (!li) return;
-        const idx = parseInt(li.getAttribute("data-dict-idx"), 10);
-        const dictArr = window.currentFieldDict || [];
-        if (!isNaN(idx) && idx >= 0 && idx < dictArr.length) {
-          window.selectPreviewDictValue(String(dictArr[idx]));
-        }
-      });
+    ul.addEventListener("click", (e) => {
+      const li = e.target.closest("li[data-dict-idx]");
+      if (!li) return;
+      const idx = parseInt(li.getAttribute("data-dict-idx"), 10);
+      const dictArr = window.currentFieldDict || [];
+      if (!isNaN(idx) && idx >= 0 && idx < dictArr.length) {
+        window.selectPreviewDictValue(String(dictArr[idx]));
+      }
+    });
 
-      ul.addEventListener(
-        "touchstart",
-        () => {
-          const sEl = document.getElementById("singleFieldSearchInput");
-          if (sEl) sEl.blur();
-        },
-        { passive: true },
-      );
-    }
+    ul.addEventListener(
+      "touchstart",
+      () => {
+        if (searchInput) searchInput.blur();
+      },
+      { passive: true },
+    );
 
-    // При открытии показываем весь список без фильтрации и прокручиваем выбранный пункт в видимую область
     window.renderEditorDictList("");
+    window.updateEditorCustomValueBox(val);
 
     setTimeout(() => {
       const activeLi = document.querySelector("#dictList .kaspi-dict-item.is-selected");
@@ -6129,14 +6647,90 @@ window.openEditorField = function (canonicalKey) {
         activeLi.scrollIntoView({ block: "nearest" });
       }
     }, 20);
-  } else if (minChars > 0 || maxChars > 0) {
-    setTimeout(() => {
-      if (window.updateCharCount) window.updateCharCount(minChars, maxChars);
-    }, 10);
+  } else {
+    const taWrap = document.createElement("div");
+    taWrap.className = "editor-field-textarea-wrap";
+    const ta = document.createElement("textarea");
+    ta.id = "singleFieldInput";
+    ta.className = "kaspi-input-field editor-field-textarea";
+    ta.setAttribute("data-i18n-placeholder", "inc_enter_text");
+    ta.placeholder = tr("inc_enter_text");
+    ta.value = val;
+    if (minChars > 0 || maxChars > 0) {
+      ta.addEventListener("input", () => {
+        window.updateCharCount(minChars, maxChars);
+      });
+    }
+    taWrap.appendChild(ta);
+    fieldModal.appendChild(taWrap);
+
+    let mc = document.getElementById("modalContainer");
+    if (!mc) {
+      mc = document.createElement("div");
+      mc.id = "modalContainer";
+      document.body.appendChild(mc);
+    }
+    mc.appendChild(fieldModal);
+
+    if (minChars > 0 || maxChars > 0) {
+      setTimeout(() => {
+        if (window.updateCharCount) window.updateCharCount(minChars, maxChars);
+      }, 10);
+    }
   }
 };
 
-// === ЕДИНЫЙ РЕНДЕР И УМНЫЙ ПОИСК СПРАВОЧНИКА В «ТОВАР И ПАРАМЕТРЫ» ===
+window.updateEditorCustomValueBox = function (typedStr) {
+  const wrap = document.getElementById("editorCustomValWrap");
+  if (!wrap) return;
+
+  const tr = getSheetPreviewTranslator();
+  const cleanTyped = String(typedStr || "").trim();
+  const dict = window.currentFieldDict || [];
+
+  wrap.textContent = "";
+  if (!cleanTyped) {
+    wrap.style.display = "none";
+    return;
+  }
+
+  const matchCheck =
+    typeof window.matchValueInKaspiDict === "function"
+      ? window.matchValueInKaspiDict(cleanTyped, dict)
+      : { matched: dict.some((d) => String(d).trim().toLowerCase() === cleanTyped.toLowerCase()) };
+
+  if (matchCheck.matched) {
+    wrap.style.display = "none";
+    return;
+  }
+
+  wrap.style.display = "flex";
+  const isAlreadySelected =
+    String(window.currentFieldSelectedVal || "").trim() === cleanTyped;
+
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = isAlreadySelected
+    ? "editor-custom-val-btn is-selected"
+    : "editor-custom-val-btn";
+  btn.textContent = `✍️ ${tr("dict_use_custom_value", { val: cleanTyped })}`;
+  btn.addEventListener("click", () => {
+    window.currentFieldSelectedVal = cleanTyped;
+    const searchInput = document.getElementById("singleFieldSearchInput");
+    if (searchInput) searchInput.value = cleanTyped;
+    window.updateEditorCustomValueBox(cleanTyped);
+    window.renderEditorDictList("");
+  });
+
+  const warnNote = document.createElement("div");
+  warnNote.className = "editor-custom-val-warn";
+  warnNote.textContent = tr("dict_custom_value_warn");
+
+  wrap.appendChild(btn);
+  wrap.appendChild(warnNote);
+};
+
+// === ЕДИНЫЙ РЕНДЕР И УМНЫЙ ПОИСК СПРАВОЧНИКА В «ТОВАР И ПАРАМЕТРЫ» (XSS-safe) ===
 window.renderEditorDictList = function (queryStr) {
   const ul = document.getElementById("dictList");
   if (!ul) return;
@@ -6144,11 +6738,7 @@ window.renderEditorDictList = function (queryStr) {
   const filter = String(queryStr || "").toLowerCase().trim();
   const dict = window.currentFieldDict || [];
   const selectedVal = String(window.currentFieldSelectedVal || "").trim();
-  const lang = window.currentLang || localStorage.getItem("pos_lang") || "ru";
-  const tr =
-    typeof translations !== "undefined" && translations[lang]
-      ? translations[lang]
-      : {};
+  const tr = getSheetPreviewTranslator();
 
   const updateEditorDictCounter = (count) => {
     const countText = document.getElementById("editorDictCountText");
@@ -6156,28 +6746,60 @@ window.renderEditorDictList = function (queryStr) {
     if (countText && totalCount) {
       const countKey = filter === "" ? "dict_total" : "dict_found";
       countText.setAttribute("data-i18n", countKey);
-      countText.innerText =
-        filter === "" ? tr.dict_total || "Всего:" : tr.dict_found || "Найдено:";
-      totalCount.innerText = count;
+      countText.textContent = filter === "" ? tr("dict_total") : tr("dict_found");
+      totalCount.textContent = String(count);
     }
   };
 
-  const buildItemHtml = (idx, labelHtml, rawStr) => {
+  const buildItemNode = (idx, rawStr, matchQuery) => {
     const isSelected = selectedVal !== "" && rawStr === selectedVal;
-    const checkHtml = isSelected ? '<span class="kaspi-dict-check">✔</span>' : "";
-    return `<li data-dict-idx="${idx}" class="kaspi-dict-item${isSelected ? " is-selected" : ""}">
-        <span>${labelHtml}</span>${checkHtml}
-    </li>`;
+    const li = document.createElement("li");
+    li.setAttribute("data-dict-idx", String(idx));
+    li.className = isSelected ? "kaspi-dict-item is-selected" : "kaspi-dict-item";
+
+    const labelSpan = document.createElement("span");
+    if (matchQuery) {
+      const lowerRaw = rawStr.toLowerCase();
+      let pos = 0;
+      let hit = lowerRaw.indexOf(matchQuery, pos);
+      while (hit !== -1) {
+        if (hit > pos) {
+          labelSpan.appendChild(document.createTextNode(rawStr.slice(pos, hit)));
+        }
+        const b = document.createElement("b");
+        b.className = "editor-dict-match";
+        b.textContent = rawStr.slice(hit, hit + matchQuery.length);
+        labelSpan.appendChild(b);
+        pos = hit + matchQuery.length;
+        hit = lowerRaw.indexOf(matchQuery, pos);
+      }
+      if (pos < rawStr.length) {
+        labelSpan.appendChild(document.createTextNode(rawStr.slice(pos)));
+      }
+    } else {
+      labelSpan.textContent = rawStr;
+    }
+
+    li.appendChild(labelSpan);
+
+    if (isSelected) {
+      const chk = document.createElement("span");
+      chk.className = "kaspi-dict-check";
+      chk.textContent = "✔";
+      li.appendChild(chk);
+    }
+    return li;
   };
+
+  ul.textContent = "";
+  const frag = document.createDocumentFragment();
 
   if (!filter) {
     updateEditorDictCounter(dict.length);
-    ul.innerHTML = dict
-      .map((d, idx) => {
-        const strD = String(d);
-        return buildItemHtml(idx, strD, strD);
-      })
-      .join("");
+    dict.forEach((d, idx) => {
+      frag.appendChild(buildItemNode(idx, String(d), ""));
+    });
+    ul.appendChild(frag);
     return;
   }
 
@@ -6185,24 +6807,17 @@ window.renderEditorDictList = function (queryStr) {
   let wordStart = [];
   let includes = [];
   const safeFilter = filter.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const highlightRegex = new RegExp(`(${safeFilter})`, "gi");
   const wordStartRegex = new RegExp(`(^|[\\s\\/\\-\\_])` + safeFilter);
 
   dict.forEach((d, idx) => {
     const strD = String(d);
     const lowerD = strD.toLowerCase();
-    const highlightedD = strD.replace(
-      highlightRegex,
-      '<b class="editor-dict-match">$1</b>',
-    );
-    const liHtml = buildItemHtml(idx, highlightedD, strD);
-
     if (lowerD.startsWith(filter)) {
-      startsWith.push(liHtml);
+      startsWith.push({ idx, strD });
     } else if (wordStartRegex.test(lowerD)) {
-      wordStart.push(liHtml);
+      wordStart.push({ idx, strD });
     } else if (lowerD.includes(filter)) {
-      includes.push(liHtml);
+      includes.push({ idx, strD });
     }
   });
 
@@ -6210,15 +6825,24 @@ window.renderEditorDictList = function (queryStr) {
   updateEditorDictCounter(combined.length);
 
   if (combined.length === 0) {
-    ul.innerHTML = `<div class="kaspi-dict-empty" data-i18n="dict_not_found">${tr.dict_not_found || "В справочнике не найдено."}</div>`;
+    const emptyDiv = document.createElement("div");
+    emptyDiv.className = "kaspi-dict-empty";
+    emptyDiv.setAttribute("data-i18n", "dict_not_found");
+    emptyDiv.textContent = tr("dict_not_found");
+    ul.appendChild(emptyDiv);
     return;
   }
 
-  ul.innerHTML = combined.join("");
+  combined.forEach((item) => {
+    frag.appendChild(buildItemNode(item.idx, item.strD, filter));
+  });
+  ul.appendChild(frag);
 };
 
 window.filterDictList = function (input) {
-  window.renderEditorDictList(input ? input.value : "");
+  const val = input ? input.value : "";
+  window.renderEditorDictList(val);
+  window.updateEditorCustomValueBox(val);
 };
 
 window.selectPreviewDictValue = function (val) {
@@ -6228,6 +6852,7 @@ window.selectPreviewDictValue = function (val) {
   if (searchInput) {
     searchInput.value = cleanVal;
   }
+  window.updateEditorCustomValueBox(cleanVal);
   // Не фильтруем список при выборе пункта — весь список остаётся доступен для смены выбора
   window.renderEditorDictList("");
 };
@@ -6235,7 +6860,23 @@ window.selectPreviewDictValue = function (val) {
 window.saveSingleField = function (canonicalKey) {
   let newVal = "";
   if (window.currentFieldIsDict) {
-    newVal = String(window.currentFieldSelectedVal || "").trim();
+    const searchInput = document.getElementById("singleFieldSearchInput");
+    const typedVal = searchInput ? searchInput.value.trim() : "";
+    const selectedVal = String(window.currentFieldSelectedVal || "").trim();
+    const rawCandidate = typedVal !== "" ? typedVal : selectedVal;
+
+    if (rawCandidate !== "") {
+      const dict = window.currentFieldDict || [];
+      const matchRes =
+        typeof window.matchValueInKaspiDict === "function"
+          ? window.matchValueInKaspiDict(rawCandidate, dict)
+          : { matched: false, value: rawCandidate };
+      // Если введённое значение канонично совпадает со справочником — берём каноничную строку из values,
+      // иначе сохраняем ровно введённый пользователем произвольный текст
+      newVal = matchRes.matched ? matchRes.value : rawCandidate;
+    } else {
+      newVal = "";
+    }
   } else {
     const input = document.getElementById("singleFieldInput");
     newVal = input ? input.value.trim() : "";
@@ -6269,9 +6910,17 @@ window.saveSingleField = function (canonicalKey) {
     if (sysKey) window.tempClearedKeys.add(sysKey);
   }
 
+  const isDirectSave = Boolean(window.currentFieldDirectSave);
+  window.currentFieldDirectSave = false;
+
   const fieldModal = document.getElementById("editorFieldModal");
   if (fieldModal) fieldModal.remove();
-  window.renderEditorMainUI(window.parsedInvoiceData[window.currentEditIndex]);
+
+  if (isDirectSave) {
+    window.saveAllEdits();
+  } else {
+    window.renderEditorMainUI(window.parsedInvoiceData[window.currentEditIndex]);
+  }
 };
 
 window.openAttributeEditor = function (index) {
@@ -6701,58 +7350,37 @@ window.autoCleanInvoiceAttributes = function () {
     if (!item.attributes) return;
 
     try {
-      let attrs = JSON.parse(item.attributes);
+      let attrs =
+        typeof item.attributes === "string"
+          ? JSON.parse(item.attributes)
+          : Object.assign({}, item.attributes);
       let changed = false;
 
       for (let key in attrs) {
         let rawValue = attrs[key];
         if (!rawValue) continue;
 
-        // Находим правильное русское имя словаря через нашу карту
-        let humanName = window.mapper2State.sysToHumanMap
-          ? window.mapper2State.sysToHumanMap[key]
-          : null;
-        let targetDictKey = humanName
-          ? humanName.toLowerCase().trim()
-          : key.toLowerCase().trim();
+        let displayKey =
+          typeof window.formatAttrDisplayKey === "function"
+            ? window.formatAttrDisplayKey(key)
+            : key;
+        let dict =
+          typeof window.resolveKaspiDictForAttr === "function"
+            ? window.resolveKaspiDictForAttr(displayKey, key)
+            : null;
 
-        let foundKey = Object.keys(window.kaspiDicts).find(
-          (dk) => dk.toLowerCase().trim() === targetDictKey,
-        );
-        let dict = foundKey ? window.kaspiDicts[foundKey] : null;
-
-        if (dict && Array.isArray(dict)) {
-          let cleanRaw = String(rawValue).trim().toLowerCase();
-
-          // 1. Сначала ищем точное совпадение (вдруг уже написано правильно)
-          let match = dict.find(
-            (d) => String(d).trim().toLowerCase() === cleanRaw,
-          );
-
-          // 2. Если нет точного, ищем по началу строки (например, "67" для "67 (307 кг)")
-          // Ищем так, чтобы после значения шел пробел или скобка, чтобы "6" не сматчилось с "67"
-          if (!match) {
-            match = dict.find((d) => {
-              let cleanD = String(d).trim().toLowerCase();
-              return (
-                cleanD.startsWith(cleanRaw + " ") ||
-                cleanD.startsWith(cleanRaw + "(") ||
-                cleanD.startsWith(cleanRaw + " (")
-              );
-            });
-          }
-
-          // Если нашли полное значение и оно отличается от огрызка — заменяем
-          if (match && match !== rawValue) {
-            attrs[key] = match;
+        if (dict && Array.isArray(dict) && typeof window.matchValueInKaspiDict === "function") {
+          const res = window.matchValueInKaspiDict(rawValue, dict);
+          if (res.matched && res.value && res.value !== rawValue) {
+            attrs[key] = res.value;
             changed = true;
           }
         }
       }
 
-      // Если что-то поменяли, запаковываем обратно
       if (changed) {
         item.attributes = JSON.stringify(attrs);
+        item._attributesObj = attrs;
       }
     } catch (e) {
       console.error("Ошибка авто-очистки атрибутов:", e);

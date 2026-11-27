@@ -602,6 +602,22 @@ const translations = {
     header_picker_selected: "Выбрана строка №{row}",
     header_picker_apply: "Применить строку",
     col_prefix: "Колонка",
+    dict_warn_cell_hint: "Нет в справочнике шаблона — нажмите для замены",
+    dict_warn_banner_title: "Значений вне справочника: {count}",
+    dict_warn_banner_desc:
+      "Маркетплейс может не принять строки с такими значениями. Нажмите на выделенную ячейку, чтобы поправить.",
+    dict_warn_filter_problem: "Проблемные ({count})",
+    dict_warn_filter_all: "Показать все ({count})",
+    dict_use_custom_value: "Использовать своё значение: «{val}»",
+    dict_custom_value_warn:
+      "Значения нет в справочнике шаблона — маркетплейс может отклонить строку",
+    export_warn_title: "Есть значения вне справочника",
+    export_warn_desc:
+      "В таблице остались значения, которых нет в справочнике шаблона Kaspi. Маркетплейс может отклонить эти строки при загрузке:",
+    export_warn_item_fmt: "{col}: {val} ({count} стр.)",
+    export_warn_more: "...и ещё {count}",
+    export_warn_btn_fix: "Вернуться и поправить",
+    export_warn_btn_force: "Выгрузить всё равно",
   },
   kz: {
     btn_sale: "САТУ",
@@ -1206,5 +1222,21 @@ const translations = {
     header_picker_selected: "№{row} жол таңдалды",
     header_picker_apply: "Осы жолды қолдану",
     col_prefix: "Баған",
+    dict_warn_cell_hint: "Шаблон анықтамалығында жоқ — ауыстыру үшін басыңыз",
+    dict_warn_banner_title: "Анықтамалықтан тыс мәндер: {count}",
+    dict_warn_banner_desc:
+      "Маркетплейс мұндай мәндері бар жолдарды қабылдамауы мүмкін. Түзету үшін белгіленген ұяшықты басыңыз.",
+    dict_warn_filter_problem: "Мәселелі ({count})",
+    dict_warn_filter_all: "Барлығын көрсету ({count})",
+    dict_use_custom_value: "Өз мәнін қолдану: «{val}»",
+    dict_custom_value_warn:
+      "Бұл мән шаблон анықтамалығында жоқ — маркетплейс жолды қабылдамауы мүмкін",
+    export_warn_title: "Анықтамалықтан тыс мәндер бар",
+    export_warn_desc:
+      "Кестеде Kaspi шаблонының анықтамалығында жоқ мәндер қалды. Жүктеу кезінде маркетплейс бұл жолдарды қабылдамауы мүмкін:",
+    export_warn_item_fmt: "{col}: {val} ({count} жол)",
+    export_warn_more: "...және тағы {count}",
+    export_warn_btn_fix: "Қайтып түзету",
+    export_warn_btn_force: "Бәрібір жүктеп шығару",
   },
 };

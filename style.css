@@ -2521,3 +2521,292 @@ button,
     border-bottom: 2px solid var(--stock-border);
     font-weight: 700;
 }
+
+/* =========================================
+   ВАЛИДАЦИЯ СПРАВОЧНИКА KASPI: ПЛАШКА, ЯЧЕЙКИ, ПРОИЗВОЛЬНЫЙ ВВОД И МОДАЛКА ЭКСПОРТА
+   ========================================= */
+
+.kaspi-dict-warn-banner {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 10px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: var(--bg-danger-dim);
+    border: 1px solid var(--accent-yellow);
+    color: var(--text-main);
+    flex-shrink: 0;
+    box-sizing: border-box;
+}
+
+.kaspi-dict-warn-banner-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.kaspi-dict-warn-banner-title {
+    font-size: 12.5px;
+    font-weight: 700;
+    color: var(--accent-yellow);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.kaspi-dict-warn-banner-desc {
+    font-size: 11.5px;
+    line-height: 1.35;
+    color: var(--text-main);
+    font-weight: 400;
+}
+
+.kaspi-dict-warn-filter-btn {
+    padding: 5px 10px;
+    border-radius: 6px;
+    background: var(--bg-panel);
+    border: 1px solid var(--accent-yellow);
+    color: var(--accent-yellow);
+    font-size: 11.5px;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.kaspi-dict-warn-filter-btn.is-active {
+    background: var(--accent-yellow);
+    color: var(--text-dark);
+}
+
+.preview-attrs-list {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    margin-top: 8px;
+}
+
+.preview-attr-row {
+    width: 100%;
+    text-align: left;
+    font-size: 11.5px;
+    padding: 7px 9px;
+    border-radius: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    cursor: pointer;
+    box-sizing: border-box;
+    transition: opacity 0.15s ease, background-color 0.15s ease;
+}
+
+.preview-attr-row:active {
+    opacity: 0.85;
+}
+
+.preview-attr-row--ok {
+    background: var(--bg-success-dim);
+    border: 1px solid var(--accent-green);
+    color: var(--text-main);
+}
+
+.preview-attr-row--warn {
+    background: var(--bg-danger-dim);
+    border: 1px solid var(--accent-yellow);
+    color: var(--text-main);
+}
+
+.preview-attr-row-main {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 10px;
+    line-height: 1.3;
+    width: 100%;
+}
+
+.preview-attr-key {
+    color: var(--text-muted);
+    flex: 1;
+    font-weight: 400;
+}
+
+.preview-attr-val {
+    font-weight: 700;
+    text-align: right;
+    max-width: 58%;
+    word-break: break-word;
+}
+
+.preview-attr-row--ok .preview-attr-val {
+    color: var(--accent-green);
+}
+
+.preview-attr-row--warn .preview-attr-val {
+    color: var(--accent-yellow);
+}
+
+.preview-attr-hint {
+    font-size: 10.5px;
+    color: var(--accent-red);
+    font-weight: 400;
+    line-height: 1.25;
+}
+
+.editor-badge--warn {
+    background: var(--bg-danger-dim);
+    color: var(--accent-yellow);
+    border: 1px solid var(--accent-yellow);
+}
+
+.editor-custom-val-wrap {
+    padding: 0 12px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.editor-custom-val-btn {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: var(--bg-card);
+    border: 1px dashed var(--accent-yellow);
+    color: var(--accent-yellow);
+    font-size: 13px;
+    font-weight: 700;
+    text-align: left;
+    cursor: pointer;
+    word-break: break-word;
+    box-sizing: border-box;
+}
+
+.editor-custom-val-btn.is-selected {
+    background: var(--bg-danger-dim);
+    border-style: solid;
+}
+
+.editor-custom-val-warn {
+    font-size: 11px;
+    color: var(--text-muted);
+    line-height: 1.3;
+    font-weight: 400;
+}
+
+.kaspi-export-warn-overlay {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    height: 100dvh;
+    background: var(--bg-overlay);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    z-index: 1000020;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px;
+    box-sizing: border-box;
+}
+
+.kaspi-export-warn-modal {
+    width: 94vw;
+    max-width: 460px;
+    max-height: 86vh;
+    max-height: 86dvh;
+    background: var(--bg-modal);
+    border: 1px solid var(--accent-yellow);
+    border-radius: 12px;
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    color: var(--text-main);
+    box-shadow: 0 12px 34px rgba(0, 0, 0, 0.5);
+    box-sizing: border-box;
+}
+
+.kaspi-export-warn-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--accent-yellow);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.kaspi-export-warn-desc {
+    font-size: 12.5px;
+    line-height: 1.4;
+    color: var(--text-muted);
+    font-weight: 400;
+}
+
+.kaspi-export-warn-list {
+    list-style: none;
+    margin: 0;
+    padding: 10px 12px;
+    background: var(--bg-body);
+    border: 1px solid var(--border-light);
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    overflow-y: auto;
+    max-height: 40vh;
+}
+
+.kaspi-export-warn-item {
+    font-size: 12px;
+    color: var(--text-main);
+    line-height: 1.35;
+    padding-bottom: 5px;
+    border-bottom: 1px solid var(--border-main);
+    word-break: break-word;
+    font-weight: 400;
+}
+
+.kaspi-export-warn-item:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.kaspi-export-warn-more {
+    font-size: 11.5px;
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+.kaspi-export-warn-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 2px;
+}
+
+.kaspi-export-warn-btn {
+    width: 100%;
+    padding: 12px 14px;
+    border-radius: 8px;
+    font-size: 13.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    cursor: pointer;
+    box-sizing: border-box;
+}
+
+.kaspi-export-warn-btn--fix {
+    background: var(--accent-yellow);
+    color: var(--text-dark);
+    border: 1px solid var(--accent-yellow);
+}
+
+.kaspi-export-warn-btn--force {
+    background: var(--bg-hover);
+    color: var(--text-main);
+    border: 1px solid var(--border-light);
+}

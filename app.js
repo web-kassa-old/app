@@ -7763,6 +7763,15 @@ document.addEventListener("pointercancel", endSyncPress);
 
 // Генерация итогового прайс-листа для Kaspi
 window.generateExportFile = async function (target = "local") {
+  const previewItemsForWarn = window.parsedInvoiceData || window.kaspiExportItems || [];
+  if (
+    previewItemsForWarn.length > 0 &&
+    typeof window.confirmExportWithOutOfDictWarning === "function"
+  ) {
+    const allowExport = await window.confirmExportWithOutOfDictWarning(previewItemsForWarn);
+    if (!allowExport) return;
+  }
+
   const btn = document.getElementById("generateExportBtn");
   const originalText = btn ? btn.innerText : "Выгрузить";
 

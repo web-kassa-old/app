@@ -356,13 +356,15 @@ window.renderSmartMapperModal = function (complexColumns) {
                                 ? parseAndMatchTokens(strVal, colName) 
                                 : [];
                             
-                            if (tokens.length > 1) {
-                                // 🔥 ВОЗВРАЩАЕМ ТРЮК: Игнорируем буквы при создании слепка структуры!
-                                // Теперь LT205/70R15W и 175/70R13 получат один и тот же слепок N-S-N-N
-                                const sigTokens = tokens.filter(t => !/^[a-zA-Zа-яА-ЯёЁ]+$/.test(t.cleanText));
-                                const sig = sigTokens.map(t => /\d/.test(t.cleanText) ? 'N' : 'S').join('-');
+                            if (tokens.length > 0) {
+                                const sig = typeof window.computeSmartTokenSignature === "function"
+                                    ? window.computeSmartTokenSignature(tokens)
+                                    : tokens
+                                        .filter(t => !/^[a-zA-Zа-яА-ЯёЁ]+$/.test(t.cleanText) && t.cleanText.trim() !== "")
+                                        .map(t => /\d/.test(t.cleanText) ? 'N' : 'S')
+                                        .join('-');
 
-                                if (!signatureMap[sig]) {
+                                if (sig && !signatureMap[sig]) {
                                     signatureMap[sig] = strVal;
                                 }
                             }
@@ -707,90 +709,581 @@ window.selectTokenizerDictValue = function (val, liElement) {
   if (btnFallback) btnFallback.click();
 };
 
+// === УНИВЕРСАЛЬНАЯ НОРМАЛИЗАЦИЯ, КАНОНИЧНОЕ СОПОСТАВЛЕНИЕ С VALUES И МАСОЧНАЯ СКЛЕЙКА ===
+
+window.normalizeKaspiNumericTokens = function (rawValue) {
+    const str = String(rawValue === undefined || rawValue === null ? "" : rawValue)
+        .replace(/[\r\n]+/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+    if (!str) return "";
+
+    return str.replace(/(\d+)([.,])(\d+)/g, function (_m, intPart, sep, fracPart) {
+        const trimmed = fracPart.replace(/0+$/, "");
+        if (!trimmed) return intPart;
+        return intPart + "." + trimmed;
+    });
+};
+
+window.canonicalizeForDictCompare = function (rawValue) {
+    let s = String(rawValue === undefined || rawValue === null ? "" : rawValue)
+        .replace(/[\r\n]+/g, " ")
+        .replace(/\s+/g, " ")
+        .trim()
+        .toLowerCase();
+    if (!s) return "";
+
+    // Унификация знаков умножения: ×, * и кириллическая «х» рядом с цифрами -> латинская x
+    s = s.replace(/[×*]/g, "x");
+    s = s.replace(/(\d)\s*[хx]\s*(\d)/gi, "$1x$2");
+    s = s.replace(/(\d)\s*\/\s*(\d)/g, "$1/$2");
+
+    // Унификация десятичного разделителя и удаление хвостовых нулей
+    s = s.replace(/(\d+),(\d+)/g, "$1.$2");
+    s = s.replace(/(\d+)\.(\d+)/g, function (_m, intPart, fracPart) {
+        const trimmed = fracPart.replace(/0+$/, "");
+        return trimmed ? intPart + "." + trimmed : intPart;
+    });
+
+    return s.trim();
+};
+
+window.resolveKaspiDictForAttr = function (attrKey, sysKey) {
+    const dicts =
+        window.kaspiDicts ||
+        (window.currentTemplateData && window.currentTemplateData.dictionary) ||
+        (window.mapper2State && window.mapper2State.dictionary) ||
+        {};
+    const sysToHuman =
+        (window.mapper2State && window.mapper2State.sysToHumanMap) || {};
+
+    const candidates = new Set();
+    const addCandidate = (k) => {
+        const raw = String(k || "").trim();
+        if (!raw) return;
+        candidates.add(raw.toLowerCase());
+        const noStar = raw.replace(/\*/g, "").replace(/\s+/g, " ").trim().toLowerCase();
+        if (noStar) candidates.add(noStar);
+    };
+
+    addCandidate(attrKey);
+    addCandidate(sysKey);
+    if (attrKey && sysToHuman[attrKey]) addCandidate(sysToHuman[attrKey]);
+    if (sysKey && sysToHuman[sysKey]) addCandidate(sysToHuman[sysKey]);
+
+    if (window.currentTemplateData && Array.isArray(window.currentTemplateData.systemKeys) && Array.isArray(window.currentTemplateData.humanNames)) {
+        const sKeys = window.currentTemplateData.systemKeys;
+        const hNames = window.currentTemplateData.humanNames;
+        for (let i = 0; i < sKeys.length; i++) {
+            const sk = String(sKeys[i] || "").trim().toLowerCase();
+            const hn = String(hNames[i] || "").replace(/\*/g, "").trim().toLowerCase();
+            if ((sk && candidates.has(sk)) || (hn && candidates.has(hn))) {
+                addCandidate(sKeys[i]);
+                addCandidate(hNames[i]);
+            }
+        }
+    }
+
+    const foundKey = Object.keys(dicts).find((dk) => {
+        const c1 = String(dk || "").trim().toLowerCase();
+        const c2 = c1.replace(/\*/g, "").replace(/\s+/g, " ").trim();
+        return candidates.has(c1) || candidates.has(c2);
+    });
+    if (!foundKey) return null;
+
+    let d = dicts[foundKey];
+    if (d && !Array.isArray(d) && typeof d === "object") {
+        d = Object.values(d);
+    }
+    return Array.isArray(d) && d.length > 0 ? d : null;
+};
+
+window.matchValueInKaspiDict = function (rawValue, dictArray) {
+    const cleanRaw = String(rawValue === undefined || rawValue === null ? "" : rawValue)
+        .replace(/[\r\n]+/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+    const normalized = window.normalizeKaspiNumericTokens(cleanRaw);
+
+    if (!cleanRaw) {
+        return { matched: true, value: "", normalized: "", isDictField: Boolean(Array.isArray(dictArray) && dictArray.length > 0) };
+    }
+
+    if (!Array.isArray(dictArray) || dictArray.length === 0) {
+        return { matched: true, value: normalized || cleanRaw, normalized: normalized || cleanRaw, isDictField: false };
+    }
+
+    const lowerRaw = cleanRaw.toLowerCase();
+    const cmpTarget = window.canonicalizeForDictCompare(cleanRaw);
+
+    // 1. Точное совпадение (без учёта регистра/краевых пробелов)
+    for (let i = 0; i < dictArray.length; i++) {
+        const dv = String(dictArray[i] || "").trim();
+        if (!dv) continue;
+        if (dv.toLowerCase() === lowerRaw) {
+            return { matched: true, value: dv, normalized, isDictField: true };
+        }
+    }
+
+    // 2. Каноничное сравнение полной строки (учитывает ,/. , ×/х/x , хвостовые нули)
+    for (let i = 0; i < dictArray.length; i++) {
+        const dv = String(dictArray[i] || "").trim();
+        if (!dv) continue;
+        if (window.canonicalizeForDictCompare(dv) === cmpTarget) {
+            return { matched: true, value: dv, normalized, isDictField: true };
+        }
+    }
+
+    // 3. Каноничное сравнение базы до скобки (например, "67" -> "67 (307 кг)", "149/146" -> "149/146 (3250 кг)")
+    for (let i = 0; i < dictArray.length; i++) {
+        const dv = String(dictArray[i] || "").trim();
+        if (!dv || !dv.includes("(")) continue;
+        const baseDv = dv.split("(")[0].trim();
+        if (baseDv && window.canonicalizeForDictCompare(baseDv) === cmpTarget) {
+            return { matched: true, value: dv, normalized, isDictField: true };
+        }
+    }
+
+    // Не найдено в values — НЕ обнуляем и НЕ обрезаем, возвращаем нормализованное значение
+    return { matched: false, value: normalized || cleanRaw, normalized: normalized || cleanRaw, isDictField: true };
+};
+
+// Атомарная разбивка строки на числа (включая дробные 8.5 / 114,3), слова, разделители и пробелы
+function tokenizeAtomStream(inputStr) {
+    const s = String(inputStr || "").replace(/[\r\n]+/g, " ").replace(/\s+/g, " ").trim();
+    if (!s) return [];
+
+    const rawMatches = s.match(/\d+(?:[.,]\d+)?|[a-zA-Zа-яА-ЯёЁ]+|\s+|[^\s\wа-яА-ЯёЁ]/g) || [];
+    const atoms = rawMatches.map((text) => {
+        if (/^\s+$/.test(text)) {
+            return { text: " ", type: "SPACE", norm: " " };
+        }
+        if (/^\d+(?:[.,]\d+)?$/.test(text)) {
+            return { text, type: "N", norm: window.canonicalizeForDictCompare(text) };
+        }
+        if (/^[a-zA-Zа-яА-ЯёЁ]+$/.test(text)) {
+            return { text, type: "W", norm: text.toLowerCase() };
+        }
+        const normSep = text === "×" || text === "*" ? "x" : text;
+        return { text, type: "S", norm: normSep };
+    });
+
+    // Одиночная буква x / х между двумя числами (5x100, 5х114,3) — структурный разделитель "x"
+    for (let i = 1; i < atoms.length - 1; i++) {
+        if (atoms[i].type === "W" && (atoms[i].norm === "x" || atoms[i].norm === "х")) {
+            let prevIdx = i - 1;
+            while (prevIdx >= 0 && atoms[prevIdx].type === "SPACE") prevIdx--;
+            let nextIdx = i + 1;
+            while (nextIdx < atoms.length && atoms[nextIdx].type === "SPACE") nextIdx++;
+            if (prevIdx >= 0 && nextIdx < atoms.length && atoms[prevIdx].type === "N" && atoms[nextIdx].type === "N") {
+                atoms[i].type = "S";
+                atoms[i].norm = "x";
+            }
+        }
+    }
+
+    return atoms;
+}
+
+// Извлечение структурных масок (N/N, NxN/N, NxN/NxN...) и многословных фраз строго из выбранных колонок values
+function buildMaskAndPhraseIndex(selectedParams) {
+    const maskToParams = new Map();       // mask string (e.g. "N/N", "NxN/N") -> Set<param>
+    const maskLengths = new Set();        // длины масок в атомах без пробелов (>= 3)
+    const phraseList = [];                // [{ normPhrase, words, param }] отсортированы от самых длинных
+    const phraseSeen = new Set();
+    const paramDicts = {};                // param -> raw dict array
+    const paramCanonicalSets = {};        // param -> Set<canonical>
+    let numericParamCount = 0;
+
+    (selectedParams || []).forEach((param) => {
+        const dict = window.resolveKaspiDictForAttr(param);
+        if (!dict || dict.length === 0) return;
+
+        paramDicts[param] = dict;
+        const canonSet = new Set();
+        let hasNumeric = false;
+
+        dict.forEach((rawVal) => {
+            const fullStr = String(rawVal || "").trim();
+            if (!fullStr) return;
+
+            const baseStr = fullStr.includes("(") ? fullStr.split("(")[0].trim() : fullStr;
+            if (!baseStr) return;
+
+            canonSet.add(window.canonicalizeForDictCompare(fullStr));
+            canonSet.add(window.canonicalizeForDictCompare(baseStr));
+
+            if (/\d/.test(baseStr)) hasNumeric = true;
+
+            // 1. Многословные текстовые фразы из values (например, "под клин")
+            if (/\s/.test(baseStr) && /[a-zA-Zа-яА-ЯёЁ]/.test(baseStr)) {
+                const normPhrase = baseStr.replace(/\s+/g, " ").trim().toLowerCase();
+                const words = normPhrase.split(" ").filter(Boolean);
+                if (words.length >= 2) {
+                    const pKey = normPhrase + "||" + param;
+                    if (!phraseSeen.has(pKey)) {
+                        phraseSeen.add(pKey);
+                        phraseList.push({ normPhrase, words, param, len: normPhrase.length });
+                    }
+                }
+            }
+
+            // 2. Структурные маски с заменой чисел на N (например, 8/9 -> N/N, 5x100/114.3 -> NxN/N, 4x100/5x100 -> NxN/NxN)
+            const atoms = tokenizeAtomStream(baseStr).filter((a) => a.type !== "SPACE");
+            if (atoms.length >= 3) {
+                const hasN = atoms.some((a) => a.type === "N");
+                const hasS = atoms.some((a) => a.type === "S");
+                const allValidMaskAtoms = atoms.every((a) => a.type === "N" || a.type === "S");
+                if (hasN && hasS && allValidMaskAtoms) {
+                    const mask = atoms.map((a) => (a.type === "N" ? "N" : a.norm)).join("");
+                    if (!maskToParams.has(mask)) maskToParams.set(mask, new Set());
+                    maskToParams.get(mask).add(param);
+                    maskLengths.add(atoms.length);
+                }
+            }
+        });
+
+        paramCanonicalSets[param] = canonSet;
+        if (hasNumeric) numericParamCount++;
+    });
+
+    // Сортируем фразы и длины масок по убыванию (Longest-Match)
+    phraseList.sort((a, b) => b.words.length - a.words.length || b.len - a.len);
+    const sortedMaskLengths = Array.from(maskLengths).sort((a, b) => b - a);
+
+    return {
+        maskToParams,
+        sortedMaskLengths,
+        phraseList,
+        paramDicts,
+        paramCanonicalSets,
+        numericParamCount,
+    };
+}
+
 // Вспомогательная функция: Очистка словарей Каспи от приписок в скобках
 function getCleanDictValues(sysKey) {
-    const dict = window.kaspiDicts || {};
-    if (!dict[sysKey]) return [];
-    
-    return dict[sysKey].map(val => {
-        // Берем строку, отрезаем всё после первой скобки, убираем пробелы по краям и переводим в верхний регистр
-        return String(val).split('(')[0].trim().toUpperCase();
+    const dict = window.resolveKaspiDictForAttr(sysKey);
+    if (!dict) return [];
+
+    return dict.map((val) => {
+        return String(val).split("(")[0].trim().toUpperCase();
     });
 }
 
-// Главная функция пре-матчинга: режет строку, сверяет с базой
-function parseAndMatchTokens(rawString, colName) {
-    let cleanString = String(rawString).replace(/\s+/g, (match, offset, string) => {
-        const prev = string[offset - 1];
-        const next = string[offset + match.length];
-        if (prev && next && /\d/.test(prev) && /\d/.test(next)) return ' '; 
-        return ''; 
+// Единый расчёт сигнатуры структуры токенов (для карантина, Токенизатора и applyMapper2Logic)
+window.computeSmartTokenSignature = function (tokens) {
+    if (!Array.isArray(tokens) || tokens.length === 0) return "";
+    const sigTokens = tokens.filter((t) => {
+        const clean = String(t.cleanText || "").trim();
+        if (!clean) return false;
+        // Одиночные/буквенные разделители (например, "R", "LT", "PR") не меняют структурную сигнатуру,
+        // но многословные/активные фразы из словаря ("под клин") учитываем как токен значения
+        if (!t.isPhrase && /^[a-zA-Zа-яА-ЯёЁ]+$/.test(clean)) return false;
+        return true;
     });
+    return sigTokens
+        .map((t) => (/\d/.test(t.cleanText) || t.isPhrase ? "N" : "S"))
+        .join("-");
+};
 
-    const regex = /\d+|[a-zA-Zа-яА-ЯёЁ]+|[^\s\wа-яА-ЯёЁ]|\s/g;
-    let rawTokens = cleanString.match(regex) || [];
-    let processedTokens = [];
-    
-    let selectedParams = (window.mapper2State && window.mapper2State.smartRules) ? (window.mapper2State.smartRules[colName] || []) : [];
-    let validDicts = {};
-    selectedParams.forEach(param => {
-        validDicts[param] = typeof getCleanDictValues === "function" ? getCleanDictValues(param) : [];
-    });
+// Главная функция пре-матчинга: Longest-Match масочная и фразовая склейка + сверка с values выбранных колонок
+function parseAndMatchTokens(rawString, colName, explicitParams) {
+    const selectedParams = Array.isArray(explicitParams)
+        ? explicitParams
+        : (window.mapper2State && window.mapper2State.smartRules
+            ? window.mapper2State.smartRules[colName] || []
+            : []);
 
-    const findInDicts = (val, isDec = false) => {
-        let found = [];
-        Object.keys(validDicts).forEach(param => {
-            if (validDicts[param].includes(val) || (isDec && validDicts[param].some(v => Number(v) === Number(val)))) {
-                found.push(param);
+    const index = buildMaskAndPhraseIndex(selectedParams);
+    const atoms = tokenizeAtomStream(rawString);
+    if (atoms.length === 0) return [];
+
+    const findDictMatches = (candidateStr) => {
+        const cmp = window.canonicalizeForDictCompare(candidateStr);
+        if (!cmp) return [];
+        const matched = [];
+        Object.keys(index.paramCanonicalSets).forEach((param) => {
+            if (index.paramCanonicalSets[param].has(cmp)) {
+                matched.push(param);
             }
         });
-        return found;
+        return matched;
     };
 
+    const totalNumericAtoms = atoms.filter((a) => a.type === "N").length;
+    const processedTokens = [];
     let i = 0;
-    while (i < rawTokens.length) {
-        let text = rawTokens[i];
-        let isDecimal = false;
-        let matchedParams = [];
-        let skip = 1;
-        let mergedDisplay = text;
-        let matchValue = text.toUpperCase();
 
-        if (/\d/.test(text) && i + 2 < rawTokens.length) {
-            let nextTok = rawTokens[i + 1];
-            let nextNextTok = rawTokens[i + 2];
-            
-            if ((nextTok === '.' || nextTok === ',') && /\d/.test(nextNextTok)) {
-                let potentialMatch = (text + '.' + nextNextTok).toUpperCase();
-                let found = findInDicts(potentialMatch, true);
-                
-                if (found.length > 0) {
-                    isDecimal = true;
-                    matchedParams = found;
-                    mergedDisplay = text + nextTok + nextNextTok;
-                    matchValue = potentialMatch;
-                    skip = 3;
+    while (i < atoms.length) {
+        if (atoms[i].type === "SPACE") {
+            i++;
+            continue;
+        }
+
+        // 1. Жадная склейка многословных текстовых фраз из values (Longest-Match, например "под клин")
+        let phraseMatched = null;
+        if (index.phraseList.length > 0 && atoms[i].type === "W") {
+            for (let p = 0; p < index.phraseList.length; p++) {
+                const ph = index.phraseList[p];
+                let cursor = i;
+                let wordIdx = 0;
+                const collected = [];
+                while (cursor < atoms.length && wordIdx < ph.words.length) {
+                    if (atoms[cursor].type === "SPACE") {
+                        collected.push(" ");
+                        cursor++;
+                        continue;
+                    }
+                    if (atoms[cursor].norm === ph.words[wordIdx]) {
+                        collected.push(atoms[cursor].text);
+                        wordIdx++;
+                        cursor++;
+                    } else {
+                        break;
+                    }
+                }
+                if (wordIdx === ph.words.length) {
+                    const phraseText = collected.join("").replace(/\s+/g, " ").trim();
+                    const matchedParams = findDictMatches(phraseText);
+                    if (!matchedParams.includes(ph.param)) matchedParams.push(ph.param);
+                    phraseMatched = {
+                        endCursor: cursor,
+                        token: {
+                            text: phraseText,
+                            cleanText: phraseText.toUpperCase(),
+                            normalizedText: phraseText,
+                            isActive: true,
+                            isPhrase: true,
+                            isOutOfDict: false,
+                            matchedParams: matchedParams,
+                        },
+                    };
+                    break;
                 }
             }
         }
 
-        if (!isDecimal && text.trim() !== "") {
-             matchedParams = findInDicts(matchValue);
+        if (phraseMatched) {
+            processedTokens.push(phraseMatched.token);
+            i = phraseMatched.endCursor;
+            continue;
         }
 
-        // БОЛЬШЕ НИКАКОГО СЛИЯНИЯ МУСОРА! Каждый токен строго на своем месте.
+        // 2. Жадная склейка по структурным маскам из values выбранных колонок (Longest-Match: NxN/NxN -> NxN/N -> N/N)
+        let maskMatched = null;
+        if (atoms[i].type === "N" && index.sortedMaskLengths.length > 0) {
+            for (let li = 0; li < index.sortedMaskLengths.length; li++) {
+                const targetLen = index.sortedMaskLengths[li];
+
+                // Собираем targetLen не-пробельных атомов (без разрыва через пробелы, кроме опциональных пробелов вокруг / и x)
+                const sliceAtoms = [];
+                let cursor = i;
+                let validSlice = true;
+                while (cursor < atoms.length && sliceAtoms.length < targetLen) {
+                    const a = atoms[cursor];
+                    if (a.type === "SPACE") {
+                        // Пробел допустим только между числом и оператором / или x
+                        const prevA = sliceAtoms[sliceAtoms.length - 1];
+                        const nextA = atoms[cursor + 1];
+                        if (
+                            prevA &&
+                            nextA &&
+                            ((prevA.type === "N" && nextA.type === "S") ||
+                                (prevA.type === "S" && nextA.type === "N"))
+                        ) {
+                            cursor++;
+                            continue;
+                        }
+                        validSlice = false;
+                        break;
+                    }
+                    if (a.type !== "N" && a.type !== "S") {
+                        validSlice = false;
+                        break;
+                    }
+                    sliceAtoms.push(a);
+                    cursor++;
+                }
+
+                if (!validSlice || sliceAtoms.length !== targetLen) continue;
+                if (sliceAtoms[sliceAtoms.length - 1].type !== "N") continue;
+
+                const mask = sliceAtoms
+                    .map((a) => (a.type === "N" ? "N" : a.norm))
+                    .join("");
+                if (!index.maskToParams.has(mask)) continue;
+
+                const gluedRaw = sliceAtoms.map((a) => a.text).join("");
+                const exactParams = findDictMatches(gluedRaw);
+                const maskParams = Array.from(index.maskToParams.get(mask));
+
+                // Защита от пересклейки (например, 205/55R16 при 3 выбранных числовых параметрах Ширина+Высота+Диаметр):
+                // если точного совпадения в values нет, проверяем, не "съедает" ли склейка раздельные валидные параметры
+                if (exactParams.length === 0 && index.numericParamCount >= 3) {
+                    const gluedNumericCount = sliceAtoms.filter((a) => a.type === "N").length;
+                    const projectedTotalNumeric = totalNumericAtoms - gluedNumericCount + 1;
+                    if (projectedTotalNumeric < index.numericParamCount) {
+                        const subNums = sliceAtoms.filter((a) => a.type === "N");
+                        const distinctSubParamSets = subNums.map((sn) => findDictMatches(sn.text));
+                        const allSubMatchSomeParam = distinctSubParamSets.every((arr) => arr.length > 0);
+                        const unionParams = new Set(distinctSubParamSets.flat());
+                        if (allSubMatchSomeParam && unionParams.size >= subNums.length) {
+                            continue; // Оставляем раздельными (205 и 55 для разных колонок)
+                        }
+                    }
+                }
+
+                const normalizedText = window.normalizeKaspiNumericTokens(gluedRaw);
+                const finalParams = exactParams.length > 0 ? exactParams : maskParams;
+
+                maskMatched = {
+                    endCursor: cursor,
+                    token: {
+                        text: gluedRaw,
+                        cleanText: normalizedText.toUpperCase(),
+                        normalizedText: normalizedText,
+                        isActive: true,
+                        isMaskMatch: true,
+                        matchedMask: mask,
+                        isOutOfDict: exactParams.length === 0,
+                        matchedParams: finalParams,
+                    },
+                };
+                break;
+            }
+        }
+
+        if (maskMatched) {
+            processedTokens.push(maskMatched.token);
+            i = maskMatched.endCursor;
+            continue;
+        }
+
+        // 3. Одиночный токен (число включая дробное 10.00 / 22.5, слово или разделитель)
+        const atom = atoms[i];
+        const normalizedText =
+            atom.type === "N"
+                ? window.normalizeKaspiNumericTokens(atom.text)
+                : atom.text;
+        const matchedParams =
+            atom.type === "N" || atom.type === "W"
+                ? findDictMatches(atom.text)
+                : [];
+        const isNumberFallbackActive = atom.type === "N" && index.numericParamCount > 0;
+
         processedTokens.push({
-            text: mergedDisplay,
-            cleanText: matchValue,
-            isActive: matchedParams.length > 0, // Активен только если найден
-            matchedParams: matchedParams
+            text: atom.text,
+            cleanText: normalizedText.toUpperCase(),
+            normalizedText: normalizedText,
+            isActive: matchedParams.length > 0 || isNumberFallbackActive,
+            isOutOfDict: matchedParams.length === 0 && isNumberFallbackActive,
+            matchedParams: matchedParams,
         });
-        
-        i += skip;
+
+        i++;
     }
 
     return processedTokens;
 }
+
+// Расчёт якорных метаданных слота (якорь-разделитель вроде R, позиция с конца / с начала среди числовых токенов)
+window.computeSlotAnchorMeta = function (tokens, selectedUniversalIndices) {
+    if (!Array.isArray(tokens) || tokens.length === 0 || !Array.isArray(selectedUniversalIndices) || selectedUniversalIndices.length === 0) {
+        return null;
+    }
+
+    const valueTokens = tokens.filter((t) => /\d/.test(t.cleanText) || t.isPhrase);
+    const targetUni = selectedUniversalIndices[0];
+    const tokIdx = tokens.findIndex((t) => t.universalIndex === targetUni);
+    if (tokIdx === -1) return null;
+
+    const tok = tokens[tokIdx];
+    const prevTok = tokIdx > 0 ? tokens[tokIdx - 1] : null;
+    let afterDelimiter = "";
+    if (prevTok && !/\d/.test(prevTok.cleanText) && !prevTok.isPhrase) {
+        const cleanPrev = String(prevTok.cleanText || "").trim().toUpperCase();
+        if (cleanPrev && cleanPrev.length <= 4) {
+            afterDelimiter = cleanPrev;
+        }
+    }
+
+    const valPos = valueTokens.indexOf(tok);
+    return {
+        afterDelimiter: afterDelimiter,
+        fromStartValueIdx: valPos >= 0 ? valPos : -1,
+        fromEndValueIdx: valPos >= 0 ? valueTokens.length - 1 - valPos : -1,
+        matchedMask: tok.matchedMask || "",
+    };
+};
+
+// Извлечение значения токена по точному правилу сигнатуры или по якорю-разделителю / позиции с конца
+window.extractTokenByRuleOrAnchor = function (tokenObjects, colSplitRules, sig, primaryKey, dictArray) {
+    if (!Array.isArray(tokenObjects) || tokenObjects.length === 0 || !colSplitRules) {
+        return { matched: false, value: "" };
+    }
+
+    // 1. Точное совпадение по структурной сигнатуре
+    if (sig && colSplitRules[sig] && Object.prototype.hasOwnProperty.call(colSplitRules[sig], primaryKey)) {
+        const targetIndices = colSplitRules[sig][primaryKey];
+        if (targetIndices !== undefined && targetIndices !== null) {
+            const indicesArray = Array.isArray(targetIndices) ? targetIndices : [targetIndices];
+            const resultArr = [];
+            indicesArray.forEach((targetIdx) => {
+                const matchedTok = tokenObjects.find((t) => t.universalIndex === targetIdx);
+                if (matchedTok) resultArr.push(matchedTok.text);
+            });
+            return { matched: true, value: resultArr.join("") };
+        }
+        return { matched: true, value: "" };
+    }
+
+    // 2. Якорная привязка для смешанных строк с другим числом токенов
+    const anchorsMap = colSplitRules.__anchors__;
+    const anchor = anchorsMap && anchorsMap[primaryKey];
+    if (!anchor) {
+        return { matched: false, value: "" };
+    }
+
+    const valueTokens = tokenObjects.filter((t) => /\d/.test(t.cleanText) || t.isPhrase);
+
+    // 2а. Привязка по якорю-разделителю (например, число сразу после R, /, ET, DIA)
+    if (anchor.afterDelimiter) {
+        for (let i = 1; i < tokenObjects.length; i++) {
+            const prevClean = String(tokenObjects[i - 1].cleanText || "").trim().toUpperCase();
+            if (prevClean === anchor.afterDelimiter && (/\d/.test(tokenObjects[i].cleanText) || tokenObjects[i].isPhrase)) {
+                return { matched: true, value: tokenObjects[i].text };
+            }
+        }
+    }
+
+    // 2б. Если токен имел конкретную структурную маску (например, N/N или NxN/N)
+    if (anchor.matchedMask) {
+        const byMask = tokenObjects.find((t) => t.matchedMask === anchor.matchedMask);
+        if (byMask) return { matched: true, value: byMask.text };
+    }
+
+    // 2в. Позиция с конца (последний токен, например диаметр) или с начала (первый токен)
+    if (anchor.fromEndValueIdx === 0 && valueTokens.length > 0) {
+        return { matched: true, value: valueTokens[valueTokens.length - 1].text };
+    }
+    if (anchor.fromStartValueIdx === 0 && valueTokens.length > 0) {
+        return { matched: true, value: valueTokens[0].text };
+    }
+    if (anchor.fromEndValueIdx > 0 && valueTokens.length > anchor.fromEndValueIdx) {
+        return { matched: true, value: valueTokens[valueTokens.length - 1 - anchor.fromEndValueIdx].text };
+    }
+
+    // 2г. Уникальное совпадение со справочником values этой колонки
+    if (Array.isArray(dictArray) && dictArray.length > 0) {
+        const dictHits = valueTokens.filter((t) => window.matchValueInKaspiDict(t.text, dictArray).matched);
+        if (dictHits.length === 1) {
+            return { matched: true, value: dictHits[0].text };
+        }
+    }
+
+    return { matched: false, value: "" };
+};
 
 window.startTokenizerQueue = function() {
     // Если карантин пуст, идем дальше
@@ -810,7 +1303,7 @@ window.startTokenizerQueue = function() {
     const rawString = currentItem.rawString;
     const targetParams = window.mapper2State.smartRules[colName] || [];
 
-    // 🔥 ШАГ 4.1: Вызываем наше новое умное ядро! (Никакого дублирования кода)
+    // 🔥 ШАГ 4.1: Вызываем умное ядро с масочной и фразовой склейкой
     let tokens = typeof parseAndMatchTokens === "function" 
         ? parseAndMatchTokens(rawString, colName) 
         : [];
@@ -822,30 +1315,31 @@ window.startTokenizerQueue = function() {
     }
 
     // 🔥 ШАГ 4.2: Индексация "Smart Skeleton" относительно якоря (первого числа)
-    let anchorIndex = tokens.findIndex(t => /\d/.test(t.cleanText));
-    if (anchorIndex === -1) anchorIndex = 0; // Если чисел вообще нет (редкость), якорем будет первый элемент
+    let anchorIndex = tokens.findIndex(t => /\d/.test(t.cleanText) || t.isPhrase);
+    if (anchorIndex === -1) anchorIndex = 0;
 
     // Присваиваем универсальный индекс (Якорь = 100)
     tokens.forEach((tok, idx) => {
         tok.universalIndex = 100 + (idx - anchorIndex);
     });
 
-    // 🔥 ШАГ 4.3: Применяем трюк Сита — фильтруем буквы, чтобы структуры совпадали
-    const sigTokens = tokens.filter(t => !/^[a-zA-Zа-яА-ЯёЁ]+$/.test(t.cleanText));
-    const sig = sigTokens.map(t => /\d/.test(t.cleanText) ? 'N' : 'S').join('-');
+    // 🔥 ШАГ 4.3: Единый расчёт сигнатуры структуры
+    const sig = window.computeSmartTokenSignature(tokens);
 
     // Получаем все переводы для текущего языка
-    const tDataLink = translations[currentLang]["split_data_link"];
-    const tFound = translations[currentLang]["split_found_in_invoice"];
-    const tDistribute = translations[currentLang]["split_distribute_values"];
-    const tMatchesFor = translations[currentLang]["split_matches_for"];
-    const placeholderText = translations[currentLang]["split_click_above"];
-    const confirmBtnText = translations[currentLang]["split_confirm_structure"];
+    const lang = (typeof currentLang !== "undefined" && currentLang) || window.appCurrentLang || "ru";
+    const tDict = (typeof translations !== "undefined" && (translations[lang] || translations.ru)) || {};
+    const tDataLink = tDict.split_data_link || "";
+    const tFound = tDict.split_found_in_invoice || "";
+    const tDistribute = tDict.split_distribute_values || "";
+    const tMatchesFor = tDict.split_matches_for || "";
+    const placeholderText = tDict.split_click_above || "";
+    const confirmBtnText = tDict.split_confirm_structure || "";
 
-    // Отрисовываем интерфейс
+    // Отрисовываем интерфейс строго через DOM API / textContent (XSS-safe)
     const container = document.getElementById("smartMapperContainer");
     if (!container) return;
-    container.innerHTML = "";
+    container.textContent = "";
     container.style.display = "flex";
 
     const modal = document.createElement("div");
@@ -853,7 +1347,11 @@ window.startTokenizerQueue = function() {
 
     const header = document.createElement("div");
     header.className = "smart-modal-header";
-    header.innerHTML = `${tDataLink} <span style="color: var(--accent-blue);">${colName.toUpperCase()}</span>`;
+    header.appendChild(document.createTextNode(tDataLink + " "));
+    const colSpan = document.createElement("span");
+    colSpan.style.color = "var(--accent-blue)";
+    colSpan.textContent = String(colName || "").toUpperCase();
+    header.appendChild(colSpan);
     modal.appendChild(header);
 
     const body = document.createElement("div");
@@ -861,43 +1359,73 @@ window.startTokenizerQueue = function() {
 
     const tokensSection = document.createElement("div");
     tokensSection.className = "tokenizer-section";
-    tokensSection.innerHTML = `<div class="smart-question">${tFound} <strong>${rawString}</strong></div>`;
-    
+    const foundDiv = document.createElement("div");
+    foundDiv.className = "smart-question";
+    foundDiv.appendChild(document.createTextNode(tFound + " "));
+    const foundStrong = document.createElement("strong");
+    foundStrong.textContent = String(rawString || "");
+    foundDiv.appendChild(foundStrong);
+    tokensSection.appendChild(foundDiv);
+
     const tokensContainer = document.createElement("div");
     tokensContainer.className = "tokens-visual-container";
 
-    let activeTokensHtml = "";
     tokens.forEach((tok) => {
         if (tok.isActive) {
-            let tooltip = tok.matchedParams.length > 0 ? `${tMatchesFor} ${tok.matchedParams.join(', ')}` : "";
-            activeTokensHtml += `<button class="token-btn active-token" data-indices="${tok.universalIndex}" title="${tooltip}">${tok.text}</button>`;
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = "token-btn active-token";
+            btn.dataset.indices = String(tok.universalIndex);
+            if (tok.matchedParams && tok.matchedParams.length > 0) {
+                btn.title = `${tMatchesFor} ${tok.matchedParams.join(", ")}`;
+            }
+            btn.textContent = tok.text;
+            tokensContainer.appendChild(btn);
         } else {
-            activeTokensHtml += `<span class="token-text passive-token">${tok.text}</span>`;
+            const span = document.createElement("span");
+            span.className = "token-text passive-token";
+            span.textContent = tok.text;
+            tokensContainer.appendChild(span);
         }
     });
-    
-    tokensContainer.innerHTML = activeTokensHtml;
+
     tokensSection.appendChild(tokensContainer);
     body.appendChild(tokensSection);
 
     const paramsSection = document.createElement("div");
     paramsSection.className = "tokenizer-section";
-    paramsSection.innerHTML = `<div class="smart-question" style="margin-top: 20px;">${tDistribute}</div>`;
-    
+    const distDiv = document.createElement("div");
+    distDiv.className = "smart-question";
+    distDiv.style.marginTop = "20px";
+    distDiv.textContent = tDistribute;
+    paramsSection.appendChild(distDiv);
+
     const paramsGrid = document.createElement("div");
     paramsGrid.className = "params-match-grid";
 
-    targetParams.forEach(paramName => {
-        let suggestedToken = tokens.find(t => t.isActive && t.matchedParams.includes(paramName) && t.matchedParams.length === 1);
-        let defaultVal = suggestedToken ? suggestedToken.text : "";
-        let defaultIndices = suggestedToken ? suggestedToken.universalIndex : "";
+    targetParams.forEach((paramName) => {
+        const suggestedToken = tokens.find(
+            (t) => t.isActive && t.matchedParams.includes(paramName) && t.matchedParams.length === 1,
+        );
+        const defaultVal = suggestedToken ? suggestedToken.text : "";
+        const defaultIndices = suggestedToken ? String(suggestedToken.universalIndex) : "";
 
-        paramsGrid.innerHTML += `
-            <div class="match-row" data-param="${paramName}">
-                <div class="match-label">${paramName}</div>
-                <div class="match-dropzone" data-assigned-indices="${defaultIndices}">${defaultVal || placeholderText}</div>
-            </div>
-        `;
+        const rowEl = document.createElement("div");
+        rowEl.className = "match-row";
+        rowEl.dataset.param = paramName;
+
+        const labelEl = document.createElement("div");
+        labelEl.className = "match-label";
+        labelEl.textContent = paramName;
+
+        const zoneEl = document.createElement("div");
+        zoneEl.className = defaultVal ? "match-dropzone filled" : "match-dropzone";
+        zoneEl.dataset.assignedIndices = defaultIndices;
+        zoneEl.textContent = defaultVal || placeholderText;
+
+        rowEl.appendChild(labelEl);
+        rowEl.appendChild(zoneEl);
+        paramsGrid.appendChild(rowEl);
     });
 
     paramsSection.appendChild(paramsGrid);
@@ -905,56 +1433,63 @@ window.startTokenizerQueue = function() {
 
     const footer = document.createElement("div");
     footer.className = "smart-modal-footer";
-    footer.innerHTML = `
-        <button class="confirm-btn btn-primary green" id="btnNextToken" data-i18n="split_confirm_structure" style="width: 100%; padding: 12px; font-weight: bold; border-radius: 8px;">${confirmBtnText}</button>
-    `;
+    const confirmBtn = document.createElement("button");
+    confirmBtn.type = "button";
+    confirmBtn.className = "confirm-btn btn-primary green";
+    confirmBtn.id = "btnNextToken";
+    confirmBtn.setAttribute("data-i18n", "split_confirm_structure");
+    confirmBtn.style.cssText = "width: 100%; padding: 12px; font-weight: bold; border-radius: 8px;";
+    confirmBtn.textContent = confirmBtnText;
+    footer.appendChild(confirmBtn);
+
     body.appendChild(footer);
     modal.appendChild(body);
     container.appendChild(modal);
 
     let selectedTokenBtn = null;
-    const tokenBtns = tokensContainer.querySelectorAll('.active-token');
-    tokenBtns.forEach(btn => {
-        btn.addEventListener('click', function() {
-            tokenBtns.forEach(b => b.classList.remove('selected'));
-            this.classList.add('selected');
+    const tokenBtns = tokensContainer.querySelectorAll(".active-token");
+    tokenBtns.forEach((btn) => {
+        btn.addEventListener("click", function () {
+            tokenBtns.forEach((b) => b.classList.remove("selected"));
+            this.classList.add("selected");
             selectedTokenBtn = this;
         });
     });
 
-    const dropzones = paramsGrid.querySelectorAll('.match-dropzone');
-    dropzones.forEach(zone => {
-        zone.addEventListener('click', function() {
+    const dropzones = paramsGrid.querySelectorAll(".match-dropzone");
+    dropzones.forEach((zone) => {
+        zone.addEventListener("click", function () {
             if (selectedTokenBtn) {
                 this.textContent = selectedTokenBtn.textContent;
                 this.dataset.assignedIndices = selectedTokenBtn.dataset.indices;
-                this.classList.add('filled');
-                
-                selectedTokenBtn.classList.remove('selected');
-                selectedTokenBtn.classList.add('assigned');
+                this.classList.add("filled");
+
+                selectedTokenBtn.classList.remove("selected");
+                selectedTokenBtn.classList.add("assigned");
                 selectedTokenBtn = null;
             } else {
                 this.textContent = placeholderText;
                 this.dataset.assignedIndices = "";
-                this.classList.remove('filled');
+                this.classList.remove("filled");
             }
         });
     });
 
-    document.getElementById("btnNextToken").addEventListener("click", () => {
+    confirmBtn.addEventListener("click", () => {
         let ruleMap = {};
-        
-        dropzones.forEach(zone => {
-            const param = String(zone.closest('.match-row').dataset.param).trim();
+        let anchorMap = {};
+
+        dropzones.forEach((zone) => {
+            const param = String(zone.closest(".match-row").dataset.param).trim();
             const indicesStr = zone.dataset.assignedIndices;
-            
+
             if (indicesStr !== "") {
-                let sysId = param; 
-                
+                let sysId = param;
+
                 if (window.currentTemplateData && window.currentTemplateData.humanNames && window.currentTemplateData.systemKeys) {
                     const hNames = window.currentTemplateData.humanNames;
                     const sKeys = window.currentTemplateData.systemKeys;
-                    
+
                     for (let i = 0; i < hNames.length; i++) {
                         if (String(hNames[i]).trim() === param) {
                             sysId = sKeys[i];
@@ -962,14 +1497,25 @@ window.startTokenizerQueue = function() {
                         }
                     }
                 }
-                
-                ruleMap[sysId] = indicesStr.split(',').map(Number);
+
+                const parsedIndices = indicesStr.split(",").map(Number);
+                ruleMap[sysId] = parsedIndices;
+
+                const meta = window.computeSlotAnchorMeta(tokens, parsedIndices);
+                if (meta) {
+                    anchorMap[sysId] = meta;
+                }
             }
         });
 
         window.mapper2State.splitRules = window.mapper2State.splitRules || {};
         window.mapper2State.splitRules[colName] = window.mapper2State.splitRules[colName] || {};
         window.mapper2State.splitRules[colName][sig] = ruleMap;
+        window.mapper2State.splitRules[colName].__anchors__ = Object.assign(
+            {},
+            window.mapper2State.splitRules[colName].__anchors__ || {},
+            anchorMap,
+        );
 
         window.mapper2State.quarantine.shift();
         window.startTokenizerQueue();
