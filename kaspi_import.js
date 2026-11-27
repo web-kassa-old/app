@@ -878,6 +878,524 @@ function extractInvoiceSupplier(rows, dict) {
   return "";
 }
 
+function getSheetPreviewTranslator() {
+  const lang =
+    (typeof currentLang !== "undefined" && currentLang) ||
+    window.appCurrentLang ||
+    "ru";
+  const dict =
+    typeof translations !== "undefined" && translations[lang]
+      ? translations[lang]
+      : typeof translations !== "undefined" && translations.ru
+        ? translations.ru
+        : {};
+  const fallbackDict =
+    typeof translations !== "undefined" && translations.ru
+      ? translations.ru
+      : {};
+
+  return function tr(key, vars) {
+    let text =
+      dict[key] !== undefined
+        ? String(dict[key])
+        : fallbackDict[key] !== undefined
+          ? String(fallbackDict[key])
+          : "";
+    if (vars && typeof vars === "object") {
+      Object.keys(vars).forEach((k) => {
+        text = text.replace(new RegExp(`\\{${k}\\}`, "g"), String(vars[k]));
+      });
+    }
+    return text;
+  };
+}
+
+function formatSheetCellForPreview(cell) {
+  if (!cell) return "";
+  let raw = "";
+  if (typeof cell.w === "string" && cell.w.length > 0) {
+    raw = cell.w;
+  } else {
+    const v = cell.v;
+    if (v === undefined || v === null) {
+      if (typeof cell.f === "string" && cell.f.trim() !== "") {
+        raw = "=" + cell.f;
+      } else {
+        return "";
+      }
+    } else if (v instanceof Date) {
+      if (isNaN(v.getTime())) return "";
+      const dd = String(v.getDate()).padStart(2, "0");
+      const mm = String(v.getMonth() + 1).padStart(2, "0");
+      const yyyy = v.getFullYear();
+      raw = `${dd}.${mm}.${yyyy}`;
+    } else if (typeof v === "object") {
+      if (typeof v.text === "string") {
+        raw = v.text;
+      } else if (
+        v.result !== undefined &&
+        v.result !== null &&
+        typeof v.result !== "object"
+      ) {
+        raw = String(v.result);
+      } else if (Array.isArray(v.richText)) {
+        raw = v.richText
+          .map((part) => (part && typeof part.text === "string" ? part.text : ""))
+          .join("");
+      } else if (typeof v.w === "string") {
+        raw = v.w;
+      } else {
+        return "";
+      }
+    } else if (typeof v === "boolean") {
+      raw = v ? "TRUE" : "FALSE";
+    } else {
+      raw = String(v);
+    }
+  }
+  return raw.replace(/[\r\n]+/g, " ");
+}
+
+function buildSheetPreviewTable(rawSheet, totalRows, tr) {
+  const MAX_PREVIEW_ROWS = 30;
+  const MAX_PREVIEW_COLS = 25;
+
+  const makeEmptyResult = () => {
+    const emptyEl = document.createElement("div");
+    emptyEl.className = "sheet-preview-empty";
+    emptyEl.textContent = tr("sheet_preview_empty");
+    return { isEmpty: true, element: emptyEl, caption: "" };
+  };
+
+  if (!rawSheet || !rawSheet["!ref"]) {
+    return makeEmptyResult();
+  }
+
+  let range = null;
+  try {
+    range = XLSX.utils.decode_range(rawSheet["!ref"]);
+  } catch (_) {
+    return makeEmptyResult();
+  }
+
+  const maxScanRow = Math.min(Math.max(range.e.r, 0), MAX_PREVIEW_ROWS - 1);
+  const maxScanCol = Math.min(Math.max(range.e.c, 0), MAX_PREVIEW_COLS - 1);
+
+  let lastNonEmptyRow = -1;
+  let lastNonEmptyCol = -1;
+
+  for (let r = 0; r <= maxScanRow; r++) {
+    for (let c = 0; c <= maxScanCol; c++) {
+      const addr = XLSX.utils.encode_cell({ r, c });
+      const text = formatSheetCellForPreview(rawSheet[addr]);
+      if (text.trim() !== "") {
+        if (r > lastNonEmptyRow) lastNonEmptyRow = r;
+        if (c > lastNonEmptyCol) lastNonEmptyCol = c;
+      }
+    }
+  }
+
+  const rawMerges = Array.isArray(rawSheet["!merges"]) ? rawSheet["!merges"] : [];
+  rawMerges.forEach((m) => {
+    if (!m || !m.s || !m.e) return;
+    const sr = Math.min(m.s.r, m.e.r);
+    const er = Math.max(m.s.r, m.e.r);
+    const sc = Math.min(m.s.c, m.e.c);
+    const ec = Math.max(m.s.c, m.e.c);
+    if (sr > maxScanRow || sc > maxScanCol || er < 0 || ec < 0) return;
+
+    const anchorText = formatSheetCellForPreview(
+      rawSheet[XLSX.utils.encode_cell({ r: sr, c: sc })],
+    );
+    if (anchorText.trim() !== "") {
+      const clampedR = Math.min(er, MAX_PREVIEW_ROWS - 1);
+      const clampedC = Math.min(ec, MAX_PREVIEW_COLS - 1);
+      if (clampedR > lastNonEmptyRow) lastNonEmptyRow = clampedR;
+      if (clampedC > lastNonEmptyCol) lastNonEmptyCol = clampedC;
+    }
+  });
+
+  if (lastNonEmptyRow < 0 || lastNonEmptyCol < 0) {
+    return makeEmptyResult();
+  }
+
+  const previewCols = Math.min(MAX_PREVIEW_COLS, lastNonEmptyCol + 1);
+  const previewRows =
+    totalRows > MAX_PREVIEW_ROWS
+      ? MAX_PREVIEW_ROWS
+      : Math.max(1, Math.min(MAX_PREVIEW_ROWS, lastNonEmptyRow + 1));
+
+  const mergeMap = new Map();
+  const covered = new Set();
+
+  rawMerges.forEach((m) => {
+    if (!m || !m.s || !m.e) return;
+    const sr = Math.min(m.s.r, m.e.r);
+    const er = Math.max(m.s.r, m.e.r);
+    const sc = Math.min(m.s.c, m.e.c);
+    const ec = Math.max(m.s.c, m.e.c);
+    if (er < 0 || sr >= previewRows || ec < 0 || sc >= previewCols) return;
+
+    const r1 = Math.max(0, sr);
+    const c1 = Math.max(0, sc);
+    const r2 = Math.min(previewRows - 1, er);
+    const c2 = Math.min(previewCols - 1, ec);
+    const rowspan = r2 - r1 + 1;
+    const colspan = c2 - c1 + 1;
+    if (rowspan <= 1 && colspan <= 1) return;
+
+    let conflict = false;
+    for (let r = r1; r <= r2 && !conflict; r++) {
+      for (let c = c1; c <= c2; c++) {
+        const key = `${r}:${c}`;
+        if (covered.has(key) || mergeMap.has(key)) {
+          conflict = true;
+          break;
+        }
+      }
+    }
+    if (conflict) return;
+
+    mergeMap.set(`${r1}:${c1}`, { rowspan, colspan });
+    for (let r = r1; r <= r2; r++) {
+      for (let c = c1; c <= c2; c++) {
+        if (r === r1 && c === c1) continue;
+        covered.add(`${r}:${c}`);
+      }
+    }
+  });
+
+  const table = document.createElement("table");
+  table.className = "sheet-preview-table";
+
+  const thead = document.createElement("thead");
+  const headRow = document.createElement("tr");
+  const cornerTh = document.createElement("th");
+  cornerTh.className = "sheet-preview-corner";
+  headRow.appendChild(cornerTh);
+
+  for (let c = 0; c < previewCols; c++) {
+    const colTh = document.createElement("th");
+    colTh.className = "sheet-preview-col-hdr";
+    colTh.textContent = XLSX.utils.encode_col(c);
+    headRow.appendChild(colTh);
+  }
+  thead.appendChild(headRow);
+  table.appendChild(thead);
+
+  const tbody = document.createElement("tbody");
+  const bodyFrag = document.createDocumentFragment();
+
+  for (let r = 0; r < previewRows; r++) {
+    const trEl = document.createElement("tr");
+    const rowTh = document.createElement("th");
+    rowTh.className = "sheet-preview-row-hdr";
+    rowTh.textContent = String(r + 1);
+    trEl.appendChild(rowTh);
+
+    for (let c = 0; c < previewCols; c++) {
+      const key = `${r}:${c}`;
+      if (covered.has(key)) continue;
+
+      const td = document.createElement("td");
+      const mergeInfo = mergeMap.get(key);
+      if (mergeInfo) {
+        if (mergeInfo.rowspan > 1) td.rowSpan = mergeInfo.rowspan;
+        if (mergeInfo.colspan > 1) {
+          td.colSpan = mergeInfo.colspan;
+          td.classList.add("sheet-preview-merged-col");
+        }
+        td.classList.add("sheet-preview-merged");
+      }
+
+      const cell = rawSheet[XLSX.utils.encode_cell({ r, c })];
+      const text = formatSheetCellForPreview(cell);
+      td.textContent = text;
+      if (text) td.title = text;
+      if (cell && cell.t === "n") {
+        td.classList.add("sheet-preview-num");
+      }
+
+      trEl.appendChild(td);
+    }
+
+    bodyFrag.appendChild(trEl);
+  }
+
+  tbody.appendChild(bodyFrag);
+  table.appendChild(tbody);
+
+  const caption =
+    totalRows > previewRows
+      ? tr("sheet_preview_rows_shown", { shown: previewRows, total: totalRows })
+      : tr("sheet_preview_all_rows", { total: totalRows });
+
+  return { isEmpty: false, element: table, caption };
+}
+
+function openExcelSheetSelectorModal(validSheets, processedSheets, fileRegistryKey) {
+  return new Promise((resolve) => {
+    const tr = getSheetPreviewTranslator();
+
+    const existingOverlay = document.getElementById("sheet-selector-overlay");
+    if (existingOverlay && existingOverlay.parentNode) {
+      existingOverlay.parentNode.removeChild(existingOverlay);
+    }
+
+    const overlay = document.createElement("div");
+    overlay.id = "sheet-selector-overlay";
+    overlay.className = "sheet-selector-overlay";
+
+    const cleanup = () => {
+      document.removeEventListener("keydown", onKeyDown);
+      if (overlay.parentNode) {
+        overlay.parentNode.removeChild(overlay);
+      }
+    };
+
+    const cancelSelection = () => {
+      cleanup();
+      resolve(null);
+    };
+
+    const confirmSheet = (idx) => {
+      const sheetData = validSheets[idx];
+      if (!sheetData) return cancelSelection();
+
+      if (!processedSheets.includes(sheetData.name)) {
+        processedSheets.push(sheetData.name);
+        sessionStorage.setItem(fileRegistryKey, JSON.stringify(processedSheets));
+      }
+
+      cleanup();
+      window.showLoading(tr("inc_preparing_data"));
+      resolve({
+        name: sheetData.name,
+        rows: sheetData.rows,
+      });
+    };
+
+    const onKeyDown = (e) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        cancelSelection();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+
+    const renderListView = () => {
+      overlay.textContent = "";
+
+      const modal = document.createElement("div");
+      modal.className = "sheet-selector-modal";
+
+      const titleEl = document.createElement("div");
+      titleEl.className = "sheet-selector-title";
+      titleEl.textContent = tr("select_sheet_title");
+
+      const descEl = document.createElement("div");
+      descEl.className = "sheet-selector-desc";
+      descEl.textContent = tr("select_sheet_desc");
+
+      const hintEl = document.createElement("div");
+      hintEl.className = "sheet-selector-hint";
+      hintEl.textContent = tr("sheet_preview_tap_hint");
+
+      const listEl = document.createElement("div");
+      listEl.className = "sheet-selector-list";
+
+      const rowsLabel = tr("inc_sheet_rows");
+
+      validSheets.forEach((sheetData, idx) => {
+        const isProcessed = processedSheets.includes(sheetData.name);
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = isProcessed
+          ? "sheet-select-btn is-processed"
+          : "sheet-select-btn";
+
+        const nameSpan = document.createElement("span");
+        nameSpan.className = "sheet-select-name";
+        nameSpan.textContent = `${isProcessed ? "✅" : "📄"} ${sheetData.name}`;
+
+        const countSpan = document.createElement("span");
+        countSpan.className = "sheet-select-count";
+        countSpan.textContent = `${rowsLabel} ${sheetData.rows.length}`;
+
+        btn.appendChild(nameSpan);
+        btn.appendChild(countSpan);
+
+        btn.addEventListener("click", () => {
+          renderPreviewView(idx);
+        });
+
+        listEl.appendChild(btn);
+      });
+
+      const cancelBtn = document.createElement("button");
+      cancelBtn.type = "button";
+      cancelBtn.id = "cancel-sheet-select";
+      cancelBtn.className = "sheet-selector-cancel-btn";
+      cancelBtn.textContent = tr("btn_cancel");
+      cancelBtn.addEventListener("click", cancelSelection);
+
+      modal.appendChild(titleEl);
+      modal.appendChild(descEl);
+      modal.appendChild(hintEl);
+      modal.appendChild(listEl);
+      modal.appendChild(cancelBtn);
+      overlay.appendChild(modal);
+    };
+
+    const renderPreviewView = (initialIdx) => {
+      overlay.textContent = "";
+      let activeIdx = initialIdx;
+
+      const modal = document.createElement("div");
+      modal.className = "sheet-preview-modal";
+
+      const header = document.createElement("div");
+      header.className = "sheet-preview-header";
+
+      const headerLeft = document.createElement("div");
+      headerLeft.className = "sheet-preview-header-left";
+
+      const backIconBtn = document.createElement("button");
+      backIconBtn.type = "button";
+      backIconBtn.className = "sheet-preview-icon-btn";
+      backIconBtn.setAttribute("aria-label", tr("sheet_preview_back"));
+      backIconBtn.title = tr("sheet_preview_back");
+      backIconBtn.textContent = "←";
+      backIconBtn.addEventListener("click", renderListView);
+
+      const titleEl = document.createElement("div");
+      titleEl.className = "sheet-preview-title";
+      titleEl.textContent = tr("sheet_preview_title");
+
+      headerLeft.appendChild(backIconBtn);
+      headerLeft.appendChild(titleEl);
+
+      const closeIconBtn = document.createElement("button");
+      closeIconBtn.type = "button";
+      closeIconBtn.className = "sheet-preview-icon-btn";
+      closeIconBtn.setAttribute("aria-label", tr("btn_cancel"));
+      closeIconBtn.title = tr("btn_cancel");
+      closeIconBtn.textContent = "✕";
+      closeIconBtn.addEventListener("click", cancelSelection);
+
+      header.appendChild(headerLeft);
+      header.appendChild(closeIconBtn);
+
+      const tabsBar = document.createElement("div");
+      tabsBar.className = "sheet-preview-tabs";
+
+      const tabButtons = [];
+
+      const viewport = document.createElement("div");
+      viewport.className = "sheet-preview-viewport";
+
+      const metaEl = document.createElement("div");
+      metaEl.className = "sheet-preview-meta";
+
+      const renderActiveSheet = (idx) => {
+        activeIdx = idx;
+        tabButtons.forEach((tabBtn, i) => {
+          tabBtn.classList.toggle("is-active", i === activeIdx);
+        });
+
+        const activeTab = tabButtons[activeIdx];
+        if (activeTab && typeof activeTab.scrollIntoView === "function") {
+          activeTab.scrollIntoView({
+            behavior: "smooth",
+            inline: "nearest",
+            block: "nearest",
+          });
+        }
+
+        const sheetData = validSheets[activeIdx];
+        viewport.textContent = "";
+        viewport.scrollTop = 0;
+        viewport.scrollLeft = 0;
+
+        const preview = buildSheetPreviewTable(
+          sheetData.rawSheet,
+          sheetData.rows.length,
+          tr,
+        );
+        viewport.appendChild(preview.element);
+
+        if (preview.caption) {
+          metaEl.textContent = preview.caption;
+          metaEl.style.display = "block";
+        } else {
+          metaEl.textContent = "";
+          metaEl.style.display = "none";
+        }
+      };
+
+      validSheets.forEach((sheetData, idx) => {
+        const isProcessed = processedSheets.includes(sheetData.name);
+        const tabBtn = document.createElement("button");
+        tabBtn.type = "button";
+        tabBtn.className = isProcessed
+          ? "sheet-preview-tab is-processed"
+          : "sheet-preview-tab";
+
+        const labelSpan = document.createElement("span");
+        labelSpan.textContent = isProcessed
+          ? `✅ ${sheetData.name}`
+          : sheetData.name;
+
+        const countSpan = document.createElement("span");
+        countSpan.className = "sheet-preview-tab-count";
+        countSpan.textContent = `(${sheetData.rows.length})`;
+
+        tabBtn.appendChild(labelSpan);
+        tabBtn.appendChild(countSpan);
+
+        tabBtn.addEventListener("click", () => {
+          if (activeIdx !== idx) {
+            renderActiveSheet(idx);
+          }
+        });
+
+        tabButtons.push(tabBtn);
+        tabsBar.appendChild(tabBtn);
+      });
+
+      const actionsBar = document.createElement("div");
+      actionsBar.className = "sheet-preview-actions";
+
+      const cancelBtn = document.createElement("button");
+      cancelBtn.type = "button";
+      cancelBtn.className = "sheet-preview-btn sheet-preview-btn--secondary";
+      cancelBtn.textContent = tr("btn_cancel");
+      cancelBtn.addEventListener("click", cancelSelection);
+
+      const confirmBtn = document.createElement("button");
+      confirmBtn.type = "button";
+      confirmBtn.className = "sheet-preview-btn sheet-preview-btn--primary";
+      confirmBtn.textContent = tr("sheet_preview_confirm");
+      confirmBtn.addEventListener("click", () => confirmSheet(activeIdx));
+
+      actionsBar.appendChild(cancelBtn);
+      actionsBar.appendChild(confirmBtn);
+
+      modal.appendChild(header);
+      modal.appendChild(tabsBar);
+      modal.appendChild(viewport);
+      modal.appendChild(metaEl);
+      modal.appendChild(actionsBar);
+      overlay.appendChild(modal);
+
+      renderActiveSheet(initialIdx);
+    };
+
+    renderListView();
+    document.body.appendChild(overlay);
+  });
+}
+
 window.processInvoiceFile = async function () {
   const fileInput = document.getElementById("invoiceFileInput");
   if (!fileInput || !fileInput.files.length)
@@ -1023,16 +1541,20 @@ window.processInvoiceFile = async function () {
 
     for (let sName of workbook.SheetNames) {
       let sheet = workbook.Sheets[sName];
+      if (!sheet) continue;
 
-      // 1. Распаковываем объединенные ячейки (!merges)
-      if (sheet["!merges"]) {
-        sheet["!merges"].forEach((merge) => {
+      // Клонируем лист для распаковки !merges под парсер, чтобы оригинал остался «как есть» для предпросмотра
+      let unpackedSheet = Object.assign({}, sheet);
+
+      // 1. Распаковываем объединенные ячейки (!merges) в копии листа
+      if (unpackedSheet["!merges"]) {
+        unpackedSheet["!merges"].forEach((merge) => {
           let startCellAddress = XLSX.utils.encode_cell({
             c: merge.s.c,
             r: merge.s.r,
           });
-          let mainVal = sheet[startCellAddress]
-            ? sheet[startCellAddress].v
+          let mainVal = unpackedSheet[startCellAddress]
+            ? unpackedSheet[startCellAddress].v
             : undefined;
 
           if (mainVal !== undefined) {
@@ -1040,21 +1562,21 @@ window.processInvoiceFile = async function () {
               for (let c = merge.s.c; c <= merge.e.c; c++) {
                 if (r === merge.s.r && c === merge.s.c) continue;
                 let targetCell = XLSX.utils.encode_cell({ c: c, r: r });
-                sheet[targetCell] = { t: "s", v: mainVal };
+                unpackedSheet[targetCell] = { t: "s", v: mainVal };
               }
             }
           }
         });
       }
 
-      let sRows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+      let sRows = XLSX.utils.sheet_to_json(unpackedSheet, { header: 1 });
       if (sRows && sRows.length > 0) {
         // Проверяем, есть ли на листе реальные данные, а не просто пустые строки
         let hasContent = sRows.some((row) =>
           row.some((cell) => String(cell || "").trim() !== ""),
         );
         if (hasContent) {
-          validSheets.push({ name: sName, rows: sRows });
+          validSheets.push({ name: sName, rows: sRows, rawSheet: sheet });
         }
       }
     }
@@ -1066,133 +1588,28 @@ window.processInvoiceFile = async function () {
     if (validSheets.length === 0)
       throw new Error(tLang.inc_empty_file || "Пустой файл");
 
-    // ⚡ ВЫБОР ЛИСТА С ИСПОЛЬЗОВАНИЕМ PROMISE (СТАВИМ КОД НА ПАУЗУ)
-    let selectedSheetInfo = await new Promise((resolve) => {
-      // Если лист всего один, не дергаем пользователя и идем дальше
-      if (validSheets.length === 1) {
-        resolve({ name: validSheets[0].name, rows: validSheets[0].rows });
-        return;
-      }
-
+    // ⚡ ВЫБОР ЛИСТА С ПРЕДПРОСМОТРОМ «КАК ЕСТЬ» (СТАВИМ КОД НА ПАУЗУ)
+    let selectedSheetInfo = null;
+    if (validSheets.length === 1) {
+      selectedSheetInfo = {
+        name: validSheets[0].name,
+        rows: validSheets[0].rows,
+      };
+    } else {
       // Инициализируем реестр обработанных листов для этого файла
       const fileRegistryKey = `processed_${window.mapper2State.fileName}`;
       const processedSheets = JSON.parse(
         sessionStorage.getItem(fileRegistryKey) || "[]",
       );
 
-      // Если листов несколько - прячем системный лоадер и показываем окно выбора
+      // Если листов несколько — прячем системный лоадер и открываем выбор/предпросмотр
       window.hideLoading();
-
-      const t =
-        typeof translations !== "undefined" && translations[currentLang]
-          ? translations[currentLang]
-          : {};
-      const titleText = t.select_sheet_title || "Выберите лист с данными";
-      const descText =
-        t.select_sheet_desc ||
-        "В файле найдено несколько листов. Выберите тот, на котором находится таблица товаров:";
-      const cancelText = t.btn_cancel || "ОТМЕНА";
-      const rowsText = t.inc_sheet_rows || "Строк:";
-
-      // Создаем оверлей в стиле приложения
-      const overlay = document.createElement("div");
-      overlay.id = "sheet-selector-overlay";
-      overlay.style =
-        "position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); z-index: 999999; display: flex; align-items: center; justify-content: center;";
-
-      const modal = document.createElement("div");
-      modal.style =
-        "background: var(--bg-panel, #1e1e1e); border: 1px solid var(--border-light, #333); border-radius: 12px; padding: 20px; width: 90%; max-width: 420px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); color: var(--text-main, #fff); font-family: inherit;";
-
-      let html = `
-            <div style="font-size: 16px; font-weight: bold; margin-bottom: 8px; color: var(--text-main);">${titleText}</div>
-            <div style="font-size: 12px; color: var(--text-muted, #999); margin-bottom: 20px; line-height: 1.4;">${descText}</div>
-            <div style="display: flex; flex-direction: column; gap: 10px; max-height: 50vh; overflow-y: auto; padding-right: 5px;">
-        `;
-
-      validSheets.forEach((sheetData, idx) => {
-        const isProcessed = processedSheets.includes(sheetData.name);
-        const btnStyle = isProcessed
-          ? "background: rgba(76, 175, 80, 0.1); border: 1px solid rgba(76, 175, 80, 0.3); color: var(--text-main, #fff); padding: 14px 15px; border-radius: 8px; text-align: left; font-size: 14px; font-weight: bold; cursor: pointer; transition: 0.2s; display: flex; justify-content: space-between; align-items: center; opacity: 0.8;"
-          : "background: var(--bg-card, #252525); border: 1px solid var(--border-light, #333); color: var(--text-main, #fff); padding: 14px 15px; border-radius: 8px; text-align: left; font-size: 14px; font-weight: bold; cursor: pointer; transition: 0.2s; display: flex; justify-content: space-between; align-items: center;";
-
-        const icon = isProcessed ? "✅" : "📄";
-
-        html += `
-                <button class="sheet-select-btn" data-idx="${idx}" data-name="${sheetData.name}" style="${btnStyle}">
-                    <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 70%;">${icon} ${sheetData.name}</span>
-                    <span style="font-size: 11px; color: var(--text-muted, #777); font-weight: normal; background: rgba(255,255,255,0.05); padding: 2px 6px; border-radius: 4px;">${rowsText} ${sheetData.rows.length}</span>
-                </button>
-            `;
-      });
-
-      html += `</div>
-            <button id="cancel-sheet-select" style="margin-top: 20px; width: 100%; background: rgba(255, 68, 68, 0.1); border: 1px solid #ff4444; color: #ff4444; padding: 12px; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s;">
-                ${cancelText}
-            </button>
-        `;
-
-      modal.innerHTML = html;
-      overlay.appendChild(modal);
-      document.body.appendChild(overlay);
-
-      // Интерактивность кнопок
-      const btns = modal.querySelectorAll(".sheet-select-btn");
-      btns.forEach((btn) => {
-        const isProcessed = processedSheets.includes(
-          btn.getAttribute("data-name"),
-        );
-
-        btn.onmouseover = () => {
-          btn.style.borderColor = isProcessed
-            ? "var(--accent-green, #4CAF50)"
-            : "var(--accent-blue, #3498db)";
-          btn.style.background = isProcessed
-            ? "rgba(76, 175, 80, 0.2)"
-            : "var(--bg-hover, #2a2a2a)";
-        };
-        btn.onmouseout = () => {
-          btn.style.borderColor = isProcessed
-            ? "rgba(76, 175, 80, 0.3)"
-            : "var(--border-light, #333)";
-          btn.style.background = isProcessed
-            ? "rgba(76, 175, 80, 0.1)"
-            : "var(--bg-card, #252525)";
-        };
-        btn.onclick = () => {
-          const sheetName = btn.getAttribute("data-name");
-          // Записываем лист в реестр обработанных
-          if (!processedSheets.includes(sheetName)) {
-            processedSheets.push(sheetName);
-            sessionStorage.setItem(
-              fileRegistryKey,
-              JSON.stringify(processedSheets),
-            );
-          }
-
-          document.body.removeChild(overlay);
-          window.showLoading(t.inc_preparing_data || "Подготовка данных..."); // Возвращаем системный лоадер
-          resolve({
-            name: sheetName,
-            rows: validSheets[btn.getAttribute("data-idx")].rows,
-          });
-        };
-      });
-
-      const cancelBtn = modal.querySelector("#cancel-sheet-select");
-      cancelBtn.onmouseover = () => {
-        cancelBtn.style.background = "#ff4444";
-        cancelBtn.style.color = "#fff";
-      };
-      cancelBtn.onmouseout = () => {
-        cancelBtn.style.background = "rgba(255, 68, 68, 0.1)";
-        cancelBtn.style.color = "#ff4444";
-      };
-      cancelBtn.onclick = () => {
-        document.body.removeChild(overlay);
-        resolve(null);
-      };
-    });
+      selectedSheetInfo = await openExcelSheetSelectorModal(
+        validSheets,
+        processedSheets,
+        fileRegistryKey,
+      );
+    }
 
     if (!selectedSheetInfo) return; // Если пользователь нажал "Отмена", прерываем весь импорт
 

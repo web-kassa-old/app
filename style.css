@@ -2024,3 +2024,439 @@ button,
     color: var(--text-dark);
     border: 1px solid var(--accent-green);
 }
+
+/* =========================================
+   ВЫБОР ЛИСТА EXCEL И ПРЕДПРОСМОТР «КАК ЕСТЬ»
+   ========================================= */
+
+.sheet-selector-overlay {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    height: 100dvh;
+    background: var(--bg-overlay);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    z-index: 999999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px;
+    box-sizing: border-box;
+}
+
+.sheet-selector-modal {
+    background: var(--bg-modal);
+    border: 1px solid var(--border-light);
+    border-radius: 12px;
+    padding: 18px;
+    width: 92vw;
+    max-width: 420px;
+    max-height: 88vh;
+    max-height: 88dvh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+    color: var(--text-main);
+    box-sizing: border-box;
+}
+
+.sheet-selector-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text-main);
+    margin-bottom: 6px;
+}
+
+.sheet-selector-desc {
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.4;
+    margin-bottom: 4px;
+    font-weight: 400;
+}
+
+.sheet-selector-hint {
+    font-size: 11px;
+    color: var(--accent-blue);
+    margin-bottom: 14px;
+    font-weight: 400;
+}
+
+.sheet-selector-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-right: 2px;
+}
+
+.sheet-select-btn {
+    background: var(--bg-card);
+    border: 1px solid var(--border-light);
+    color: var(--text-main);
+    padding: 13px 14px;
+    border-radius: 8px;
+    text-align: left;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.sheet-select-btn:hover,
+.sheet-select-btn:active {
+    background: var(--bg-hover);
+    border-color: var(--accent-blue);
+}
+
+.sheet-select-btn.is-processed {
+    background: var(--bg-success-dim);
+    border-color: var(--accent-green);
+}
+
+.sheet-select-btn.is-processed:hover,
+.sheet-select-btn.is-processed:active {
+    border-color: var(--accent-green);
+    opacity: 0.92;
+}
+
+.sheet-select-name {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+    flex: 1;
+}
+
+.sheet-select-count {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-weight: 400;
+    background: var(--bg-hover);
+    border: 1px solid var(--border-main);
+    padding: 2px 7px;
+    border-radius: 5px;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.sheet-selector-cancel-btn {
+    margin-top: 16px;
+    width: 100%;
+    background: var(--bg-danger-dim);
+    border: 1px solid var(--accent-red);
+    color: var(--accent-red);
+    padding: 12px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 700;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: opacity 0.15s ease;
+}
+
+.sheet-selector-cancel-btn:active {
+    opacity: 0.85;
+}
+
+/* Полноширинный экран предпросмотра листа (Вариант Б) */
+.sheet-preview-modal {
+    background: var(--bg-modal);
+    border: 1px solid var(--border-light);
+    border-radius: 12px;
+    width: 95vw;
+    max-width: 1000px;
+    height: 88vh;
+    height: 88dvh;
+    max-height: 92vh;
+    max-height: 92dvh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 12px 34px rgba(0, 0, 0, 0.5);
+    color: var(--text-main);
+    box-sizing: border-box;
+}
+
+.sheet-preview-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 10px 12px 8px;
+    background: var(--bg-panel);
+    border-bottom: 1px solid var(--border-main);
+    flex-shrink: 0;
+}
+
+.sheet-preview-header-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    flex: 1;
+}
+
+.sheet-preview-icon-btn {
+    background: var(--bg-hover);
+    border: 1px solid var(--border-light);
+    color: var(--text-main);
+    width: 30px;
+    height: 30px;
+    border-radius: 7px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    flex-shrink: 0;
+    line-height: 1;
+}
+
+.sheet-preview-icon-btn:active {
+    opacity: 0.8;
+}
+
+.sheet-preview-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-main);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Компактные вкладки (табы) листов */
+.sheet-preview-tabs {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 10px;
+    background: var(--bg-body);
+    border-bottom: 1px solid var(--border-light);
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    flex-shrink: 0;
+    scrollbar-width: none;
+}
+
+.sheet-preview-tabs::-webkit-scrollbar {
+    display: none;
+}
+
+.sheet-preview-tab {
+    background: var(--bg-card);
+    border: 1px solid var(--border-light);
+    color: var(--text-main);
+    padding: 6px 10px;
+    border-radius: 7px;
+    font-size: 12px;
+    font-weight: 700;
+    white-space: nowrap;
+    cursor: pointer;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.sheet-preview-tab-count {
+    font-weight: 400;
+    color: var(--text-muted);
+    font-size: 11px;
+}
+
+.sheet-preview-tab.is-processed {
+    border-color: var(--accent-green);
+}
+
+.sheet-preview-tab.is-active {
+    background: var(--stock-bg);
+    border-color: var(--stock-border);
+    color: var(--stock-text);
+}
+
+.sheet-preview-tab.is-active .sheet-preview-tab-count {
+    color: var(--stock-text);
+    opacity: 0.85;
+}
+
+/* Область двумерного скролла таблицы Excel */
+.sheet-preview-viewport {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    background: var(--bg-body);
+    position: relative;
+}
+
+.sheet-preview-table {
+    border-collapse: separate;
+    border-spacing: 0;
+    width: max-content;
+    min-width: 100%;
+    font-size: 11.5px;
+    line-height: 1.3;
+    color: var(--text-main);
+}
+
+.sheet-preview-table th,
+.sheet-preview-table td {
+    border-right: 1px solid var(--border-main);
+    border-bottom: 1px solid var(--border-main);
+    padding: 5px 8px;
+    vertical-align: middle;
+    box-sizing: border-box;
+}
+
+.sheet-preview-corner {
+    position: sticky;
+    top: 0;
+    left: 0;
+    z-index: 4;
+    background: var(--bg-hover);
+    border-right: 1px solid var(--border-light);
+    border-bottom: 1px solid var(--border-light);
+    min-width: 34px;
+    width: 34px;
+}
+
+.sheet-preview-col-hdr {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    background: var(--bg-hover);
+    color: var(--text-muted);
+    font-size: 11px;
+    font-weight: 700;
+    text-align: center;
+    border-right: 1px solid var(--border-light);
+    border-bottom: 1px solid var(--border-light);
+    user-select: none;
+    white-space: nowrap;
+}
+
+.sheet-preview-row-hdr {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    background: var(--bg-hover);
+    color: var(--text-muted);
+    font-size: 11px;
+    font-weight: 700;
+    text-align: center;
+    min-width: 34px;
+    width: 34px;
+    border-right: 1px solid var(--border-light);
+    border-bottom: 1px solid var(--border-light);
+    user-select: none;
+}
+
+.sheet-preview-table td {
+    background: var(--bg-card);
+    color: var(--text-main);
+    font-weight: 400;
+    max-width: 180px;
+    min-width: 44px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.sheet-preview-table td.sheet-preview-num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.sheet-preview-table td.sheet-preview-merged {
+    background: var(--bg-panel);
+    border-right-color: var(--border-light);
+    border-bottom-color: var(--border-light);
+}
+
+.sheet-preview-table td.sheet-preview-merged-col {
+    max-width: 320px;
+}
+
+.sheet-preview-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    height: 100%;
+    min-height: 160px;
+    padding: 24px 16px;
+    color: var(--text-muted);
+    font-size: 13px;
+    font-weight: 400;
+}
+
+/* Нижняя подпись и кнопки */
+.sheet-preview-meta {
+    padding: 6px 12px;
+    font-size: 11px;
+    color: var(--text-muted);
+    background: var(--bg-panel);
+    border-top: 1px solid var(--border-main);
+    font-weight: 400;
+    flex-shrink: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.sheet-preview-actions {
+    display: flex;
+    gap: 10px;
+    padding: 10px 12px;
+    padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+    background: var(--bg-panel);
+    border-top: 1px solid var(--border-light);
+    flex-shrink: 0;
+}
+
+.sheet-preview-btn {
+    padding: 12px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    cursor: pointer;
+    box-sizing: border-box;
+    transition: opacity 0.15s ease;
+    white-space: nowrap;
+}
+
+.sheet-preview-btn:active {
+    opacity: 0.85;
+}
+
+.sheet-preview-btn--secondary {
+    flex: 1;
+    background: var(--bg-hover);
+    color: var(--text-main);
+    border: 1px solid var(--border-light);
+}
+
+.sheet-preview-btn--primary {
+    flex: 1.6;
+    background: var(--accent-green);
+    color: var(--text-dark);
+    border: 1px solid var(--accent-green);
+}

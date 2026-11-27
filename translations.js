@@ -589,6 +589,13 @@ const translations = {
       "Буфер синхронизации переполнен. Откройте таблицу Trade Control → ⚙️ Касса → 🛡️ Активировать архивацию, чтобы освободить место.",
     folder_recover_queued:
       "Создание папки поставлено в очередь синхронизации Диска (до 5 минут).",
+    sheet_preview_title: "Предпросмотр листа",
+    sheet_preview_back: "Назад",
+    sheet_preview_confirm: "Выбрать этот лист",
+    sheet_preview_rows_shown: "Показаны первые {shown} из {total} строк",
+    sheet_preview_all_rows: "Всего строк: {total}",
+    sheet_preview_empty: "На этом листе нет данных для отображения",
+    sheet_preview_tap_hint: "Нажмите на лист для предпросмотра",
   },
   kz: {
     btn_sale: "САТУ",
@@ -1180,5 +1187,12 @@ const translations = {
       "Синхрондау буфері толып кетті. Орын босату үшін Trade Control кестесінде ⚙️ Касса → 🛡️ Архивтеуді іске қосу түймесін басыңыз.",
     folder_recover_queued:
       "Қалтаны жасау Google Диск синхрондау кезегіне қойылды (5 минутқа дейін).",
+    sheet_preview_title: "Парақты алдын ала қарау",
+    sheet_preview_back: "Артқа",
+    sheet_preview_confirm: "Осы парақты таңдау",
+    sheet_preview_rows_shown: "Алғашқы {shown} жол көрсетілген (барлығы {total})",
+    sheet_preview_all_rows: "Барлық жолдар: {total}",
+    sheet_preview_empty: "Бұл парақта көрсетілетін деректер жоқ",
+    sheet_preview_tap_hint: "Алдын ала қарау үшін парақты басыңыз",
   },
 };
